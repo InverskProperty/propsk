@@ -49,15 +49,27 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
 
     /**
      * Find transactions for properties owned by customer (for statement generation)
+     * Includes INCOMING_PAYMENT records (which have invoiceId=NULL and propertyId=NULL)
+     * Matches INCOMING_PAYMENT by property_name instead of propertyId
      */
     @Query("""
         SELECT ut FROM UnifiedTransaction ut
-        WHERE ut.propertyId IN (
-            SELECT cpa.property.id FROM CustomerPropertyAssignment cpa
-            WHERE cpa.customer.customerId = :customerId
-              AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+        WHERE (
+            ut.propertyId IN (
+                SELECT cpa.property.id FROM CustomerPropertyAssignment cpa
+                WHERE cpa.customer.customerId = :customerId
+                  AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+            )
+            OR (
+                ut.paypropDataSource = 'INCOMING_PAYMENT'
+                AND ut.propertyName IN (
+                    SELECT p.propertyName FROM CustomerPropertyAssignment cpa
+                    JOIN cpa.property p
+                    WHERE cpa.customer.customerId = :customerId
+                      AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+                )
+            )
         )
-        AND ut.invoiceId IS NOT NULL
         AND ut.transactionDate BETWEEN :startDate AND :endDate
         ORDER BY ut.transactionDate, ut.id
     """)
