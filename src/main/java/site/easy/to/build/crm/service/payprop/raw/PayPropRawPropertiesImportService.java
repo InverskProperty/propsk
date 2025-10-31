@@ -101,7 +101,7 @@ public class PayPropRawPropertiesImportService {
         
         String insertSql = """
             INSERT INTO payprop_export_properties (
-                payprop_id, name, description, create_date, modify_date, 
+                payprop_id, name, description, create_date, modify_date,
                 start_date, end_date, property_image,
                 address_id, address_first_line, address_second_line, address_third_line,
                 address_city, address_state, address_country_code, address_postal_code,
@@ -111,16 +111,19 @@ public class PayPropRawPropertiesImportService {
                 settings_verify_payments, settings_minimum_balance, settings_listing_from,
                 settings_approval_required,
                 commission_percentage, commission_amount, commission_id,
+                contract_amount, balance_amount,
                 imported_at, last_modified_at, sync_status
             ) VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 'active'
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 'active'
             )
             ON DUPLICATE KEY UPDATE
                 name = VALUES(name),
                 description = VALUES(description),
                 modify_date = VALUES(modify_date),
                 settings_monthly_payment = VALUES(settings_monthly_payment),
+                contract_amount = VALUES(contract_amount),
+                balance_amount = VALUES(balance_amount),
                 last_modified_at = VALUES(last_modified_at)
             """;
         
@@ -201,8 +204,9 @@ public class PayPropRawPropertiesImportService {
         stmt.setTimestamp(paramIndex++, getTimestampValue(address, "created"));
         stmt.setTimestamp(paramIndex++, getTimestampValue(address, "modified"));
         
-        // Settings object (CRITICAL - Contains £995!)
-        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(settings, "monthly_payment")); // £995
+        // Settings object
+        // NOTE: PayProp returns monthly_payment_required at root level, NOT in settings
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(property, "monthly_payment_required"));
         setBooleanParameter(stmt, paramIndex++, getBooleanValue(settings, "enable_payments"));
         setBooleanParameter(stmt, paramIndex++, getBooleanValue(settings, "hold_owner_funds"));
         setBooleanParameter(stmt, paramIndex++, getBooleanValue(settings, "verify_payments"));
@@ -214,7 +218,13 @@ public class PayPropRawPropertiesImportService {
         stmt.setBigDecimal(paramIndex++, getBigDecimalValue(commission, "percentage"));
         stmt.setBigDecimal(paramIndex++, getBigDecimalValue(commission, "amount"));
         stmt.setString(paramIndex++, getStringValue(commission, "id"));
-        
+
+        // Contract and Balance amounts (root level fields)
+        // NOTE: contract_amount is the monthly rent returned when include_contract_amount=true
+        // NOTE: balance_amount is account balance returned when include_balance=true
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(property, "contract_amount"));
+        stmt.setBigDecimal(paramIndex++, getBigDecimalValue(property, "balance"));
+
         // Metadata
         stmt.setTimestamp(paramIndex++, getTimestampValue(property, "modify_date"));
     }
