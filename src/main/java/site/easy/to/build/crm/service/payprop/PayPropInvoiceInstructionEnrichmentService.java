@@ -77,6 +77,11 @@ public class PayPropInvoiceInstructionEnrichmentService {
 
             for (PayPropInvoiceInstruction instruction : instructions) {
                 try {
+                    // CRITICAL: Check for soft-deleted invoices with same payprop_id and hard delete them
+                    // This prevents "Duplicate entry for key 'invoices.payprop_id'" errors
+                    // when trying to create/update invoices with PayProp IDs
+                    cleanupSoftDeletedInvoiceWithPayPropId(instruction.paypropId);
+
                     // Find property in our system
                     Property property = propertyRepository.findByPayPropId(instruction.propertyPaypropId)
                         .orElse(null);
@@ -180,6 +185,52 @@ public class PayPropInvoiceInstructionEnrichmentService {
         }
 
         return result;
+    }
+
+    /**
+     * Clean up soft-deleted invoices that have the same payprop_id
+     *
+     * Problem: When an invoice is soft-deleted (deleted_at set), it still retains its payprop_id.
+     * The UNIQUE constraint on payprop_id doesn't care about soft-deletes, so when PayProp
+     * sync tries to create/update an invoice with that payprop_id, it fails with:
+     * "Duplicate entry 'd71ebxD9Z5' for key 'invoices.payprop_id'"
+     *
+     * Solution: Hard delete any soft-deleted invoices with this payprop_id before processing.
+     * If an invoice is soft-deleted but PayProp still has it active, the soft-delete was likely
+     * a mistake or the invoice was reactivated in PayProp.
+     *
+     * @param paypropId The PayProp ID to check
+     */
+    private void cleanupSoftDeletedInvoiceWithPayPropId(String paypropId) {
+        if (paypropId == null || paypropId.isEmpty()) {
+            return;
+        }
+
+        try {
+            // Find invoice with this payprop_id (may be soft-deleted)
+            Optional<Invoice> invoiceOpt = invoiceRepository.findByPaypropId(paypropId);
+
+            if (invoiceOpt.isPresent()) {
+                Invoice invoice = invoiceOpt.get();
+
+                // Check if it's soft-deleted
+                if (invoice.getDeletedAt() != null) {
+                    log.warn("⚠️ Found soft-deleted invoice (ID: {}, lease: {}) with payprop_id '{}' that would block sync. " +
+                            "Hard deleting to allow PayProp sync to recreate it.",
+                            invoice.getId(), invoice.getLeaseReference(), paypropId);
+
+                    // Hard delete the soft-deleted invoice
+                    invoiceRepository.delete(invoice);
+
+                    log.info("✅ Removed soft-deleted invoice to prevent duplicate payprop_id constraint violation");
+                }
+                // If invoice exists and is NOT soft-deleted, leave it alone - enrichment will update it
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to cleanup soft-deleted invoice with payprop_id '{}': {}",
+                    paypropId, e.getMessage());
+            // Don't throw - let the sync continue and handle the duplicate error if it occurs
+        }
     }
 
     /**
