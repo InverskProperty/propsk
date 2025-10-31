@@ -223,17 +223,24 @@ public class PayPropEntityResolutionService {
     
     /**
      * Find orphaned property IDs using SQL query
+     * NOTE: financial_transactions.property_id can contain either:
+     *   - PayProp external IDs (like "EyJ6K7RxXj") - need to resolve from PayProp
+     *   - Local database IDs (like "2", "5") - these are NOT orphaned, just wrong ID type
      */
     private List<String> findOrphanedPropertyIds() {
         String sql = """
-            SELECT DISTINCT ft.property_id 
-            FROM financial_transactions ft 
-            LEFT JOIN properties p ON p.payprop_id = ft.property_id 
-            WHERE ft.property_id IS NOT NULL 
+            SELECT DISTINCT ft.property_id
+            FROM financial_transactions ft
+            LEFT JOIN properties p ON (
+                p.payprop_id = ft.property_id
+                OR p.id = CAST(ft.property_id AS UNSIGNED)
+            )
+            WHERE ft.property_id IS NOT NULL
             AND p.id IS NULL
+            AND ft.property_id REGEXP '^[^0-9]'
             ORDER BY ft.property_id
         """;
-        
+
         return jdbcTemplate.queryForList(sql, String.class);
     }
     
