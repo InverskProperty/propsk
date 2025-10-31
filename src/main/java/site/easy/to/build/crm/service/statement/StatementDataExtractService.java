@@ -249,6 +249,7 @@ public class StatementDataExtractService {
             dto.setTransactionDate(ut.getTransactionDate());
             dto.setInvoiceId(ut.getInvoiceId());
             dto.setPropertyId(ut.getPropertyId());
+            dto.setPropertyName(ut.getPropertyName());  // For matching INCOMING_PAYMENT to leases
             dto.setCustomerId(ut.getCustomerId());
             dto.setCategory(ut.getCategory());
             dto.setTransactionType(null); // UnifiedTransaction doesn't have transactionType
@@ -301,6 +302,7 @@ public class StatementDataExtractService {
             dto.setTransactionDate(ut.getTransactionDate());
             dto.setInvoiceId(ut.getInvoiceId());
             dto.setPropertyId(ut.getPropertyId());
+            dto.setPropertyName(ut.getPropertyName());  // For matching INCOMING_PAYMENT to leases
             dto.setCustomerId(ut.getCustomerId());
             dto.setCategory(ut.getCategory());
             dto.setTransactionType(null); // UnifiedTransaction doesn't have transactionType

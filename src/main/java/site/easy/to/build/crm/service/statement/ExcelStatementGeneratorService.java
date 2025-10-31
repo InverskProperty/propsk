@@ -316,8 +316,8 @@ public class ExcelStatementGeneratorService {
         // Header row
         Row header = sheet.createRow(0);
         String[] headers = {
-            "transaction_id", "transaction_date", "invoice_id", "property_id", "customer_id",
-            "category", "transaction_type", "amount", "description"
+            "transaction_id", "transaction_date", "invoice_id", "property_id", "property_name",
+            "customer_id", "category", "transaction_type", "amount", "description"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -346,18 +346,19 @@ public class ExcelStatementGeneratorService {
 
             row.createCell(2).setCellValue(txn.getInvoiceId() != null ? txn.getInvoiceId() : 0);
             row.createCell(3).setCellValue(txn.getPropertyId() != null ? txn.getPropertyId() : 0);
-            row.createCell(4).setCellValue(txn.getCustomerId() != null ? txn.getCustomerId() : 0);
-            row.createCell(5).setCellValue(txn.getCategory() != null ? txn.getCategory() : "");
-            row.createCell(6).setCellValue(txn.getTransactionType() != null ? txn.getTransactionType() : "");
+            row.createCell(4).setCellValue(txn.getPropertyName() != null ? txn.getPropertyName() : "");
+            row.createCell(5).setCellValue(txn.getCustomerId() != null ? txn.getCustomerId() : 0);
+            row.createCell(6).setCellValue(txn.getCategory() != null ? txn.getCategory() : "");
+            row.createCell(7).setCellValue(txn.getTransactionType() != null ? txn.getTransactionType() : "");
 
             // Amount
-            Cell amountCell = row.createCell(7);
+            Cell amountCell = row.createCell(8);
             if (txn.getAmount() != null) {
                 amountCell.setCellValue(txn.getAmount().doubleValue());
                 amountCell.setCellStyle(currencyStyle);
             }
 
-            row.createCell(8).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
+            row.createCell(9).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
         }
 
         // Auto-size columns
@@ -561,10 +562,14 @@ public class ExcelStatementGeneratorService {
                     monthEndCell.setCellStyle(dateStyle);
 
                     // Column F: total_received (SUMIFS formula)
-                    // Sum amounts from TRANSACTIONS where invoice_id matches AND date in range
+                    // Sum amounts from TRANSACTIONS where:
+                    // 1. invoice_id matches lease_id (for linked transactions), OR
+                    // 2. property_name matches AND invoice_id=0 (for INCOMING_PAYMENT)
                     Cell totalReceivedCell = row.createCell(col++);
                     String sumFormula = String.format(
-                        "SUMIFS(TRANSACTIONS!H:H, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
+                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d) + " +
+                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!E:E, C%d, TRANSACTIONS!C:C, 0, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
+                        rowNum + 1, rowNum + 1, rowNum + 1,
                         rowNum + 1, rowNum + 1, rowNum + 1
                     );
                     totalReceivedCell.setCellFormula(sumFormula);
@@ -937,9 +942,12 @@ public class ExcelStatementGeneratorService {
                     periodEndCell.setCellStyle(dateStyle);
 
                     // F: total_received (SUMIFS formula with custom period dates)
+                    // Sum amounts where invoice_id matches OR property_name matches with invoice_id=0
                     Cell totalReceivedCell = row.createCell(col++);
                     String sumFormula = String.format(
-                        "SUMIFS(TRANSACTIONS!H:H, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
+                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d) + " +
+                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!E:E, C%d, TRANSACTIONS!C:C, 0, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
+                        rowNum + 1, rowNum + 1, rowNum + 1,
                         rowNum + 1, rowNum + 1, rowNum + 1
                     );
                     totalReceivedCell.setCellFormula(sumFormula);

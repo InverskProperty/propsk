@@ -15,6 +15,7 @@ public class TransactionDTO {
     private LocalDate transactionDate;
     private Long invoiceId;  // Links to LeaseMasterDTO
     private Long propertyId;
+    private String propertyName;  // Property name for matching INCOMING_PAYMENT to leases
     private Long customerId;
     private String category;  // rent, expense, owner_allocation, etc.
     private String transactionType;  // payment, charge
@@ -77,6 +78,14 @@ public class TransactionDTO {
 
     public void setPropertyId(Long propertyId) {
         this.propertyId = propertyId;
+    }
+
+    public String getPropertyName() {
+        return propertyName;
+    }
+
+    public void setPropertyName(String propertyName) {
+        this.propertyName = propertyName;
     }
 
     public Long getCustomerId() {
