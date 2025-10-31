@@ -76,7 +76,9 @@ public class PayPropMaintenanceSyncService {
     /**
      * Sync maintenance categories from PayProp - CORRECTED VERSION
      * Uses the proper payprop_maintenance_categories table
+     * Runs in separate transaction to prevent rollback of parent transaction on 403 errors
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult syncMaintenanceCategories() {
         log.info("🏷️ Syncing maintenance categories from PayProp...");
 
@@ -173,7 +175,9 @@ public class PayPropMaintenanceSyncService {
     
     /**
      * Import all maintenance tickets from PayProp
+     * Runs in separate transaction to prevent rollback of parent transaction on 403 errors
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public SyncResult importMaintenanceTickets() {
         log.info("🎫 Starting maintenance tickets import from PayProp...");
 
