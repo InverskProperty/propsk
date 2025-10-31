@@ -5,6 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import site.easy.to.build.crm.util.MemoryDiagnostics;
 
 @SpringBootApplication
 @EnableScheduling  // CRITICAL: Enable scheduled tasks for token refresh
+@EnableAsync      // CRITICAL: Enable async event listeners for unified dataset rebuild
 public class CrmApplication extends SpringBootServletInitializer {
 
     @Override

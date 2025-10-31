@@ -2412,7 +2412,8 @@ public class PayPropFinancialSyncService {
 
                     created++; // For now, count as "discovered"
                 } catch (Exception e) {
-                    logger.warn("Failed to analyze invoice instruction: {}", instruction.get("id"), e);
+                    logger.warn("Failed to analyze invoice instruction {}: {}", instruction.get("id"), e.getMessage());
+                    logger.debug("Full stack trace for instruction analysis failure:", e);
                     errors++;
                 }
             }
