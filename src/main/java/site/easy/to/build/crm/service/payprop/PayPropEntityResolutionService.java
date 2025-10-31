@@ -246,17 +246,24 @@ public class PayPropEntityResolutionService {
     
     /**
      * Find orphaned tenant IDs using SQL query
+     * NOTE: financial_transactions.tenant_id can contain either:
+     *   - PayProp external IDs (like "ABC123xyz") - need to resolve from PayProp
+     *   - Local database IDs (like "1", "2", "5") - these are NOT orphaned, just wrong ID type
      */
     private List<String> findOrphanedTenantIds() {
         String sql = """
-            SELECT DISTINCT ft.tenant_id 
-            FROM financial_transactions ft 
-            LEFT JOIN customers c ON c.payprop_entity_id = ft.tenant_id 
-            WHERE ft.tenant_id IS NOT NULL 
+            SELECT DISTINCT ft.tenant_id
+            FROM financial_transactions ft
+            LEFT JOIN customers c ON (
+                c.payprop_entity_id = ft.tenant_id
+                OR c.customer_id = CAST(ft.tenant_id AS UNSIGNED)
+            )
+            WHERE ft.tenant_id IS NOT NULL
             AND c.customer_id IS NULL
+            AND ft.tenant_id REGEXP '^[^0-9]'
             ORDER BY ft.tenant_id
         """;
-        
+
         return jdbcTemplate.queryForList(sql, String.class);
     }
     

@@ -2380,34 +2380,41 @@ public class PayPropFinancialSyncService {
             int enabledCount = 0;
             
             for (Map<String, Object> instruction : instructions) {
-                // Analyze frequency
-                String frequency = (String) instruction.get("frequency");
-                frequencyCount.put(frequency, frequencyCount.getOrDefault(frequency, 0) + 1);
-                
-                // Analyze category
-                String category = (String) instruction.get("category");
-                categoryCount.put(category, categoryCount.getOrDefault(category, 0) + 1);
-                
-                // Calculate total monthly equivalent
-                Object amountObj = instruction.get("amount");
-                if (amountObj != null) {
-                    try {
-                        BigDecimal amount = new BigDecimal(amountObj.toString());
-                        if ("M".equals(frequency)) { // Monthly
-                            totalMonthlyValue = totalMonthlyValue.add(amount);
+                try {
+                    // Analyze frequency (handle null safely)
+                    String frequency = (String) instruction.get("frequency");
+                    String freqKey = (frequency != null) ? frequency : "UNKNOWN";
+                    frequencyCount.put(freqKey, frequencyCount.getOrDefault(freqKey, 0) + 1);
+
+                    // Analyze category (handle null safely)
+                    String category = (String) instruction.get("category");
+                    String catKey = (category != null) ? category : "UNKNOWN";
+                    categoryCount.put(catKey, categoryCount.getOrDefault(catKey, 0) + 1);
+
+                    // Calculate total monthly equivalent
+                    Object amountObj = instruction.get("amount");
+                    if (amountObj != null) {
+                        try {
+                            BigDecimal amount = new BigDecimal(amountObj.toString());
+                            if ("M".equals(frequency)) { // Monthly
+                                totalMonthlyValue = totalMonthlyValue.add(amount);
+                            }
+                        } catch (Exception e) {
+                            // Ignore amount parsing errors
                         }
-                    } catch (Exception e) {
-                        // Ignore amount parsing errors
                     }
+
+                    // Count enabled instructions (safe cast)
+                    Object enabledObj = instruction.get("enabled");
+                    if (enabledObj instanceof Boolean && Boolean.TRUE.equals(enabledObj)) {
+                        enabledCount++;
+                    }
+
+                    created++; // For now, count as "discovered"
+                } catch (Exception e) {
+                    logger.warn("Failed to analyze invoice instruction: {}", instruction.get("id"), e);
+                    errors++;
                 }
-                
-                // Count enabled instructions
-                Boolean enabled = (Boolean) instruction.get("enabled");
-                if (Boolean.TRUE.equals(enabled)) {
-                    enabledCount++;
-                }
-                
-                created++; // For now, count as "discovered"
             }
             
             result.put("endpoint", "/export/invoices");
