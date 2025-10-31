@@ -86,17 +86,11 @@ public class PayPropIncomingPaymentFinancialSyncService {
             for (IncomingPaymentRecord payment : incomingPayments) {
                 try {
                     // Check if already imported
-                    boolean exists = financialTransactionRepository
-                        .existsByPayPropTransactionIdAndDataSource(
+                    FinancialTransaction existingTransaction = financialTransactionRepository
+                        .findByPayPropTransactionIdAndDataSource(
                             payment.paypropId,
                             "INCOMING_PAYMENT"
                         );
-
-                    if (exists) {
-                        log.debug("⏭️ Skipping already imported: {}", payment.paypropId);
-                        skipped++;
-                        continue;
-                    }
 
                     // Find property in our system
                     Property property = propertyRepository.findByPayPropId(payment.propertyPaypropId)
@@ -119,7 +113,30 @@ public class PayPropIncomingPaymentFinancialSyncService {
                         }
                     }
 
-                    // Create financial transaction
+                    if (existingTransaction != null) {
+                        // UPDATE existing record - re-link invoice if needed
+                        if (existingTransaction.getInvoice() == null) {
+                            Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
+                                property, tenant, null, payment.reconciliationDate);
+
+                            if (invoice != null) {
+                                existingTransaction.setInvoice(invoice);
+                                financialTransactionRepository.save(existingTransaction);
+                                log.info("✅ Re-linked existing payment {} to invoice {} (lease: {})",
+                                    payment.paypropId, invoice.getId(), invoice.getLeaseReference());
+                                imported++; // Count as updated
+                            } else {
+                                log.debug("⏭️ Skipping already imported (no invoice found): {}", payment.paypropId);
+                                skipped++;
+                            }
+                        } else {
+                            log.debug("⏭️ Skipping already imported and linked: {}", payment.paypropId);
+                            skipped++;
+                        }
+                        continue;
+                    }
+
+                    // Create NEW financial transaction
                     FinancialTransaction transaction = createFinancialTransaction(payment, property, tenant);
                     financialTransactionRepository.save(transaction);
 
