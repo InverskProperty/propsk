@@ -82,12 +82,28 @@ public class PayPropMaintenanceSyncService {
 
         try {
             // Use the correct endpoint: /maintenance/categories (not /payments/categories)
-            List<Map<String, Object>> categories = apiClient.fetchAllPages("/maintenance/categories",
-                item -> {
-                    log.debug("Maintenance Category - ID: {} Name: {} Description: {}",
-                        item.get("id"), item.get("name"), item.get("description"));
-                    return item;
-                });
+            List<Map<String, Object>> categories;
+            try {
+                categories = apiClient.fetchAllPages("/maintenance/categories",
+                    item -> {
+                        log.debug("Maintenance Category - ID: {} Name: {} Description: {}",
+                            item.get("id"), item.get("name"), item.get("description"));
+                        return item;
+                    });
+            } catch (Exception apiError) {
+                // Handle 403 Forbidden gracefully - maintenance permissions may not be available
+                String errorMsg = apiError.getMessage();
+                if (errorMsg != null && (errorMsg.contains("403") || errorMsg.contains("FORBIDDEN") ||
+                                        errorMsg.contains("permission"))) {
+                    log.warn("⚠️ Maintenance categories API access denied (403 FORBIDDEN) - skipping maintenance sync");
+                    log.warn("   This is not a critical error - maintenance features require special PayProp permissions");
+                    return SyncResult.partial("Maintenance categories skipped - insufficient API permissions",
+                        Map.of("total_fetched", 0, "imported", 0,
+                               "warning", "403 FORBIDDEN - PayProp account lacks maintenance permissions"));
+                }
+                // Re-throw other errors
+                throw apiError;
+            }
 
             log.info("📦 PayProp API returned: {} maintenance categories", categories.size());
 
@@ -160,16 +176,32 @@ public class PayPropMaintenanceSyncService {
      */
     public SyncResult importMaintenanceTickets() {
         log.info("🎫 Starting maintenance tickets import from PayProp...");
-        
+
         try {
             // First ensure categories are synced
             syncMaintenanceCategories();
-            
-            List<Map<String, Object>> allTickets = apiClient.fetchAllPages(
-                "/maintenance/tickets", 
-                Function.identity()
-            );
-            
+
+            List<Map<String, Object>> allTickets;
+            try {
+                allTickets = apiClient.fetchAllPages(
+                    "/maintenance/tickets",
+                    Function.identity()
+                );
+            } catch (Exception apiError) {
+                // Handle 403 Forbidden gracefully - maintenance permissions may not be available
+                String errorMsg = apiError.getMessage();
+                if (errorMsg != null && (errorMsg.contains("403") || errorMsg.contains("FORBIDDEN") ||
+                                        errorMsg.contains("permission"))) {
+                    log.warn("⚠️ Maintenance tickets API access denied (403 FORBIDDEN) - skipping tickets import");
+                    log.warn("   This is not a critical error - maintenance features require special PayProp permissions");
+                    return SyncResult.partial("Maintenance tickets skipped - insufficient API permissions",
+                        Map.of("created", 0, "updated", 0, "skipped", 0, "errors", 0,
+                               "warning", "403 FORBIDDEN - PayProp account lacks maintenance permissions"));
+                }
+                // Re-throw other errors
+                throw apiError;
+            }
+
             int created = 0, updated = 0, skipped = 0, errors = 0;
             
             for (Map<String, Object> ticketData : allTickets) {
