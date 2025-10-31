@@ -171,7 +171,7 @@ public class UnifiedTransactionRebuildService {
             FROM financial_transactions ft
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
-            WHERE ft.invoice_id IS NOT NULL
+            WHERE (ft.invoice_id IS NOT NULL OR ft.data_source = 'INCOMING_PAYMENT')
               AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
         """;
 
@@ -327,7 +327,7 @@ public class UnifiedTransactionRebuildService {
             FROM financial_transactions ft
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
-            WHERE ft.invoice_id IS NOT NULL
+            WHERE (ft.invoice_id IS NOT NULL OR ft.data_source = 'INCOMING_PAYMENT')
               AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
               AND ft.updated_at > ?
         """;
