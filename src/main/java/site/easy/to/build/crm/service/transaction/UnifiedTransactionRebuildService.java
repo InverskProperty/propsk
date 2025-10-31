@@ -295,7 +295,7 @@ public class UnifiedTransactionRebuildService {
                 ht.transaction_date, ht.amount, ht.description, ht.category,
                 ht.invoice_id, ht.property_id, ht.customer_id,
                 i.lease_reference, ht.lease_start_date, ht.lease_end_date,
-                ht.rent_amount_at_transaction, p.name,
+                ht.rent_amount_at_transaction, p.property_name,
                 NOW(), ?
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
