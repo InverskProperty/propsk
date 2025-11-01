@@ -147,7 +147,7 @@ public class UnifiedTransactionRebuildService {
             INSERT INTO unified_transactions (
                 source_system, source_table, source_record_id,
                 transaction_date, amount, description, category,
-                invoice_id, property_id,
+                invoice_id, property_id, customer_id,
                 lease_reference, property_name,
                 payprop_transaction_id, payprop_data_source,
                 rebuilt_at, rebuild_batch_id
@@ -161,7 +161,14 @@ public class UnifiedTransactionRebuildService {
                 ft.description,
                 ft.category_name as category,
                 ft.invoice_id,
-                p.id as property_id,
+                CASE
+                    WHEN ft.data_source = 'INCOMING_PAYMENT' THEN CAST(ft.property_id AS UNSIGNED)
+                    ELSE p.id
+                END as property_id,
+                CASE
+                    WHEN ft.data_source = 'INCOMING_PAYMENT' THEN CAST(ft.tenant_id AS UNSIGNED)
+                    ELSE NULL
+                END as customer_id,
                 i.lease_reference,
                 ft.property_name,
                 ft.pay_prop_transaction_id as payprop_transaction_id,
@@ -312,7 +319,7 @@ public class UnifiedTransactionRebuildService {
             INSERT INTO unified_transactions (
                 source_system, source_table, source_record_id,
                 transaction_date, amount, description, category,
-                invoice_id, property_id,
+                invoice_id, property_id, customer_id,
                 lease_reference, property_name,
                 payprop_transaction_id, payprop_data_source,
                 rebuilt_at, rebuild_batch_id
@@ -320,7 +327,15 @@ public class UnifiedTransactionRebuildService {
             SELECT
                 'PAYPROP', 'financial_transactions', ft.id,
                 ft.transaction_date, ft.amount, ft.description, ft.category_name,
-                ft.invoice_id, p.id,
+                ft.invoice_id,
+                CASE
+                    WHEN ft.data_source = 'INCOMING_PAYMENT' THEN CAST(ft.property_id AS UNSIGNED)
+                    ELSE p.id
+                END,
+                CASE
+                    WHEN ft.data_source = 'INCOMING_PAYMENT' THEN CAST(ft.tenant_id AS UNSIGNED)
+                    ELSE NULL
+                END,
                 i.lease_reference, ft.property_name,
                 ft.pay_prop_transaction_id, ft.data_source,
                 NOW(), ?
