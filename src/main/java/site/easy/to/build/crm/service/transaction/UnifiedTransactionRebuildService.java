@@ -160,6 +160,7 @@ public class UnifiedTransactionRebuildService {
                 invoice_id, property_id, customer_id,
                 lease_reference, property_name,
                 payprop_transaction_id, payprop_data_source,
+                transaction_type, flow_direction,
                 rebuilt_at, rebuild_batch_id
             )
             SELECT
@@ -183,6 +184,12 @@ public class UnifiedTransactionRebuildService {
                 ft.property_name,
                 ft.pay_prop_transaction_id as payprop_transaction_id,
                 ft.data_source as payprop_data_source,
+                ft.transaction_type as transaction_type,
+                CASE
+                    WHEN ft.data_source = 'INCOMING_PAYMENT' THEN 'INCOMING'
+                    WHEN ft.data_source = 'BATCH_PAYMENT' OR ft.data_source = 'COMMISSION_PAYMENT' THEN 'OUTGOING'
+                    ELSE 'OUTGOING'
+                END as flow_direction,
                 NOW() as rebuilt_at,
                 ? as rebuild_batch_id
             FROM financial_transactions ft
@@ -305,6 +312,7 @@ public class UnifiedTransactionRebuildService {
                 invoice_id, property_id, customer_id,
                 lease_reference, lease_start_date, lease_end_date,
                 rent_amount_at_transaction, property_name,
+                transaction_type, flow_direction,
                 rebuilt_at, rebuild_batch_id
             )
             SELECT
@@ -313,6 +321,15 @@ public class UnifiedTransactionRebuildService {
                 ht.invoice_id, ht.property_id, ht.customer_id,
                 i.lease_reference, ht.lease_start_date, ht.lease_end_date,
                 ht.rent_amount_at_transaction, p.property_name,
+                CASE
+                    WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'rent_received'
+                    WHEN ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'expense'
+                    ELSE 'other'
+                END,
+                CASE
+                    WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'INCOMING'
+                    ELSE 'OUTGOING'
+                END,
                 NOW(), ?
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
@@ -332,6 +349,8 @@ public class UnifiedTransactionRebuildService {
                 invoice_id, property_id, customer_id,
                 lease_reference, property_name,
                 payprop_transaction_id, payprop_data_source,
+                transaction_type, flow_direction,
+                transaction_type, flow_direction,
                 rebuilt_at, rebuild_batch_id
             )
             SELECT
@@ -348,6 +367,12 @@ public class UnifiedTransactionRebuildService {
                 END,
                 i.lease_reference, ft.property_name,
                 ft.pay_prop_transaction_id, ft.data_source,
+                ft.transaction_type,
+                CASE
+                    WHEN ft.data_source = 'INCOMING_PAYMENT' THEN 'INCOMING'
+                    WHEN ft.data_source = 'BATCH_PAYMENT' OR ft.data_source = 'COMMISSION_PAYMENT' THEN 'OUTGOING'
+                    ELSE 'OUTGOING'
+                END,
                 NOW(), ?
             FROM financial_transactions ft
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
