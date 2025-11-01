@@ -570,13 +570,11 @@ public class ExcelStatementGeneratorService {
                     monthEndCell.setCellStyle(dateStyle);
 
                     // Column F: total_received (SUMIFS formula)
-                    // Sum amounts from TRANSACTIONS where category="Rent" or "rent" (tenant payments only)
-                    // Excludes BATCH_PAYMENT (owner payments) and COMMISSION_PAYMENT
+                    // Sum ALL amounts from TRANSACTIONS (which now only contains INCOMING rent)
+                    // No need to filter by category since data is pre-filtered by flow_direction=INCOMING
                     Cell totalReceivedCell = row.createCell(col++);
                     String sumFormula = String.format(
-                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!G:G, \"Rent\", TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d) + " +
-                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!G:G, \"rent\", TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
-                        rowNum + 1, rowNum + 1, rowNum + 1,
+                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
                         rowNum + 1, rowNum + 1, rowNum + 1
                     );
                     totalReceivedCell.setCellFormula(sumFormula);
@@ -949,13 +947,11 @@ public class ExcelStatementGeneratorService {
                     periodEndCell.setCellStyle(dateStyle);
 
                     // F: total_received (SUMIFS formula with custom period dates)
-                    // Sum amounts where category="Rent" or "rent" (tenant payments only)
-                    // Excludes BATCH_PAYMENT (owner payments) and COMMISSION_PAYMENT
+                    // Sum ALL amounts from TRANSACTIONS (which now only contains INCOMING rent)
+                    // No need to filter by category since data is pre-filtered by flow_direction=INCOMING
                     Cell totalReceivedCell = row.createCell(col++);
                     String sumFormula = String.format(
-                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!G:G, \"Rent\", TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d) + " +
-                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!G:G, \"rent\", TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
-                        rowNum + 1, rowNum + 1, rowNum + 1,
+                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
                         rowNum + 1, rowNum + 1, rowNum + 1
                     );
                     totalReceivedCell.setCellFormula(sumFormula);
