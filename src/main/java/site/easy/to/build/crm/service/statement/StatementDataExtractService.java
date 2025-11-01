@@ -252,7 +252,7 @@ public class StatementDataExtractService {
             dto.setPropertyName(ut.getPropertyName());  // For matching INCOMING_PAYMENT to leases
             dto.setCustomerId(ut.getCustomerId());
             dto.setCategory(ut.getCategory());
-            dto.setTransactionType(null); // UnifiedTransaction doesn't have transactionType
+            dto.setTransactionType(ut.getTransactionType());
             dto.setAmount(ut.getAmount());
             dto.setDescription(ut.getDescription());
             dto.setLeaseStartDate(ut.getLeaseStartDate());
@@ -305,7 +305,7 @@ public class StatementDataExtractService {
             dto.setPropertyName(ut.getPropertyName());  // For matching INCOMING_PAYMENT to leases
             dto.setCustomerId(ut.getCustomerId());
             dto.setCategory(ut.getCategory());
-            dto.setTransactionType(null); // UnifiedTransaction doesn't have transactionType
+            dto.setTransactionType(ut.getTransactionType());
             dto.setAmount(ut.getAmount());
             dto.setDescription(ut.getDescription());
             dto.setLeaseStartDate(ut.getLeaseStartDate());
@@ -323,6 +323,166 @@ public class StatementDataExtractService {
                 .collect(Collectors.toList()));
 
         log.info("Extracted {} transaction records for customer {}", transactionDTOs.size(), customerId);
+        return transactionDTOs;
+    }
+
+    /**
+     * Extract INCOMING transactions only (rent received from tenants)
+     *
+     * This filters out OUTGOING transactions (landlord payments, fees, expenses)
+     * Use this for accurate "Rent Received" calculations in statements
+     *
+     * @param startDate Start date filter (inclusive)
+     * @param endDate End date filter (inclusive)
+     * @return List of INCOMING transactions only
+     */
+    public List<TransactionDTO> extractRentReceived(LocalDate startDate, LocalDate endDate) {
+        log.info("✨ Extracting INCOMING transactions (rent received) from {} to {}...", startDate, endDate);
+
+        // Get only INCOMING transactions using flow_direction filter
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByTransactionDateBetweenAndFlowDirection(
+                startDate,
+                endDate,
+                UnifiedTransaction.FlowDirection.INCOMING
+            );
+
+        log.info("✨ Found {} INCOMING transactions (rent from tenants)", transactions.size());
+
+        List<TransactionDTO> transactionDTOs = new ArrayList<>();
+
+        for (UnifiedTransaction ut : transactions) {
+            TransactionDTO dto = new TransactionDTO();
+
+            dto.setTransactionId(ut.getId());
+            dto.setTransactionDate(ut.getTransactionDate());
+            dto.setInvoiceId(ut.getInvoiceId());
+            dto.setPropertyId(ut.getPropertyId());
+            dto.setPropertyName(ut.getPropertyName());
+            dto.setCustomerId(ut.getCustomerId());
+            dto.setCategory(ut.getCategory());
+            dto.setTransactionType(ut.getTransactionType());
+            dto.setAmount(ut.getAmount());
+            dto.setDescription(ut.getDescription());
+            dto.setLeaseStartDate(ut.getLeaseStartDate());
+            dto.setLeaseEndDate(ut.getLeaseEndDate());
+            dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
+
+            transactionDTOs.add(dto);
+        }
+
+        log.info("✨ Extracted {} INCOMING transaction records", transactionDTOs.size());
+        return transactionDTOs;
+    }
+
+    /**
+     * Extract INCOMING transactions only (rent received) for specific customer
+     *
+     * @param customerId Customer ID to filter by
+     * @param startDate Start date filter
+     * @param endDate End date filter
+     * @return List of INCOMING transactions for this customer
+     */
+    public List<TransactionDTO> extractRentReceivedForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        log.info("✨ Extracting INCOMING transactions (rent received) for customer {} from {} to {}...",
+            customerId, startDate, endDate);
+
+        Customer customer = customerRepository.findById(customerId).orElse(null);
+        if (customer == null) {
+            log.error("Customer {} not found - returning empty list", customerId);
+            return new ArrayList<>();
+        }
+
+        // Use the new flow_direction filtering query
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
+                customerId,
+                startDate,
+                endDate,
+                UnifiedTransaction.FlowDirection.INCOMING
+            );
+
+        log.info("✨ Found {} INCOMING transactions (rent received) for customer {}",
+            transactions.size(), customerId);
+
+        List<TransactionDTO> transactionDTOs = new ArrayList<>();
+
+        for (UnifiedTransaction ut : transactions) {
+            TransactionDTO dto = new TransactionDTO();
+
+            dto.setTransactionId(ut.getId());
+            dto.setTransactionDate(ut.getTransactionDate());
+            dto.setInvoiceId(ut.getInvoiceId());
+            dto.setPropertyId(ut.getPropertyId());
+            dto.setPropertyName(ut.getPropertyName());
+            dto.setCustomerId(ut.getCustomerId());
+            dto.setCategory(ut.getCategory());
+            dto.setTransactionType(ut.getTransactionType());
+            dto.setAmount(ut.getAmount());
+            dto.setDescription(ut.getDescription());
+            dto.setLeaseStartDate(ut.getLeaseStartDate());
+            dto.setLeaseEndDate(ut.getLeaseEndDate());
+            dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
+
+            transactionDTOs.add(dto);
+        }
+
+        log.info("✨ Extracted {} INCOMING transaction records for customer {}", transactionDTOs.size(), customerId);
+        return transactionDTOs;
+    }
+
+    /**
+     * Extract OUTGOING transactions only (landlord payments, fees, expenses)
+     *
+     * @param customerId Customer ID to filter by
+     * @param startDate Start date filter
+     * @param endDate End date filter
+     * @return List of OUTGOING transactions for this customer
+     */
+    public List<TransactionDTO> extractOutgoingForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        log.info("✨ Extracting OUTGOING transactions (payments, fees, expenses) for customer {} from {} to {}...",
+            customerId, startDate, endDate);
+
+        Customer customer = customerRepository.findById(customerId).orElse(null);
+        if (customer == null) {
+            log.error("Customer {} not found - returning empty list", customerId);
+            return new ArrayList<>();
+        }
+
+        // Use the new flow_direction filtering query
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
+                customerId,
+                startDate,
+                endDate,
+                UnifiedTransaction.FlowDirection.OUTGOING
+            );
+
+        log.info("✨ Found {} OUTGOING transactions for customer {}", transactions.size(), customerId);
+
+        List<TransactionDTO> transactionDTOs = new ArrayList<>();
+
+        for (UnifiedTransaction ut : transactions) {
+            TransactionDTO dto = new TransactionDTO();
+
+            dto.setTransactionId(ut.getId());
+            dto.setTransactionDate(ut.getTransactionDate());
+            dto.setInvoiceId(ut.getInvoiceId());
+            dto.setPropertyId(ut.getPropertyId());
+            dto.setPropertyName(ut.getPropertyName());
+            dto.setCustomerId(ut.getCustomerId());
+            dto.setCategory(ut.getCategory());
+            dto.setTransactionType(ut.getTransactionType());
+            dto.setAmount(ut.getAmount());
+            dto.setDescription(ut.getDescription());
+            dto.setLeaseStartDate(ut.getLeaseStartDate());
+            dto.setLeaseEndDate(ut.getLeaseEndDate());
+            dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
+
+            transactionDTOs.add(dto);
+        }
+
+        log.info("✨ Extracted {} OUTGOING transaction records for customer {}", transactionDTOs.size(), customerId);
         return transactionDTOs;
     }
 

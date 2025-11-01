@@ -48,6 +48,38 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
     );
 
     /**
+     * Find transactions by date range and flow direction
+     * Use this to get only INCOMING (rent received) or OUTGOING (payments, expenses) transactions
+     */
+    List<UnifiedTransaction> findByTransactionDateBetweenAndFlowDirection(
+        LocalDate startDate,
+        LocalDate endDate,
+        UnifiedTransaction.FlowDirection flowDirection
+    );
+
+    /**
+     * Find transactions by invoice ID, date range, and flow direction
+     * Use this for statement generation to separate rent received (INCOMING) from payments (OUTGOING)
+     */
+    List<UnifiedTransaction> findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+        Long invoiceId,
+        LocalDate startDate,
+        LocalDate endDate,
+        UnifiedTransaction.FlowDirection flowDirection
+    );
+
+    /**
+     * Find transactions by date range, flow direction, and transaction type
+     * Use this for specific transaction filtering (e.g., only agency fees, only expenses)
+     */
+    List<UnifiedTransaction> findByTransactionDateBetweenAndFlowDirectionAndTransactionType(
+        LocalDate startDate,
+        LocalDate endDate,
+        UnifiedTransaction.FlowDirection flowDirection,
+        String transactionType
+    );
+
+    /**
      * Find transactions for properties owned by customer (for statement generation)
      * Includes INCOMING_PAYMENT records (which have invoiceId=NULL and propertyId=NULL)
      * Matches INCOMING_PAYMENT by property_name instead of propertyId
@@ -77,6 +109,39 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
         @Param("customerId") Long customerId,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Find transactions for properties owned by customer, filtered by flow direction
+     * Use this to get only INCOMING (rent received) or OUTGOING (payments, expenses) for a customer's properties
+     */
+    @Query("""
+        SELECT ut FROM UnifiedTransaction ut
+        WHERE (
+            ut.propertyId IN (
+                SELECT cpa.property.id FROM CustomerPropertyAssignment cpa
+                WHERE cpa.customer.customerId = :customerId
+                  AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+            )
+            OR (
+                ut.paypropDataSource = 'INCOMING_PAYMENT'
+                AND ut.propertyName IN (
+                    SELECT p.propertyName FROM CustomerPropertyAssignment cpa
+                    JOIN cpa.property p
+                    WHERE cpa.customer.customerId = :customerId
+                      AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+                )
+            )
+        )
+        AND ut.transactionDate BETWEEN :startDate AND :endDate
+        AND ut.flowDirection = :flowDirection
+        ORDER BY ut.transactionDate, ut.id
+    """)
+    List<UnifiedTransaction> findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
+        @Param("customerId") Long customerId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate,
+        @Param("flowDirection") UnifiedTransaction.FlowDirection flowDirection
     );
 
     /**

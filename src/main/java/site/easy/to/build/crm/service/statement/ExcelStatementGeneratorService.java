@@ -52,9 +52,11 @@ public class ExcelStatementGeneratorService {
 
         // Extract data
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMaster();
-        List<TransactionDTO> transactions = dataExtractService.extractTransactions(startDate, endDate);
+        // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
+        // This excludes OUTGOING transactions (landlord payments, fees, expenses)
+        List<TransactionDTO> transactions = dataExtractService.extractRentReceived(startDate, endDate);
 
-        log.info("Extracted {} leases and {} transactions", leaseMaster.size(), transactions.size());
+        log.info("Extracted {} leases and {} INCOMING transactions (rent received)", leaseMaster.size(), transactions.size());
 
         // Create sheets
         createLeaseMasterSheet(workbook, leaseMaster);
@@ -82,10 +84,12 @@ public class ExcelStatementGeneratorService {
 
         // Extract data for this customer
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMasterForCustomer(customerId);
-        List<TransactionDTO> transactions = dataExtractService.extractTransactionsForCustomer(
+        // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
+        // This excludes OUTGOING transactions (landlord payments, fees, expenses)
+        List<TransactionDTO> transactions = dataExtractService.extractRentReceivedForCustomer(
             customerId, startDate, endDate);
 
-        log.info("Extracted {} leases and {} transactions for customer {}",
+        log.info("Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
                 leaseMaster.size(), transactions.size(), customerId);
 
         // Create sheets
@@ -114,9 +118,11 @@ public class ExcelStatementGeneratorService {
 
         // Extract data
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMaster();
-        List<TransactionDTO> transactions = dataExtractService.extractTransactions(startDate, endDate);
+        // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
+        // This excludes OUTGOING transactions (landlord payments, fees, expenses)
+        List<TransactionDTO> transactions = dataExtractService.extractRentReceived(startDate, endDate);
 
-        log.info("Extracted {} leases and {} transactions", leaseMaster.size(), transactions.size());
+        log.info("Extracted {} leases and {} INCOMING transactions (rent received)", leaseMaster.size(), transactions.size());
 
         // Create sheets with custom periods
         createLeaseMasterSheet(workbook, leaseMaster);
@@ -147,11 +153,13 @@ public class ExcelStatementGeneratorService {
         // Extract data for this customer
         log.error("🔍 DEBUG: About to extract lease master for customer {}", customerId);
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMasterForCustomer(customerId);
-        log.error("🔍 DEBUG: About to extract transactions for customer {} from {} to {}", customerId, startDate, endDate);
-        List<TransactionDTO> transactions = dataExtractService.extractTransactionsForCustomer(
+        log.error("🔍 DEBUG: About to extract INCOMING transactions (rent received) for customer {} from {} to {}", customerId, startDate, endDate);
+        // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
+        // This excludes OUTGOING transactions (landlord payments, fees, expenses)
+        List<TransactionDTO> transactions = dataExtractService.extractRentReceivedForCustomer(
             customerId, startDate, endDate);
 
-        log.error("🔍 DEBUG: Extracted {} leases and {} transactions for customer {}",
+        log.error("🔍 DEBUG: Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
                 leaseMaster.size(), transactions.size(), customerId);
 
         // Create sheets with custom periods
