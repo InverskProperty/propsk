@@ -110,7 +110,6 @@ public class UnifiedTransactionRebuildService {
                 invoice_id, property_id, customer_id,
                 lease_reference, lease_start_date, lease_end_date,
                 rent_amount_at_transaction, property_name,
-                transaction_type, flow_direction,
                 rebuilt_at, rebuild_batch_id
             )
             SELECT
@@ -129,15 +128,6 @@ public class UnifiedTransactionRebuildService {
                 ht.lease_end_date,
                 ht.rent_amount_at_transaction,
                 p.property_name,
-                CASE
-                    WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'rent_received'
-                    WHEN ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'expense'
-                    ELSE 'other'
-                END as transaction_type,
-                CASE
-                    WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'INCOMING'
-                    ELSE 'OUTGOING'
-                END as flow_direction,
                 NOW() as rebuilt_at,
                 ? as rebuild_batch_id
             FROM historical_transactions ht

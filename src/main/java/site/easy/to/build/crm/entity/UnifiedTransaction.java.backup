@@ -94,24 +94,6 @@ public class UnifiedTransaction {
     @Column(name = "payprop_data_source", length = 50)
     private String paypropDataSource;
 
-    // ===== TRANSACTION CLASSIFICATION =====
-
-    /**
-     * Transaction type from source system
-     * Examples: 'incoming_payment', 'payment_to_beneficiary', 'payment_to_agency', 'expense', 'commission_payment'
-     */
-    @Column(name = "transaction_type", length = 50)
-    private String transactionType;
-
-    /**
-     * Flow direction - money IN or OUT
-     * - INCOMING: Rent received from tenants, deposits, etc.
-     * - OUTGOING: Payments to landlords, agency fees, expenses, commissions
-     */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "flow_direction", length = 10)
-    private FlowDirection flowDirection;
-
     // ===== REBUILD METADATA =====
 
     @Column(name = "rebuilt_at", nullable = false)
@@ -127,11 +109,6 @@ public class UnifiedTransaction {
         PAYPROP,
         XERO,
         QUICKBOOKS
-    }
-
-    public enum FlowDirection {
-        INCOMING,   // Money received (rent, deposits)
-        OUTGOING    // Money paid out (landlord payments, agency fees, expenses)
     }
 
     // ===== CONSTRUCTORS =====
@@ -300,21 +277,5 @@ public class UnifiedTransaction {
 
     public void setRebuildBatchId(String rebuildBatchId) {
         this.rebuildBatchId = rebuildBatchId;
-    }
-
-    public String getTransactionType() {
-        return transactionType;
-    }
-
-    public void setTransactionType(String transactionType) {
-        this.transactionType = transactionType;
-    }
-
-    public FlowDirection getFlowDirection() {
-        return flowDirection;
-    }
-
-    public void setFlowDirection(FlowDirection flowDirection) {
-        this.flowDirection = flowDirection;
     }
 }
