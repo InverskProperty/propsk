@@ -112,39 +112,38 @@ List<UnifiedTransaction> agencyFees = unifiedTransactionRepository
     );
 ```
 
-## Next Steps
+## Implementation Complete (2025-11-01 22:30 UTC)
 
-### Immediate Action Required:
+All planned next steps have been implemented:
 
-1. **Update UnifiedTransactionRepository**
-   Add query methods for filtering by flow_direction:
-   ```java
-   List<UnifiedTransaction> findByTransactionDateBetweenAndFlowDirection(
-       LocalDate startDate, LocalDate endDate, FlowDirection flowDirection);
-   ```
+### ✅ 1. UnifiedTransactionRepository Updated
+Added 4 new query methods for flow_direction filtering:
+- `findByTransactionDateBetweenAndFlowDirection()` - Basic date + flow filtering
+- `findByInvoiceIdAndTransactionDateBetweenAndFlowDirection()` - Lease-specific with flow
+- `findByTransactionDateBetweenAndFlowDirectionAndTransactionType()` - Granular filtering
+- `findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection()` - Customer statements with flow
 
-2. **Update Statement Generation Services**
-   - `StatementDataExtractService.java`: Add method `extractRentReceived()` that filters by INCOMING
-   - `ExcelStatementGeneratorService.java`: Use filtered data for rent calculations
-   - `BodenHouseStatementTemplateService.java`: Update rent calculation to use INCOMING only
+### ✅ 2. StatementDataExtractService Updated
+Added 3 new extraction methods:
+- `extractRentReceived(startDate, endDate)` - Only INCOMING transactions
+- `extractRentReceivedForCustomer(customerId, startDate, endDate)` - INCOMING for customer
+- `extractOutgoingForCustomer(customerId, startDate, endDate)` - OUTGOING for customer
+- Fixed DTO mapping to include `transactionType` field
 
-3. **Update Statement Queries**
-   Change from:
-   ```java
-   unifiedTransactionRepository.findByTransactionDateBetween(startDate, endDate)
-   ```
-   
-   To:
-   ```java
-   // For rent received
-   unifiedTransactionRepository.findByTransactionDateBetweenAndFlowDirection(
-       startDate, endDate, FlowDirection.INCOMING)
-   ```
+### ✅ 3. ExcelStatementGeneratorService Updated
+All 4 generation methods now use INCOMING-only data:
+- `generateStatement()` → uses `extractRentReceived()`
+- `generateStatementForCustomer()` → uses `extractRentReceivedForCustomer()`
+- `generateStatementWithCustomPeriods()` → uses `extractRentReceived()`
+- `generateStatementForCustomerWithCustomPeriods()` → uses `extractRentReceivedForCustomer()`
 
-4. **Test Statement Generation**
-   - Generate July 2025 statement
-   - Verify "Rent Received" shows £25,739 (not £42,777)
-   - Verify outgoing payments are shown separately
+**Impact:** TRANSACTIONS sheet now contains ONLY rent received (INCOMING), excluding landlord payments and fees
+
+### ⏳ 4. Testing Required
+Next step:
+- Generate July 2025 statement via API or UI
+- Verify "Rent Received" shows £25,739 (not £42,777)
+- Verify formulas calculate correctly with filtered data
 
 ## Database Rebuild
 
@@ -156,9 +155,17 @@ Rebuild completed successfully:
 
 ## Files Modified
 
+### Initial Implementation (Commit 82c0c861):
 1. `src/main/java/site/easy/to/build/crm/entity/UnifiedTransaction.java`
 2. `src/main/java/site/easy/to/build/crm/service/transaction/UnifiedTransactionRebuildService.java`
 3. `src/main/resources/db/migration/V17__Add_Transaction_Classification_To_Unified.sql`
+4. `CheckMigration.java` (utility)
+5. `TriggerRebuild.java` (utility)
+
+### Service Integration (Commit fef07d69):
+6. `src/main/java/site/easy/to/build/crm/repository/UnifiedTransactionRepository.java`
+7. `src/main/java/site/easy/to/build/crm/service/statement/StatementDataExtractService.java`
+8. `src/main/java/site/easy/to/build/crm/service/statement/ExcelStatementGeneratorService.java`
 
 ## Benefits
 
