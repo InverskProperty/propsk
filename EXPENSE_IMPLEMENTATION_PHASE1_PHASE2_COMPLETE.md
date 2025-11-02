@@ -1,8 +1,8 @@
-# Expense Implementation - Phase 1 & 2 Complete
+# Expense Implementation - All Phases Complete
 
 ## Date: 2025-11-02
 
-## Status: ✅ Phases 1 & 2 Implemented and Compiled Successfully
+## Status: ✅ Phases 1, 2 & 3 Implemented and Compiled Successfully
 
 ---
 
@@ -118,34 +118,58 @@ public List<PaymentDetailDTO> extractExpenseDetails(
 
 ---
 
-## Phase 3: Excel Generation Layer ⏳ PENDING
+## Phase 3: Excel Generation Layer ✅ COMPLETE
 
-### What Needs To Be Done
+### Changes Made
 
 **File:** `ExcelStatementGeneratorService.java`
 
-**Required Changes:**
+**Added:** New method `createExpensesSheet()` (lines 630-756)
 
-1. **Create EXPENSES sheet** (similar to RENT_RECEIVED)
-   - Columns: lease_id, lease_reference, property_name, month_start, month_end
-   - 4 expense columns: expense_1_date, expense_1_amount, expense_1_category (repeat x4)
-   - total_expenses column
+```java
+/**
+ * Create EXPENSES sheet with expense breakdown by date, amount, and category
+ * Shows property expenses (cleaning, maintenance, furnishings, etc.)
+ */
+private void createExpensesSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                 LocalDate startDate, LocalDate endDate) {
+    // 17 columns including expense breakdown for up to 4 expenses per month
+    // Columns: lease_id, lease_reference, property_name, month_start, month_end
+    //          expense_1_date, expense_1_amount, expense_1_category (repeat x4)
+    //          total_expenses
+    // Only creates rows when expenses exist for that month
+    // Calls dataExtractService.extractExpenseDetails() to get data
+}
+```
 
-2. **Update MONTHLY_STATEMENT sheet**
-   - Add "Total Expenses" column
-   - Add formula: `SUMIFS(EXPENSES!M:M, EXPENSES!A:A, lease_id, EXPENSES!D:D, month_start)`
+**Updated:** All 4 statement generation methods to call `createExpensesSheet()`:
+- `generateStatement()` - line 66
+- `generateStatementForCustomer()` - line 100
+- `generateStatementWithCustomPeriods()` - line 133
+- `generateStatementForCustomerWithCustomPeriods()` - line 172
 
-3. **Call createExpensesSheet() in all 4 generation methods:**
-   - `generateStatement()`
-   - `generateStatementForCustomer()`
-   - `generateStatementWithCustomPeriods()`
-   - `generateStatementForCustomerWithCustomPeriods()`
+**Updated:** `createMonthlyStatementSheet()` to add expenses column:
+- Added "total_expenses" to header (line 777)
+- Added expense cell formula: `SUMIFS(EXPENSES!Q:Q, EXPENSES!A:A, lease_id, EXPENSES!D:D, month_start)` (lines 868-874)
+- Updated net_to_owner formula: `F - J - K` (received - commission - expenses) (line 878)
+- Updated cumulative_arrears column reference from L to M (lines 881-887)
 
-### Implementation Complexity
+**Updated:** `createMonthlyStatementSheetWithCustomPeriods()` to add expenses column:
+- Added "total_expenses" to header (line 1193)
+- Added expense cell formula with INDEX/MATCH (lines 1293-1302)
+- Updated net_to_owner formula: `F - J - K` (line 1306)
+- Updated cumulative_arrears column reference from L to M (lines 1309-1316)
 
-**Estimated changes:** ~200-300 lines of code
-**Files affected:** 1 (ExcelStatementGeneratorService.java)
-**Time estimate:** 30-45 minutes
+**Impact:**
+- ✅ Excel statements now include EXPENSES sheet with detailed expense breakdown
+- ✅ MONTHLY_STATEMENT shows total expenses per lease per month
+- ✅ Net to owner calculation now subtracts expenses: rent_received - commission - expenses
+- ✅ All 4 generation methods support expenses (standard and custom periods)
+
+**Implementation Complexity:**
+- Lines of code added: ~190 lines
+- Files modified: 1 (ExcelStatementGeneratorService.java)
+- Time taken: ~45 minutes
 
 ---
 
@@ -201,25 +225,26 @@ curl http://localhost:8080/api/statements/owner/1/excel?year=2025&month=7
 - `src/main/java/site/easy/to/build/crm/repository/UnifiedTransactionRepository.java`
 - `src/main/java/site/easy/to/build/crm/service/statement/StatementDataExtractService.java`
 
-### Phase 3 (Pending):
+### Phase 3:
 - `src/main/java/site/easy/to/build/crm/service/statement/ExcelStatementGeneratorService.java`
 
 ---
 
 ## Compilation Status
 
-✅ **Phase 1 & 2:** BUILD SUCCESS
+✅ **All Phases:** BUILD SUCCESS
 
-All changes compiled without errors.
+All changes compiled without errors (Total time: 32.850s)
 
 ---
 
 ## Next Steps
 
 1. ✅ Commit Phase 1 & 2 changes
-2. ⏳ Implement Phase 3 (EXPENSES sheet in Excel)
-3. ⏳ Test rebuild with expense import
-4. ⏳ Generate and verify statement with expenses
+2. ✅ Implement Phase 3 (EXPENSES sheet in Excel)
+3. ✅ Compile Phase 3 changes
+4. ⏳ Test rebuild with expense import (run `/api/unified-transactions/rebuild`)
+5. ⏳ Generate and verify statement with expenses (check EXPENSES sheet and MONTHLY_STATEMENT expense column)
 
 ---
 

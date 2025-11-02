@@ -62,6 +62,7 @@ public class ExcelStatementGeneratorService {
         createTransactionsSheet(workbook, transactions);
         createRentDueSheet(workbook, leaseMaster, startDate, endDate);
         createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
         createMonthlyStatementSheet(workbook, leaseMaster, startDate, endDate);
 
         log.info("Statement workbook created successfully");
@@ -96,6 +97,7 @@ public class ExcelStatementGeneratorService {
         createTransactionsSheet(workbook, transactions);
         createRentDueSheet(workbook, leaseMaster, startDate, endDate);
         createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
         createMonthlyStatementSheet(workbook, leaseMaster, startDate, endDate);
 
         log.info("Customer statement workbook created successfully");
@@ -128,6 +130,7 @@ public class ExcelStatementGeneratorService {
         createTransactionsSheet(workbook, transactions);
         createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
         createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
         createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
 
         log.info("Statement workbook with custom periods created successfully");
@@ -166,6 +169,7 @@ public class ExcelStatementGeneratorService {
         createTransactionsSheet(workbook, transactions);
         createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
         createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
         createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
 
         log.info("Customer statement workbook with custom periods created successfully");
@@ -628,6 +632,134 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
+     * Create EXPENSES sheet with expense breakdown by date, amount, and category
+     * Shows property expenses (cleaning, maintenance, furnishings, etc.)
+     */
+    private void createExpensesSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                     LocalDate startDate, LocalDate endDate) {
+        log.info("Creating EXPENSES sheet with expense breakdown");
+
+        Sheet sheet = workbook.createSheet("EXPENSES");
+
+        // Header row with expense breakdown columns
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_id", "lease_reference", "property_name",
+            "month_start", "month_end",
+            "expense_1_date", "expense_1_amount", "expense_1_category",
+            "expense_2_date", "expense_2_amount", "expense_2_category",
+            "expense_3_date", "expense_3_amount", "expense_3_category",
+            "expense_4_date", "expense_4_amount", "expense_4_category",
+            "total_expenses"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Generate one row per lease per month
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            YearMonth currentMonth = YearMonth.from(startDate);
+            YearMonth endMonth = YearMonth.from(endDate);
+
+            while (!currentMonth.isAfter(endMonth)) {
+                LocalDate monthStart = currentMonth.atDay(1);
+                LocalDate monthEnd = currentMonth.atEndOfMonth();
+
+                boolean leaseActive = (leaseEnd == null || !monthEnd.isBefore(leaseStart))
+                                   && !monthStart.isAfter(leaseEnd != null ? leaseEnd : monthEnd);
+
+                if (leaseActive) {
+                    // Get expense details for this lease/month
+                    List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenses =
+                        dataExtractService.extractExpenseDetails(lease.getLeaseId(), monthStart, monthEnd);
+
+                    // Only create row if there are expenses for this month
+                    if (!expenses.isEmpty()) {
+                        Row row = sheet.createRow(rowNum);
+                        int col = 0;
+
+                        // Column A: lease_id
+                        row.createCell(col++).setCellValue(lease.getLeaseId());
+
+                        // Column B: lease_reference
+                        row.createCell(col++).setCellValue(lease.getLeaseReference());
+
+                        // Column C: property_name
+                        row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                        // Column D: month_start
+                        Cell monthStartCell = row.createCell(col++);
+                        monthStartCell.setCellValue(monthStart);
+                        monthStartCell.setCellStyle(dateStyle);
+
+                        // Column E: month_end
+                        Cell monthEndCell = row.createCell(col++);
+                        monthEndCell.setCellValue(monthEnd);
+                        monthEndCell.setCellStyle(dateStyle);
+
+                        // Columns F-P: Expense breakdown (up to 4 expenses)
+                        BigDecimal total = BigDecimal.ZERO;
+                        for (int i = 0; i < 4; i++) {
+                            if (i < expenses.size()) {
+                                site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense = expenses.get(i);
+
+                                // Expense date
+                                Cell expenseDateCell = row.createCell(col++);
+                                expenseDateCell.setCellValue(expense.getPaymentDate());
+                                expenseDateCell.setCellStyle(dateStyle);
+
+                                // Expense amount
+                                Cell expenseAmountCell = row.createCell(col++);
+                                expenseAmountCell.setCellValue(expense.getAmount().doubleValue());
+                                expenseAmountCell.setCellStyle(currencyStyle);
+
+                                // Expense category
+                                row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
+
+                                total = total.add(expense.getAmount());
+                            } else {
+                                // Empty expense columns
+                                row.createCell(col++); // date
+                                row.createCell(col++); // amount
+                                row.createCell(col++); // category
+                            }
+                        }
+
+                        // Column Q: total_expenses
+                        Cell totalExpensesCell = row.createCell(col++);
+                        totalExpensesCell.setCellValue(total.doubleValue());
+                        totalExpensesCell.setCellStyle(currencyStyle);
+
+                        rowNum++;
+                    }
+                }
+
+                currentMonth = currentMonth.plusMonths(1);
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("EXPENSES sheet created with {} rows", rowNum - 1);
+    }
+
+    /**
      * Create MONTHLY_STATEMENT sheet with FORMULAS combining DUE and RECEIVED
      * Final output sheet with arrears calculation
      */
@@ -642,7 +774,7 @@ public class ExcelStatementGeneratorService {
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "month",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
-            "total_commission", "net_to_owner", "cumulative_arrears"
+            "total_commission", "total_expenses", "net_to_owner", "cumulative_arrears"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -733,17 +865,25 @@ public class ExcelStatementGeneratorService {
                     totalCommCell.setCellFormula(String.format("H%d + I%d", rowNum + 1, rowNum + 1));
                     totalCommCell.setCellStyle(currencyStyle);
 
-                    // Column K: net_to_owner (formula: received - commission)
+                    // Column K: total_expenses (SUMIFS to EXPENSES sheet)
+                    Cell expensesCell = row.createCell(col++);
+                    expensesCell.setCellFormula(String.format(
+                        "SUMIFS(EXPENSES!Q:Q, EXPENSES!A:A, %d, EXPENSES!D:D, D%d)",
+                        lease.getLeaseId(), rowNum + 1
+                    ));
+                    expensesCell.setCellStyle(currencyStyle);
+
+                    // Column L: net_to_owner (formula: received - commission - expenses)
                     Cell netToOwnerCell = row.createCell(col++);
-                    netToOwnerCell.setCellFormula(String.format("F%d - J%d", rowNum + 1, rowNum + 1));
+                    netToOwnerCell.setCellFormula(String.format("F%d - J%d - K%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // Column L: cumulative_arrears (formula: running sum)
+                    // Column M: cumulative_arrears (formula: running sum)
                     Cell cumArrearsCell = row.createCell(col++);
                     if (rowNum == 1) {
                         cumArrearsCell.setCellFormula(String.format("G%d", rowNum + 1));
                     } else {
-                        cumArrearsCell.setCellFormula(String.format("L%d + G%d", rowNum, rowNum + 1));
+                        cumArrearsCell.setCellFormula(String.format("M%d + G%d", rowNum, rowNum + 1));
                     }
                     cumArrearsCell.setCellStyle(currencyStyle);
 
@@ -1050,7 +1190,7 @@ public class ExcelStatementGeneratorService {
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "period",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
-            "total_commission", "net_to_owner", "cumulative_arrears"
+            "total_commission", "total_expenses", "net_to_owner", "cumulative_arrears"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -1150,17 +1290,28 @@ public class ExcelStatementGeneratorService {
                     totalCommCell.setCellFormula(String.format("H%d + I%d", rowNum + 1, rowNum + 1));
                     totalCommCell.setCellStyle(currencyStyle);
 
-                    // K: net_to_owner (formula: received - commission)
+                    // K: total_expenses (INDEX/MATCH to EXPENSES sheet)
+                    Cell expensesCell = row.createCell(col++);
+                    expensesCell.setCellFormula(String.format(
+                        "IFERROR(INDEX(EXPENSES!Q:Q, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        lease.getLeaseReference(),
+                        period.periodStart.getYear(),
+                        period.periodStart.getMonthValue(),
+                        period.periodStart.getDayOfMonth()
+                    ));
+                    expensesCell.setCellStyle(currencyStyle);
+
+                    // L: net_to_owner (formula: received - commission - expenses)
                     Cell netToOwnerCell = row.createCell(col++);
-                    netToOwnerCell.setCellFormula(String.format("F%d - J%d", rowNum + 1, rowNum + 1));
+                    netToOwnerCell.setCellFormula(String.format("F%d - J%d - K%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // L: cumulative_arrears (formula: running sum)
+                    // M: cumulative_arrears (formula: running sum)
                     Cell cumArrearsCell = row.createCell(col++);
                     if (rowNum == 1) {
                         cumArrearsCell.setCellFormula(String.format("G%d", rowNum + 1));
                     } else {
-                        cumArrearsCell.setCellFormula(String.format("L%d + G%d", rowNum, rowNum + 1));
+                        cumArrearsCell.setCellFormula(String.format("M%d + G%d", rowNum, rowNum + 1));
                     }
                     cumArrearsCell.setCellStyle(currencyStyle);
 
