@@ -868,7 +868,7 @@ public class ExcelStatementGeneratorService {
                     // Column K: total_expenses (SUMIFS to EXPENSES sheet)
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
-                        "SUMIFS(EXPENSES!Q:Q, EXPENSES!A:A, %d, EXPENSES!D:D, D%d)",
+                        "SUMIFS(EXPENSES!R:R, EXPENSES!A:A, %d, EXPENSES!D:D, D%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     expensesCell.setCellStyle(currencyStyle);
@@ -1293,7 +1293,7 @@ public class ExcelStatementGeneratorService {
                     // K: total_expenses (INDEX/MATCH to EXPENSES sheet)
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(EXPENSES!Q:Q, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,%d)), 0)), 0)",
                         lease.getLeaseReference(),
                         period.periodStart.getYear(),
                         period.periodStart.getMonthValue(),
