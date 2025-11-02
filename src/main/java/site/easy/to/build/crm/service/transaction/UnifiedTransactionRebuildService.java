@@ -121,10 +121,10 @@ public class UnifiedTransactionRebuildService {
                 ht.amount,
                 ht.description,
                 ht.category,
-                ht.invoice_id,
+                COALESCE(ht.invoice_id, active_lease.id) as invoice_id,
                 ht.property_id,
                 ht.customer_id,
-                i.lease_reference,
+                COALESCE(i.lease_reference, active_lease.lease_reference) as lease_reference,
                 ht.lease_start_date,
                 ht.lease_end_date,
                 ht.rent_amount_at_transaction,
@@ -148,7 +148,11 @@ public class UnifiedTransactionRebuildService {
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
             LEFT JOIN invoices i ON ht.invoice_id = i.id
-            WHERE ht.invoice_id IS NOT NULL
+            LEFT JOIN invoices active_lease ON ht.property_id = active_lease.property_id
+                AND ht.transaction_date >= active_lease.start_date
+                AND (active_lease.end_date IS NULL OR ht.transaction_date <= active_lease.end_date)
+                AND ht.invoice_id IS NULL
+            WHERE ht.invoice_id IS NOT NULL OR active_lease.id IS NOT NULL
         """;
 
         return jdbcTemplate.update(sql, batchId);
@@ -323,8 +327,8 @@ public class UnifiedTransactionRebuildService {
             SELECT
                 'HISTORICAL', 'historical_transactions', ht.id,
                 ht.transaction_date, ht.amount, ht.description, ht.category,
-                ht.invoice_id, ht.property_id, ht.customer_id,
-                i.lease_reference, ht.lease_start_date, ht.lease_end_date,
+                COALESCE(ht.invoice_id, active_lease.id), ht.property_id, ht.customer_id,
+                COALESCE(i.lease_reference, active_lease.lease_reference), ht.lease_start_date, ht.lease_end_date,
                 ht.rent_amount_at_transaction, p.property_name,
                 CASE
                     WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'rent_received'
@@ -344,7 +348,11 @@ public class UnifiedTransactionRebuildService {
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
             LEFT JOIN invoices i ON ht.invoice_id = i.id
-            WHERE ht.invoice_id IS NOT NULL
+            LEFT JOIN invoices active_lease ON ht.property_id = active_lease.property_id
+                AND ht.transaction_date >= active_lease.start_date
+                AND (active_lease.end_date IS NULL OR ht.transaction_date <= active_lease.end_date)
+                AND ht.invoice_id IS NULL
+            WHERE (ht.invoice_id IS NOT NULL OR active_lease.id IS NOT NULL)
               AND ht.updated_at > ?
         """;
 
