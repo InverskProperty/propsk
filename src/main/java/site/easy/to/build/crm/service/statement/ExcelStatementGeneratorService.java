@@ -416,8 +416,8 @@ public class ExcelStatementGeneratorService {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
-            // Generate monthly rows from statement start to end
-            YearMonth currentMonth = YearMonth.from(startDate);
+            // Generate monthly rows from LEASE START to statement end (for accurate cumulative arrears)
+            YearMonth currentMonth = leaseStart != null ? YearMonth.from(leaseStart) : YearMonth.from(startDate);
             YearMonth endMonth = YearMonth.from(endDate);
 
             while (!currentMonth.isAfter(endMonth)) {
@@ -462,11 +462,11 @@ public class ExcelStatementGeneratorService {
                     );
                     row.createCell(col++).setCellFormula(leaseDaysFormula);
 
-                    // Column H: prorated_rent_due (formula)
+                    // Column H: prorated_rent_due (formula - only pro-rate at lease END, not start)
                     Cell proratedRentCell = row.createCell(col++);
                     proratedRentCell.setCellFormula(String.format(
-                        "IF(G%d>0, (G%d/F%d) * VLOOKUP(A%d,LEASE_MASTER!A:J,10,FALSE), 0)",
-                        rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1
+                        "IF(AND(NOT(ISBLANK(VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE))), VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE)>=D%d, VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE)<E%d), ROUND((VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE)-D%d+1)/F%d*VLOOKUP(A%d,LEASE_MASTER!A:J,10,FALSE), 2), VLOOKUP(A%d,LEASE_MASTER!A:J,10,FALSE))",
+                        rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1
                     ));
                     proratedRentCell.setCellStyle(currencyStyle);
 
@@ -844,20 +844,14 @@ public class ExcelStatementGeneratorService {
                     arrearsCell.setCellFormula(String.format("E%d - F%d", rowNum + 1, rowNum + 1));
                     arrearsCell.setCellStyle(currencyStyle);
 
-                    // Column H: management_fee (SUMIFS to RENT_DUE)
+                    // Column H: management_fee (formula: rent_received * management_fee_percent)
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format(
-                        "SUMIFS(RENT_DUE!I:I, RENT_DUE!A:A, %d, RENT_DUE!D:D, D%d)",
-                        lease.getLeaseId(), rowNum + 1
-                    ));
+                    mgmtFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
-                    // Column I: service_fee (SUMIFS to RENT_DUE)
+                    // Column I: service_fee (formula: rent_received * service_fee_percent)
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format(
-                        "SUMIFS(RENT_DUE!J:J, RENT_DUE!A:A, %d, RENT_DUE!D:D, D%d)",
-                        lease.getLeaseId(), rowNum + 1
-                    ));
+                    svcFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     svcFeeCell.setCellStyle(currencyStyle);
 
                     // Column J: total_commission (formula: mgmt + svc)
@@ -1010,15 +1004,16 @@ public class ExcelStatementGeneratorService {
                         rowNum + 1, rowNum + 1 // lease_start, period_start
                     ));
 
-                    // L: prorated_rent_due (FORMULA - accurate calendar day pro-rating)
-                    // Uses actual days in the anchor month for pro-rating
+                    // L: prorated_rent_due (FORMULA - only pro-rate at lease END, not start)
+                    // Full rent unless lease ends mid-period
                     Cell proratedRentCell = row.createCell(col++);
                     proratedRentCell.setCellFormula(String.format(
-                        "IF(K%d>0, ROUND(I%d * (K%d / DAY(EOMONTH(D%d, 0))), 2), 0)",
-                        rowNum + 1, // lease_days check
-                        rowNum + 1, // monthly_rent
-                        rowNum + 1, // lease_days_in_period
-                        rowNum + 1  // period_start for EOMONTH
+                        "IF(AND(NOT(ISBLANK(H%d)), H%d>=D%d, H%d<E%d), ROUND((H%d-D%d+1)/DAY(EOMONTH(D%d, 0))*I%d, 2), I%d)",
+                        rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, // lease_end checks
+                        rowNum + 1, rowNum + 1, // lease_end - period_start + 1
+                        rowNum + 1, // days in anchor month
+                        rowNum + 1, // monthly_rent (pro-rated)
+                        rowNum + 1  // monthly_rent (full)
                     ));
                     proratedRentCell.setCellStyle(currencyStyle);
 
@@ -1206,8 +1201,15 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate custom periods
-        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
+        // Find earliest lease start date to generate full history
+        LocalDate earliestStart = leaseMaster.stream()
+            .map(LeaseMasterDTO::getStartDate)
+            .filter(date -> date != null)
+            .min(LocalDate::compareTo)
+            .orElse(startDate);
+
+        // Generate custom periods from earliest lease start to statement end (for accurate cumulative arrears)
+        List<CustomPeriod> periods = generateCustomPeriods(earliestStart, endDate, periodStartDay);
 
         // Generate rows for each lease × custom period
         for (LeaseMasterDTO lease : leaseMaster) {
@@ -1263,26 +1265,14 @@ public class ExcelStatementGeneratorService {
                     arrearsCell.setCellFormula(String.format("E%d - F%d", rowNum + 1, rowNum + 1));
                     arrearsCell.setCellStyle(currencyStyle);
 
-                    // H: management_fee (VLOOKUP to RENT_DUE)
+                    // H: management_fee (formula: rent_received * management_fee_percent)
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_DUE!M:M, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!D:D=DATE(%d,%d,%d)), 0)), 0)",
-                        lease.getLeaseReference(),
-                        period.periodStart.getYear(),
-                        period.periodStart.getMonthValue(),
-                        period.periodStart.getDayOfMonth()
-                    ));
+                    mgmtFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
-                    // I: service_fee (VLOOKUP to RENT_DUE)
+                    // I: service_fee (formula: rent_received * service_fee_percent)
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_DUE!N:N, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!D:D=DATE(%d,%d,%d)), 0)), 0)",
-                        lease.getLeaseReference(),
-                        period.periodStart.getYear(),
-                        period.periodStart.getMonthValue(),
-                        period.periodStart.getDayOfMonth()
-                    ));
+                    svcFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     svcFeeCell.setCellStyle(currencyStyle);
 
                     // J: total_commission (formula: mgmt + svc)
