@@ -702,7 +702,7 @@ public class ExcelStatementGeneratorService {
                     // Column F: rent_received (SUMIFS to RENT_RECEIVED sheet - simpler than array formula)
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "SUMIFS(RENT_RECEIVED!F:F, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!D:D, D%d)",
+                        "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, D%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     rentReceivedCell.setCellStyle(currencyStyle);
@@ -1107,10 +1107,10 @@ public class ExcelStatementGeneratorService {
                     ));
                     rentDueCell.setCellStyle(currencyStyle);
 
-                    // F: rent_received (VLOOKUP to RENT_RECEIVED sheet)
+                    // F: rent_received (INDEX/MATCH to RENT_RECEIVED sheet)
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_RECEIVED!F:F, MATCH(1, (RENT_RECEIVED!A:A=\"%s\") * (RENT_RECEIVED!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        "IFERROR(INDEX(RENT_RECEIVED!O:O, MATCH(1, (RENT_RECEIVED!B:B=\"%s\") * (RENT_RECEIVED!E:E=DATE(%d,%d,%d)), 0)), 0)",
                         lease.getLeaseReference(),
                         period.periodStart.getYear(),
                         period.periodStart.getMonthValue(),
