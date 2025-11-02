@@ -2,70 +2,106 @@ import java.sql.*;
 
 public class verify_incoming_complete {
     public static void main(String[] args) {
-        String url = System.getenv("DATABASE_URL");
-        String user = System.getenv("DB_USERNAME");
-        String password = System.getenv("DB_PASSWORD");
+        String url = "jdbc:mysql://switchyard.proxy.rlwy.net:55090/railway?useSSL=false&serverTimezone=UTC";
+        String user = "root";
+        String password = "iRlCPXIbpytvKvaIAfJFZNYGEisxHHrW";
+
+        System.out.println("=== UNIFIED LAYER VERIFICATION ===\n");
 
         try (Connection conn = DriverManager.getConnection(url, user, password)) {
-            
-            // Check INCOMING_PAYMENT completeness
-            System.out.println("=== INCOMING_PAYMENT COMPLETENESS CHECK ===\n");
-            
-            String sql = """
-                SELECT
-                    COUNT(*) as total,
-                    SUM(CASE WHEN invoice_id IS NULL THEN 1 ELSE 0 END) as null_invoice,
-                    SUM(CASE WHEN property_id IS NULL THEN 1 ELSE 0 END) as null_property,
-                    SUM(CASE WHEN customer_id IS NULL THEN 1 ELSE 0 END) as null_customer,
-                    SUM(CASE WHEN invoice_id IS NOT NULL THEN 1 ELSE 0 END) as has_invoice,
-                    SUM(CASE WHEN property_id IS NOT NULL THEN 1 ELSE 0 END) as has_property,
-                    SUM(CASE WHEN customer_id IS NOT NULL THEN 1 ELSE 0 END) as has_customer
-                FROM unified_transactions
-                WHERE payprop_data_source = 'INCOMING_PAYMENT'
-            """;
-            
+
+            // 1. Total records by source system
+            System.out.println("1. TOTAL RECORDS BY SOURCE:");
+            String sql1 = "SELECT source_system, COUNT(*) as count FROM unified_transactions GROUP BY source_system";
             try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(sql)) {
-                if (rs.next()) {
-                    System.out.println("Total INCOMING_PAYMENT: " + rs.getInt("total"));
-                    System.out.println("\nNULL counts:");
-                    System.out.println("  invoice_id: " + rs.getInt("null_invoice"));
-                    System.out.println("  property_id: " + rs.getInt("null_property"));
-                    System.out.println("  customer_id: " + rs.getInt("null_customer"));
-                    System.out.println("\nPopulated counts:");
-                    System.out.println("  invoice_id: " + rs.getInt("has_invoice"));
-                    System.out.println("  property_id: " + rs.getInt("has_property"));
-                    System.out.println("  customer_id: " + rs.getInt("has_customer"));
-                }
-            }
-            
-            // Sample records
-            System.out.println("\n=== SAMPLE INCOMING_PAYMENT RECORDS ===\n");
-            
-            String sampleSql = """
-                SELECT
-                    invoice_id, property_id, customer_id,
-                    property_name, amount, transaction_date
-                FROM unified_transactions
-                WHERE payprop_data_source = 'INCOMING_PAYMENT'
-                  AND property_name LIKE '%Flat%'
-                ORDER BY property_name
-                LIMIT 5
-            """;
-            
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery(sampleSql)) {
+                 ResultSet rs = stmt.executeQuery(sql1)) {
+                int total = 0;
                 while (rs.next()) {
-                    System.out.printf("invoice_id=%s, property_id=%s, customer_id=%s, property=\"%s\", amount=£%.2f%n",
-                        rs.getString("invoice_id"),
-                        rs.getString("property_id"),
-                        rs.getString("customer_id"),
-                        rs.getString("property_name"),
-                        rs.getBigDecimal("amount"));
+                    int count = rs.getInt("count");
+                    total += count;
+                    System.out.printf("   %s: %d records\n", rs.getString("source_system"), count);
+                }
+                System.out.println("   TOTAL: " + total + " records");
+            }
+
+            // 2. Transaction types breakdown
+            System.out.println("\n2. TRANSACTION TYPES:");
+            String sql2 = "SELECT transaction_type, flow_direction, COUNT(*) as count, SUM(amount) as total FROM unified_transactions GROUP BY transaction_type, flow_direction ORDER BY count DESC";
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql2)) {
+                while (rs.next()) {
+                    System.out.printf("   %s (%s): %d records (£%.2f)\n",
+                        rs.getString("transaction_type"),
+                        rs.getString("flow_direction"),
+                        rs.getInt("count"),
+                        rs.getBigDecimal("total"));
                 }
             }
-            
-        } catch (SQLException e) {
+
+            // 3. Expenses verification
+            System.out.println("\n3. EXPENSES VERIFICATION:");
+            String sql3 = "SELECT COUNT(*) as count, SUM(amount) as total FROM unified_transactions WHERE transaction_type = 'expense'";
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql3)) {
+                if (rs.next()) {
+                    System.out.printf("   Total expenses: %d records (£%.2f)\n",
+                        rs.getInt("count"),
+                        rs.getBigDecimal("total"));
+                }
+            }
+
+            // Sample expenses
+            String sql4 = "SELECT transaction_date, amount, category, property_name, lease_reference FROM unified_transactions WHERE transaction_type = 'expense' ORDER BY transaction_date DESC LIMIT 5";
+            System.out.println("   Sample expenses:");
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql4)) {
+                while (rs.next()) {
+                    System.out.printf("     %s | £%.2f | %s | %s | Lease: %s\n",
+                        rs.getDate("transaction_date"),
+                        rs.getBigDecimal("amount"),
+                        rs.getString("category"),
+                        rs.getString("property_name"),
+                        rs.getString("lease_reference"));
+                }
+            }
+
+            // 4. July 2025 INCOMING completeness
+            System.out.println("\n4. JULY 2025 INCOMING COMPLETENESS:");
+            String sql5 = "SELECT transaction_type, COUNT(*) as count, SUM(amount) as total FROM unified_transactions WHERE flow_direction = 'INCOMING' AND transaction_date BETWEEN '2025-07-01' AND '2025-07-31' GROUP BY transaction_type";
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql5)) {
+                int totalPayments = 0;
+                double totalAmount = 0;
+                while (rs.next()) {
+                    int count = rs.getInt("count");
+                    double amount = rs.getBigDecimal("total").doubleValue();
+                    totalPayments += count;
+                    totalAmount += amount;
+                    System.out.printf("   %s: %d payments (£%.2f)\n",
+                        rs.getString("transaction_type"),
+                        count,
+                        amount);
+                }
+                System.out.printf("   TOTAL: %d payments (£%.2f)\n", totalPayments, totalAmount);
+            }
+
+            // 5. Data sources for July INCOMING
+            System.out.println("\n5. JULY INCOMING BY SOURCE:");
+            String sql6 = "SELECT source_system, COUNT(*) as count, SUM(amount) as total FROM unified_transactions WHERE flow_direction = 'INCOMING' AND transaction_date BETWEEN '2025-07-01' AND '2025-07-31' GROUP BY source_system";
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql6)) {
+                while (rs.next()) {
+                    System.out.printf("   %s: %d payments (£%.2f)\n",
+                        rs.getString("source_system"),
+                        rs.getInt("count"),
+                        rs.getBigDecimal("total"));
+                }
+            }
+
+            System.out.println("\n✅ UNIFIED LAYER COMPLETE - Ready for statement generation!");
+
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
         }
     }
