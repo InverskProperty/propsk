@@ -131,11 +131,16 @@ public class UnifiedTransactionRebuildService {
                 p.property_name,
                 CASE
                     WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'rent_received'
-                    WHEN ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'expense'
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                        OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'expense'
+                    WHEN ht.category = 'owner_payment' THEN 'payment_to_beneficiary'
                     ELSE 'other'
                 END as transaction_type,
                 CASE
                     WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'INCOMING'
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                        OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'OUTGOING'
+                    WHEN ht.category = 'owner_payment' THEN 'OUTGOING'
                     ELSE 'OUTGOING'
                 END as flow_direction,
                 NOW() as rebuilt_at,
@@ -323,11 +328,16 @@ public class UnifiedTransactionRebuildService {
                 ht.rent_amount_at_transaction, p.property_name,
                 CASE
                     WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'rent_received'
-                    WHEN ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'expense'
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                        OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'expense'
+                    WHEN ht.category = 'owner_payment' THEN 'payment_to_beneficiary'
                     ELSE 'other'
                 END,
                 CASE
                     WHEN ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' THEN 'INCOMING'
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                        OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%' THEN 'OUTGOING'
+                    WHEN ht.category = 'owner_payment' THEN 'OUTGOING'
                     ELSE 'OUTGOING'
                 END,
                 NOW(), ?

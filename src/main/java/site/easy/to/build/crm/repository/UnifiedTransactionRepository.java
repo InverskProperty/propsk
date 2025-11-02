@@ -80,6 +80,18 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
     );
 
     /**
+     * Find transactions by invoice ID, date range, flow direction, and transaction type
+     * Use this for extracting specific transaction types for a lease (e.g., expenses only)
+     */
+    List<UnifiedTransaction> findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndTransactionType(
+        Long invoiceId,
+        LocalDate startDate,
+        LocalDate endDate,
+        UnifiedTransaction.FlowDirection flowDirection,
+        String transactionType
+    );
+
+    /**
      * Find transactions for properties owned by customer (for statement generation)
      * Includes INCOMING_PAYMENT records (which have invoiceId=NULL and propertyId=NULL)
      * Matches INCOMING_PAYMENT by property_name instead of propertyId

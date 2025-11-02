@@ -548,6 +548,49 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Extract expense details for a specific lease and date range
+     * Returns only OUTGOING transactions with transaction_type = 'expense'
+     *
+     * @param invoiceId Lease/invoice ID
+     * @param startDate Start date filter
+     * @param endDate End date filter
+     * @return List of expense details sorted by date
+     */
+    public List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> extractExpenseDetails(
+            Long invoiceId, LocalDate startDate, LocalDate endDate) {
+
+        log.info("Extracting expense details for lease {} from {} to {}",
+            invoiceId, startDate, endDate);
+
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndTransactionType(
+                invoiceId, startDate, endDate,
+                UnifiedTransaction.FlowDirection.OUTGOING,
+                "expense");
+
+        List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenseDetails = new ArrayList<>();
+
+        for (UnifiedTransaction txn : transactions) {
+            site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail =
+                new site.easy.to.build.crm.dto.statement.PaymentDetailDTO();
+
+            detail.setPaymentDate(txn.getTransactionDate());
+            detail.setAmount(txn.getAmount());
+            detail.setDescription(txn.getDescription());
+            detail.setCategory(txn.getCategory());
+            detail.setTransactionId(txn.getId());
+
+            expenseDetails.add(detail);
+        }
+
+        // Sort by date ascending
+        expenseDetails.sort((a, b) -> a.getPaymentDate().compareTo(b.getPaymentDate()));
+
+        log.info("Extracted {} expense details for lease {}", expenseDetails.size(), invoiceId);
+        return expenseDetails;
+    }
+
+    /**
      * Extract all properties (for reference)
      *
      * @return List of properties
