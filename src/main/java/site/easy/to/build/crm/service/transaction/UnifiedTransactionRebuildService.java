@@ -118,7 +118,12 @@ public class UnifiedTransactionRebuildService {
                 'historical_transactions' as source_table,
                 ht.id as source_record_id,
                 ht.transaction_date,
-                ht.amount,
+                CASE
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                        OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%'
+                    THEN ABS(ht.amount)
+                    ELSE ht.amount
+                END as amount,
                 ht.description,
                 ht.category,
                 COALESCE(ht.invoice_id, active_lease.id) as invoice_id,
@@ -326,7 +331,14 @@ public class UnifiedTransactionRebuildService {
             )
             SELECT
                 'HISTORICAL', 'historical_transactions', ht.id,
-                ht.transaction_date, ht.amount, ht.description, ht.category,
+                ht.transaction_date,
+                CASE
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                        OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%'
+                    THEN ABS(ht.amount)
+                    ELSE ht.amount
+                END,
+                ht.description, ht.category,
                 COALESCE(ht.invoice_id, active_lease.id), ht.property_id, ht.customer_id,
                 COALESCE(i.lease_reference, active_lease.lease_reference), ht.lease_start_date, ht.lease_end_date,
                 ht.rent_amount_at_transaction, p.property_name,
