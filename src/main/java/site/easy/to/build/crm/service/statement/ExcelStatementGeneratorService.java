@@ -34,9 +34,8 @@ public class ExcelStatementGeneratorService {
     @Autowired
     private StatementDataExtractService dataExtractService;
 
-    // Commission rates (currently hardcoded, future: from database)
-    private static final BigDecimal MANAGEMENT_FEE_PCT = new BigDecimal("0.10");  // 10%
-    private static final BigDecimal SERVICE_FEE_PCT = new BigDecimal("0.05");     // 5%
+    @Autowired
+    private site.easy.to.build.crm.config.CommissionConfig commissionConfig;
 
     /**
      * Generate complete statement workbook
@@ -469,12 +468,12 @@ public class ExcelStatementGeneratorService {
 
                     // Column I: management_fee (formula: 10%)
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, MANAGEMENT_FEE_PCT.doubleValue()));
+                    mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
                     // Column J: service_fee (formula: 5%)
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, SERVICE_FEE_PCT.doubleValue()));
+                    svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     svcFeeCell.setCellStyle(currencyStyle);
 
                     // Column K: total_commission (formula)
@@ -503,19 +502,25 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
-     * Create RENT_RECEIVED sheet with FORMULAS for aggregation
-     * Uses SUMIFS to sum transactions by lease and month
+     * Create RENT_RECEIVED sheet with payment breakdown
+     * Shows individual payment dates and amounts (up to 4 payments per period)
      */
     private void createRentReceivedSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                         LocalDate startDate, LocalDate endDate) {
-        log.info("Creating RENT_RECEIVED sheet with formulas");
+        log.info("Creating RENT_RECEIVED sheet with payment breakdown");
 
         Sheet sheet = workbook.createSheet("RENT_RECEIVED");
 
-        // Header row
+        // Header row with payment breakdown columns
         Row header = sheet.createRow(0);
         String[] headers = {
-            "lease_id", "lease_reference", "property_name", "month_start", "month_end", "total_received"
+            "lease_id", "lease_reference", "property_name", "rent_due_date",
+            "month_start", "month_end",
+            "payment_1_date", "payment_1_amount",
+            "payment_2_date", "payment_2_amount",
+            "payment_3_date", "payment_3_amount",
+            "payment_4_date", "payment_4_amount",
+            "total_received"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -531,7 +536,7 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month (same structure as RENT_DUE)
+        // Generate one row per lease per month
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
@@ -550,6 +555,10 @@ public class ExcelStatementGeneratorService {
                     Row row = sheet.createRow(rowNum);
                     int col = 0;
 
+                    // Get payment details for this lease/month
+                    List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> payments =
+                        dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), monthStart, monthEnd);
+
                     // Column A: lease_id
                     row.createCell(col++).setCellValue(lease.getLeaseId());
 
@@ -559,25 +568,48 @@ public class ExcelStatementGeneratorService {
                     // Column C: property_name
                     row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
 
-                    // Column D: month_start
+                    // Column D: rent_due_date (1st of the month by default)
+                    Cell dueDateCell = row.createCell(col++);
+                    dueDateCell.setCellValue(monthStart);
+                    dueDateCell.setCellStyle(dateStyle);
+
+                    // Column E: month_start
                     Cell monthStartCell = row.createCell(col++);
                     monthStartCell.setCellValue(monthStart);
                     monthStartCell.setCellStyle(dateStyle);
 
-                    // Column E: month_end
+                    // Column F: month_end
                     Cell monthEndCell = row.createCell(col++);
                     monthEndCell.setCellValue(monthEnd);
                     monthEndCell.setCellStyle(dateStyle);
 
-                    // Column F: total_received (SUMIFS formula)
-                    // Sum ALL amounts from TRANSACTIONS (which now only contains INCOMING rent)
-                    // No need to filter by category since data is pre-filtered by flow_direction=INCOMING
+                    // Columns G-N: Payment breakdown (up to 4 payments)
+                    BigDecimal total = BigDecimal.ZERO;
+                    for (int i = 0; i < 4; i++) {
+                        if (i < payments.size()) {
+                            site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = payments.get(i);
+
+                            // Payment date
+                            Cell paymentDateCell = row.createCell(col++);
+                            paymentDateCell.setCellValue(payment.getPaymentDate());
+                            paymentDateCell.setCellStyle(dateStyle);
+
+                            // Payment amount
+                            Cell paymentAmountCell = row.createCell(col++);
+                            paymentAmountCell.setCellValue(payment.getAmount().doubleValue());
+                            paymentAmountCell.setCellStyle(currencyStyle);
+
+                            total = total.add(payment.getAmount());
+                        } else {
+                            // Empty payment columns
+                            row.createCell(col++); // date
+                            row.createCell(col++); // amount
+                        }
+                    }
+
+                    // Column O: total_received
                     Cell totalReceivedCell = row.createCell(col++);
-                    String sumFormula = String.format(
-                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
-                        rowNum + 1, rowNum + 1, rowNum + 1
-                    );
-                    totalReceivedCell.setCellFormula(sumFormula);
+                    totalReceivedCell.setCellValue(total.doubleValue());
                     totalReceivedCell.setCellStyle(currencyStyle);
 
                     rowNum++;
@@ -850,14 +882,14 @@ public class ExcelStatementGeneratorService {
                     ));
                     proratedRentCell.setCellStyle(currencyStyle);
 
-                    // M: management_fee (10%)
+                    // M: management_fee (from config)
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, MANAGEMENT_FEE_PCT.doubleValue()));
+                    mgmtFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
-                    // N: service_fee (5%)
+                    // N: service_fee (from config)
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, SERVICE_FEE_PCT.doubleValue()));
+                    svcFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     svcFeeCell.setCellStyle(currencyStyle);
 
                     // O: total_commission (15%)
@@ -884,18 +916,25 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
-     * Create RENT_RECEIVED sheet with custom periods
+     * Create RENT_RECEIVED sheet with custom periods and payment breakdown
+     * Shows individual payment dates and amounts (up to 4 payments per period)
      */
     private void createRentReceivedSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                                          LocalDate startDate, LocalDate endDate, int periodStartDay) {
-        log.info("Creating RENT_RECEIVED sheet with custom periods");
+        log.info("Creating RENT_RECEIVED sheet with custom periods and payment breakdown");
 
         Sheet sheet = workbook.createSheet("RENT_RECEIVED");
 
-        // Header row
+        // Header row with payment breakdown columns
         Row header = sheet.createRow(0);
         String[] headers = {
-            "lease_id", "lease_reference", "property_name", "period_start", "period_end", "total_received"
+            "lease_id", "lease_reference", "property_name", "rent_due_date",
+            "period_start", "period_end",
+            "payment_1_date", "payment_1_amount",
+            "payment_2_date", "payment_2_amount",
+            "payment_3_date", "payment_3_amount",
+            "payment_4_date", "payment_4_amount",
+            "total_received"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -927,6 +966,10 @@ public class ExcelStatementGeneratorService {
                     Row row = sheet.createRow(rowNum);
                     int col = 0;
 
+                    // Get payment details for this lease/period
+                    List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> payments =
+                        dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), period.periodStart, period.periodEnd);
+
                     // A: lease_id
                     row.createCell(col++).setCellValue(lease.getLeaseId());
 
@@ -936,25 +979,48 @@ public class ExcelStatementGeneratorService {
                     // C: property_name
                     row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
 
-                    // D: period_start
+                    // D: rent_due_date (period start date)
+                    Cell dueDateCell = row.createCell(col++);
+                    dueDateCell.setCellValue(period.periodStart);
+                    dueDateCell.setCellStyle(dateStyle);
+
+                    // E: period_start
                     Cell periodStartCell = row.createCell(col++);
                     periodStartCell.setCellValue(period.periodStart);
                     periodStartCell.setCellStyle(dateStyle);
 
-                    // E: period_end
+                    // F: period_end
                     Cell periodEndCell = row.createCell(col++);
                     periodEndCell.setCellValue(period.periodEnd);
                     periodEndCell.setCellStyle(dateStyle);
 
-                    // F: total_received (SUMIFS formula with custom period dates)
-                    // Sum ALL amounts from TRANSACTIONS (which now only contains INCOMING rent)
-                    // No need to filter by category since data is pre-filtered by flow_direction=INCOMING
+                    // Columns G-N: Payment breakdown (up to 4 payments)
+                    BigDecimal total = BigDecimal.ZERO;
+                    for (int i = 0; i < 4; i++) {
+                        if (i < payments.size()) {
+                            site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = payments.get(i);
+
+                            // Payment date
+                            Cell paymentDateCell = row.createCell(col++);
+                            paymentDateCell.setCellValue(payment.getPaymentDate());
+                            paymentDateCell.setCellStyle(dateStyle);
+
+                            // Payment amount
+                            Cell paymentAmountCell = row.createCell(col++);
+                            paymentAmountCell.setCellValue(payment.getAmount().doubleValue());
+                            paymentAmountCell.setCellStyle(currencyStyle);
+
+                            total = total.add(payment.getAmount());
+                        } else {
+                            // Empty payment columns
+                            row.createCell(col++); // date
+                            row.createCell(col++); // amount
+                        }
+                    }
+
+                    // Column O: total_received
                     Cell totalReceivedCell = row.createCell(col++);
-                    String sumFormula = String.format(
-                        "SUMIFS(TRANSACTIONS!I:I, TRANSACTIONS!C:C, A%d, TRANSACTIONS!B:B, \">=\"&D%d, TRANSACTIONS!B:B, \"<=\"&E%d)",
-                        rowNum + 1, rowNum + 1, rowNum + 1
-                    );
-                    totalReceivedCell.setCellFormula(sumFormula);
+                    totalReceivedCell.setCellValue(total.doubleValue());
                     totalReceivedCell.setCellStyle(currencyStyle);
 
                     rowNum++;

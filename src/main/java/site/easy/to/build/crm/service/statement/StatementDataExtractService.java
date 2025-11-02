@@ -487,6 +487,67 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Extract individual payment details for a specific lease and date range
+     * Returns list of actual payments (date + amount) for breakdown display
+     *
+     * @param invoiceId Lease/invoice ID
+     * @param startDate Start date filter
+     * @param endDate End date filter
+     * @param flowDirection INCOMING for rent received, OUTGOING for payments/expenses
+     * @return List of payment details sorted by date
+     */
+    public List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> extractPaymentDetails(
+            Long invoiceId,
+            LocalDate startDate,
+            LocalDate endDate,
+            UnifiedTransaction.FlowDirection flowDirection) {
+
+        log.info("Extracting payment details for lease {} from {} to {} ({})",
+            invoiceId, startDate, endDate, flowDirection);
+
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+                invoiceId, startDate, endDate, flowDirection);
+
+        List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> paymentDetails = new ArrayList<>();
+
+        for (UnifiedTransaction txn : transactions) {
+            site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail =
+                new site.easy.to.build.crm.dto.statement.PaymentDetailDTO();
+
+            detail.setPaymentDate(txn.getTransactionDate());
+            detail.setAmount(txn.getAmount());
+            detail.setDescription(txn.getDescription());
+            detail.setCategory(txn.getCategory());
+            detail.setTransactionId(txn.getId());
+
+            paymentDetails.add(detail);
+        }
+
+        // Sort by date ascending
+        paymentDetails.sort((a, b) -> a.getPaymentDate().compareTo(b.getPaymentDate()));
+
+        log.info("Extracted {} payment details for lease {}", paymentDetails.size(), invoiceId);
+        return paymentDetails;
+    }
+
+    /**
+     * Extract INCOMING payment details (rent received) for a lease
+     */
+    public List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> extractRentReceivedDetails(
+            Long invoiceId, LocalDate startDate, LocalDate endDate) {
+        return extractPaymentDetails(invoiceId, startDate, endDate, UnifiedTransaction.FlowDirection.INCOMING);
+    }
+
+    /**
+     * Extract OUTGOING payment details (landlord payments, fees, expenses) for a lease
+     */
+    public List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> extractOutgoingDetails(
+            Long invoiceId, LocalDate startDate, LocalDate endDate) {
+        return extractPaymentDetails(invoiceId, startDate, endDate, UnifiedTransaction.FlowDirection.OUTGOING);
+    }
+
+    /**
      * Extract all properties (for reference)
      *
      * @return List of properties
