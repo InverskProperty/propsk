@@ -774,7 +774,7 @@ public class ExcelStatementGeneratorService {
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day", "month",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
-            "total_commission", "total_expenses", "net_to_owner", "cumulative_arrears"
+            "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -790,14 +790,15 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month
+        // Generate one row per lease per month (statement period only)
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
-            // Generate monthly rows from LEASE START to statement end (for accurate cumulative arrears)
-            YearMonth currentMonth = leaseStart != null ? YearMonth.from(leaseStart) : YearMonth.from(startDate);
+            // Generate monthly rows for STATEMENT PERIOD only (opening balance handles prior history)
+            YearMonth currentMonth = YearMonth.from(startDate);
             YearMonth endMonth = YearMonth.from(endDate);
+            boolean isFirstRowForLease = true;
 
             while (!currentMonth.isAfter(endMonth)) {
                 LocalDate monthStart = currentMonth.atDay(1);
@@ -883,16 +884,31 @@ public class ExcelStatementGeneratorService {
                     netToOwnerCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // Column O: cumulative_arrears (formula: running sum)
-                    Cell cumArrearsCell = row.createCell(col++);
-                    if (rowNum == 1) {
-                        cumArrearsCell.setCellFormula(String.format("I%d", rowNum + 1));
+                    // Column O: opening_balance (formula: sum all arrears before statement period)
+                    Cell openingBalanceCell = row.createCell(col++);
+                    if (isFirstRowForLease) {
+                        // Opening balance = (total rent due before period start) - (total rent received before period start)
+                        openingBalanceCell.setCellFormula(String.format(
+                            "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, \"<\"&F%d) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \"<\"&F%d)",
+                            lease.getLeaseId(), rowNum + 1, lease.getLeaseId(), rowNum + 1
+                        ));
                     } else {
-                        cumArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum, rowNum + 1));
+                        // For subsequent months, opening balance is 0 (cumulative handles the carry-forward)
+                        openingBalanceCell.setCellValue(0);
+                    }
+                    openingBalanceCell.setCellStyle(currencyStyle);
+
+                    // Column P: cumulative_arrears (formula: opening_balance + running sum of arrears)
+                    Cell cumArrearsCell = row.createCell(col++);
+                    if (isFirstRowForLease) {
+                        cumArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum + 1, rowNum + 1));
+                    } else {
+                        cumArrearsCell.setCellFormula(String.format("P%d + I%d", rowNum, rowNum + 1));
                     }
                     cumArrearsCell.setCellStyle(currencyStyle);
 
                     rowNum++;
+                    isFirstRowForLease = false;
                 }
 
                 currentMonth = currentMonth.plusMonths(1);
@@ -1196,7 +1212,7 @@ public class ExcelStatementGeneratorService {
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day", "period",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
-            "total_commission", "total_expenses", "net_to_owner", "cumulative_arrears"
+            "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -1212,20 +1228,14 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Find earliest lease start date to generate full history
-        LocalDate earliestStart = leaseMaster.stream()
-            .map(LeaseMasterDTO::getStartDate)
-            .filter(date -> date != null)
-            .min(LocalDate::compareTo)
-            .orElse(startDate);
-
-        // Generate custom periods from earliest lease start to statement end (for accurate cumulative arrears)
-        List<CustomPeriod> periods = generateCustomPeriods(earliestStart, endDate, periodStartDay);
+        // Generate custom periods for STATEMENT PERIOD only (opening balance handles prior history)
+        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
 
         // Generate rows for each lease × custom period
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
+            boolean isFirstPeriodForLease = true;
 
             for (CustomPeriod period : periods) {
                 boolean leaseActive = (leaseEnd == null || !period.periodEnd.isBefore(leaseStart))
@@ -1317,16 +1327,34 @@ public class ExcelStatementGeneratorService {
                     netToOwnerCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // O: cumulative_arrears (formula: running sum)
-                    Cell cumArrearsCell = row.createCell(col++);
-                    if (rowNum == 1) {
-                        cumArrearsCell.setCellFormula(String.format("I%d", rowNum + 1));
+                    // O: opening_balance (formula: sum all arrears before statement period)
+                    Cell openingBalanceCell = row.createCell(col++);
+                    if (isFirstPeriodForLease) {
+                        // Opening balance = (total rent due before first period start) - (total rent received before first period start)
+                        openingBalanceCell.setCellFormula(String.format(
+                            "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
+                            lease.getLeaseId(),
+                            period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
+                            lease.getLeaseId(),
+                            period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()
+                        ));
                     } else {
-                        cumArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum, rowNum + 1));
+                        // For subsequent periods, opening balance is 0 (cumulative handles the carry-forward)
+                        openingBalanceCell.setCellValue(0);
+                    }
+                    openingBalanceCell.setCellStyle(currencyStyle);
+
+                    // P: cumulative_arrears (formula: opening_balance + running sum of arrears)
+                    Cell cumArrearsCell = row.createCell(col++);
+                    if (isFirstPeriodForLease) {
+                        cumArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum + 1, rowNum + 1));
+                    } else {
+                        cumArrearsCell.setCellFormula(String.format("P%d + I%d", rowNum, rowNum + 1));
                     }
                     cumArrearsCell.setCellStyle(currencyStyle);
 
                     rowNum++;
+                    isFirstPeriodForLease = false;
                 }
             }
         }

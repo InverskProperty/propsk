@@ -91,6 +91,7 @@ public class StatementDataExtractService {
             dto.setEndDate(invoice.getEndDate());  // NULL = ongoing lease
             dto.setMonthlyRent(invoice.getAmount());
             dto.setFrequency(invoice.getFrequency() != null ? invoice.getFrequency().name() : "MONTHLY");
+            dto.setPaymentDay(invoice.getPaymentDay());
 
             // Property details
             Property property = invoice.getProperty();
@@ -184,6 +185,7 @@ public class StatementDataExtractService {
             dto.setEndDate(invoice.getEndDate());
             dto.setMonthlyRent(invoice.getAmount());
             dto.setFrequency(invoice.getFrequency() != null ? invoice.getFrequency().name() : "MONTHLY");
+            dto.setPaymentDay(invoice.getPaymentDay());
 
             // Property details
             Property property = invoice.getProperty();

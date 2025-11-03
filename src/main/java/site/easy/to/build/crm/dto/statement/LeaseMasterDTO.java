@@ -22,6 +22,7 @@ public class LeaseMasterDTO {
     private LocalDate endDate;  // NULL = ongoing lease
     private BigDecimal monthlyRent;
     private String frequency;  // MONTHLY, WEEKLY, etc.
+    private Integer paymentDay;  // Day of month rent is due
 
     // Constructor
     public LeaseMasterDTO() {
@@ -130,6 +131,14 @@ public class LeaseMasterDTO {
 
     public void setFrequency(String frequency) {
         this.frequency = frequency;
+    }
+
+    public Integer getPaymentDay() {
+        return paymentDay;
+    }
+
+    public void setPaymentDay(Integer paymentDay) {
+        this.paymentDay = paymentDay;
     }
 
     @Override
