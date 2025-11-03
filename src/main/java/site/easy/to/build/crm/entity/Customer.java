@@ -262,6 +262,13 @@ public class Customer {
     @Column(name = "communication_preferences", columnDefinition = "TEXT")
     private String communicationPreferences; // JSON
 
+    // ✨ PHASE 3: Financial Preferences
+    @Column(name = "billing_period_start_day")
+    private Integer billingPeriodStartDay = 1; // 1, 22, 25, 28
+
+    @Column(name = "statement_email_enabled")
+    private Boolean statementEmailEnabled = false;
+
     // Property Assignment (for tenants)
     @Column(name = "assigned_property_id")
     private Long assignedPropertyId;
@@ -555,6 +562,13 @@ public class Customer {
     // Communication Preferences
     public String getCommunicationPreferences() { return communicationPreferences; }
     public void setCommunicationPreferences(String communicationPreferences) { this.communicationPreferences = communicationPreferences; }
+
+    // ✨ PHASE 3: Financial Preferences getters/setters
+    public Integer getBillingPeriodStartDay() { return billingPeriodStartDay; }
+    public void setBillingPeriodStartDay(Integer billingPeriodStartDay) { this.billingPeriodStartDay = billingPeriodStartDay; }
+
+    public Boolean getStatementEmailEnabled() { return statementEmailEnabled; }
+    public void setStatementEmailEnabled(Boolean statementEmailEnabled) { this.statementEmailEnabled = statementEmailEnabled; }
 
     // Property Assignment
     public Long getAssignedPropertyId() { return assignedPropertyId; }

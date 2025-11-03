@@ -124,6 +124,40 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label mb-1">
+                                        <i class="fas fa-clock text-primary"></i> <strong>Quick Periods</strong>
+                                    </label>
+                                    <div class="btn-group w-100" role="group">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setQuickPeriod('lastMonth')" title="Last Month">
+                                            1M
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setQuickPeriod('last3Months')" title="Last 3 Months">
+                                            3M
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setQuickPeriod('last6Months')" title="Last 6 Months">
+                                            6M
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setQuickPeriod('ytd')" title="Year to Date">
+                                            YTD
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setQuickPeriod('lastYear')" title="Last Year">
+                                            1Y
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- ✨ PHASE 3: Comparison Mode Toggle -->
+                            <div class="row mt-2">
+                                <div class="col-md-4">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="comparisonModeToggle" onchange="toggleComparisonMode()">
+                                        <label class="form-check-label" for="comparisonModeToggle">
+                                            <i class="fas fa-columns"></i> <strong>Compare Periods</strong>
+                                            <small class="text-muted d-block">View side-by-side comparison</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label mb-1">
                                         <i class="fas fa-sync-alt text-success"></i> <strong>Quick Actions</strong>
                                     </label>
                                     <div class="btn-group w-100">
@@ -1437,6 +1471,57 @@ function applyDateRange() {
     params.append('startDate', startDate);
     params.append('endDate', endDate);
     window.location.href = `/property-owner/financials?${params.toString()}`;
+}
+
+// ✨ PHASE 3: Quick period selector function
+function setQuickPeriod(period) {
+    const today = new Date();
+    let startDate, endDate;
+
+    endDate = today.toISOString().split('T')[0]; // Today
+
+    switch(period) {
+        case 'lastMonth':
+            startDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+            break;
+        case 'last3Months':
+            startDate = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+            break;
+        case 'last6Months':
+            startDate = new Date(today.getFullYear(), today.getMonth() - 6, today.getDate());
+            break;
+        case 'ytd':
+            startDate = new Date(today.getFullYear(), 0, 1); // Jan 1st of current year
+            break;
+        case 'lastYear':
+            startDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+            break;
+        default:
+            return;
+    }
+
+    // Format date as YYYY-MM-DD
+    const formatDate = (date) => date.toISOString().split('T')[0];
+
+    // Set inputs and apply
+    document.getElementById('startDate').value = formatDate(startDate);
+    document.getElementById('endDate').value = endDate;
+    applyDateRange();
+}
+
+// ✨ PHASE 3: Comparison mode toggle
+function toggleComparisonMode() {
+    const isEnabled = document.getElementById('comparisonModeToggle').checked;
+
+    if (isEnabled) {
+        // Show comparison view
+        alert('Comparison mode will show current period vs previous period side-by-side. This feature is under development.');
+        // TODO: Implement comparison view
+        document.getElementById('comparisonModeToggle').checked = false;
+    } else {
+        // Hide comparison view
+        document.getElementById('comparisonView')?.classList.add('d-none');
+    }
 }
 
 function refreshDashboard() {
