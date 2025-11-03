@@ -1593,7 +1593,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function initializeCharts() {
     // Initialize Monthly Trends Chart
-    const monthlyTrendsData = /*[[${monthlyTrends}]]*/ [];
+    const monthlyTrendsData = JSON.parse('[[${monthlyTrendsJson}]]');
+    console.log('📊 Monthly trends data:', monthlyTrendsData);
     if (monthlyTrendsData && monthlyTrendsData.length > 0) {
         const months = monthlyTrendsData.map(m => m.month);
         const income = monthlyTrendsData.map(m => m.income);
@@ -1661,7 +1662,8 @@ function initializeCharts() {
     }
 
     // Initialize Expense Category Pie Chart
-    const expensesData = /*[[${expensesByCategory}]]*/ {};
+    const expensesData = JSON.parse('[[${expensesByCategoryJson}]]');
+    console.log('📊 Expenses data:', expensesData);
     if (expensesData && Object.keys(expensesData).length > 0) {
         const categories = Object.keys(expensesData);
         const amounts = Object.values(expensesData);
