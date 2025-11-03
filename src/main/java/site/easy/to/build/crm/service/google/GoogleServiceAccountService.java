@@ -27,7 +27,7 @@ public class GoogleServiceAccountService {
 
     private static final Logger log = LoggerFactory.getLogger(GoogleServiceAccountService.class);
 
-    @Value("${GOOGLE_SERVICE_ACCOUNT_KEY}")
+    @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
     private String serviceAccountKey;
 
     private static final String APPLICATION_NAME = "CRM Property Management";

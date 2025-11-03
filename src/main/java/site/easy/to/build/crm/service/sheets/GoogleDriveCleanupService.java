@@ -26,7 +26,7 @@ import java.util.List;
 @Service
 public class GoogleDriveCleanupService {
 
-    @Value("${google.service-account-key}")
+    @Value("${google.service-account-key:}")
     private String serviceAccountKey;
 
     /**

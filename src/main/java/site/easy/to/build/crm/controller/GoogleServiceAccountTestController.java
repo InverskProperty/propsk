@@ -24,7 +24,7 @@ public class GoogleServiceAccountTestController {
     @Autowired
     private site.easy.to.build.crm.service.integration.SimpleGoogleIntegrationService simpleIntegrationService;
 
-    @Autowired
+    @Autowired(required = false)
     private PayPropPortfolioSyncService portfolioSyncService;
 
     /**
@@ -133,6 +133,13 @@ public class GoogleServiceAccountTestController {
             @RequestParam(defaultValue = "test@example.com") String initiatedByEmail) {
         try {
             log.info("🔄 Testing integrated PayProp + Google workflow for portfolio: {}", portfolioId);
+
+            if (portfolioSyncService == null) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "NOT_AVAILABLE");
+                errorResponse.put("message", "PayProp integration is not enabled");
+                return ResponseEntity.status(503).body(errorResponse);
+            }
 
             // Test the enhanced sync method
             var syncResult = portfolioSyncService.syncPortfolioToPayPropWithDocumentation(portfolioId, initiatedByEmail);

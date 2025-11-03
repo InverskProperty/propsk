@@ -772,7 +772,7 @@ public class ExcelStatementGeneratorService {
         // Header row
         Row header = sheet.createRow(0);
         String[] headers = {
-            "lease_reference", "property_name", "customer_name", "month",
+            "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day", "month",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
             "total_commission", "total_expenses", "net_to_owner", "cumulative_arrears"
         };
@@ -795,7 +795,8 @@ public class ExcelStatementGeneratorService {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
-            YearMonth currentMonth = YearMonth.from(startDate);
+            // Generate monthly rows from LEASE START to statement end (for accurate cumulative arrears)
+            YearMonth currentMonth = leaseStart != null ? YearMonth.from(leaseStart) : YearMonth.from(startDate);
             YearMonth endMonth = YearMonth.from(endDate);
 
             while (!currentMonth.isAfter(endMonth)) {
@@ -818,66 +819,76 @@ public class ExcelStatementGeneratorService {
                     // Column C: customer_name
                     row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
 
-                    // Column D: month
+                    // Column D: lease_start_date
+                    Cell startDateCell = row.createCell(col++);
+                    if (leaseStart != null) {
+                        startDateCell.setCellValue(leaseStart);
+                        startDateCell.setCellStyle(dateStyle);
+                    }
+
+                    // Column E: rent_due_day
+                    row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
+
+                    // Column F: month
                     Cell monthCell = row.createCell(col++);
                     monthCell.setCellValue(monthStart);
                     monthCell.setCellStyle(dateStyle);
 
-                    // Column E: rent_due (SUMIFS to RENT_DUE sheet - simpler than array formula)
+                    // Column G: rent_due (SUMIFS to RENT_DUE sheet - simpler than array formula)
                     Cell rentDueCell = row.createCell(col++);
                     rentDueCell.setCellFormula(String.format(
-                        "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, D%d)",
+                        "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, F%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     rentDueCell.setCellStyle(currencyStyle);
 
-                    // Column F: rent_received (SUMIFS to RENT_RECEIVED sheet - simpler than array formula)
+                    // Column H: rent_received (SUMIFS to RENT_RECEIVED sheet - simpler than array formula)
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, D%d)",
+                        "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, F%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     rentReceivedCell.setCellStyle(currencyStyle);
 
-                    // Column G: arrears (formula: due - received)
+                    // Column I: arrears (formula: due - received)
                     Cell arrearsCell = row.createCell(col++);
-                    arrearsCell.setCellFormula(String.format("E%d - F%d", rowNum + 1, rowNum + 1));
+                    arrearsCell.setCellFormula(String.format("G%d - H%d", rowNum + 1, rowNum + 1));
                     arrearsCell.setCellStyle(currencyStyle);
 
-                    // Column H: management_fee (formula: rent_received * management_fee_percent)
+                    // Column J: management_fee (formula: rent_received * management_fee_percent)
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                    mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
-                    // Column I: service_fee (formula: rent_received * service_fee_percent)
+                    // Column K: service_fee (formula: rent_received * service_fee_percent)
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                    svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     svcFeeCell.setCellStyle(currencyStyle);
 
-                    // Column J: total_commission (formula: mgmt + svc)
+                    // Column L: total_commission (formula: mgmt + svc)
                     Cell totalCommCell = row.createCell(col++);
-                    totalCommCell.setCellFormula(String.format("H%d + I%d", rowNum + 1, rowNum + 1));
+                    totalCommCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
                     totalCommCell.setCellStyle(currencyStyle);
 
-                    // Column K: total_expenses (SUMIFS to EXPENSES sheet)
+                    // Column M: total_expenses (SUMIFS to EXPENSES sheet)
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
-                        "SUMIFS(EXPENSES!R:R, EXPENSES!A:A, %d, EXPENSES!D:D, D%d)",
+                        "SUMIFS(EXPENSES!R:R, EXPENSES!A:A, %d, EXPENSES!D:D, F%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     expensesCell.setCellStyle(currencyStyle);
 
-                    // Column L: net_to_owner (formula: received - commission - expenses)
+                    // Column N: net_to_owner (formula: received - commission - expenses)
                     Cell netToOwnerCell = row.createCell(col++);
-                    netToOwnerCell.setCellFormula(String.format("F%d - J%d - K%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                    netToOwnerCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // Column M: cumulative_arrears (formula: running sum)
+                    // Column O: cumulative_arrears (formula: running sum)
                     Cell cumArrearsCell = row.createCell(col++);
                     if (rowNum == 1) {
-                        cumArrearsCell.setCellFormula(String.format("G%d", rowNum + 1));
+                        cumArrearsCell.setCellFormula(String.format("I%d", rowNum + 1));
                     } else {
-                        cumArrearsCell.setCellFormula(String.format("M%d + G%d", rowNum, rowNum + 1));
+                        cumArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum, rowNum + 1));
                     }
                     cumArrearsCell.setCellStyle(currencyStyle);
 
@@ -1183,7 +1194,7 @@ public class ExcelStatementGeneratorService {
         // Header row
         Row header = sheet.createRow(0);
         String[] headers = {
-            "lease_reference", "property_name", "customer_name", "period",
+            "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day", "period",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
             "total_commission", "total_expenses", "net_to_owner", "cumulative_arrears"
         };
@@ -1233,12 +1244,22 @@ public class ExcelStatementGeneratorService {
                     // C: customer_name
                     row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
 
-                    // D: period (formatted as "Dec 22 - Jan 21")
+                    // D: lease_start_date
+                    Cell startDateCell = row.createCell(col++);
+                    if (leaseStart != null) {
+                        startDateCell.setCellValue(leaseStart);
+                        startDateCell.setCellStyle(dateStyle);
+                    }
+
+                    // E: rent_due_day
+                    row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
+
+                    // F: period (formatted as "Dec 22 - Jan 21")
                     String periodLabel = period.periodStart.format(DateTimeFormatter.ofPattern("MMM dd")) + " - " +
                                        period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"));
                     row.createCell(col++).setCellValue(periodLabel);
 
-                    // E: rent_due (VLOOKUP to RENT_DUE sheet)
+                    // G: rent_due (VLOOKUP to RENT_DUE sheet)
                     Cell rentDueCell = row.createCell(col++);
                     rentDueCell.setCellFormula(String.format(
                         "IFERROR(INDEX(RENT_DUE!L:L, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!D:D=DATE(%d,%d,%d)), 0)), 0)",
@@ -1249,7 +1270,7 @@ public class ExcelStatementGeneratorService {
                     ));
                     rentDueCell.setCellStyle(currencyStyle);
 
-                    // F: rent_received (INDEX/MATCH to RENT_RECEIVED sheet)
+                    // H: rent_received (INDEX/MATCH to RENT_RECEIVED sheet)
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
                         "IFERROR(INDEX(RENT_RECEIVED!O:O, MATCH(1, (RENT_RECEIVED!B:B=\"%s\") * (RENT_RECEIVED!E:E=DATE(%d,%d,%d)), 0)), 0)",
@@ -1260,27 +1281,27 @@ public class ExcelStatementGeneratorService {
                     ));
                     rentReceivedCell.setCellStyle(currencyStyle);
 
-                    // G: arrears (formula: due - received)
+                    // I: arrears (formula: due - received)
                     Cell arrearsCell = row.createCell(col++);
-                    arrearsCell.setCellFormula(String.format("E%d - F%d", rowNum + 1, rowNum + 1));
+                    arrearsCell.setCellFormula(String.format("G%d - H%d", rowNum + 1, rowNum + 1));
                     arrearsCell.setCellStyle(currencyStyle);
 
-                    // H: management_fee (formula: rent_received * management_fee_percent)
+                    // J: management_fee (formula: rent_received * management_fee_percent)
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                    mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
-                    // I: service_fee (formula: rent_received * service_fee_percent)
+                    // K: service_fee (formula: rent_received * service_fee_percent)
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format("F%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                    svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     svcFeeCell.setCellStyle(currencyStyle);
 
-                    // J: total_commission (formula: mgmt + svc)
+                    // L: total_commission (formula: mgmt + svc)
                     Cell totalCommCell = row.createCell(col++);
-                    totalCommCell.setCellFormula(String.format("H%d + I%d", rowNum + 1, rowNum + 1));
+                    totalCommCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
                     totalCommCell.setCellStyle(currencyStyle);
 
-                    // K: total_expenses (INDEX/MATCH to EXPENSES sheet)
+                    // M: total_expenses (INDEX/MATCH to EXPENSES sheet)
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
                         "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,%d)), 0)), 0)",
@@ -1291,17 +1312,17 @@ public class ExcelStatementGeneratorService {
                     ));
                     expensesCell.setCellStyle(currencyStyle);
 
-                    // L: net_to_owner (formula: received - commission - expenses)
+                    // N: net_to_owner (formula: received - commission - expenses)
                     Cell netToOwnerCell = row.createCell(col++);
-                    netToOwnerCell.setCellFormula(String.format("F%d - J%d - K%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                    netToOwnerCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // M: cumulative_arrears (formula: running sum)
+                    // O: cumulative_arrears (formula: running sum)
                     Cell cumArrearsCell = row.createCell(col++);
                     if (rowNum == 1) {
-                        cumArrearsCell.setCellFormula(String.format("G%d", rowNum + 1));
+                        cumArrearsCell.setCellFormula(String.format("I%d", rowNum + 1));
                     } else {
-                        cumArrearsCell.setCellFormula(String.format("M%d + G%d", rowNum, rowNum + 1));
+                        cumArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum, rowNum + 1));
                     }
                     cumArrearsCell.setCellStyle(currencyStyle);
 

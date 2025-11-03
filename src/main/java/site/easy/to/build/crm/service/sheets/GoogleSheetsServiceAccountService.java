@@ -48,7 +48,7 @@ public class GoogleSheetsServiceAccountService {
     private final InvoiceRepository invoiceRepository;
     private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
-    @Value("${GOOGLE_SERVICE_ACCOUNT_KEY}")
+    @Value("${GOOGLE_SERVICE_ACCOUNT_KEY:}")
     private String serviceAccountKey;
 
     // Shared Drive ID for CRM statements - service account has Manager access
