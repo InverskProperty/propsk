@@ -88,30 +88,26 @@
                     <div class="card">
                         <div class="card-body py-3">
                             <div class="row align-items-center">
-                                <div class="col-md-4">
-                                    <label for="portfolioSelect" class="form-label mb-1">
-                                        <i class="fas fa-folder text-primary"></i> <strong>Portfolio Selection</strong>
+                                <!-- ✨ PHASE 1: Date Range Selector -->
+                                <div class="col-md-3">
+                                    <label for="startDate" class="form-label mb-1">
+                                        <i class="fas fa-calendar-alt text-primary"></i> <strong>Start Date</strong>
                                     </label>
-                                    <select class="form-control" id="portfolioSelect" onchange="filterFinancials()">
-                                        <option value="">All Portfolios</option>
-                                        <option th:each="portfolio : ${portfolios}"
-                                                th:value="${portfolio.id}"
-                                                th:text="${portfolio.name}">
-                                            Portfolio Name
-                                        </option>
-                                    </select>
+                                    <input type="date" class="form-control" id="startDate"
+                                           th:value="${startDate}" />
                                 </div>
-                                <div class="col-md-4">
-                                    <label for="dataSourceSelect" class="form-label mb-1">
-                                        <i class="fas fa-database text-info"></i> <strong>Data Source Filter</strong>
+                                <div class="col-md-3">
+                                    <label for="endDate" class="form-label mb-1">
+                                        <i class="fas fa-calendar-check text-primary"></i> <strong>End Date</strong>
                                     </label>
-                                    <select class="form-control" id="dataSourceSelect" onchange="filterFinancials()">
-                                        <option value="">All Data Sources</option>
-                                        <option value="HISTORICAL_IMPORT">Historical Import</option>
-                                        <option value="PAYPROP_SYNC">PayProp Sync</option>
-                                        <option value="COMMISSION_PAYMENT">Commission Payments</option>
-                                        <option value="MANUAL_ENTRY">Manual Entry</option>
-                                    </select>
+                                    <input type="date" class="form-control" id="endDate"
+                                           th:value="${endDate}" />
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label mb-1">&nbsp;</label>
+                                    <button class="btn btn-primary w-100" onclick="applyDateRange()">
+                                        <i class="fas fa-filter"></i> Apply
+                                    </button>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label mb-1">
@@ -121,10 +117,21 @@
                                         <button class="btn btn-outline-primary" onclick="refreshDashboard()">
                                             <i class="fas fa-refresh"></i> Refresh
                                         </button>
-                                        <button class="btn btn-outline-secondary" onclick="exportData()">
-                                            <i class="fas fa-download"></i> Export
-                                        </button>
+                                        <!-- ✨ PHASE 1: Statement Download Link -->
+                                        <a th:href="@{/api/statements/option-c/owner/{id}/excel(id=${customerId}, startDate=${startDate}, endDate=${endDate})}"
+                                           class="btn btn-outline-success">
+                                            <i class="fas fa-file-excel"></i> Download Statement
+                                        </a>
                                     </div>
+                                </div>
+                            </div>
+                            <!-- ✨ PHASE 1: Last Updated Timestamp -->
+                            <div class="row mt-2">
+                                <div class="col-12 text-right">
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock"></i> Last updated:
+                                        <span th:text="${#temporals.format(lastUpdated, 'MMM dd, yyyy HH:mm')}">Now</span>
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -204,19 +211,27 @@
                     </div>
                 </div>
 
+                <!-- ✨ PHASE 1: Arrears Display Card -->
                 <div class="col-lg-3 col-md-6">
-                    <div class="card financial-card occupancy-card">
+                    <div class="card financial-card"
+                         th:classappend="${totalArrears != null && totalArrears > 0} ? 'expense-card' : 'income-card'">
                         <div class="card-body">
                             <div class="d-flex align-items-center">
-                                <div class="metric-icon occupancy-icon">
-                                    <i class="fas fa-list"></i>
+                                <div class="metric-icon"
+                                     th:classappend="${totalArrears != null && totalArrears > 0} ? 'expense-icon' : 'income-icon'">
+                                    <i class="fas fa-exclamation-triangle"
+                                       th:if="${totalArrears != null && totalArrears > 0}"></i>
+                                    <i class="fas fa-check-circle"
+                                       th:unless="${totalArrears != null && totalArrears > 0}"></i>
                                 </div>
                                 <div class="ml-3">
-                                    <h3 class="mb-0" th:text="${totalTransactions ?: 0}">0</h3>
-                                    <p class="text-muted mb-0">Total Transactions</p>
-                                    <small class="text-info">
-                                        <i class="fas fa-home"></i> 
-                                        <span th:text="${totalProperties ?: 0}">0</span> properties
+                                    <h3 class="mb-0" th:text="'£' + ${#numbers.formatDecimal(totalArrears ?: 0, 1, 2)}">£0</h3>
+                                    <p class="text-muted mb-0">Rent Arrears</p>
+                                    <small th:classappend="${totalArrears != null && totalArrears > 0} ? 'text-danger' : 'text-success'">
+                                        <i class="fas"
+                                           th:classappend="${totalArrears != null && totalArrears > 0} ? 'fa-arrow-up' : 'fa-check'"></i>
+                                        <span th:if="${totalArrears != null && totalArrears > 0}">Action required</span>
+                                        <span th:unless="${totalArrears != null && totalArrears > 0}">All paid up</span>
                                     </small>
                                 </div>
                             </div>
@@ -410,22 +425,26 @@
                             </h4>
                         </div>
                         <div class="card-body">
+                            <!-- ✨ PHASE 1: Mark placeholder features as "Coming Soon" -->
+                            <div class="alert alert-info alert-sm mb-3">
+                                <i class="fas fa-info-circle"></i> <small><strong>Note:</strong> Advanced tools below are in development and show sample data</small>
+                            </div>
                             <div class="list-group">
                                 <a href="#" onclick="openExpenseTracker()" class="list-group-item list-group-item-action">
                                     <i class="fas fa-receipt text-danger"></i> Expense Tracking
-                                    <span class="badge badge-success float-right">Active</span>
+                                    <span class="badge badge-warning float-right">Preview</span>
                                 </a>
                                 <a href="#" onclick="generateTaxReport()" class="list-group-item list-group-item-action">
                                     <i class="fas fa-file-invoice text-info"></i> Tax Reports
-                                    <span class="badge badge-success float-right">Active</span>
+                                    <span class="badge badge-warning float-right">Preview</span>
                                 </a>
                                 <a href="#" onclick="showCashFlowAnalysis()" class="list-group-item list-group-item-action">
                                     <i class="fas fa-chart-line text-success"></i> Cash Flow Analysis
-                                    <span class="badge badge-success float-right">Active</span>
+                                    <span class="badge badge-warning float-right">Preview</span>
                                 </a>
                                 <a href="#" onclick="openROICalculator()" class="list-group-item list-group-item-action">
                                     <i class="fas fa-calculator text-warning"></i> ROI Calculator
-                                    <span class="badge badge-success float-right">Active</span>
+                                    <span class="badge badge-warning float-right">Preview</span>
                                 </a>
                             </div>
                         </div>
@@ -1310,20 +1329,52 @@ function hideLoadingState() {
     // Loading state will be cleared by updateDashboardData
 }
 
+// ✨ PHASE 1: Date range application function
+function applyDateRange() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    if (!startDate || !endDate) {
+        alert('Please select both start and end dates');
+        return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+        alert('Start date must be before end date');
+        return;
+    }
+
+    // Reload page with date parameters
+    const params = new URLSearchParams();
+    params.append('startDate', startDate);
+    params.append('endDate', endDate);
+    window.location.href = `/property-owner/financials?${params.toString()}`;
+}
+
 function refreshDashboard() {
-    // Clear filters and reload
-    document.getElementById('portfolioSelect').value = '';
-    document.getElementById('dataSourceSelect').value = '';
-    window.location.reload();
+    // Preserve date range when refreshing
+    const startDate = document.getElementById('startDate')?.value;
+    const endDate = document.getElementById('endDate')?.value;
+
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const url = params.toString() ? `/property-owner/financials?${params.toString()}` : '/property-owner/financials';
+    window.location.href = url;
 }
 
 function exportData() {
-    const portfolioId = document.getElementById('portfolioSelect').value;
-    const dataSource = document.getElementById('dataSourceSelect').value;
+    const portfolioId = document.getElementById('portfolioSelect')?.value;
+    const dataSource = document.getElementById('dataSourceSelect')?.value;
+    const startDate = document.getElementById('startDate')?.value;
+    const endDate = document.getElementById('endDate')?.value;
 
     const params = new URLSearchParams();
     if (portfolioId) params.append('portfolioId', portfolioId);
     if (dataSource) params.append('dataSource', dataSource);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
     params.append('export', 'csv');
 
     // Open export URL in new window

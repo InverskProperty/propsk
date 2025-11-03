@@ -1689,7 +1689,9 @@ public class PropertyOwnerController {
      */
     @GetMapping("/property-owner/financials")
     @Transactional
-    public String viewFinancials(Model model, Authentication authentication) {
+    public String viewFinancials(Model model, Authentication authentication,
+                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         System.out.println("💰 Property Owner Financial Dashboard - Loading...");
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -1713,20 +1715,31 @@ public class PropertyOwnerController {
                     .collect(java.util.stream.Collectors.joining(", ")));
             }
 
-            // 🚀 NEW: Get UNIFIED financial data from Historical + PayProp combined (last 2 years)
-            LocalDate twoYearsAgo = LocalDate.now().minusYears(2);
-            LocalDate today = LocalDate.now();
+            // ✨ PHASE 1: Date range support - Default to last 12 months instead of 2 years
+            if (startDate == null) {
+                startDate = LocalDate.now().minusYears(1);
+            }
+            if (endDate == null) {
+                endDate = LocalDate.now();
+            }
+
+            System.out.println("📅 Date range: " + startDate + " to " + endDate);
+
+            // 🚀 NEW: Get UNIFIED financial data from Historical + PayProp combined
+            LocalDate twoYearsAgo = startDate; // Use user-selected date
+            LocalDate today = endDate; // Use user-selected date
 
             BigDecimal totalRent = BigDecimal.ZERO;
             BigDecimal totalCommission = BigDecimal.ZERO;
             BigDecimal totalNetToOwner = BigDecimal.ZERO;
+            BigDecimal totalArrears = BigDecimal.ZERO; // ✨ PHASE 1: Track arrears
             Long totalTransactions = 0L;
 
             // Map to hold property-level financial data
             Map<String, Map<String, Object>> propertyFinancialMap = new HashMap<>();
 
             try {
-                System.out.println("💰 Calculating unified financial summary for all properties (last 2 years)...");
+                System.out.println("💰 Calculating unified financial summary for all properties...");
 
                 for (Property property : customerProperties) {
                     // Get unified financial summary for this property
@@ -1737,12 +1750,14 @@ public class PropertyOwnerController {
                     BigDecimal propExpenses = (BigDecimal) propSummary.getOrDefault("totalExpenses", BigDecimal.ZERO);
                     BigDecimal propCommissions = (BigDecimal) propSummary.getOrDefault("totalCommissions", BigDecimal.ZERO);
                     BigDecimal propNetIncome = (BigDecimal) propSummary.getOrDefault("netOwnerIncome", BigDecimal.ZERO);
+                    BigDecimal propArrears = (BigDecimal) propSummary.getOrDefault("rentArrears", BigDecimal.ZERO); // ✨ Extract arrears
                     Integer propTxCount = (Integer) propSummary.getOrDefault("transactionCount", 0);
 
                     // Aggregate to totals
                     totalRent = totalRent.add(propRentReceived);
                     totalCommission = totalCommission.add(propCommissions);
                     totalNetToOwner = totalNetToOwner.add(propNetIncome);
+                    totalArrears = totalArrears.add(propArrears); // ✨ Aggregate arrears
                     totalTransactions += propTxCount;
 
                     // Store property-level data for breakdown table
@@ -1869,8 +1884,14 @@ public class PropertyOwnerController {
             model.addAttribute("totalRent", totalRent);
             model.addAttribute("totalCommission", totalCommission);
             model.addAttribute("totalNetToOwner", totalNetToOwner);
+            model.addAttribute("totalArrears", totalArrears); // ✨ PHASE 1: Expose arrears
             model.addAttribute("totalTransactions", totalTransactions);
             model.addAttribute("commissionRate", commissionRate);
+
+            // ✨ PHASE 1: Add date range and timestamp to model
+            model.addAttribute("startDate", startDate);
+            model.addAttribute("endDate", endDate);
+            model.addAttribute("lastUpdated", java.time.LocalDateTime.now());
 
             // 📊 Monthly Overview Calculations
             BigDecimal totalMonthlyRent = properties.stream()
