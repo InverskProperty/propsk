@@ -138,12 +138,19 @@
                                                     <div class="col-md-3">
                                                         <label for="periodStartDay1">Period Start Day:</label>
                                                         <select id="periodStartDay1" name="periodStartDay" class="form-control">
-                                                            <option value="1" selected>1st (Calendar Months)</option>
-                                                            <option value="22">22nd (22nd-21st periods)</option>
-                                                            <option value="25">25th (25th-24th periods)</option>
-                                                            <option value="28">28th (28th-27th periods)</option>
+                                                            <option value="1" th:selected="${customer.billingPeriodStartDay == null or customer.billingPeriodStartDay == 1}">1st (Calendar Months)</option>
+                                                            <option value="22" th:selected="${customer.billingPeriodStartDay == 22}">22nd (22nd-21st periods)</option>
+                                                            <option value="25" th:selected="${customer.billingPeriodStartDay == 25}">25th (25th-24th periods)</option>
+                                                            <option value="28" th:selected="${customer.billingPeriodStartDay == 28}">28th (28th-27th periods)</option>
                                                         </select>
-                                                        <small class="text-muted">Custom reporting periods</small>
+                                                        <small class="text-muted">
+                                                            <span th:if="${customer.billingPeriodStartDay != null and customer.billingPeriodStartDay != 1}">
+                                                                <i class="fas fa-check text-success"></i> Using your saved preference
+                                                            </span>
+                                                            <span th:if="${customer.billingPeriodStartDay == null or customer.billingPeriodStartDay == 1}">
+                                                                Set default in <a th:href="@{/property-owner/settings}">Settings</a>
+                                                            </span>
+                                                        </small>
                                                     </div>
                                                     <div class="col-md-3">
                                                         <label>Property Owner:</label>

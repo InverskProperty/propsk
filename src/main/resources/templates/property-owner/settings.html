@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <title>Settings - Property Owner Portal</title>
+    <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/icons.css}" rel="stylesheet">
+    <link th:href="@{/css/style.css}" rel="stylesheet">
+    <style>
+        .settings-section {
+            background: #fff;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .settings-section h5 {
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .period-preview {
+            background: #e7f3ff;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        .save-status {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            min-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <div class="page-wrapper">
+            <div class="content container-fluid">
+                <div class="page-header">
+                    <div class="row">
+                        <div class="col">
+                            <h3 class="page-title">Account Settings</h3>
+                            <ul class="breadcrumb">
+                                <li class="breadcrumb-item"><a th:href="@{/property-owner/dashboard}">Dashboard</a></li>
+                                <li class="breadcrumb-item active">Settings</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success/Error Messages -->
+                <div id="alertContainer" class="save-status">
+                    <div th:if="${success}" class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle"></i> <span th:text="${success}"></span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+                    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i> <span th:text="${error}"></span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                </div>
+
+                <form th:action="@{/property-owner/settings/update}" method="post" id="settingsForm">
+                    <!-- CSRF Token -->
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                    <div class="row">
+                        <!-- Statement Preferences -->
+                        <div class="col-lg-8">
+                            <div class="settings-section">
+                                <h5><i class="fas fa-file-invoice text-primary"></i> Statement Preferences</h5>
+
+                                <!-- Billing Period Start Day -->
+                                <div class="form-group">
+                                    <label for="billingPeriodStartDay" class="form-label">
+                                        <strong>Default Billing Period Start Day</strong>
+                                    </label>
+                                    <select id="billingPeriodStartDay" name="billingPeriodStartDay" class="form-select form-control">
+                                        <option value="1" th:selected="${customer.billingPeriodStartDay == null or customer.billingPeriodStartDay == 1}">
+                                            1st of the month (Calendar Months)
+                                        </option>
+                                        <option value="22" th:selected="${customer.billingPeriodStartDay == 22}">
+                                            22nd of the month (22nd-21st periods)
+                                        </option>
+                                        <option value="25" th:selected="${customer.billingPeriodStartDay == 25}">
+                                            25th of the month (25th-24th periods)
+                                        </option>
+                                        <option value="28" th:selected="${customer.billingPeriodStartDay == 28}">
+                                            28th of the month (28th-27th periods)
+                                        </option>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        This determines when your rental period starts each month. This will be pre-selected when you generate statements.
+                                    </small>
+
+                                    <!-- Period Preview -->
+                                    <div class="period-preview" id="periodPreview">
+                                        <strong>Current Period Example:</strong>
+                                        <p class="mb-0 mt-2" id="periodExample">
+                                            <span th:text="${periodExample != null ? periodExample : 'Calendar months (1st - last day of month)'}">
+                                                Calendar months (1st - last day of month)
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <!-- Statement Email Notifications -->
+                                <div class="form-group">
+                                    <label for="statementEmailEnabled" class="form-label">
+                                        <strong>Email Notifications</strong>
+                                    </label>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="statementEmailEnabled"
+                                               name="statementEmailEnabled" value="true"
+                                               th:checked="${customer.statementEmailEnabled != null and customer.statementEmailEnabled}">
+                                        <label class="form-check-label" for="statementEmailEnabled">
+                                            Send me email notifications when new statements are generated
+                                        </label>
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        When enabled, you'll receive an email notification with a download link whenever a new statement is generated for your account.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Account Information -->
+                            <div class="settings-section">
+                                <h5><i class="fas fa-user text-success"></i> Account Information</h5>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="form-label"><strong>Name</strong></label>
+                                            <input type="text" class="form-control" th:value="${customer.name}" disabled>
+                                            <small class="form-text text-muted">Contact support to change your name</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="form-label"><strong>Email</strong></label>
+                                            <input type="email" class="form-control" th:value="${customer.email}" disabled>
+                                            <small class="form-text text-muted">Contact support to change your email</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="form-label"><strong>Customer ID</strong></label>
+                                            <input type="text" class="form-control" th:value="${customer.customerId}" disabled>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label class="form-label"><strong>Account Type</strong></label>
+                                            <input type="text" class="form-control" th:value="${customer.accountType != null ? customer.accountType : 'Standard'}" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Save Button -->
+                            <div class="text-end">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-save"></i> Save Settings
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Sidebar with Help -->
+                        <div class="col-lg-4">
+                            <div class="settings-section">
+                                <h5><i class="fas fa-question-circle text-info"></i> About Billing Periods</h5>
+                                <div class="mb-3">
+                                    <h6>What is a billing period?</h6>
+                                    <p class="small text-muted">
+                                        A billing period determines when your rental month starts and ends. Most landlords use calendar months (1st-31st),
+                                        but some prefer custom periods like 25th-24th.
+                                    </p>
+                                </div>
+
+                                <div class="mb-3">
+                                    <h6>Why does it matter?</h6>
+                                    <p class="small text-muted">
+                                        Setting your default billing period ensures your statements are always calculated using the correct dates.
+                                        This is especially important for pro-rating calculations when tenants move in or out mid-period.
+                                    </p>
+                                </div>
+
+                                <div class="mb-3">
+                                    <h6>Can I change it later?</h6>
+                                    <p class="small text-muted">
+                                        Yes! You can update this setting at any time. You can also override it when generating individual statements.
+                                    </p>
+                                </div>
+
+                                <hr>
+
+                                <div class="alert alert-info mb-0">
+                                    <i class="fas fa-lightbulb"></i>
+                                    <strong>Tip:</strong> Most property managers use the 1st (calendar months) for simplicity.
+                                </div>
+                            </div>
+
+                            <!-- Properties Summary -->
+                            <div class="settings-section">
+                                <h5><i class="fas fa-home text-warning"></i> Your Properties</h5>
+                                <div class="mb-2">
+                                    <strong>Total Properties:</strong>
+                                    <span class="badge bg-primary" th:text="${properties != null ? #lists.size(properties) : 0}">0</span>
+                                </div>
+                                <div class="small text-muted">
+                                    View and manage your properties from the
+                                    <a th:href="@{/property-owner/properties}">Properties page</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/jquery-3.6.0.min.js}"></script>
+    <script th:src="@{/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/js/app.js}"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const periodSelect = document.getElementById('billingPeriodStartDay');
+            const periodExample = document.getElementById('periodExample');
+
+            // Update period example when selection changes
+            periodSelect.addEventListener('change', function() {
+                updatePeriodExample(this.value);
+            });
+
+            function updatePeriodExample(day) {
+                const today = new Date();
+                const currentMonth = today.getMonth();
+                const currentYear = today.getFullYear();
+
+                let example = '';
+
+                if (day === '1') {
+                    example = `Calendar months (1st - last day of month). Example: Jan 1, ${currentYear} - Jan 31, ${currentYear}`;
+                } else {
+                    const startDay = parseInt(day);
+                    const endDay = startDay - 1;
+
+                    // Calculate next month
+                    const nextMonth = (currentMonth + 1) % 12;
+                    const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+                    example = `Custom periods (${getDaySuffix(startDay)}-${getDaySuffix(endDay)} of month). `;
+                    example += `Example: ${monthNames[currentMonth]} ${startDay}, ${currentYear} - ${monthNames[nextMonth]} ${endDay}, ${nextYear}`;
+                }
+
+                periodExample.textContent = example;
+            }
+
+            function getDaySuffix(day) {
+                const d = parseInt(day);
+                if (d > 3 && d < 21) return d + 'th';
+                switch (d % 10) {
+                    case 1: return d + 'st';
+                    case 2: return d + 'nd';
+                    case 3: return d + 'rd';
+                    default: return d + 'th';
+                }
+            }
+
+            // Auto-hide success/error alerts after 5 seconds
+            setTimeout(function() {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(alert => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                });
+            }, 5000);
+        });
+    </script>
+</body>
+</html>

@@ -145,6 +145,46 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- ✨ PHASE 1: Portfolio & Data Source Filters -->
+                            <div class="row mt-3">
+                                <div class="col-md-3">
+                                    <label for="portfolioSelect" class="form-label mb-1">
+                                        <i class="fas fa-folder text-primary"></i> <strong>Portfolio Filter</strong>
+                                    </label>
+                                    <select class="form-control" id="portfolioSelect" onchange="filterFinancials()">
+                                        <option value="">All Portfolios</option>
+                                        <option th:each="portfolio : ${portfolios}"
+                                                th:value="${portfolio.id}"
+                                                th:text="${portfolio.name}">Portfolio Name</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="dataSourceSelect" class="form-label mb-1">
+                                        <i class="fas fa-database text-primary"></i> <strong>Data Source</strong>
+                                    </label>
+                                    <select class="form-control" id="dataSourceSelect" onchange="filterFinancials()">
+                                        <option value="">All Data (Unified)</option>
+                                        <option value="HISTORICAL">Historical Only</option>
+                                        <option value="PAYPROP">PayProp Only</option>
+                                    </select>
+                                    <small class="text-muted">
+                                        <i class="fas fa-info-circle"></i> Default combines both sources
+                                    </small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label mb-1">
+                                        <i class="fas fa-filter text-info"></i> <strong>Active Filters</strong>
+                                    </label>
+                                    <div>
+                                        <span id="currentFilters" class="badge badge-info" style="display: none;"></span>
+                                        <span id="noFilters" class="text-muted">
+                                            <i class="fas fa-check-circle text-success"></i> Showing all data
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- ✨ PHASE 3: Comparison Mode Toggle -->
                             <div class="row mt-2">
                                 <div class="col-md-4">
@@ -1419,6 +1459,7 @@ function updateTransactionTotals(data) {
 
 function updateFilterDisplay(portfolioId, dataSource) {
     const filterBadge = document.getElementById('currentFilters');
+    const noFilters = document.getElementById('noFilters');
     const portfolioSelect = document.getElementById('portfolioSelect');
     const dataSourceSelect = document.getElementById('dataSourceSelect');
 
@@ -1435,8 +1476,10 @@ function updateFilterDisplay(portfolioId, dataSource) {
     if (filters.length > 0) {
         filterBadge.textContent = filters.join(' | ');
         filterBadge.style.display = 'inline';
+        if (noFilters) noFilters.style.display = 'none';
     } else {
         filterBadge.style.display = 'none';
+        if (noFilters) noFilters.style.display = 'inline';
     }
 }
 

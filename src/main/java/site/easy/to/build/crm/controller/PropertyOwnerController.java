@@ -3507,4 +3507,126 @@ public class PropertyOwnerController {
         insight.put("message", message);
         return insight;
     }
+
+    // ========================================
+    // SETTINGS MANAGEMENT
+    // ========================================
+
+    /**
+     * Display settings page for property owner
+     */
+    @GetMapping("/property-owner/settings")
+    public String viewSettings(Model model, Authentication authentication) {
+        System.out.println("📋 Loading settings page for property owner...");
+
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
+        if (customer == null) {
+            System.err.println("⚠️ No customer found in authentication");
+            return "redirect:/customer-login?error=true";
+        }
+
+        // Get customer's properties for the sidebar
+        List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+
+        // Generate period example based on current preference
+        String periodExample = generatePeriodExample(customer.getBillingPeriodStartDay());
+
+        model.addAttribute("customer", customer);
+        model.addAttribute("properties", customerProperties);
+        model.addAttribute("periodExample", periodExample);
+
+        System.out.println("✅ Settings loaded for: " + customer.getName());
+        System.out.println("   - Current billing period start day: " + customer.getBillingPeriodStartDay());
+        System.out.println("   - Email notifications: " + customer.getStatementEmailEnabled());
+
+        return "property-owner/settings";
+    }
+
+    /**
+     * Update settings for property owner
+     */
+    @PostMapping("/property-owner/settings/update")
+    public String updateSettings(
+            @RequestParam(required = false) Integer billingPeriodStartDay,
+            @RequestParam(required = false) Boolean statementEmailEnabled,
+            Authentication authentication,
+            RedirectAttributes redirectAttributes) {
+
+        System.out.println("💾 Updating property owner settings...");
+
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
+        if (customer == null) {
+            System.err.println("⚠️ No customer found in authentication");
+            return "redirect:/customer-login?error=true";
+        }
+
+        try {
+            // Update billing period preference
+            if (billingPeriodStartDay != null) {
+                // Validate billing period day
+                if (billingPeriodStartDay == 1 || billingPeriodStartDay == 22 ||
+                    billingPeriodStartDay == 25 || billingPeriodStartDay == 28) {
+                    customer.setBillingPeriodStartDay(billingPeriodStartDay);
+                    System.out.println("   ✓ Billing period start day updated to: " + billingPeriodStartDay);
+                } else {
+                    System.err.println("   ⚠️ Invalid billing period day: " + billingPeriodStartDay);
+                    redirectAttributes.addFlashAttribute("error", "Invalid billing period day selected.");
+                    return "redirect:/property-owner/settings";
+                }
+            }
+
+            // Update email notification preference
+            customer.setStatementEmailEnabled(statementEmailEnabled != null && statementEmailEnabled);
+            System.out.println("   ✓ Email notifications: " + customer.getStatementEmailEnabled());
+
+            // Save customer
+            customerService.save(customer);
+
+            System.out.println("✅ Settings saved successfully for: " + customer.getName());
+            redirectAttributes.addFlashAttribute("success", "Settings saved successfully!");
+
+        } catch (Exception e) {
+            System.err.println("❌ Error saving settings: " + e.getMessage());
+            e.printStackTrace();
+            redirectAttributes.addFlashAttribute("error", "Failed to save settings. Please try again.");
+        }
+
+        return "redirect:/property-owner/settings";
+    }
+
+    /**
+     * Generate a user-friendly explanation of the billing period
+     */
+    private String generatePeriodExample(Integer periodStartDay) {
+        if (periodStartDay == null || periodStartDay == 1) {
+            return "Calendar months (1st - last day of month)";
+        }
+
+        int endDay = periodStartDay - 1;
+        String startSuffix = getDaySuffix(periodStartDay);
+        String endSuffix = getDaySuffix(endDay);
+
+        LocalDate now = LocalDate.now();
+        String currentMonth = now.getMonth().toString().substring(0, 3);
+        String nextMonth = now.plusMonths(1).getMonth().toString().substring(0, 3);
+
+        return String.format("Custom periods (%d%s-%d%s of month). Example: %s %d - %s %d",
+            periodStartDay, startSuffix, endDay, endSuffix,
+            currentMonth, periodStartDay, nextMonth, endDay);
+    }
+
+    /**
+     * Get ordinal suffix for day (st, nd, rd, th)
+     */
+    private String getDaySuffix(int day) {
+        if (day >= 11 && day <= 13) {
+            return "th";
+        }
+        switch (day % 10) {
+            case 1: return "st";
+            case 2: return "nd";
+            case 3: return "rd";
+            default: return "th";
+        }
+    }
 }
