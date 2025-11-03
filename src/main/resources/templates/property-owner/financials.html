@@ -504,37 +504,26 @@
                                                                      transaction.transactionType == 'payment_to_agency' ? 'badge-secondary' : 'badge-light'}"
                                                       th:text="${transaction.transactionType}">Type</span>
                                             </td>
-                                            <!-- Amount column: Show for invoices and tenant payments -->
+                                            <!-- Amount column: Show if amount field exists -->
                                             <td class="text-right">
-                                                <span th:if="${transaction.transactionType == 'invoice'}">
-                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span></strong>
-                                                    <br><small class="text-muted">Invoiced</small>
+                                                <span th:if="${transaction.amount != null}">
+                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.amount, 1, 2)}">0.00</span></strong>
                                                 </span>
-                                                <span th:if="${transaction.transactionType == 'tenant_payment'}">
-                                                    <strong class="text-info">£<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span></strong>
-                                                    <br><small class="text-muted">Received</small>
-                                                </span>
-                                                <span th:if="${transaction.transactionType != 'invoice' and transaction.transactionType != 'tenant_payment'}">-</span>
+                                                <span th:if="${transaction.amount == null}">-</span>
                                             </td>
-                                            <!-- Commission column: Show for commission_payment transactions -->
+                                            <!-- Commission column: Show if commissionAmount field exists -->
                                             <td class="text-right text-warning">
-                                                <span th:if="${transaction.transactionType == 'commission_payment'}">
-                                                    £<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span>
+                                                <span th:if="${transaction.commissionAmount != null}">
+                                                    £<span th:text="${#numbers.formatDecimal(transaction.commissionAmount, 1, 2)}">0.00</span>
                                                 </span>
-                                                <span th:if="${transaction.transactionType == 'invoice' and transaction.commissionAmount != null}">
-                                                    <small class="text-muted">(£<span th:text="${#numbers.formatDecimal(transaction.commissionAmount ?: 0, 1, 2)}">0.00</span>)</small>
-                                                </span>
-                                                <span th:if="${transaction.transactionType != 'commission_payment' and (transaction.transactionType != 'invoice' or transaction.commissionAmount == null)}">-</span>
+                                                <span th:if="${transaction.commissionAmount == null}">-</span>
                                             </td>
-                                            <!-- Net to Owner column: Show for payment_to_beneficiary transactions -->
+                                            <!-- Net to Owner column: Show if netToOwnerAmount field exists -->
                                             <td class="text-right text-success">
-                                                <span th:if="${transaction.transactionType == 'payment_to_beneficiary'}">
-                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.amount ?: 0, 1, 2)}">0.00</span></strong>
+                                                <span th:if="${transaction.netToOwnerAmount != null}">
+                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount, 1, 2)}">0.00</span></strong>
                                                 </span>
-                                                <span th:if="${transaction.transactionType == 'invoice' and transaction.netToOwnerAmount != null}">
-                                                    <small class="text-muted">(£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount ?: 0, 1, 2)}">0.00</span>)</small>
-                                                </span>
-                                                <span th:if="${transaction.transactionType != 'payment_to_beneficiary' and (transaction.transactionType != 'invoice' or transaction.netToOwnerAmount == null)}">-</span>
+                                                <span th:if="${transaction.netToOwnerAmount == null}">-</span>
                                             </td>
                                             <td>
                                                 <small th:text="${transaction.description}">Description</small>
