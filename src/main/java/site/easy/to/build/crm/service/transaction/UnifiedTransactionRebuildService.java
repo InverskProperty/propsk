@@ -200,8 +200,13 @@ public class UnifiedTransactionRebuildService {
                 ft.data_source as payprop_data_source,
                 ft.transaction_type as transaction_type,
                 CASE
+                    -- First check data_source (PayProp specific)
                     WHEN ft.data_source = 'INCOMING_PAYMENT' THEN 'INCOMING'
                     WHEN ft.data_source = 'BATCH_PAYMENT' OR ft.data_source = 'COMMISSION_PAYMENT' THEN 'OUTGOING'
+                    -- Then check category_name (like historical logic) - THIS IS THE FIX!
+                    WHEN ft.category_name LIKE '%rent%' OR ft.category_name LIKE '%Rent%' THEN 'INCOMING'
+                    WHEN ft.category_name IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                        OR ft.category_name LIKE '%expense%' OR ft.category_name LIKE '%Expense%' THEN 'OUTGOING'
                     ELSE 'OUTGOING'
                 END as flow_direction,
                 NOW() as rebuilt_at,
