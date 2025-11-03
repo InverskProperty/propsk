@@ -128,6 +128,9 @@ public class StatementTransactionDto {
     public boolean isRentPayment() {
         return "invoice".equalsIgnoreCase(transactionType) ||
                "payment".equalsIgnoreCase(transactionType) ||
+               "incoming_payment".equalsIgnoreCase(transactionType) ||  // PayProp incoming payments
+               "rent_received".equalsIgnoreCase(transactionType) ||     // Historical rent received
+               "tenant_payment".equalsIgnoreCase(transactionType) ||    // Alternative tenant payment type
                "rent".equalsIgnoreCase(category);
     }
 

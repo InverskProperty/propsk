@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.dto.StatementTransactionDto.TransactionSource;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
+import site.easy.to.build.crm.entity.UnifiedTransaction;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -138,6 +139,50 @@ public class StatementTransactionConverter {
     public List<StatementTransactionDto> convertHistoricalListToDto(List<HistoricalTransaction> transactions) {
         return transactions.stream()
             .map(this::convertHistoricalToDto)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert a single UnifiedTransaction to StatementTransactionDto
+     */
+    public StatementTransactionDto convertUnifiedToDto(UnifiedTransaction tx) {
+        StatementTransactionDto dto = new StatementTransactionDto();
+
+        // Core transaction fields
+        dto.setTransactionDate(tx.getTransactionDate());
+        dto.setAmount(tx.getAmount());
+        dto.setDescription(tx.getDescription());
+        dto.setTransactionType(tx.getTransactionType());
+        dto.setCategory(tx.getCategory());
+
+        // Source identification
+        if (tx.getSourceSystem() != null) {
+            dto.setSource(tx.getSourceSystem() == UnifiedTransaction.SourceSystem.HISTORICAL
+                ? TransactionSource.HISTORICAL
+                : TransactionSource.PAYPROP);
+        }
+        dto.setSourceTransactionId(tx.getId() != null ? tx.getId().toString() : null);
+
+        // Property linking
+        dto.setPropertyId(tx.getPropertyId());
+        dto.setPropertyName(tx.getPropertyName());
+
+        // Customer linking
+        dto.setCustomerId(tx.getCustomerId());
+
+        // Lease/Invoice reference
+        dto.setInvoiceId(tx.getInvoiceId());
+        dto.setLeaseReference(tx.getLeaseReference());
+
+        return dto;
+    }
+
+    /**
+     * Convert a list of UnifiedTransactions to DTOs
+     */
+    public List<StatementTransactionDto> convertUnifiedListToDto(List<UnifiedTransaction> transactions) {
+        return transactions.stream()
+            .map(this::convertUnifiedToDto)
             .collect(Collectors.toList());
     }
 

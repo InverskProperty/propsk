@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.UnifiedTransaction;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.service.statements.PayPropTransactionService;
 import site.easy.to.build.crm.service.statements.StatementTransactionConverter;
@@ -41,6 +42,9 @@ public class UnifiedFinancialDataService {
     @Autowired
     private RentCalculationService rentCalculationService;
 
+    @Autowired
+    private site.easy.to.build.crm.repository.UnifiedTransactionRepository unifiedTransactionRepository;
+
     /**
      * Get combined financial transactions for a property (last 2 years)
      *
@@ -56,47 +60,43 @@ public class UnifiedFinancialDataService {
     /**
      * Get combined financial transactions for a property (custom date range)
      *
-     * NO DEDUPLICATION - Shows all transactions from both sources
+     * ✅ NOW USES unified_transactions TABLE - includes both HISTORICAL and PAYPROP data
      *
      * @param property The property
      * @param fromDate Start date
      * @param toDate End date
-     * @return List of unified transactions from both sources
+     * @return List of unified transactions from unified_transactions table
      */
     public List<StatementTransactionDto> getPropertyTransactions(Property property, LocalDate fromDate, LocalDate toDate) {
         List<StatementTransactionDto> combined = new ArrayList<>();
 
         try {
-            // 1. Get Historical Transactions (actual payments/expenses that happened)
-            if (property.getPayPropId() != null) {
-                List<HistoricalTransaction> historical = historicalTransactionRepository
-                    .findPropertyTransactionsForStatement(property.getPayPropId(), fromDate, toDate);
+            // Query unified_transactions table (includes both HISTORICAL and PAYPROP sources)
+            List<UnifiedTransaction> unifiedTransactions =
+                unifiedTransactionRepository.findByPropertyId(property.getId());
 
-                List<StatementTransactionDto> historicalDtos = transactionConverter.convertHistoricalListToDto(historical);
-                combined.addAll(historicalDtos);
+            // Filter by date range
+            List<UnifiedTransaction> filteredTransactions = unifiedTransactions.stream()
+                .filter(tx -> !tx.getTransactionDate().isBefore(fromDate) && !tx.getTransactionDate().isAfter(toDate))
+                .collect(Collectors.toList());
 
-                log.debug("Loaded {} historical transactions for property {}", historicalDtos.size(), property.getPropertyName());
-            }
+            // Convert to DTOs
+            combined = transactionConverter.convertUnifiedListToDto(filteredTransactions);
 
-            // 2. Get PayProp Transactions (current actual payments from PayProp)
-            if (property.getPayPropId() != null && !property.getPayPropId().trim().isEmpty()) {
-                List<StatementTransactionDto> paypropTxs = payPropTransactionService
-                    .getPayPropTransactionsForProperty(property.getPayPropId(), fromDate, toDate);
-
-                // NO DEDUPLICATION - Add all PayProp transactions
-                combined.addAll(paypropTxs);
-
-                log.debug("Loaded {} PayProp transactions for property {}", paypropTxs.size(), property.getPropertyName());
-            }
-
-            // 3. Sort by date (newest first)
+            // Sort by date (newest first)
             combined.sort(Comparator.comparing(StatementTransactionDto::getTransactionDate).reversed());
 
-            log.info("✅ Retrieved {} total transactions for property {} ({} to {})",
+            log.info("✅ Retrieved {} total transactions from unified_transactions for property {} ({} to {})",
                 combined.size(), property.getPropertyName(), fromDate, toDate);
 
+            // Log breakdown by source
+            long historicalCount = combined.stream().filter(StatementTransactionDto::isHistoricalTransaction).count();
+            long paypropCount = combined.stream().filter(StatementTransactionDto::isPayPropTransaction).count();
+            log.debug("   - {} HISTORICAL transactions", historicalCount);
+            log.debug("   - {} PAYPROP transactions", paypropCount);
+
         } catch (Exception e) {
-            log.error("Error getting combined transactions for property {}: {}",
+            log.error("Error getting unified transactions for property {}: {}",
                 property.getPropertyName(), e.getMessage(), e);
         }
 
