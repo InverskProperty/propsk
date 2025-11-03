@@ -540,12 +540,13 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month
+        // Generate one row per lease per month (from LEASE START for historical data)
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
-            YearMonth currentMonth = YearMonth.from(startDate);
+            // Start from lease start to capture all historical payments for opening balance calculation
+            YearMonth currentMonth = leaseStart != null ? YearMonth.from(leaseStart) : YearMonth.from(startDate);
             YearMonth endMonth = YearMonth.from(endDate);
 
             while (!currentMonth.isAfter(endMonth)) {
@@ -666,12 +667,13 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month
+        // Generate one row per lease per month (from LEASE START for historical data)
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
-            YearMonth currentMonth = YearMonth.from(startDate);
+            // Start from lease start to capture all historical expenses
+            YearMonth currentMonth = leaseStart != null ? YearMonth.from(leaseStart) : YearMonth.from(startDate);
             YearMonth endMonth = YearMonth.from(endDate);
 
             while (!currentMonth.isAfter(endMonth)) {
