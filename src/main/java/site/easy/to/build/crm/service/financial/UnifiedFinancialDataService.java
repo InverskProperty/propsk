@@ -203,4 +203,105 @@ public class UnifiedFinancialDataService {
         // Implementation depends on your property-owner relationship
         throw new UnsupportedOperationException("Not yet implemented");
     }
+
+    /**
+     * ✨ PHASE 2: Get expense breakdown by category for all customer properties
+     *
+     * @param properties List of properties owned by customer
+     * @param startDate Start date
+     * @param endDate End date
+     * @return Map of category -> total amount
+     */
+    public Map<String, BigDecimal> getExpensesByCategory(List<Property> properties, LocalDate startDate, LocalDate endDate) {
+        Map<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
+
+        try {
+            for (Property property : properties) {
+                List<StatementTransactionDto> transactions = getPropertyTransactions(property, startDate, endDate);
+
+                // Group expenses by category
+                transactions.stream()
+                    .filter(StatementTransactionDto::isExpense)
+                    .forEach(tx -> {
+                        String category = tx.getCategory() != null ? tx.getCategory() : "Other";
+                        BigDecimal amount = tx.getAmount().abs();
+                        categoryTotals.merge(category, amount, BigDecimal::add);
+                    });
+            }
+
+            log.info("✅ Calculated expense breakdown: {} categories", categoryTotals.size());
+        } catch (Exception e) {
+            log.error("Error calculating expense breakdown: {}", e.getMessage(), e);
+        }
+
+        return categoryTotals;
+    }
+
+    /**
+     * ✨ PHASE 2: Get monthly financial trends for customer properties
+     *
+     * @param properties List of properties owned by customer
+     * @param startDate Start date
+     * @param endDate End date
+     * @return List of monthly summaries
+     */
+    public List<Map<String, Object>> getMonthlyTrends(List<Property> properties, LocalDate startDate, LocalDate endDate) {
+        List<Map<String, Object>> monthlyData = new ArrayList<>();
+
+        try {
+            // Collect all transactions for all properties
+            List<StatementTransactionDto> allTransactions = new ArrayList<>();
+            for (Property property : properties) {
+                allTransactions.addAll(getPropertyTransactions(property, startDate, endDate));
+            }
+
+            // Group by month
+            Map<String, List<StatementTransactionDto>> byMonth = allTransactions.stream()
+                .collect(Collectors.groupingBy(tx ->
+                    tx.getTransactionDate().getYear() + "-" +
+                    String.format("%02d", tx.getTransactionDate().getMonthValue())
+                ));
+
+            // Calculate totals per month
+            byMonth.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    String monthKey = entry.getKey();
+                    List<StatementTransactionDto> monthTxs = entry.getValue();
+
+                    BigDecimal income = monthTxs.stream()
+                        .filter(StatementTransactionDto::isRentPayment)
+                        .map(StatementTransactionDto::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    BigDecimal expenses = monthTxs.stream()
+                        .filter(StatementTransactionDto::isExpense)
+                        .map(tx -> tx.getAmount().abs())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    BigDecimal commission = monthTxs.stream()
+                        .filter(StatementTransactionDto::isAgencyFee)
+                        .map(tx -> tx.getAmount().abs())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    BigDecimal netToOwner = income.subtract(expenses).subtract(commission);
+
+                    Map<String, Object> monthSummary = new HashMap<>();
+                    monthSummary.put("month", monthKey);
+                    monthSummary.put("income", income);
+                    monthSummary.put("expenses", expenses);
+                    monthSummary.put("commission", commission);
+                    monthSummary.put("netToOwner", netToOwner);
+                    monthSummary.put("transactionCount", monthTxs.size());
+
+                    monthlyData.add(monthSummary);
+                });
+
+            log.info("✅ Calculated monthly trends: {} months", monthlyData.size());
+        } catch (Exception e) {
+            log.error("Error calculating monthly trends: {}", e.getMessage(), e);
+        }
+
+        return monthlyData;
+    }
 }

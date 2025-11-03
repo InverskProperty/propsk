@@ -17,7 +17,10 @@
     <link th:href="@{/css/style.min.css}" rel="stylesheet">
     <!-- Font Awesome -->
     <link th:href="@{/css/all.css}" rel="stylesheet">
-    
+
+    <!-- ✨ PHASE 2: Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
     <style>
         .financial-card {
             border-left: 4px solid;
@@ -31,7 +34,7 @@
         .expense-card { border-left-color: #dc3545; }
         .profit-card { border-left-color: #007bff; }
         .occupancy-card { border-left-color: #ffc107; }
-        
+
         .metric-icon {
             width: 60px;
             height: 60px;
@@ -46,6 +49,16 @@
         .expense-icon { background: #dc3545; }
         .profit-icon { background: #007bff; }
         .occupancy-icon { background: #ffc107; }
+
+        /* ✨ PHASE 2: Chart styles */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+        .chart-legend {
+            margin-top: 15px;
+        }
     </style>
 </head>
 
@@ -240,16 +253,87 @@
                 </div>
             </div>
 
+            <!-- ✨ PHASE 2: Financial Analytics & Charts -->
+            <div class="row mt-4">
+                <!-- Monthly Trends Chart -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-chart-line text-primary"></i> Monthly Financial Trends
+                            </h4>
+                            <p class="text-muted mb-0">Income, expenses, and net to owner over time</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="monthlyTrendsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expense Category Breakdown -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-pie-chart text-danger"></i> Expense Breakdown
+                            </h4>
+                            <p class="text-muted mb-0">Expenses by category</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="expenseCategoryChart"></canvas>
+                            </div>
+                            <div th:if="${expensesByCategory.isEmpty()}" class="text-center text-muted">
+                                <i class="fas fa-info-circle"></i> No expense data for selected period
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ✨ PHASE 2: Smart Insights Panel -->
+            <div class="row mt-4" th:if="${insights != null && !insights.isEmpty()}">
+                <div class="col-12">
+                    <div class="card border-info">
+                        <div class="card-header bg-info text-white">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-lightbulb"></i> Financial Insights
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div th:each="insight, iterStat : ${insights}" class="mb-2">
+                                        <div class="alert"
+                                             th:classappend="${insight.type == 'warning'} ? 'alert-warning' : (${insight.type == 'danger'} ? 'alert-danger' : 'alert-info')"
+                                             style="margin-bottom: 10px;">
+                                            <i class="fas"
+                                               th:classappend="${insight.type == 'warning'} ? 'fa-exclamation-triangle' : (${insight.type == 'danger'} ? 'fa-exclamation-circle' : 'fa-info-circle')"></i>
+                                            <strong th:text="${insight.title}">Insight Title</strong>
+                                            <span th:text="${insight.message}">Insight message</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Property Financial Breakdown -->
             <div class="row mt-4">
                 <div class="col-12">
                     <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">
+                        <div class="card-header" data-toggle="collapse" data-target="#propertyBreakdownTable" style="cursor: pointer;">
+                            <h4 class="card-title mb-0">
                                 <i class="fas fa-building text-primary"></i> Property Financial Breakdown
+                                <i class="fas fa-chevron-down float-right"></i>
                             </h4>
-                            <p class="text-muted mb-0">PayProp financial data by individual property</p>
+                            <p class="text-muted mb-0">PayProp financial data by individual property (click to expand/collapse)</p>
                         </div>
+                        <div class="collapse show" id="propertyBreakdownTable">
                         <div class="card-body">
                             <div class="table-responsive">
                                 <table class="table table-striped">
@@ -300,20 +384,23 @@
                                 </table>
                             </div>
                         </div>
+                        </div> <!-- Close collapse div -->
                     </div>
                 </div>
             </div>
 
-            <!-- Recent Transactions -->
+            <!-- ✨ PHASE 2: Recent Transactions (Collapsible) -->
             <div class="row mt-4">
                 <div class="col-12">
                     <div class="card">
-                        <div class="card-header">
-                            <h4 class="card-title">
+                        <div class="card-header" data-toggle="collapse" data-target="#recentTransactionsTable" style="cursor: pointer;">
+                            <h4 class="card-title mb-0">
                                 <i class="fas fa-list text-info"></i> Recent Transactions
+                                <i class="fas fa-chevron-down float-right"></i>
                             </h4>
-                            <p class="text-muted mb-0">Latest financial transactions from PayProp</p>
+                            <p class="text-muted mb-0">Latest financial transactions from PayProp (click to expand/collapse)</p>
                         </div>
+                        <div class="collapse show" id="recentTransactionsTable">
                         <div class="card-body">
                             <div class="table-responsive">
                                 <table class="table table-striped">
@@ -411,6 +498,7 @@
                                 </table>
                             </div>
                         </div>
+                        </div> <!-- Close collapse div for recent transactions -->
                     </div>
                 </div>
             </div>
@@ -1379,6 +1467,139 @@ function exportData() {
 
     // Open export URL in new window
     window.open(`/property-owner/financials/export?${params.toString()}`, '_blank');
+}
+
+// ✨ PHASE 2: Initialize charts on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+});
+
+function initializeCharts() {
+    // Initialize Monthly Trends Chart
+    const monthlyTrendsData = /*[[${monthlyTrends}]]*/ [];
+    if (monthlyTrendsData && monthlyTrendsData.length > 0) {
+        const months = monthlyTrendsData.map(m => m.month);
+        const income = monthlyTrendsData.map(m => m.income);
+        const expenses = monthlyTrendsData.map(m => m.expenses);
+        const netToOwner = monthlyTrendsData.map(m => m.netToOwner);
+
+        const ctx = document.getElementById('monthlyTrendsChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [
+                        {
+                            label: 'Rent Received',
+                            data: income,
+                            borderColor: '#28a745',
+                            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Expenses',
+                            data: expenses,
+                            borderColor: '#dc3545',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Net to Owner',
+                            data: netToOwner,
+                            borderColor: '#007bff',
+                            backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '£' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // Initialize Expense Category Pie Chart
+    const expensesData = /*[[${expensesByCategory}]]*/ {};
+    if (expensesData && Object.keys(expensesData).length > 0) {
+        const categories = Object.keys(expensesData);
+        const amounts = Object.values(expensesData);
+
+        const ctx = document.getElementById('expenseCategoryChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories,
+                    datasets: [{
+                        data: amounts,
+                        backgroundColor: [
+                            '#dc3545', // maintenance
+                            '#ffc107', // utilities
+                            '#17a2b8', // cleaning
+                            '#6f42c1', // compliance
+                            '#fd7e14', // management
+                            '#28a745', // other
+                            '#6c757d'  // additional
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${label}: £${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
 }
 </script>
 

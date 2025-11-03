@@ -1893,6 +1893,33 @@ public class PropertyOwnerController {
             model.addAttribute("endDate", endDate);
             model.addAttribute("lastUpdated", java.time.LocalDateTime.now());
 
+            // ✨ PHASE 2: Get expense breakdown by category
+            Map<String, BigDecimal> expensesByCategory = new LinkedHashMap<>();
+            try {
+                expensesByCategory = unifiedFinancialDataService.getExpensesByCategory(customerProperties, startDate, endDate);
+                System.out.println("✅ Expense categories: " + expensesByCategory.keySet());
+            } catch (Exception e) {
+                System.err.println("⚠️ Error getting expense categories: " + e.getMessage());
+            }
+            model.addAttribute("expensesByCategory", expensesByCategory);
+
+            // ✨ PHASE 2: Get monthly trends
+            List<Map<String, Object>> monthlyTrends = new ArrayList<>();
+            try {
+                monthlyTrends = unifiedFinancialDataService.getMonthlyTrends(customerProperties, startDate, endDate);
+                System.out.println("✅ Monthly trends calculated: " + monthlyTrends.size() + " months");
+            } catch (Exception e) {
+                System.err.println("⚠️ Error getting monthly trends: " + e.getMessage());
+            }
+            model.addAttribute("monthlyTrends", monthlyTrends);
+
+            // ✨ PHASE 2: Generate smart insights
+            List<Map<String, String>> insights = generateFinancialInsights(
+                totalRent, totalCommission, totalArrears, monthlyTrends, expensesByCategory, customerProperties.size()
+            );
+            model.addAttribute("insights", insights);
+            System.out.println("✅ Generated " + insights.size() + " financial insights");
+
             // 📊 Monthly Overview Calculations
             BigDecimal totalMonthlyRent = properties.stream()
                 .filter(p -> p.getMonthlyPayment() != null)
@@ -3360,5 +3387,124 @@ public class PropertyOwnerController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Error saving valuation data: " + e.getMessage()));
         }
+    }
+
+    /**
+     * ✨ PHASE 2: Generate smart financial insights based on data analysis
+     */
+    private List<Map<String, String>> generateFinancialInsights(
+            BigDecimal totalRent,
+            BigDecimal totalCommission,
+            BigDecimal totalArrears,
+            List<Map<String, Object>> monthlyTrends,
+            Map<String, BigDecimal> expensesByCategory,
+            int propertyCount) {
+
+        List<Map<String, String>> insights = new ArrayList<>();
+
+        try {
+            // Insight 1: Arrears warning
+            if (totalArrears != null && totalArrears.compareTo(BigDecimal.ZERO) > 0) {
+                insights.add(createInsight(
+                    "danger",
+                    "Outstanding Arrears",
+                    String.format("You have £%s in outstanding rent arrears across %d properties. Consider following up on late payments.",
+                        totalArrears.setScale(2, RoundingMode.HALF_UP), propertyCount)
+                ));
+            }
+
+            // Insight 2: Monthly trend analysis
+            if (monthlyTrends != null && monthlyTrends.size() >= 2) {
+                Map<String, Object> latestMonth = monthlyTrends.get(monthlyTrends.size() - 1);
+                Map<String, Object> previousMonth = monthlyTrends.get(monthlyTrends.size() - 2);
+
+                BigDecimal latestIncome = (BigDecimal) latestMonth.get("income");
+                BigDecimal previousIncome = (BigDecimal) previousMonth.get("income");
+
+                if (latestIncome.compareTo(previousIncome.multiply(BigDecimal.valueOf(1.15))) > 0) {
+                    insights.add(createInsight(
+                        "info",
+                        "Income Increase",
+                        "Your rental income increased by over 15% compared to last month!"
+                    ));
+                } else if (latestIncome.compareTo(previousIncome.multiply(BigDecimal.valueOf(0.85))) < 0) {
+                    insights.add(createInsight(
+                        "warning",
+                        "Income Decrease",
+                        "Your rental income decreased by over 15% compared to last month. Check for vacancies or late payments."
+                    ));
+                }
+
+                // Expense trend
+                BigDecimal latestExpenses = (BigDecimal) latestMonth.get("expenses");
+                BigDecimal previousExpenses = (BigDecimal) previousMonth.get("expenses");
+
+                if (latestExpenses.compareTo(previousExpenses.multiply(BigDecimal.valueOf(1.20))) > 0) {
+                    insights.add(createInsight(
+                        "warning",
+                        "Expenses Up",
+                        String.format("Expenses increased by %.1f%% this month. Review your expense categories.",
+                            ((latestExpenses.subtract(previousExpenses)).divide(previousExpenses, 4, RoundingMode.HALF_UP)
+                                .multiply(BigDecimal.valueOf(100))).doubleValue())
+                    ));
+                }
+            }
+
+            // Insight 3: Expense category analysis
+            if (expensesByCategory != null && !expensesByCategory.isEmpty()) {
+                BigDecimal totalExpenses = expensesByCategory.values().stream()
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                // Find highest expense category
+                String highestCategory = "";
+                BigDecimal highestAmount = BigDecimal.ZERO;
+                for (Map.Entry<String, BigDecimal> entry : expensesByCategory.entrySet()) {
+                    if (entry.getValue().compareTo(highestAmount) > 0) {
+                        highestAmount = entry.getValue();
+                        highestCategory = entry.getKey();
+                    }
+                }
+
+                if (totalExpenses.compareTo(BigDecimal.ZERO) > 0 && !highestCategory.isEmpty()) {
+                    BigDecimal percentage = highestAmount.divide(totalExpenses, 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100));
+
+                    insights.add(createInsight(
+                        "info",
+                        "Top Expense Category",
+                        String.format("%s accounts for %.1f%% (£%s) of your total expenses.",
+                            highestCategory, percentage.doubleValue(), highestAmount.setScale(2, RoundingMode.HALF_UP))
+                    ));
+                }
+            }
+
+            // Insight 4: Commission rate analysis
+            if (totalRent.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal commissionRate = totalCommission.divide(totalRent, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100));
+
+                if (commissionRate.compareTo(BigDecimal.valueOf(10)) > 0) {
+                    insights.add(createInsight(
+                        "info",
+                        "Management Fee",
+                        String.format("Your average management fee is %.1f%%. You're paying £%s in commissions.",
+                            commissionRate.doubleValue(), totalCommission.setScale(2, RoundingMode.HALF_UP))
+                    ));
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("⚠️ Error generating insights: " + e.getMessage());
+        }
+
+        return insights;
+    }
+
+    private Map<String, String> createInsight(String type, String title, String message) {
+        Map<String, String> insight = new HashMap<>();
+        insight.put("type", type); // info, warning, danger
+        insight.put("title", title);
+        insight.put("message", message);
+        return insight;
     }
 }
