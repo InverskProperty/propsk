@@ -1721,15 +1721,14 @@ public class PropertyOwnerController {
                     .collect(java.util.stream.Collectors.joining(", ")));
             }
 
-            // ✨ PHASE 1: Date range support - Default to last 12 months instead of 2 years
+            // ✨ PHASE 1: Date range support - Default to WIDE range to catch all data
             if (startDate == null) {
-                startDate = LocalDate.now().minusYears(1);
+                startDate = LocalDate.of(2020, 1, 1); // Start from 2020 to catch all historical data
             }
             if (endDate == null) {
-                endDate = LocalDate.now();
+                endDate = LocalDate.now().plusYears(1); // Include future dates (in case of test data)
             }
-
-            System.out.println("📅 Date range: " + startDate + " to " + endDate);
+            System.out.println("📅 Date range for queries: " + startDate + " to " + endDate);
 
             // 🚀 NEW: Get UNIFIED financial data from Historical + PayProp combined
             LocalDate twoYearsAgo = startDate; // Use user-selected date
