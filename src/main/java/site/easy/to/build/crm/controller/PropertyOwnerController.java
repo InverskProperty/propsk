@@ -1894,6 +1894,8 @@ public class PropertyOwnerController {
             model.addAttribute("lastUpdated", java.time.LocalDateTime.now());
 
             // ✨ PHASE 2: Get expense breakdown by category
+            System.out.println("🔍 DEBUG: Customer has " + customerProperties.size() + " properties");
+            System.out.println("🔍 DEBUG: Date range: " + startDate + " to " + endDate);
             Map<String, BigDecimal> expensesByCategory = new LinkedHashMap<>();
             try {
                 expensesByCategory = unifiedFinancialDataService.getExpensesByCategory(customerProperties, startDate, endDate);
@@ -1923,6 +1925,8 @@ public class PropertyOwnerController {
                 System.out.println("✅ Monthly trends calculated: " + monthlyTrends.size() + " months");
                 if (!monthlyTrends.isEmpty()) {
                     System.out.println("✅ First month data: " + monthlyTrends.get(0));
+                } else {
+                    System.out.println("⚠️  Monthly trends is EMPTY - no data for charts!");
                 }
             } catch (Exception e) {
                 System.err.println("⚠️ Error getting monthly trends: " + e.getMessage());
