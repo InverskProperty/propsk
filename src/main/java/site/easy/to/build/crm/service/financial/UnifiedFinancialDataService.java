@@ -279,13 +279,14 @@ public class UnifiedFinancialDataService {
                 String txType = tx.getTransactionType();
 
                 // Skip if not an expense (e.g., could be agency fee)
+                // IMPORTANT: Use case-insensitive comparison because database has lowercase types
                 if (txType != null &&
-                    (txType.contains("EXPENSE") ||
-                     txType.contains("MAINTENANCE") ||
-                     txType.contains("REPAIR") ||
-                     txType.contains("UTILITY") ||
-                     txType.contains("CLEANING") ||
-                     txType.contains("COMPLIANCE"))) {
+                    (txType.toUpperCase().contains("EXPENSE") ||
+                     txType.toUpperCase().contains("MAINTENANCE") ||
+                     txType.toUpperCase().contains("REPAIR") ||
+                     txType.toUpperCase().contains("UTILITY") ||
+                     txType.toUpperCase().contains("CLEANING") ||
+                     txType.toUpperCase().contains("COMPLIANCE"))) {
 
                     String category = tx.getCategory() != null && !tx.getCategory().isEmpty()
                         ? tx.getCategory()
@@ -454,26 +455,27 @@ public class UnifiedFinancialDataService {
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     // Expenses: OUTGOING transactions that are expenses
+                    // IMPORTANT: Use case-insensitive comparison because database has lowercase types
                     long expenseTxCount = monthTxs.stream()
                         .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
                         .filter(tx -> tx.getTransactionType() != null &&
-                            (tx.getTransactionType().contains("EXPENSE") ||
-                             tx.getTransactionType().contains("MAINTENANCE") ||
-                             tx.getTransactionType().contains("REPAIR") ||
-                             tx.getTransactionType().contains("UTILITY") ||
-                             tx.getTransactionType().contains("CLEANING") ||
-                             tx.getTransactionType().contains("COMPLIANCE")))
+                            (tx.getTransactionType().toUpperCase().contains("EXPENSE") ||
+                             tx.getTransactionType().toUpperCase().contains("MAINTENANCE") ||
+                             tx.getTransactionType().toUpperCase().contains("REPAIR") ||
+                             tx.getTransactionType().toUpperCase().contains("UTILITY") ||
+                             tx.getTransactionType().toUpperCase().contains("CLEANING") ||
+                             tx.getTransactionType().toUpperCase().contains("COMPLIANCE")))
                         .count();
 
                     BigDecimal expenses = monthTxs.stream()
                         .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
                         .filter(tx -> tx.getTransactionType() != null &&
-                            (tx.getTransactionType().contains("EXPENSE") ||
-                             tx.getTransactionType().contains("MAINTENANCE") ||
-                             tx.getTransactionType().contains("REPAIR") ||
-                             tx.getTransactionType().contains("UTILITY") ||
-                             tx.getTransactionType().contains("CLEANING") ||
-                             tx.getTransactionType().contains("COMPLIANCE")))
+                            (tx.getTransactionType().toUpperCase().contains("EXPENSE") ||
+                             tx.getTransactionType().toUpperCase().contains("MAINTENANCE") ||
+                             tx.getTransactionType().toUpperCase().contains("REPAIR") ||
+                             tx.getTransactionType().toUpperCase().contains("UTILITY") ||
+                             tx.getTransactionType().toUpperCase().contains("CLEANING") ||
+                             tx.getTransactionType().toUpperCase().contains("COMPLIANCE")))
                         .map(tx -> tx.getAmount().abs())
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
