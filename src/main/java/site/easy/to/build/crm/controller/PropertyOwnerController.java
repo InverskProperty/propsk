@@ -2248,6 +2248,65 @@ public class PropertyOwnerController {
     }
 
     /**
+     * REST API endpoint to get chart data as pure JSON (bypasses Thymeleaf escaping issues)
+     */
+    @GetMapping("/property-owner/api/chart-data")
+    @ResponseBody
+    public Map<String, Object> getChartData(
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+    ) {
+        Map<String, Object> response = new LinkedHashMap<>();
+
+        try {
+            Customer customer = authenticationUtils.getAuthenticatedCustomer();
+            if (customer == null) {
+                response.put("error", "Not authenticated");
+                return response;
+            }
+
+            if (startDate == null) startDate = LocalDate.now().minusMonths(10);
+            if (endDate == null) endDate = LocalDate.now();
+
+            System.out.println("\n🌐 API ENDPOINT: /property-owner/api/chart-data");
+            System.out.println("   Customer ID: " + customer.getCustomerId());
+            System.out.println("   Date Range: " + startDate + " to " + endDate);
+
+            // Get expenses by category
+            Map<String, BigDecimal> expensesByCategory =
+                unifiedFinancialDataService.getExpensesByCategoryForCustomer(
+                    customer.getCustomerId(), startDate, endDate);
+            response.put("expensesByCategory", expensesByCategory);
+
+            // Get monthly trends
+            List<Map<String, Object>> monthlyTrends =
+                unifiedFinancialDataService.getMonthlyTrendsForCustomer(
+                    customer.getCustomerId(), startDate, endDate);
+            response.put("monthlyTrends", monthlyTrends);
+
+            // Get simple transaction breakdown
+            Map<String, Object> breakdown =
+                unifiedFinancialDataService.getSimpleTransactionBreakdown(
+                    customer.getCustomerId(), startDate, endDate);
+            @SuppressWarnings("unchecked")
+            Map<String, BigDecimal> simpleChart = (Map<String, BigDecimal>) breakdown.get("amounts");
+            response.put("simpleTransactionChart", simpleChart);
+
+            System.out.println("✅ API returning:");
+            System.out.println("   - expensesByCategory: " + expensesByCategory.size() + " categories");
+            System.out.println("   - monthlyTrends: " + monthlyTrends.size() + " months");
+            System.out.println("   - simpleTransactionChart: " + (simpleChart != null ? simpleChart.size() : 0) + " types");
+
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in chart data API: " + e.getMessage());
+            e.printStackTrace();
+            response.put("error", e.getMessage());
+        }
+
+        return response;
+    }
+
+    /**
      * Enhanced Financials with Portfolio and Data Source Filtering
      * NOW USES UNIFIED FINANCIAL DATA (Historical + PayProp combined)
      */

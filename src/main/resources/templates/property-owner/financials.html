@@ -1615,17 +1615,34 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeCharts();
 });
 
-function initializeCharts() {
+async function initializeCharts() {
     console.log('═══════════════════════════════════════════════════════════════');
-    console.log('🎨 FRONTEND: Initializing Charts');
+    console.log('🎨 FRONTEND: Initializing Charts (FETCHING FROM API)');
     console.log('═══════════════════════════════════════════════════════════════');
+
+    // Get URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const startDate = urlParams.get('startDate') || '';
+    const endDate = urlParams.get('endDate') || '';
+
+    // Fetch chart data from REST API (bypasses Thymeleaf escaping)
+    console.log('\n🌐 Fetching chart data from API...');
+    console.log('   URL: /property-owner/api/chart-data?startDate=' + startDate + '&endDate=' + endDate);
+
+    let chartData;
+    try {
+        const response = await fetch(`/property-owner/api/chart-data?startDate=${startDate}&endDate=${endDate}`);
+        chartData = await response.json();
+        console.log('✅ API Response:', chartData);
+    } catch (error) {
+        console.error('❌ ERROR fetching chart data:', error);
+        return;
+    }
 
     // Initialize Monthly Trends Chart
     console.log('\n📈 CHART 1: Monthly Trends Chart');
-    const monthlyTrendsDataRaw = /*[[(${monthlyTrendsJson})]]*/  '[]';
-    console.log('📊 Raw JSON string from Thymeleaf:', monthlyTrendsDataRaw);
-    const monthlyTrendsData = JSON.parse(monthlyTrendsDataRaw);
-    console.log('📊 Parsed data:', monthlyTrendsData);
+    const monthlyTrendsData = chartData.monthlyTrends || [];
+    console.log('📊 Data from API:', monthlyTrendsData);
     console.log('📊 Data type:', typeof monthlyTrendsData);
     console.log('📊 Is Array?', Array.isArray(monthlyTrendsData));
     console.log('📊 Length:', monthlyTrendsData ? monthlyTrendsData.length : 'null/undefined');
@@ -1716,10 +1733,8 @@ function initializeCharts() {
 
     // Initialize Expense Category Pie Chart
     console.log('\n🥧 CHART 2: Expense Category Pie Chart');
-    const expensesDataRaw = /*[[(${expensesByCategoryJson})]]*/  '{}';
-    console.log('📊 Raw JSON string from Thymeleaf:', expensesDataRaw);
-    const expensesData = JSON.parse(expensesDataRaw);
-    console.log('📊 Parsed data:', expensesData);
+    const expensesData = chartData.expensesByCategory || {};
+    console.log('📊 Data from API:', expensesData);
     console.log('📊 Data type:', typeof expensesData);
     console.log('📊 Is Object?', typeof expensesData === 'object' && !Array.isArray(expensesData));
     console.log('📊 Keys:', expensesData ? Object.keys(expensesData) : 'null/undefined');
@@ -1798,10 +1813,8 @@ function initializeCharts() {
 
     // ✨ NEW: Initialize SIMPLE Transaction Type Bar Chart (RAW DATA)
     console.log('\n📊 CHART 3: Simple Transaction Types (Raw Data)');
-    const simpleChartDataRaw = /*[[(${simpleTransactionChartJson})]]*/  '{}';
-    console.log('📊 Raw JSON string:', simpleChartDataRaw);
-    const simpleChartData = JSON.parse(simpleChartDataRaw);
-    console.log('📊 Parsed data:', simpleChartData);
+    const simpleChartData = chartData.simpleTransactionChart || {};
+    console.log('📊 Data from API:', simpleChartData);
     console.log('📊 Keys:', Object.keys(simpleChartData));
 
     if (simpleChartData && Object.keys(simpleChartData).length > 0) {
