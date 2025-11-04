@@ -221,9 +221,12 @@ public class TestCategorizationController {
     public Map<String, Object> testDelegation() {
         Map<String, Object> result = new HashMap<>();
 
-        // Find both users
-        Customer achal = customerRepository.findByEmail("achal@sunflaguk.com");
-        Customer uday = customerRepository.findByEmail("uday@sunflaguk.com");
+        // Find both users - use findByEmailContainingIgnoreCase and take first result
+        List<Customer> achalList = customerRepository.findByEmailContainingIgnoreCase("achal@sunflaguk.com");
+        List<Customer> udayList = customerRepository.findByEmailContainingIgnoreCase("uday@sunflaguk.com");
+
+        Customer achal = achalList.isEmpty() ? null : achalList.get(0);
+        Customer uday = udayList.isEmpty() ? null : udayList.get(0);
 
         if (achal == null) {
             result.put("error", "User achal@sunflaguk.com not found");
