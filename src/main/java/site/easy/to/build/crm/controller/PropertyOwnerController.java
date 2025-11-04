@@ -1893,35 +1893,41 @@ public class PropertyOwnerController {
             model.addAttribute("endDate", endDate);
             model.addAttribute("lastUpdated", java.time.LocalDateTime.now());
 
-            // ✨ PHASE 2: Get expense breakdown by category
-            System.out.println("🔍 DEBUG: Customer has " + customerProperties.size() + " properties");
+            // ✨ PHASE 2: Get expense breakdown by category - OPTIMIZED VERSION
+            System.out.println("🔍 DEBUG: Customer " + customer.getCustomerId() + " has " + customerProperties.size() + " properties");
             System.out.println("🔍 DEBUG: Date range: " + startDate + " to " + endDate);
             Map<String, BigDecimal> expensesByCategory = new LinkedHashMap<>();
             try {
-                expensesByCategory = unifiedFinancialDataService.getExpensesByCategory(customerProperties, startDate, endDate);
+                expensesByCategory = unifiedFinancialDataService.getExpensesByCategoryForCustomer(
+                    customer.getCustomerId(), startDate, endDate);
                 System.out.println("✅ Expense categories: " + expensesByCategory.keySet());
                 System.out.println("✅ Expense values: " + expensesByCategory.values());
+                if (expensesByCategory.isEmpty()) {
+                    System.out.println("⚠️ WARNING: No expense categories found - expense chart will be empty");
+                }
             } catch (Exception e) {
-                System.err.println("⚠️ Error getting expense categories: " + e.getMessage());
+                System.err.println("❌ ERROR getting expense categories: " + e.getMessage());
                 e.printStackTrace();
             }
             model.addAttribute("expensesByCategory", expensesByCategory);
             // Pass the map directly for Thymeleaf to serialize
             model.addAttribute("expensesByCategoryJson", expensesByCategory);
-            System.out.println("✅ Expenses passed to view: " + expensesByCategory);
+            System.out.println("✅ Expenses passed to view: " + expensesByCategory.size() + " categories");
 
-            // ✨ PHASE 2: Get monthly trends
+            // ✨ PHASE 2: Get monthly trends - OPTIMIZED VERSION
             List<Map<String, Object>> monthlyTrends = new ArrayList<>();
             try {
-                monthlyTrends = unifiedFinancialDataService.getMonthlyTrends(customerProperties, startDate, endDate);
+                monthlyTrends = unifiedFinancialDataService.getMonthlyTrendsForCustomer(
+                    customer.getCustomerId(), startDate, endDate);
                 System.out.println("✅ Monthly trends calculated: " + monthlyTrends.size() + " months");
                 if (!monthlyTrends.isEmpty()) {
                     System.out.println("✅ First month data: " + monthlyTrends.get(0));
+                    System.out.println("✅ Last month data: " + monthlyTrends.get(monthlyTrends.size() - 1));
                 } else {
-                    System.out.println("⚠️  Monthly trends is EMPTY - no data for charts!");
+                    System.out.println("⚠️ WARNING: Monthly trends is EMPTY - chart will be empty!");
                 }
             } catch (Exception e) {
-                System.err.println("⚠️ Error getting monthly trends: " + e.getMessage());
+                System.err.println("❌ ERROR getting monthly trends: " + e.getMessage());
                 e.printStackTrace();
             }
             model.addAttribute("monthlyTrends", monthlyTrends);

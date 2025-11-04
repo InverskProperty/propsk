@@ -207,11 +207,65 @@ public class UnifiedFinancialDataService {
     /**
      * ✨ PHASE 2: Get expense breakdown by category for all customer properties
      *
-     * @param properties List of properties owned by customer
+     * @param customerId Customer ID
      * @param startDate Start date
      * @param endDate End date
      * @return Map of category -> total amount
      */
+    public Map<String, BigDecimal> getExpensesByCategoryForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        Map<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
+
+        try {
+            // Query all customer transactions at once using optimized query
+            List<UnifiedTransaction> allTransactions =
+                unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
+                    customerId,
+                    startDate,
+                    endDate,
+                    UnifiedTransaction.FlowDirection.OUTGOING
+                );
+
+            log.info("🔍 Found {} OUTGOING transactions for customer {} in date range",
+                allTransactions.size(), customerId);
+
+            // Group expenses by category
+            for (UnifiedTransaction tx : allTransactions) {
+                // Skip if not an expense (e.g., could be agency fee)
+                if (tx.getTransactionType() != null &&
+                    (tx.getTransactionType().contains("EXPENSE") ||
+                     tx.getTransactionType().contains("MAINTENANCE") ||
+                     tx.getTransactionType().contains("REPAIR") ||
+                     tx.getTransactionType().contains("UTILITY") ||
+                     tx.getTransactionType().contains("CLEANING") ||
+                     tx.getTransactionType().contains("COMPLIANCE"))) {
+
+                    String category = tx.getCategory() != null && !tx.getCategory().isEmpty()
+                        ? tx.getCategory()
+                        : "Other Expenses";
+
+                    BigDecimal amount = tx.getAmount().abs();
+                    categoryTotals.merge(category, amount, BigDecimal::add);
+                }
+            }
+
+            log.info("✅ Calculated expense breakdown: {} categories with total transactions analyzed: {}",
+                categoryTotals.size(), allTransactions.size());
+
+            if (!categoryTotals.isEmpty()) {
+                log.info("📊 Expense categories found: {}", categoryTotals.keySet());
+            }
+        } catch (Exception e) {
+            log.error("❌ Error calculating expense breakdown: {}", e.getMessage(), e);
+        }
+
+        return categoryTotals;
+    }
+
+    /**
+     * DEPRECATED: Use getExpensesByCategoryForCustomer instead
+     * Legacy method kept for compatibility
+     */
+    @Deprecated
     public Map<String, BigDecimal> getExpensesByCategory(List<Property> properties, LocalDate startDate, LocalDate endDate) {
         Map<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
 
@@ -238,13 +292,108 @@ public class UnifiedFinancialDataService {
     }
 
     /**
-     * ✨ PHASE 2: Get monthly financial trends for customer properties
+     * ✨ PHASE 2: Get monthly financial trends for customer properties - OPTIMIZED VERSION
      *
-     * @param properties List of properties owned by customer
+     * @param customerId Customer ID
      * @param startDate Start date
      * @param endDate End date
      * @return List of monthly summaries
      */
+    public List<Map<String, Object>> getMonthlyTrendsForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        List<Map<String, Object>> monthlyData = new ArrayList<>();
+
+        try {
+            // Query all customer transactions at once
+            List<UnifiedTransaction> allTransactions =
+                unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(
+                    customerId,
+                    startDate,
+                    endDate
+                );
+
+            log.info("🔍 Found {} total transactions for customer {} in date range {} to {}",
+                allTransactions.size(), customerId, startDate, endDate);
+
+            if (allTransactions.isEmpty()) {
+                log.warn("⚠️ No transactions found for customer {} - charts will be empty", customerId);
+                return monthlyData;
+            }
+
+            // Group by month (YYYY-MM format)
+            Map<String, List<UnifiedTransaction>> byMonth = allTransactions.stream()
+                .collect(Collectors.groupingBy(tx ->
+                    tx.getTransactionDate().getYear() + "-" +
+                    String.format("%02d", tx.getTransactionDate().getMonthValue())
+                ));
+
+            log.info("📅 Grouped transactions into {} months", byMonth.size());
+
+            // Calculate totals per month
+            byMonth.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> {
+                    String monthKey = entry.getKey();
+                    List<UnifiedTransaction> monthTxs = entry.getValue();
+
+                    // Income: INCOMING transactions (rent payments)
+                    BigDecimal income = monthTxs.stream()
+                        .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING)
+                        .map(UnifiedTransaction::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    // Expenses: OUTGOING transactions that are expenses
+                    BigDecimal expenses = monthTxs.stream()
+                        .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
+                        .filter(tx -> tx.getTransactionType() != null &&
+                            (tx.getTransactionType().contains("EXPENSE") ||
+                             tx.getTransactionType().contains("MAINTENANCE") ||
+                             tx.getTransactionType().contains("REPAIR") ||
+                             tx.getTransactionType().contains("UTILITY") ||
+                             tx.getTransactionType().contains("CLEANING") ||
+                             tx.getTransactionType().contains("COMPLIANCE")))
+                        .map(tx -> tx.getAmount().abs())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    // Commission: OUTGOING transactions that are agency fees
+                    BigDecimal commission = monthTxs.stream()
+                        .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
+                        .filter(tx -> tx.getTransactionType() != null &&
+                            (tx.getTransactionType().contains("AGENCY_FEE") ||
+                             tx.getTransactionType().contains("COMMISSION") ||
+                             tx.getTransactionType().contains("MANAGEMENT_FEE")))
+                        .map(tx -> tx.getAmount().abs())
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    BigDecimal netToOwner = income.subtract(expenses).subtract(commission);
+
+                    Map<String, Object> monthSummary = new HashMap<>();
+                    monthSummary.put("month", monthKey);
+                    monthSummary.put("income", income);
+                    monthSummary.put("expenses", expenses);
+                    monthSummary.put("commission", commission);
+                    monthSummary.put("netToOwner", netToOwner);
+                    monthSummary.put("transactionCount", monthTxs.size());
+
+                    monthlyData.add(monthSummary);
+
+                    log.debug("📊 Month {}: Income=£{}, Expenses=£{}, Commission=£{}, Net=£{}",
+                        monthKey, income, expenses, commission, netToOwner);
+                });
+
+            log.info("✅ Calculated monthly trends: {} months with data", monthlyData.size());
+        } catch (Exception e) {
+            log.error("❌ Error calculating monthly trends: {}", e.getMessage(), e);
+            e.printStackTrace();
+        }
+
+        return monthlyData;
+    }
+
+    /**
+     * DEPRECATED: Use getMonthlyTrendsForCustomer instead
+     * Legacy method kept for compatibility
+     */
+    @Deprecated
     public List<Map<String, Object>> getMonthlyTrends(List<Property> properties, LocalDate startDate, LocalDate endDate) {
         List<Map<String, Object>> monthlyData = new ArrayList<>();
 
