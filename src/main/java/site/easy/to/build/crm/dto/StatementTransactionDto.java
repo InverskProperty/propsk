@@ -135,13 +135,14 @@ public class StatementTransactionDto {
     }
 
     /**
-     * Check if this is an expense (outgoing)
+     * Check if this is an expense (outgoing) - NOT owner payments
      */
     public boolean isExpense() {
         return "expense".equalsIgnoreCase(transactionType) ||
                "maintenance".equalsIgnoreCase(transactionType) ||
-               "payment_to_contractor".equalsIgnoreCase(transactionType) ||
-               "payment_to_beneficiary".equalsIgnoreCase(transactionType);
+               "payment_to_contractor".equalsIgnoreCase(transactionType);
+        // NOTE: payment_to_beneficiary is an OWNER PAYMENT, not an expense
+        // It's handled by isOwnerPayment() instead
     }
 
     /**
@@ -153,12 +154,15 @@ public class StatementTransactionDto {
     }
 
     /**
-     * Check if this is an agency fee
+     * Check if this is an agency fee / commission
      */
     public boolean isAgencyFee() {
         return "fee".equalsIgnoreCase(transactionType) ||
+               "commission_payment".equalsIgnoreCase(transactionType) ||  // PayProp/Historical commission
+               "payment_to_agency".equalsIgnoreCase(transactionType) ||    // Payment to agency (commission)
                "agency".equalsIgnoreCase(beneficiaryType) ||
-               "management_fee".equalsIgnoreCase(category);
+               "management_fee".equalsIgnoreCase(category) ||
+               "commission".equalsIgnoreCase(category);
     }
 
     /**
