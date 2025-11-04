@@ -157,7 +157,9 @@ public class UnifiedTransactionRebuildService {
                 AND ht.transaction_date >= active_lease.start_date
                 AND (active_lease.end_date IS NULL OR ht.transaction_date <= active_lease.end_date)
                 AND ht.invoice_id IS NULL
-            WHERE ht.invoice_id IS NOT NULL OR active_lease.id IS NOT NULL
+            WHERE ht.invoice_id IS NOT NULL
+               OR active_lease.id IS NOT NULL
+               OR (p.property_type = 'BLOCK' AND ht.property_id IS NOT NULL)
         """;
 
         return jdbcTemplate.update(sql, batchId);
@@ -369,7 +371,9 @@ public class UnifiedTransactionRebuildService {
                 AND ht.transaction_date >= active_lease.start_date
                 AND (active_lease.end_date IS NULL OR ht.transaction_date <= active_lease.end_date)
                 AND ht.invoice_id IS NULL
-            WHERE (ht.invoice_id IS NOT NULL OR active_lease.id IS NOT NULL)
+            WHERE (ht.invoice_id IS NOT NULL
+               OR active_lease.id IS NOT NULL
+               OR (p.property_type = 'BLOCK' AND ht.property_id IS NOT NULL))
               AND ht.updated_at > ?
         """;
 
