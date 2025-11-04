@@ -265,6 +265,39 @@
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    <!-- Unified Transactions Rebuild -->
+                                                    <div class="row mt-3">
+                                                        <div class="col-12">
+                                                            <div class="card border-danger">
+                                                                <div class="card-body">
+                                                                    <div class="row align-items-center">
+                                                                        <div class="col-md-9">
+                                                                            <i class="fas fa-database fa-2x text-danger mb-2"></i>
+                                                                            <h6>Rebuild Unified Transactions</h6>
+                                                                            <p class="text-muted small mb-0">
+                                                                                Rebuild the unified_transactions table from historical and PayProp financial data.<br>
+                                                                                <strong>Run this after:</strong> PayProp sync completes, CSV import, or manual data corrections.<br>
+                                                                                <em class="text-warning"><i class="fas fa-exclamation-triangle"></i> This deletes and recreates all unified transaction records.</em>
+                                                                            </p>
+                                                                        </div>
+                                                                        <div class="col-md-3 text-center">
+                                                                            <button id="rebuildUnifiedTransactionsBtn" class="btn btn-danger">
+                                                                                <i class="fas fa-redo"></i> Rebuild Now
+                                                                            </button>
+                                                                            <div id="rebuildProgress" class="mt-2" style="display: none;">
+                                                                                <div class="spinner-border spinner-border-sm text-danger" role="status">
+                                                                                    <span class="visually-hidden">Loading...</span>
+                                                                                </div>
+                                                                                <small class="text-muted d-block">Rebuilding...</small>
+                                                                            </div>
+                                                                            <div id="rebuildResult" class="mt-2"></div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                     
                                                     <!-- Scope-Aware Sync Section -->
                                                     <div class="row mt-3">
@@ -559,6 +592,10 @@ document.getElementById('completeUnifiedSyncBtn')?.addEventListener('click', fun
 
 document.getElementById('scopeAwareSyncBtn')?.addEventListener('click', function() {
     runScopeAwareSync();
+});
+
+document.getElementById('rebuildUnifiedTransactionsBtn')?.addEventListener('click', function() {
+    rebuildUnifiedTransactions();
 });
 
 // Load initial counts
@@ -1364,10 +1401,10 @@ async function runScopeAwareSync() {
     try {
         // Check if sync-to-payprop is enabled
         const syncToPayProp = document.getElementById('syncToPayPropToggle').checked;
-        
+
         updateStatus(`Running scope-aware sync (syncToPayProp: ${syncToPayProp})...`, 'info');
         showProgress();
-        
+
         const response = await fetchWithCSRF('/api/payprop/maintenance/scope-aware-sync', {
             method: 'POST',
             headers: {
@@ -1377,9 +1414,9 @@ async function runScopeAwareSync() {
                 syncToPayProp: syncToPayProp
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (response.ok && result.success) {
             let message = 'Scope-aware sync completed successfully!';
             if (result.propertiesResult) {
@@ -1390,17 +1427,82 @@ async function runScopeAwareSync() {
             }
             updateStatus(message, 'success');
             loadBusinessLogicCounts(); // Refresh counts
-            
+
             // Show detailed results
             console.log('Scope-aware sync results:', result);
         } else {
             updateStatus('Scope-aware sync failed: ' + (result.error || result.message), 'error');
         }
-        
+
         hideProgress();
     } catch (error) {
         updateStatus('Scope-aware sync error: ' + error.message, 'error');
         hideProgress();
+    }
+}
+
+async function rebuildUnifiedTransactions() {
+    const btn = document.getElementById('rebuildUnifiedTransactionsBtn');
+    const progress = document.getElementById('rebuildProgress');
+    const resultDiv = document.getElementById('rebuildResult');
+
+    try {
+        // Disable button and show progress
+        btn.disabled = true;
+        progress.style.display = 'block';
+        resultDiv.innerHTML = '';
+
+        const response = await fetchWithCSRF('/api/unified-transactions/rebuild/full', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.status === 'SUCCESS') {
+            const historicalCount = result.historicalRecordsInserted || 0;
+            const paypropCount = result.paypropRecordsInserted || 0;
+            const totalCount = historicalCount + paypropCount;
+            const duration = result.durationSeconds || 0;
+
+            resultDiv.innerHTML = `
+                <div class="alert alert-success alert-sm">
+                    <i class="fas fa-check-circle"></i> <strong>Rebuild Complete!</strong><br>
+                    <small>
+                        Historical: ${historicalCount} | PayProp: ${paypropCount} | Total: ${totalCount}<br>
+                        Duration: ${duration}s | Batch: ${result.batchId || 'N/A'}
+                    </small>
+                </div>
+            `;
+
+            // Also update the main status area
+            updateStatus(`Unified transactions rebuilt: ${totalCount} records in ${duration}s`, 'success');
+
+            console.log('Unified transactions rebuild result:', result);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger alert-sm">
+                    <i class="fas fa-times-circle"></i> <strong>Rebuild Failed</strong><br>
+                    <small>${result.errorMessage || result.message || 'Unknown error'}</small>
+                </div>
+            `;
+            updateStatus('Unified transactions rebuild failed: ' + (result.errorMessage || result.message), 'error');
+        }
+
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger alert-sm">
+                <i class="fas fa-exclamation-triangle"></i> <strong>Error</strong><br>
+                <small>${error.message}</small>
+            </div>
+        `;
+        updateStatus('Unified transactions rebuild error: ' + error.message, 'error');
+    } finally {
+        // Re-enable button and hide progress
+        btn.disabled = false;
+        progress.style.display = 'none';
     }
 }
 
