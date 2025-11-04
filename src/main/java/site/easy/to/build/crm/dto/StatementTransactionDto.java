@@ -135,22 +135,22 @@ public class StatementTransactionDto {
     }
 
     /**
-     * Check if this is an expense (outgoing) - NOT owner payments
+     * Check if this is an expense (outgoing)
+     * payment_to_beneficiary with beneficiaryType='contractor' is an expense
      */
     public boolean isExpense() {
         return "expense".equalsIgnoreCase(transactionType) ||
                "maintenance".equalsIgnoreCase(transactionType) ||
-               "payment_to_contractor".equalsIgnoreCase(transactionType);
-        // NOTE: payment_to_beneficiary is an OWNER PAYMENT, not an expense
-        // It's handled by isOwnerPayment() instead
+               "payment_to_contractor".equalsIgnoreCase(transactionType) ||
+               "contractor".equalsIgnoreCase(beneficiaryType);  // payment_to_beneficiary where beneficiary is contractor
     }
 
     /**
      * Check if this is an owner payment (money going to property owner)
+     * payment_to_beneficiary with beneficiaryType='beneficiary' is an owner payment
      */
     public boolean isOwnerPayment() {
-        return "beneficiary".equalsIgnoreCase(beneficiaryType) ||
-               "payment_to_beneficiary".equalsIgnoreCase(transactionType);
+        return "beneficiary".equalsIgnoreCase(beneficiaryType);  // Only when beneficiary type is 'beneficiary' (owner)
     }
 
     /**
