@@ -2015,6 +2015,29 @@ public class PropertyOwnerController {
                 model.addAttribute("monthlyTrendsJson", "[]");
             }
 
+            // ✨ NEW: Simple Transaction Type Breakdown Chart (RAW DATA - NO FILTERING)
+            Map<String, BigDecimal> simpleTransactionChart = new LinkedHashMap<>();
+            try {
+                System.out.println("\n📊 Calling unifiedFinancialDataService.getSimpleTransactionBreakdown()...");
+                Map<String, Object> breakdown = unifiedFinancialDataService.getSimpleTransactionBreakdown(
+                    customer.getCustomerId(), startDate, endDate);
+
+                @SuppressWarnings("unchecked")
+                Map<String, BigDecimal> amounts = (Map<String, BigDecimal>) breakdown.get("amounts");
+                if (amounts != null) {
+                    simpleTransactionChart.putAll(amounts);
+                }
+
+                String simpleChartJson = objectMapper.writeValueAsString(simpleTransactionChart);
+                model.addAttribute("simpleTransactionChartJson", simpleChartJson);
+                System.out.println("✅ Simple transaction chart: " + simpleTransactionChart.size() + " types");
+                System.out.println("   JSON: " + simpleChartJson);
+            } catch (Exception e) {
+                System.err.println("❌ ERROR creating simple transaction chart: " + e.getMessage());
+                e.printStackTrace();
+                model.addAttribute("simpleTransactionChartJson", "{}");
+            }
+
             System.out.println("╔═══════════════════════════════════════════════════════════════╗");
             System.out.println("║       CONTROLLER: Chart Data Ready for View                  ║");
             System.out.println("╚═══════════════════════════════════════════════════════════════╝");

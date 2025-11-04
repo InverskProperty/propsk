@@ -368,6 +368,22 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ✨ NEW: SIMPLE Transaction Type Chart (RAW DATA) -->
+                <div class="col-lg-6">
+                    <div class="card border-primary shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-chart-bar"></i> Transaction Types
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="simpleTransactionChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- ✨ PHASE 2: Smart Insights Panel -->
@@ -1778,6 +1794,75 @@ function initializeCharts() {
         console.warn('   - Backend returned empty object {}');
         console.warn('   - No OUTGOING transactions matched expense keywords');
         console.warn('   - Check backend logs for transaction type analysis');
+    }
+
+    // ✨ NEW: Initialize SIMPLE Transaction Type Bar Chart (RAW DATA)
+    console.log('\n📊 CHART 3: Simple Transaction Types (Raw Data)');
+    const simpleChartDataRaw = /*[[(${simpleTransactionChartJson})]]*/  '{}';
+    console.log('📊 Raw JSON string:', simpleChartDataRaw);
+    const simpleChartData = JSON.parse(simpleChartDataRaw);
+    console.log('📊 Parsed data:', simpleChartData);
+    console.log('📊 Keys:', Object.keys(simpleChartData));
+
+    if (simpleChartData && Object.keys(simpleChartData).length > 0) {
+        console.log('✅ Simple transaction data available');
+        const types = Object.keys(simpleChartData);
+        const amounts = Object.values(simpleChartData);
+
+        console.log('📋 Transaction types:', types);
+        console.log('💰 Amounts:', amounts);
+
+        const ctx = document.getElementById('simpleTransactionChart');
+        if (ctx) {
+            console.log('✅ Creating simple transaction bar chart...');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: types,
+                    datasets: [{
+                        label: 'Amount (£)',
+                        data: amounts,
+                        backgroundColor: [
+                            'rgba(40, 167, 69, 0.7)',   // commission_payment - green
+                            'rgba(220, 53, 69, 0.7)',   // expense - red
+                            'rgba(0, 123, 255, 0.7)',   // payment_to_beneficiary - blue
+                            'rgba(255, 193, 7, 0.7)',   // payment_to_agency - yellow
+                            'rgba(111, 66, 193, 0.7)',  // others - purple
+                            'rgba(23, 162, 184, 0.7)'   // more colors
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Transaction Amounts by Type (Raw Database Values)'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '£' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            console.log('✅ Simple transaction chart created successfully!');
+        } else {
+            console.error('❌ Canvas element "simpleTransactionChart" not found!');
+        }
+    } else {
+        console.warn('⚠️ No simple transaction data available');
     }
 
     console.log('\n═══════════════════════════════════════════════════════════════');

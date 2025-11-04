@@ -598,4 +598,62 @@ public class UnifiedFinancialDataService {
 
         return monthlyData;
     }
+
+    /**
+     * SIMPLE DIAGNOSTIC CHART: Get transaction counts by actual transaction_type values
+     * NO filtering, NO case conversion - just raw data grouped by what's in the database
+     */
+    public Map<String, Object> getSimpleTransactionBreakdown(Long customerId, LocalDate startDate, LocalDate endDate) {
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        System.out.println("📊 SIMPLE TRANSACTION BREAKDOWN (RAW DATA)");
+        System.out.println("   Customer ID: " + customerId);
+        System.out.println("   Date Range: " + startDate + " to " + endDate);
+        System.out.println("═══════════════════════════════════════════════════════════════");
+
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        try {
+            // Get ALL transactions for this customer
+            List<UnifiedTransaction> allTransactions =
+                unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(customerId, startDate, endDate);
+
+            System.out.println("📋 Found " + allTransactions.size() + " total transactions");
+
+            // Count by transaction_type (EXACTLY as stored in database)
+            Map<String, Long> typeCounts = allTransactions.stream()
+                .filter(tx -> tx.getTransactionType() != null)
+                .collect(Collectors.groupingBy(
+                    UnifiedTransaction::getTransactionType,
+                    Collectors.counting()
+                ));
+
+            // Sum amounts by transaction_type
+            Map<String, BigDecimal> typeAmounts = allTransactions.stream()
+                .filter(tx -> tx.getTransactionType() != null)
+                .collect(Collectors.groupingBy(
+                    UnifiedTransaction::getTransactionType,
+                    Collectors.reducing(
+                        BigDecimal.ZERO,
+                        tx -> tx.getAmount().abs(),
+                        BigDecimal::add
+                    )
+                ));
+
+            System.out.println("\n📊 Transaction breakdown by type:");
+            typeCounts.forEach((type, count) -> {
+                BigDecimal amount = typeAmounts.getOrDefault(type, BigDecimal.ZERO);
+                System.out.println("   - " + type + ": " + count + " transactions, £" + amount);
+            });
+
+            result.put("counts", typeCounts);
+            result.put("amounts", typeAmounts);
+            result.put("total", allTransactions.size());
+
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in getSimpleTransactionBreakdown: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return result;
+    }
 }
