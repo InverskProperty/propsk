@@ -142,6 +142,9 @@
                                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setQuickPeriod('lastYear')" title="Last Year">
                                             1Y
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-warning" onclick="setQuickPeriod('2025data')" title="2025 Data (Test/Sample Data)">
+                                            2025
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1513,6 +1516,11 @@ function setQuickPeriod(period) {
     endDate = today.toISOString().split('T')[0]; // Today
 
     switch(period) {
+        case '2025data':
+            // Special case for 2025 test/sample data
+            startDate = '2025-01-01';
+            endDate = '2025-12-31';
+            break;
         case 'lastMonth':
             startDate = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
             break;
