@@ -228,6 +228,7 @@ public class UnifiedFinancialDataService {
 
         try {
             // Query all customer transactions at once using optimized query
+            System.out.println("📊 Step 1: Querying unified_transactions for OUTGOING transactions...");
             log.info("📊 Step 1: Querying unified_transactions for OUTGOING transactions...");
             List<UnifiedTransaction> allTransactions =
                 unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
@@ -237,6 +238,7 @@ public class UnifiedFinancialDataService {
                     UnifiedTransaction.FlowDirection.OUTGOING
                 );
 
+            System.out.println("✅ Step 1 Complete: Found " + allTransactions.size() + " OUTGOING transactions");
             log.info("✅ Step 1 Complete: Found {} OUTGOING transactions", allTransactions.size());
 
             if (allTransactions.isEmpty()) {
@@ -364,6 +366,12 @@ public class UnifiedFinancialDataService {
      * @return List of monthly summaries
      */
     public List<Map<String, Object>> getMonthlyTrendsForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        System.out.println("📈 MONTHLY TRENDS SERVICE METHOD CALLED");
+        System.out.println("   Customer ID: " + customerId);
+        System.out.println("   Date Range: " + startDate + " to " + endDate);
+        System.out.println("═══════════════════════════════════════════════════════════════");
+
         log.info("═══════════════════════════════════════════════════════════════");
         log.info("📈 MONTHLY TRENDS CHART - Starting data collection");
         log.info("   Customer ID: {}", customerId);
@@ -374,6 +382,7 @@ public class UnifiedFinancialDataService {
 
         try {
             // Query all customer transactions at once
+            System.out.println("📊 Step 1: Querying unified_transactions for ALL transactions...");
             log.info("📊 Step 1: Querying unified_transactions for ALL transactions...");
             List<UnifiedTransaction> allTransactions =
                 unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(
@@ -382,6 +391,7 @@ public class UnifiedFinancialDataService {
                     endDate
                 );
 
+            System.out.println("✅ Step 1 Complete: Found " + allTransactions.size() + " total transactions");
             log.info("✅ Step 1 Complete: Found {} total transactions", allTransactions.size());
 
             if (allTransactions.isEmpty()) {
