@@ -1730,6 +1730,14 @@ public class PropertyOwnerController {
             }
             System.out.println("📅 Date range for queries: " + startDate + " to " + endDate);
 
+            // 🔍 DIAGNOSTIC: Test database connection
+            try {
+                long totalRecords = unifiedTransactionRepository.count();
+                System.out.println("🔍 DIAGNOSTIC: Total records in unified_transactions: " + totalRecords);
+            } catch (Exception e) {
+                System.err.println("❌ DIAGNOSTIC ERROR: Cannot count unified_transactions: " + e.getMessage());
+            }
+
             // 🚀 NEW: Get UNIFIED financial data from Historical + PayProp combined
             LocalDate twoYearsAgo = startDate; // Use user-selected date
             LocalDate today = endDate; // Use user-selected date

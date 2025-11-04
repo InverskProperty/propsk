@@ -213,6 +213,11 @@ public class UnifiedFinancialDataService {
      * @return Map of category -> total amount
      */
     public Map<String, BigDecimal> getExpensesByCategoryForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        System.out.println("═══════════════════════════════════════════════════════════════");
+        System.out.println("🔍 EXPENSE CATEGORY CHART - Starting data collection");
+        System.out.println("   Customer ID: " + customerId);
+        System.out.println("   Date Range: " + startDate + " to " + endDate);
+        System.out.println("═══════════════════════════════════════════════════════════════");
         log.info("═══════════════════════════════════════════════════════════════");
         log.info("🔍 EXPENSE CATEGORY CHART - Starting data collection");
         log.info("   Customer ID: {}", customerId);
