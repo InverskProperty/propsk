@@ -2254,12 +2254,13 @@ public class PropertyOwnerController {
     @ResponseBody
     public Map<String, Object> getChartData(
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+        Authentication authentication
     ) {
         Map<String, Object> response = new LinkedHashMap<>();
 
         try {
-            Customer customer = authenticationUtils.getAuthenticatedCustomer();
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
                 response.put("error", "Not authenticated");
                 return response;
