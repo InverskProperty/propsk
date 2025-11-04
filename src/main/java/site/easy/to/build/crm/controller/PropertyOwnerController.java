@@ -1906,17 +1906,9 @@ public class PropertyOwnerController {
                 e.printStackTrace();
             }
             model.addAttribute("expensesByCategory", expensesByCategory);
-
-            // Convert to JSON for proper JavaScript binding
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                String expensesJson = mapper.writeValueAsString(expensesByCategory);
-                model.addAttribute("expensesByCategoryJson", expensesJson);
-                System.out.println("✅ Expenses JSON: " + expensesJson);
-            } catch (Exception e) {
-                System.err.println("⚠️ Error converting expenses to JSON: " + e.getMessage());
-                model.addAttribute("expensesByCategoryJson", "{}");
-            }
+            // Pass the map directly for Thymeleaf to serialize
+            model.addAttribute("expensesByCategoryJson", expensesByCategory);
+            System.out.println("✅ Expenses passed to view: " + expensesByCategory);
 
             // ✨ PHASE 2: Get monthly trends
             List<Map<String, Object>> monthlyTrends = new ArrayList<>();
@@ -1933,17 +1925,9 @@ public class PropertyOwnerController {
                 e.printStackTrace();
             }
             model.addAttribute("monthlyTrends", monthlyTrends);
-
-            // Convert to JSON for proper JavaScript binding
-            try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                String trendsJson = mapper.writeValueAsString(monthlyTrends);
-                model.addAttribute("monthlyTrendsJson", trendsJson);
-                System.out.println("✅ Monthly trends JSON length: " + trendsJson.length() + " chars");
-            } catch (Exception e) {
-                System.err.println("⚠️ Error converting trends to JSON: " + e.getMessage());
-                model.addAttribute("monthlyTrendsJson", "[]");
-            }
+            // Pass the list directly for Thymeleaf to serialize
+            model.addAttribute("monthlyTrendsJson", monthlyTrends);
+            System.out.println("✅ Monthly trends passed to view: " + monthlyTrends.size() + " months");
 
             // ✨ PHASE 2: Generate smart insights
             List<Map<String, String>> insights = generateFinancialInsights(
