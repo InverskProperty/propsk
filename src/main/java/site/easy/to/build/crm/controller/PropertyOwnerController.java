@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
@@ -28,6 +29,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyOwnerService;
@@ -113,6 +116,9 @@ public class PropertyOwnerController {
 
     @Autowired
     private UnifiedFinancialDataService unifiedFinancialDataService;
+
+    @Autowired
+    private site.easy.to.build.crm.repository.UnifiedTransactionRepository unifiedTransactionRepository;
 
     @Autowired
     public PropertyOwnerController(PropertyService propertyService,
@@ -3697,5 +3703,124 @@ public class PropertyOwnerController {
             case 3: return "rd";
             default: return "th";
         }
+    }
+
+    /**
+     * 🔍 DIAGNOSTIC ENDPOINT: Check unified_transactions table status
+     * Access: /property-owner/diagnostics/unified-data
+     */
+    @GetMapping("/diagnostics/unified-data")
+    @ResponseBody
+    public String diagnosticsUnifiedData() {
+        StringBuilder report = new StringBuilder();
+        report.append("═══════════════════════════════════════════════════════════════\n");
+        report.append("🔍 UNIFIED TRANSACTIONS DIAGNOSTIC REPORT\n");
+        report.append("═══════════════════════════════════════════════════════════════\n\n");
+
+        try {
+            // Get logged in customer
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String username = auth.getName();
+            Customer customer = customerService.findByEmail(username);
+
+            report.append("📋 Customer Information:\n");
+            report.append("   ID: ").append(customer.getCustomerId()).append("\n");
+            report.append("   Email: ").append(customer.getEmail()).append("\n");
+            report.append("   Name: ").append(customer.getName()).append("\n\n");
+
+            // Check properties
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            report.append("🏠 Properties Assigned to Customer: ").append(properties.size()).append("\n");
+            if (properties.isEmpty()) {
+                report.append("   ⚠️ CRITICAL: No properties found!\n");
+                report.append("   - Check customer_property_assignments table\n");
+                report.append("   - Customer needs properties to have transactions\n\n");
+            } else {
+                for (int i = 0; i < Math.min(properties.size(), 10); i++) {
+                    Property p = properties.get(i);
+                    report.append("   - Property ").append(i + 1).append(": ID=").append(p.getId())
+                        .append(", Name=").append(p.getPropertyName()).append("\n");
+                }
+                if (properties.size() > 10) {
+                    report.append("   ... and ").append(properties.size() - 10).append(" more\n");
+                }
+                report.append("\n");
+            }
+
+            // Check total unified_transactions count
+            long totalCount = unifiedTransactionRepository.count();
+            report.append("📊 Total Unified Transactions in Database: ").append(totalCount).append("\n");
+            if (totalCount == 0) {
+                report.append("   ⚠️ CRITICAL: unified_transactions table is EMPTY!\n");
+                report.append("   - No transactions exist at all\n");
+                report.append("   - Need to rebuild unified_transactions from source data\n");
+                report.append("   - Check if historical_transactions or financial_transactions have data\n\n");
+            } else {
+                report.append("\n");
+            }
+
+            // Check source breakdown
+            List<Object[]> sourceStats = unifiedTransactionRepository.countBySourceSystem();
+            report.append("📊 Transactions by Source System:\n");
+            if (sourceStats.isEmpty()) {
+                report.append("   (No data)\n");
+            } else {
+                for (Object[] stat : sourceStats) {
+                    report.append("   - ").append(stat[0]).append(": ").append(stat[1]).append(" transactions\n");
+                }
+            }
+            report.append("\n");
+
+            // Check customer's transactions
+            LocalDate oneYearAgo = LocalDate.now().minusYears(1);
+            LocalDate today = LocalDate.now();
+            List<site.easy.to.build.crm.entity.UnifiedTransaction> customerTxs =
+                unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(
+                    customer.getCustomerId(), oneYearAgo, today);
+
+            report.append("📊 Customer's Transactions (Last 12 Months):\n");
+            report.append("   Total: ").append(customerTxs.size()).append(" transactions\n");
+
+            if (customerTxs.isEmpty()) {
+                report.append("   ⚠️ WARNING: No transactions found for this customer!\n");
+                report.append("   - Either unified_transactions has no data for customer's properties\n");
+                report.append("   - Or customer properties are not linked correctly\n\n");
+            } else {
+                // Flow direction breakdown
+                long incoming = customerTxs.stream()
+                    .filter(tx -> tx.getFlowDirection() == site.easy.to.build.crm.entity.UnifiedTransaction.FlowDirection.INCOMING)
+                    .count();
+                long outgoing = customerTxs.stream()
+                    .filter(tx -> tx.getFlowDirection() == site.easy.to.build.crm.entity.UnifiedTransaction.FlowDirection.OUTGOING)
+                    .count();
+
+                report.append("   - INCOMING: ").append(incoming).append(" transactions\n");
+                report.append("   - OUTGOING: ").append(outgoing).append(" transactions\n\n");
+
+                // Sample transactions
+                report.append("📋 Sample Transactions (first 10):\n");
+                customerTxs.stream().limit(10).forEach(tx -> {
+                    report.append("   - Date: ").append(tx.getTransactionDate())
+                        .append(", Flow: ").append(tx.getFlowDirection())
+                        .append(", Type: ").append(tx.getTransactionType())
+                        .append(", Amount: £").append(tx.getAmount())
+                        .append(", Property: ").append(tx.getPropertyName())
+                        .append("\n");
+                });
+            }
+
+            report.append("\n═══════════════════════════════════════════════════════════════\n");
+            report.append("🏁 DIAGNOSTIC COMPLETE\n");
+            report.append("═══════════════════════════════════════════════════════════════\n");
+
+        } catch (Exception e) {
+            report.append("\n❌ ERROR running diagnostics:\n");
+            report.append(e.getMessage()).append("\n");
+            StringWriter sw = new StringWriter();
+            e.printStackTrace(new PrintWriter(sw));
+            report.append(sw.toString());
+        }
+
+        return report.toString();
     }
 }
