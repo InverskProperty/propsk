@@ -5,8 +5,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.easy.to.build.crm.entity.UnifiedTransaction;
 import site.easy.to.build.crm.entity.Invoice;
+import site.easy.to.build.crm.entity.Customer;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
 import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
+import site.easy.to.build.crm.repository.CustomerRepository;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.service.statements.StatementTransactionConverter;
 
@@ -28,6 +33,12 @@ public class TestCategorizationController {
 
     @Autowired
     private StatementTransactionConverter transactionConverter;
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository assignmentRepository;
 
     @GetMapping("/api/test/categorization")
     public Map<String, Object> testCategorization() {
@@ -202,6 +213,88 @@ public class TestCategorizationController {
             estimatedRentDue, rentReceived, arrears,
             arrears.compareTo(BigDecimal.ZERO) < 0 ? "OVERPAID" : "OWED"
         ));
+
+        return result;
+    }
+
+    @GetMapping("/api/test/delegation")
+    public Map<String, Object> testDelegation() {
+        Map<String, Object> result = new HashMap<>();
+
+        // Find both users
+        Customer achal = customerRepository.findByEmail("achal@sunflaguk.com");
+        Customer uday = customerRepository.findByEmail("uday@sunflaguk.com");
+
+        if (achal == null) {
+            result.put("error", "User achal@sunflaguk.com not found");
+            return result;
+        }
+        if (uday == null) {
+            result.put("error", "User uday@sunflaguk.com not found");
+            return result;
+        }
+
+        result.put("achalId", achal.getCustomerId());
+        result.put("achalEmail", achal.getEmail());
+        result.put("achalName", achal.getFirstName() + " " + achal.getLastName());
+
+        result.put("udayId", uday.getCustomerId());
+        result.put("udayEmail", uday.getEmail());
+        result.put("udayName", uday.getFirstName() + " " + uday.getLastName());
+
+        // Get all assignments for achal
+        List<CustomerPropertyAssignment> achalAssignments = assignmentRepository.findByCustomerCustomerId(achal.getCustomerId());
+
+        Map<String, Integer> achalAssignmentsByType = new HashMap<>();
+        for (CustomerPropertyAssignment assignment : achalAssignments) {
+            String type = assignment.getAssignmentType() != null ? assignment.getAssignmentType().toString() : "NULL";
+            achalAssignmentsByType.put(type, achalAssignmentsByType.getOrDefault(type, 0) + 1);
+        }
+
+        result.put("achalTotalAssignments", achalAssignments.size());
+        result.put("achalAssignmentsByType", achalAssignmentsByType);
+
+        // Get properties owned by uday
+        int udayPropertiesCount = 0;
+        for (CustomerPropertyAssignment assignment : achalAssignments) {
+            Property property = assignment.getProperty();
+            if (property != null && property.getPropertyOwnerId() != null &&
+                property.getPropertyOwnerId().equals(uday.getCustomerId())) {
+                udayPropertiesCount++;
+            }
+        }
+
+        result.put("udayPropertiesCount", "Properties owned by Uday that Achal can access: " + udayPropertiesCount);
+
+        // Get all unique assignment types from assignments where property is owned by uday
+        Map<String, Integer> crossAssignmentTypes = new HashMap<>();
+        for (CustomerPropertyAssignment assignment : achalAssignments) {
+            Property property = assignment.getProperty();
+            if (property != null && property.getPropertyOwnerId() != null &&
+                property.getPropertyOwnerId().equals(uday.getCustomerId())) {
+                String type = assignment.getAssignmentType() != null ? assignment.getAssignmentType().toString() : "NULL";
+                crossAssignmentTypes.put(type, crossAssignmentTypes.getOrDefault(type, 0) + 1);
+            }
+        }
+
+        result.put("achalAssignmentsToUdayProperties", crossAssignmentTypes);
+
+        // Get sample properties
+        List<Map<String, String>> sampleProperties = achalAssignments.stream()
+            .limit(10)
+            .map(assignment -> {
+                Map<String, String> info = new HashMap<>();
+                Property p = assignment.getProperty();
+                info.put("assignmentType", assignment.getAssignmentType() != null ? assignment.getAssignmentType().toString() : "NULL");
+                info.put("propertyName", p != null ? p.getPropertyName() : "NULL");
+                info.put("propertyId", p != null ? String.valueOf(p.getId()) : "NULL");
+                info.put("propertyOwnerId", p != null && p.getPropertyOwnerId() != null ? String.valueOf(p.getPropertyOwnerId()) : "NULL");
+                info.put("matchesUday", p != null && p.getPropertyOwnerId() != null && p.getPropertyOwnerId().equals(uday.getCustomerId()) ? "YES" : "NO");
+                return info;
+            })
+            .collect(Collectors.toList());
+
+        result.put("sampleProperties", sampleProperties);
 
         return result;
     }
