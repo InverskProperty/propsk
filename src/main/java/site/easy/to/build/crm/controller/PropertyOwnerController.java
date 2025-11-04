@@ -1894,46 +1894,93 @@ public class PropertyOwnerController {
             model.addAttribute("lastUpdated", java.time.LocalDateTime.now());
 
             // ✨ PHASE 2: Get expense breakdown by category - OPTIMIZED VERSION
-            System.out.println("🔍 DEBUG: Customer " + customer.getCustomerId() + " has " + customerProperties.size() + " properties");
-            System.out.println("🔍 DEBUG: Date range: " + startDate + " to " + endDate);
+            System.out.println("╔═══════════════════════════════════════════════════════════════╗");
+            System.out.println("║       CONTROLLER: Fetching Chart Data for View               ║");
+            System.out.println("╚═══════════════════════════════════════════════════════════════╝");
+            System.out.println("🔍 Customer ID: " + customer.getCustomerId());
+            System.out.println("🔍 Customer Email: " + customer.getEmail());
+            System.out.println("🔍 Customer Properties: " + customerProperties.size());
+            System.out.println("🔍 Date Range: " + startDate + " to " + endDate);
+
+            if (customerProperties.isEmpty()) {
+                System.out.println("⚠️ CRITICAL WARNING: Customer has NO properties assigned!");
+                System.out.println("   - Charts will definitely be empty");
+                System.out.println("   - Check customer_property_assignments table");
+            } else {
+                System.out.println("📋 Customer properties:");
+                for (int i = 0; i < Math.min(customerProperties.size(), 5); i++) {
+                    Property p = customerProperties.get(i);
+                    System.out.println("   - Property " + (i+1) + ": ID=" + p.getId() + ", Name=" + p.getPropertyName());
+                }
+                if (customerProperties.size() > 5) {
+                    System.out.println("   ... and " + (customerProperties.size() - 5) + " more");
+                }
+            }
+
             Map<String, BigDecimal> expensesByCategory = new LinkedHashMap<>();
             try {
+                System.out.println("\n📊 Calling unifiedFinancialDataService.getExpensesByCategoryForCustomer()...");
                 expensesByCategory = unifiedFinancialDataService.getExpensesByCategoryForCustomer(
                     customer.getCustomerId(), startDate, endDate);
-                System.out.println("✅ Expense categories: " + expensesByCategory.keySet());
-                System.out.println("✅ Expense values: " + expensesByCategory.values());
+
+                System.out.println("✅ Service returned " + expensesByCategory.size() + " expense categories");
                 if (expensesByCategory.isEmpty()) {
-                    System.out.println("⚠️ WARNING: No expense categories found - expense chart will be empty");
+                    System.out.println("⚠️ WARNING: No expense categories returned from service");
+                    System.out.println("   - Expense pie chart will show: 'No expense data for selected period'");
+                    System.out.println("   - Check service logs above for root cause");
+                } else {
+                    System.out.println("📊 Expense categories returned:");
+                    expensesByCategory.forEach((cat, amt) ->
+                        System.out.println("   - " + cat + ": £" + amt));
                 }
             } catch (Exception e) {
-                System.err.println("❌ ERROR getting expense categories: " + e.getMessage());
+                System.err.println("❌ ERROR calling getExpensesByCategoryForCustomer: " + e.getMessage());
                 e.printStackTrace();
             }
             model.addAttribute("expensesByCategory", expensesByCategory);
-            // Pass the map directly for Thymeleaf to serialize
             model.addAttribute("expensesByCategoryJson", expensesByCategory);
-            System.out.println("✅ Expenses passed to view: " + expensesByCategory.size() + " categories");
+            System.out.println("✅ Added to model: expensesByCategory (" + expensesByCategory.size() + " categories)");
+            System.out.println("✅ Added to model: expensesByCategoryJson (for JavaScript)");
 
             // ✨ PHASE 2: Get monthly trends - OPTIMIZED VERSION
             List<Map<String, Object>> monthlyTrends = new ArrayList<>();
             try {
+                System.out.println("\n📈 Calling unifiedFinancialDataService.getMonthlyTrendsForCustomer()...");
                 monthlyTrends = unifiedFinancialDataService.getMonthlyTrendsForCustomer(
                     customer.getCustomerId(), startDate, endDate);
-                System.out.println("✅ Monthly trends calculated: " + monthlyTrends.size() + " months");
-                if (!monthlyTrends.isEmpty()) {
-                    System.out.println("✅ First month data: " + monthlyTrends.get(0));
-                    System.out.println("✅ Last month data: " + monthlyTrends.get(monthlyTrends.size() - 1));
+
+                System.out.println("✅ Service returned " + monthlyTrends.size() + " months of data");
+                if (monthlyTrends.isEmpty()) {
+                    System.out.println("⚠️ WARNING: No monthly trends returned from service");
+                    System.out.println("   - Monthly trends chart will show: 'No expense data for selected period'");
+                    System.out.println("   - Check service logs above for root cause");
                 } else {
-                    System.out.println("⚠️ WARNING: Monthly trends is EMPTY - chart will be empty!");
+                    System.out.println("📊 Monthly trends returned:");
+                    System.out.println("   First month: " + monthlyTrends.get(0));
+                    System.out.println("   Last month: " + monthlyTrends.get(monthlyTrends.size() - 1));
+
+                    // Calculate totals for debugging
+                    BigDecimal totalIncome = monthlyTrends.stream()
+                        .map(m -> (BigDecimal) m.get("income"))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal totalExpenses = monthlyTrends.stream()
+                        .map(m -> (BigDecimal) m.get("expenses"))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    System.out.println("   Total Income across all months: £" + totalIncome);
+                    System.out.println("   Total Expenses across all months: £" + totalExpenses);
                 }
             } catch (Exception e) {
-                System.err.println("❌ ERROR getting monthly trends: " + e.getMessage());
+                System.err.println("❌ ERROR calling getMonthlyTrendsForCustomer: " + e.getMessage());
                 e.printStackTrace();
             }
             model.addAttribute("monthlyTrends", monthlyTrends);
-            // Pass the list directly for Thymeleaf to serialize
             model.addAttribute("monthlyTrendsJson", monthlyTrends);
-            System.out.println("✅ Monthly trends passed to view: " + monthlyTrends.size() + " months");
+            System.out.println("✅ Added to model: monthlyTrends (" + monthlyTrends.size() + " months)");
+            System.out.println("✅ Added to model: monthlyTrendsJson (for JavaScript)");
+
+            System.out.println("╔═══════════════════════════════════════════════════════════════╗");
+            System.out.println("║       CONTROLLER: Chart Data Ready for View                  ║");
+            System.out.println("╚═══════════════════════════════════════════════════════════════╝");
 
             // ✨ PHASE 2: Generate smart insights
             List<Map<String, String>> insights = generateFinancialInsights(

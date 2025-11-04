@@ -213,10 +213,17 @@ public class UnifiedFinancialDataService {
      * @return Map of category -> total amount
      */
     public Map<String, BigDecimal> getExpensesByCategoryForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        log.info("═══════════════════════════════════════════════════════════════");
+        log.info("🔍 EXPENSE CATEGORY CHART - Starting data collection");
+        log.info("   Customer ID: {}", customerId);
+        log.info("   Date Range: {} to {}", startDate, endDate);
+        log.info("═══════════════════════════════════════════════════════════════");
+
         Map<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
 
         try {
             // Query all customer transactions at once using optimized query
+            log.info("📊 Step 1: Querying unified_transactions for OUTGOING transactions...");
             List<UnifiedTransaction> allTransactions =
                 unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
                     customerId,
@@ -225,19 +232,53 @@ public class UnifiedFinancialDataService {
                     UnifiedTransaction.FlowDirection.OUTGOING
                 );
 
-            log.info("🔍 Found {} OUTGOING transactions for customer {} in date range",
-                allTransactions.size(), customerId);
+            log.info("✅ Step 1 Complete: Found {} OUTGOING transactions", allTransactions.size());
+
+            if (allTransactions.isEmpty()) {
+                log.warn("⚠️ WARNING: No OUTGOING transactions found for customer {}", customerId);
+                log.warn("   This means:");
+                log.warn("   - Either unified_transactions table is empty");
+                log.warn("   - Or no transactions exist for this customer's properties");
+                log.warn("   - Or date range {} to {} has no data", startDate, endDate);
+                return categoryTotals;
+            }
+
+            // Log sample transactions
+            log.info("📋 Sample of OUTGOING transactions (first 5):");
+            allTransactions.stream().limit(5).forEach(tx -> {
+                log.info("   - Date: {}, Type: {}, Category: {}, Amount: £{}, Property: {}",
+                    tx.getTransactionDate(),
+                    tx.getTransactionType(),
+                    tx.getCategory(),
+                    tx.getAmount(),
+                    tx.getPropertyName());
+            });
+
+            // Count transaction types
+            Map<String, Long> typeCounts = allTransactions.stream()
+                .collect(Collectors.groupingBy(
+                    tx -> tx.getTransactionType() != null ? tx.getTransactionType() : "NULL",
+                    Collectors.counting()
+                ));
+            log.info("📊 Transaction type breakdown:");
+            typeCounts.forEach((type, count) -> log.info("   - {}: {} transactions", type, count));
+
+            log.info("📊 Step 2: Filtering for expense transactions...");
+            int expenseCount = 0;
+            int skippedCount = 0;
 
             // Group expenses by category
             for (UnifiedTransaction tx : allTransactions) {
+                String txType = tx.getTransactionType();
+
                 // Skip if not an expense (e.g., could be agency fee)
-                if (tx.getTransactionType() != null &&
-                    (tx.getTransactionType().contains("EXPENSE") ||
-                     tx.getTransactionType().contains("MAINTENANCE") ||
-                     tx.getTransactionType().contains("REPAIR") ||
-                     tx.getTransactionType().contains("UTILITY") ||
-                     tx.getTransactionType().contains("CLEANING") ||
-                     tx.getTransactionType().contains("COMPLIANCE"))) {
+                if (txType != null &&
+                    (txType.contains("EXPENSE") ||
+                     txType.contains("MAINTENANCE") ||
+                     txType.contains("REPAIR") ||
+                     txType.contains("UTILITY") ||
+                     txType.contains("CLEANING") ||
+                     txType.contains("COMPLIANCE"))) {
 
                     String category = tx.getCategory() != null && !tx.getCategory().isEmpty()
                         ? tx.getCategory()
@@ -245,18 +286,36 @@ public class UnifiedFinancialDataService {
 
                     BigDecimal amount = tx.getAmount().abs();
                     categoryTotals.merge(category, amount, BigDecimal::add);
+                    expenseCount++;
+                } else {
+                    skippedCount++;
                 }
             }
 
-            log.info("✅ Calculated expense breakdown: {} categories with total transactions analyzed: {}",
-                categoryTotals.size(), allTransactions.size());
+            log.info("✅ Step 2 Complete: Filtered {} expense transactions (skipped {} non-expense)",
+                expenseCount, skippedCount);
 
-            if (!categoryTotals.isEmpty()) {
-                log.info("📊 Expense categories found: {}", categoryTotals.keySet());
+            if (categoryTotals.isEmpty()) {
+                log.warn("⚠️ WARNING: No expense transactions found!");
+                log.warn("   Total OUTGOING transactions: {}", allTransactions.size());
+                log.warn("   But none matched expense keywords:");
+                log.warn("   - EXPENSE, MAINTENANCE, REPAIR, UTILITY, CLEANING, COMPLIANCE");
+                log.warn("   Available transaction types: {}", typeCounts.keySet());
+            } else {
+                log.info("✅ Calculated expense breakdown: {} categories", categoryTotals.size());
+                log.info("📊 Category breakdown:");
+                categoryTotals.forEach((cat, amt) ->
+                    log.info("   - {}: £{}", cat, amt));
             }
+
         } catch (Exception e) {
-            log.error("❌ Error calculating expense breakdown: {}", e.getMessage(), e);
+            log.error("❌ ERROR calculating expense breakdown: {}", e.getMessage(), e);
+            log.error("   Stack trace:", e);
         }
+
+        log.info("═══════════════════════════════════════════════════════════════");
+        log.info("🏁 EXPENSE CATEGORY CHART - Returning {} categories", categoryTotals.size());
+        log.info("═══════════════════════════════════════════════════════════════");
 
         return categoryTotals;
     }
@@ -300,10 +359,17 @@ public class UnifiedFinancialDataService {
      * @return List of monthly summaries
      */
     public List<Map<String, Object>> getMonthlyTrendsForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
+        log.info("═══════════════════════════════════════════════════════════════");
+        log.info("📈 MONTHLY TRENDS CHART - Starting data collection");
+        log.info("   Customer ID: {}", customerId);
+        log.info("   Date Range: {} to {}", startDate, endDate);
+        log.info("═══════════════════════════════════════════════════════════════");
+
         List<Map<String, Object>> monthlyData = new ArrayList<>();
 
         try {
             // Query all customer transactions at once
+            log.info("📊 Step 1: Querying unified_transactions for ALL transactions...");
             List<UnifiedTransaction> allTransactions =
                 unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(
                     customerId,
@@ -311,29 +377,60 @@ public class UnifiedFinancialDataService {
                     endDate
                 );
 
-            log.info("🔍 Found {} total transactions for customer {} in date range {} to {}",
-                allTransactions.size(), customerId, startDate, endDate);
+            log.info("✅ Step 1 Complete: Found {} total transactions", allTransactions.size());
 
             if (allTransactions.isEmpty()) {
-                log.warn("⚠️ No transactions found for customer {} - charts will be empty", customerId);
+                log.warn("⚠️ WARNING: No transactions found for customer {}", customerId);
+                log.warn("   This means:");
+                log.warn("   - Either unified_transactions table is empty");
+                log.warn("   - Or no transactions exist for this customer's properties");
+                log.warn("   - Or date range {} to {} has no data", startDate, endDate);
+                log.warn("   - Chart will display: 'No expense data for selected period'");
                 return monthlyData;
             }
 
+            // Log flow direction breakdown
+            long incomingCount = allTransactions.stream()
+                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING)
+                .count();
+            long outgoingCount = allTransactions.stream()
+                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
+                .count();
+            log.info("📊 Flow direction breakdown:");
+            log.info("   - INCOMING: {} transactions", incomingCount);
+            log.info("   - OUTGOING: {} transactions", outgoingCount);
+
+            // Log sample transactions
+            log.info("📋 Sample transactions (first 5):");
+            allTransactions.stream().limit(5).forEach(tx -> {
+                log.info("   - Date: {}, Flow: {}, Type: {}, Amount: £{}, Property: {}",
+                    tx.getTransactionDate(),
+                    tx.getFlowDirection(),
+                    tx.getTransactionType(),
+                    tx.getAmount(),
+                    tx.getPropertyName());
+            });
+
             // Group by month (YYYY-MM format)
+            log.info("📊 Step 2: Grouping transactions by month...");
             Map<String, List<UnifiedTransaction>> byMonth = allTransactions.stream()
                 .collect(Collectors.groupingBy(tx ->
                     tx.getTransactionDate().getYear() + "-" +
                     String.format("%02d", tx.getTransactionDate().getMonthValue())
                 ));
 
-            log.info("📅 Grouped transactions into {} months", byMonth.size());
+            log.info("✅ Step 2 Complete: Grouped into {} months", byMonth.size());
+            log.info("📅 Months with data: {}", byMonth.keySet());
 
             // Calculate totals per month
+            log.info("📊 Step 3: Calculating monthly summaries...");
             byMonth.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> {
                     String monthKey = entry.getKey();
                     List<UnifiedTransaction> monthTxs = entry.getValue();
+
+                    log.info("   📅 Processing month: {} ({} transactions)", monthKey, monthTxs.size());
 
                     // Income: INCOMING transactions (rent payments)
                     BigDecimal income = monthTxs.stream()
@@ -342,6 +439,17 @@ public class UnifiedFinancialDataService {
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     // Expenses: OUTGOING transactions that are expenses
+                    long expenseTxCount = monthTxs.stream()
+                        .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
+                        .filter(tx -> tx.getTransactionType() != null &&
+                            (tx.getTransactionType().contains("EXPENSE") ||
+                             tx.getTransactionType().contains("MAINTENANCE") ||
+                             tx.getTransactionType().contains("REPAIR") ||
+                             tx.getTransactionType().contains("UTILITY") ||
+                             tx.getTransactionType().contains("CLEANING") ||
+                             tx.getTransactionType().contains("COMPLIANCE")))
+                        .count();
+
                     BigDecimal expenses = monthTxs.stream()
                         .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
                         .filter(tx -> tx.getTransactionType() != null &&
@@ -355,6 +463,14 @@ public class UnifiedFinancialDataService {
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     // Commission: OUTGOING transactions that are agency fees
+                    long commissionTxCount = monthTxs.stream()
+                        .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
+                        .filter(tx -> tx.getTransactionType() != null &&
+                            (tx.getTransactionType().contains("AGENCY_FEE") ||
+                             tx.getTransactionType().contains("COMMISSION") ||
+                             tx.getTransactionType().contains("MANAGEMENT_FEE")))
+                        .count();
+
                     BigDecimal commission = monthTxs.stream()
                         .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
                         .filter(tx -> tx.getTransactionType() != null &&
@@ -376,15 +492,27 @@ public class UnifiedFinancialDataService {
 
                     monthlyData.add(monthSummary);
 
-                    log.debug("📊 Month {}: Income=£{}, Expenses=£{}, Commission=£{}, Net=£{}",
-                        monthKey, income, expenses, commission, netToOwner);
+                    log.info("      Income: £{} from INCOMING transactions", income);
+                    log.info("      Expenses: £{} from {} expense transactions", expenses, expenseTxCount);
+                    log.info("      Commission: £{} from {} commission transactions", commission, commissionTxCount);
+                    log.info("      Net to Owner: £{}", netToOwner);
                 });
 
-            log.info("✅ Calculated monthly trends: {} months with data", monthlyData.size());
+            log.info("✅ Step 3 Complete: Calculated {} monthly summaries", monthlyData.size());
+
+            if (monthlyData.isEmpty()) {
+                log.warn("⚠️ WARNING: No monthly data generated despite having transactions!");
+                log.warn("   This shouldn't happen - check groupBy logic");
+            }
+
         } catch (Exception e) {
-            log.error("❌ Error calculating monthly trends: {}", e.getMessage(), e);
+            log.error("❌ ERROR calculating monthly trends: {}", e.getMessage(), e);
             e.printStackTrace();
         }
+
+        log.info("═══════════════════════════════════════════════════════════════");
+        log.info("🏁 MONTHLY TRENDS CHART - Returning {} months of data", monthlyData.size());
+        log.info("═══════════════════════════════════════════════════════════════");
 
         return monthlyData;
     }

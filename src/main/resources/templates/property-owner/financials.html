@@ -1592,17 +1592,35 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeCharts() {
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('🎨 FRONTEND: Initializing Charts');
+    console.log('═══════════════════════════════════════════════════════════════');
+
     // Initialize Monthly Trends Chart
+    console.log('\n📈 CHART 1: Monthly Trends Chart');
     const monthlyTrendsData = /*[[${monthlyTrendsJson}]]*/ [];
-    console.log('📊 Monthly trends data:', monthlyTrendsData);
+    console.log('📊 Raw data from Thymeleaf:', monthlyTrendsData);
+    console.log('📊 Data type:', typeof monthlyTrendsData);
+    console.log('📊 Is Array?', Array.isArray(monthlyTrendsData));
+    console.log('📊 Length:', monthlyTrendsData ? monthlyTrendsData.length : 'null/undefined');
+
     if (monthlyTrendsData && monthlyTrendsData.length > 0) {
+        console.log('✅ Monthly trends data is available');
+        console.log('📋 Sample data (first month):', monthlyTrendsData[0]);
         const months = monthlyTrendsData.map(m => m.month);
         const income = monthlyTrendsData.map(m => m.income);
         const expenses = monthlyTrendsData.map(m => m.expenses);
         const netToOwner = monthlyTrendsData.map(m => m.netToOwner);
 
+        console.log('📅 Months:', months);
+        console.log('💰 Income values:', income);
+        console.log('💸 Expense values:', expenses);
+        console.log('📊 Net to Owner values:', netToOwner);
+
         const ctx = document.getElementById('monthlyTrendsChart');
+        console.log('🎯 Canvas element:', ctx);
         if (ctx) {
+            console.log('✅ Creating Chart.js monthly trends chart...');
             new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -1658,18 +1676,39 @@ function initializeCharts() {
                     }
                 }
             });
+            console.log('✅ Monthly trends chart created successfully!');
+        } else {
+            console.error('❌ Canvas element "monthlyTrendsChart" not found in DOM!');
         }
+    } else {
+        console.warn('⚠️ No monthly trends data available - chart will not be displayed');
+        console.warn('   Possible reasons:');
+        console.warn('   - Backend returned empty array');
+        console.warn('   - No transactions in unified_transactions table');
+        console.warn('   - Date range has no data');
     }
 
     // Initialize Expense Category Pie Chart
+    console.log('\n🥧 CHART 2: Expense Category Pie Chart');
     const expensesData = /*[[${expensesByCategoryJson}]]*/ {};
-    console.log('📊 Expenses data:', expensesData);
+    console.log('📊 Raw data from Thymeleaf:', expensesData);
+    console.log('📊 Data type:', typeof expensesData);
+    console.log('📊 Is Object?', typeof expensesData === 'object' && !Array.isArray(expensesData));
+    console.log('📊 Keys:', expensesData ? Object.keys(expensesData) : 'null/undefined');
+    console.log('📊 Number of categories:', expensesData ? Object.keys(expensesData).length : 0);
+
     if (expensesData && Object.keys(expensesData).length > 0) {
+        console.log('✅ Expense data is available');
         const categories = Object.keys(expensesData);
         const amounts = Object.values(expensesData);
 
+        console.log('📋 Categories:', categories);
+        console.log('💰 Amounts:', amounts);
+
         const ctx = document.getElementById('expenseCategoryChart');
+        console.log('🎯 Canvas element:', ctx);
         if (ctx) {
+            console.log('✅ Creating Chart.js expense pie chart...');
             new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -1717,8 +1756,21 @@ function initializeCharts() {
                     }
                 }
             });
+            console.log('✅ Expense pie chart created successfully!');
+        } else {
+            console.error('❌ Canvas element "expenseCategoryChart" not found in DOM!');
         }
+    } else {
+        console.warn('⚠️ No expense data available - chart will not be displayed');
+        console.warn('   Possible reasons:');
+        console.warn('   - Backend returned empty object {}');
+        console.warn('   - No OUTGOING transactions matched expense keywords');
+        console.warn('   - Check backend logs for transaction type analysis');
     }
+
+    console.log('\n═══════════════════════════════════════════════════════════════');
+    console.log('🏁 FRONTEND: Chart Initialization Complete');
+    console.log('═══════════════════════════════════════════════════════════════');
 }
 </script>
 
