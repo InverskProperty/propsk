@@ -1782,6 +1782,7 @@ public class PropertyOwnerController {
                     propData.put("propertyName", property.getPropertyName());
                     propData.put("payPropId", property.getPayPropId());
                     propData.put("totalRent", propRentReceived);
+                    propData.put("totalExpenses", propExpenses);
                     propData.put("totalCommission", propCommissions);
                     propData.put("totalNetToOwner", propNetIncome);
                     propData.put("transactionCount", propTxCount);
@@ -1789,8 +1790,8 @@ public class PropertyOwnerController {
                     propertyFinancialMap.put(property.getPayPropId(), propData);
 
                     System.out.println("  ✅ " + property.getPropertyName() + " - Rent: £" + propRentReceived +
-                                     ", Commission: £" + propCommissions + ", Net: £" + propNetIncome +
-                                     ", Transactions: " + propTxCount);
+                                     ", Expenses: £" + propExpenses + ", Commission: £" + propCommissions +
+                                     ", Net: £" + propNetIncome + ", Transactions: " + propTxCount);
                 }
 
                 System.out.println("💰 UNIFIED Financial Summary - Rent: £" + totalRent + ", Commission: £" + totalCommission +
@@ -1804,13 +1805,14 @@ public class PropertyOwnerController {
             // Convert propertyFinancialMap to List<Object[]> format for compatibility with existing code
             List<Object[]> propertyBreakdown = new ArrayList<>();
             for (Map<String, Object> propData : propertyFinancialMap.values()) {
-                Object[] row = new Object[6];
+                Object[] row = new Object[7];
                 row[0] = propData.get("propertyName");
                 row[1] = propData.get("payPropId");
                 row[2] = propData.get("totalRent");
-                row[3] = propData.get("totalCommission");
-                row[4] = propData.get("totalNetToOwner");
-                row[5] = propData.get("transactionCount");
+                row[3] = propData.get("totalExpenses");
+                row[4] = propData.get("totalCommission");
+                row[5] = propData.get("totalNetToOwner");
+                row[6] = propData.get("transactionCount");
                 propertyBreakdown.add(row);
             }
 
@@ -2447,7 +2449,7 @@ public class PropertyOwnerController {
         List<Map<String, Object>> enhancedProperties = new ArrayList<>();
 
         // Create a map of property breakdown data by PayProp ID for quick lookup
-        // Query returns: property_name, payprop_id, total_rent, total_commission, total_net_to_owner, transaction_count
+        // Query returns: property_name, payprop_id, total_rent, total_expenses, total_commission, total_net_to_owner, transaction_count
         System.out.println("🔍 DEBUG: createEnhancedPropertiesData - Processing " + propertyBreakdown.size() + " breakdown rows");
         Map<String, Object[]> breakdownMap = new HashMap<>();
         for (Object[] row : propertyBreakdown) {
@@ -2455,7 +2457,7 @@ public class PropertyOwnerController {
                 String payPropId = row[1].toString(); // Use PayProp ID (index 1), not property name (index 0)
                 breakdownMap.put(payPropId, row);
                 System.out.println("🔍 DEBUG: Added property breakdown for PayProp ID: " + payPropId +
-                                 " (name: " + row[0] + ") with financial data: [" + row[2] + ", " + row[3] + ", " + row[4] + ", " + row[5] + "]");
+                                 " (name: " + row[0] + ") with financial data: [" + row[2] + ", " + row[3] + ", " + row[4] + ", " + row[5] + ", " + row[6] + "]");
             }
         }
         System.out.println("🔍 DEBUG: Built breakdown map with " + breakdownMap.size() + " entries");
@@ -2476,20 +2478,23 @@ public class PropertyOwnerController {
                              "' with PayProp ID: " + propPayPropId +
                              " -> " + (breakdown != null ? "FOUND breakdown data" : "NOT FOUND in breakdown map"));
 
-            if (breakdown != null && breakdown.length >= 6) {
+            if (breakdown != null && breakdown.length >= 7) {
                 BigDecimal totalRent = parseObjectValue(breakdown[2], BigDecimal.ZERO);
-                BigDecimal totalCommission = parseObjectValue(breakdown[3], BigDecimal.ZERO);
-                BigDecimal totalNetToOwner = parseObjectValue(breakdown[4], BigDecimal.ZERO);
-                Long transactionCount = parseObjectValue(breakdown[5], 0L);
+                BigDecimal totalExpenses = parseObjectValue(breakdown[3], BigDecimal.ZERO);
+                BigDecimal totalCommission = parseObjectValue(breakdown[4], BigDecimal.ZERO);
+                BigDecimal totalNetToOwner = parseObjectValue(breakdown[5], BigDecimal.ZERO);
+                Long transactionCount = parseObjectValue(breakdown[6], 0L);
 
                 enhanced.put("totalRent", totalRent);
+                enhanced.put("totalExpenses", totalExpenses);
                 enhanced.put("totalCommission", totalCommission);
                 enhanced.put("totalNetToOwner", totalNetToOwner);
                 enhanced.put("transactionCount", transactionCount);
 
-                System.out.println("   ✅ Applied financial data: £" + totalRent + " rent, £" + totalCommission + " commission, " + transactionCount + " transactions");
+                System.out.println("   ✅ Applied financial data: £" + totalRent + " rent, £" + totalExpenses + " expenses, £" + totalCommission + " commission, " + transactionCount + " transactions");
             } else {
                 enhanced.put("totalRent", BigDecimal.ZERO);
+                enhanced.put("totalExpenses", BigDecimal.ZERO);
                 enhanced.put("totalCommission", BigDecimal.ZERO);
                 enhanced.put("totalNetToOwner", BigDecimal.ZERO);
                 enhanced.put("transactionCount", 0L);

@@ -434,6 +434,7 @@
                                         <tr>
                                             <th>Property</th>
                                             <th>Total Rent</th>
+                                            <th>Expenses</th>
                                             <th>Commission</th>
                                             <th>Net to You</th>
                                             <th>Transactions</th>
@@ -453,6 +454,9 @@
                                             <td class="text-success">
                                                 <strong>£<span th:text="${#numbers.formatDecimal(property.totalRent ?: 0, 1, 2)}">0.00</span></strong>
                                             </td>
+                                            <td class="text-danger">
+                                                £<span th:text="${#numbers.formatDecimal(property.totalExpenses ?: 0, 1, 2)}">0.00</span>
+                                            </td>
                                             <td class="text-info">
                                                 £<span th:text="${#numbers.formatDecimal(property.totalCommission ?: 0, 1, 2)}">0.00</span>
                                             </td>
@@ -469,7 +473,7 @@
                                             </td>
                                         </tr>
                                         <tr th:if="${#lists.isEmpty(propertyBreakdown)}">
-                                            <td colspan="5" class="text-center text-muted">
+                                            <td colspan="6" class="text-center text-muted">
                                                 <i class="fas fa-exclamation-triangle"></i> No financial data available
                                             </td>
                                         </tr>
