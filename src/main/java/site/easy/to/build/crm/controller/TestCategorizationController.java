@@ -4,7 +4,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import site.easy.to.build.crm.entity.UnifiedTransaction;
+import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
+import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.service.statements.StatementTransactionConverter;
 
@@ -13,12 +15,16 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 public class TestCategorizationController {
 
     @Autowired
     private UnifiedTransactionRepository unifiedTransactionRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
 
     @Autowired
     private StatementTransactionConverter transactionConverter;
@@ -95,6 +101,107 @@ public class TestCategorizationController {
 
         result.put("formula", String.format("Net to Owner = £%,.2f - £%,.2f - £%,.2f = £%,.2f",
             totalRentIncome, totalExpenses, totalCommissions, netToOwner));
+
+        return result;
+    }
+
+    @GetMapping("/api/test/arrears-analysis")
+    public Map<String, Object> analyzeArrears() {
+        LocalDate oneYearAgo = LocalDate.now().minusYears(1);
+        LocalDate today = LocalDate.now();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("dateRange", Map.of("from", oneYearAgo, "to", today));
+
+        // STEP 1: Get RENT RECEIVED from unified_transactions
+        List<UnifiedTransaction> allTransactions = unifiedTransactionRepository
+            .findByTransactionDateBetween(oneYearAgo, today);
+
+        List<StatementTransactionDto> dtos = transactionConverter.convertUnifiedListToDto(allTransactions);
+
+        BigDecimal rentReceived = dtos.stream()
+            .filter(StatementTransactionDto::isRentPayment)
+            .map(StatementTransactionDto::getAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        long rentTxCount = dtos.stream().filter(StatementTransactionDto::isRentPayment).count();
+
+        // Breakdown by transaction type
+        Map<String, Long> rentBreakdown = dtos.stream()
+            .filter(StatementTransactionDto::isRentPayment)
+            .collect(Collectors.groupingBy(
+                StatementTransactionDto::getTransactionType,
+                Collectors.counting()
+            ));
+
+        result.put("rentReceived", rentReceived);
+        result.put("rentTransactionCount", rentTxCount);
+        result.put("rentBreakdownByType", rentBreakdown);
+
+        // STEP 2: Get RENT DUE from invoices
+        List<Invoice> activeInvoices = invoiceRepository.findAll().stream()
+            .filter(inv -> inv.getStartDate() != null)
+            .filter(inv -> !inv.getStartDate().isAfter(today))
+            .filter(inv -> inv.getEndDate() == null || !inv.getEndDate().isBefore(oneYearAgo))
+            .collect(Collectors.toList());
+
+        int invoiceCount = activeInvoices.size();
+
+        BigDecimal totalMonthlyRent = activeInvoices.stream()
+            .map(Invoice::getAmount)
+            .filter(amt -> amt != null)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Estimate annual rent (monthly * 12)
+        BigDecimal estimatedRentDue = totalMonthlyRent.multiply(BigDecimal.valueOf(12));
+
+        result.put("activeInvoiceCount", invoiceCount);
+        result.put("totalMonthlyRent", totalMonthlyRent);
+        result.put("estimatedAnnualRentDue", estimatedRentDue);
+
+        // STEP 3: Calculate ARREARS
+        BigDecimal arrears = estimatedRentDue.subtract(rentReceived);
+        result.put("arrears", arrears);
+        result.put("arrearsStatus", arrears.compareTo(BigDecimal.ZERO) < 0 ? "OVERPAID" :
+                                    arrears.compareTo(BigDecimal.ZERO) > 0 ? "OWED" : "PAID_UP");
+
+        // STEP 4: Check for issues
+        Map<String, Object> issues = new HashMap<>();
+
+        // Check for properties with transactions but no invoices
+        List<Long> propertiesWithTransactions = allTransactions.stream()
+            .map(UnifiedTransaction::getPropertyId)
+            .filter(id -> id != null)
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<Long> propertiesWithInvoices = activeInvoices.stream()
+            .map(inv -> inv.getProperty() != null ? inv.getProperty().getId() : null)
+            .filter(id -> id != null)
+            .distinct()
+            .collect(Collectors.toList());
+
+        List<Long> orphanProperties = propertiesWithTransactions.stream()
+            .filter(id -> !propertiesWithInvoices.contains(id))
+            .collect(Collectors.toList());
+
+        issues.put("propertiesWithTransactionsButNoInvoices", orphanProperties.size());
+        issues.put("orphanPropertyIds", orphanProperties);
+
+        // Check for potential deposits
+        long potentialDeposits = allTransactions.stream()
+            .filter(tx -> tx.getDescription() != null &&
+                         tx.getDescription().toLowerCase().contains("deposit"))
+            .count();
+        issues.put("potentialDepositTransactions", potentialDeposits);
+
+        result.put("issues", issues);
+
+        result.put("summary", String.format(
+            "Rent Due: £%,.2f | Rent Received: £%,.2f | Arrears: £%,.2f (%s)",
+            estimatedRentDue, rentReceived, arrears,
+            arrears.compareTo(BigDecimal.ZERO) < 0 ? "OVERPAID" : "OWED"
+        ));
 
         return result;
     }
