@@ -1606,8 +1606,10 @@ function initializeCharts() {
 
     // Initialize Monthly Trends Chart
     console.log('\n📈 CHART 1: Monthly Trends Chart');
-    const monthlyTrendsData = /*[[${monthlyTrendsJson}]]*/ [];
-    console.log('📊 Raw data from Thymeleaf:', monthlyTrendsData);
+    const monthlyTrendsDataRaw = /*[[(${monthlyTrendsJson})]]*/  '[]';
+    console.log('📊 Raw JSON string from Thymeleaf:', monthlyTrendsDataRaw);
+    const monthlyTrendsData = JSON.parse(monthlyTrendsDataRaw);
+    console.log('📊 Parsed data:', monthlyTrendsData);
     console.log('📊 Data type:', typeof monthlyTrendsData);
     console.log('📊 Is Array?', Array.isArray(monthlyTrendsData));
     console.log('📊 Length:', monthlyTrendsData ? monthlyTrendsData.length : 'null/undefined');
@@ -1698,8 +1700,10 @@ function initializeCharts() {
 
     // Initialize Expense Category Pie Chart
     console.log('\n🥧 CHART 2: Expense Category Pie Chart');
-    const expensesData = /*[[${expensesByCategoryJson}]]*/ {};
-    console.log('📊 Raw data from Thymeleaf:', expensesData);
+    const expensesDataRaw = /*[[(${expensesByCategoryJson})]]*/  '{}';
+    console.log('📊 Raw JSON string from Thymeleaf:', expensesDataRaw);
+    const expensesData = JSON.parse(expensesDataRaw);
+    console.log('📊 Parsed data:', expensesData);
     console.log('📊 Data type:', typeof expensesData);
     console.log('📊 Is Object?', typeof expensesData === 'object' && !Array.isArray(expensesData));
     console.log('📊 Keys:', expensesData ? Object.keys(expensesData) : 'null/undefined');

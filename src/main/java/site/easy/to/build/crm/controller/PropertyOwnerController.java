@@ -66,6 +66,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Set;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * PropertyOwnerController - Customer-facing dashboard for property owners
@@ -119,6 +120,9 @@ public class PropertyOwnerController {
 
     @Autowired
     private site.easy.to.build.crm.repository.UnifiedTransactionRepository unifiedTransactionRepository;
+
+    // ObjectMapper for JSON serialization
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
     public PropertyOwnerController(PropertyService propertyService,
@@ -1951,9 +1955,19 @@ public class PropertyOwnerController {
                 e.printStackTrace();
             }
             model.addAttribute("expensesByCategory", expensesByCategory);
-            model.addAttribute("expensesByCategoryJson", expensesByCategory);
-            System.out.println("✅ Added to model: expensesByCategory (" + expensesByCategory.size() + " categories)");
-            System.out.println("✅ Added to model: expensesByCategoryJson (for JavaScript)");
+
+            // Convert to JSON string for JavaScript consumption
+            try {
+                String expensesByCategoryJsonString = objectMapper.writeValueAsString(expensesByCategory);
+                model.addAttribute("expensesByCategoryJson", expensesByCategoryJsonString);
+                System.out.println("✅ Added to model: expensesByCategory (" + expensesByCategory.size() + " categories)");
+                System.out.println("✅ Added to model: expensesByCategoryJson (JSON string for JavaScript)");
+                System.out.println("   JSON preview: " + (expensesByCategoryJsonString.length() > 100 ?
+                    expensesByCategoryJsonString.substring(0, 100) + "..." : expensesByCategoryJsonString));
+            } catch (Exception e) {
+                System.err.println("❌ ERROR serializing expensesByCategory to JSON: " + e.getMessage());
+                model.addAttribute("expensesByCategoryJson", "{}");
+            }
 
             // ✨ PHASE 2: Get monthly trends - OPTIMIZED VERSION
             List<Map<String, Object>> monthlyTrends = new ArrayList<>();
@@ -1987,9 +2001,19 @@ public class PropertyOwnerController {
                 e.printStackTrace();
             }
             model.addAttribute("monthlyTrends", monthlyTrends);
-            model.addAttribute("monthlyTrendsJson", monthlyTrends);
-            System.out.println("✅ Added to model: monthlyTrends (" + monthlyTrends.size() + " months)");
-            System.out.println("✅ Added to model: monthlyTrendsJson (for JavaScript)");
+
+            // Convert to JSON string for JavaScript consumption
+            try {
+                String monthlyTrendsJsonString = objectMapper.writeValueAsString(monthlyTrends);
+                model.addAttribute("monthlyTrendsJson", monthlyTrendsJsonString);
+                System.out.println("✅ Added to model: monthlyTrends (" + monthlyTrends.size() + " months)");
+                System.out.println("✅ Added to model: monthlyTrendsJson (JSON string for JavaScript)");
+                System.out.println("   JSON preview: " + (monthlyTrendsJsonString.length() > 100 ?
+                    monthlyTrendsJsonString.substring(0, 100) + "..." : monthlyTrendsJsonString));
+            } catch (Exception e) {
+                System.err.println("❌ ERROR serializing monthlyTrends to JSON: " + e.getMessage());
+                model.addAttribute("monthlyTrendsJson", "[]");
+            }
 
             System.out.println("╔═══════════════════════════════════════════════════════════════╗");
             System.out.println("║       CONTROLLER: Chart Data Ready for View                  ║");
