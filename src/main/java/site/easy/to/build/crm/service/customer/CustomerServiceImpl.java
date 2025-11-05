@@ -332,13 +332,29 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public List<Customer> findActiveTenantsForProperty(Long propertyId) {
-        // FIXED: Use assignment service instead of deprecated direct FK
+        // ✅ FIXED: Check assignment end_date via service, not customer move_out_date
+        // Get all tenants for this property
         List<Customer> allTenants = assignmentService.getCustomersForProperty(propertyId, AssignmentType.TENANT);
-        LocalDate currentDate = LocalDate.now();
-        
-        // Filter for active tenants (no move-out date or future move-out date)
+
+        // Now we need to filter by checking if their assignment is actually active
+        // We'll use the assignmentService to get assignments and check end_date
+        LocalDate today = LocalDate.now();
+
         return allTenants.stream()
-            .filter(tenant -> tenant.getMoveOutDate() == null || tenant.getMoveOutDate().isAfter(currentDate))
+            .filter(tenant -> {
+                // For each tenant, check if they have an ACTIVE assignment for this property
+                // Get ALL assignments for all customers/properties
+                List<CustomerPropertyAssignment> allAssignments = assignmentService.getAllAssignments();
+
+                // Find this tenant's assignment to this property
+                return allAssignments.stream()
+                    .anyMatch(assignment ->
+                        assignment.getCustomer().getCustomerId().equals(tenant.getCustomerId()) &&
+                        assignment.getProperty().getId().equals(propertyId) &&
+                        assignment.getAssignmentType() == AssignmentType.TENANT &&
+                        (assignment.getEndDate() == null || assignment.getEndDate().isAfter(today))
+                    );
+            })
             .collect(Collectors.toList());
     }
 

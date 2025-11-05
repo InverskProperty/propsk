@@ -63,6 +63,7 @@ import site.easy.to.build.crm.service.sheets.GoogleSheetsServiceAccountService;
 import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
 import site.easy.to.build.crm.service.drive.SharedDriveFileService;
 import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
+import site.easy.to.build.crm.service.financial.PropertyFinancialSummaryService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Set;
@@ -121,6 +122,9 @@ public class PropertyOwnerController {
 
     @Autowired
     private site.easy.to.build.crm.repository.UnifiedTransactionRepository unifiedTransactionRepository;
+
+    @Autowired
+    private PropertyFinancialSummaryService propertyFinancialSummaryService;
 
     // ObjectMapper for JSON serialization
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -714,59 +718,26 @@ public class PropertyOwnerController {
             }
 
             // ===== FINANCIAL DATA (Last 12 months) =====
-            LocalDate oneYearAgo = LocalDate.now().minusYears(1);
-            LocalDate today = LocalDate.now();
+            // ✅ USE CENTRALIZED SERVICE - Single source of truth for financial calculations
+            PropertyFinancialSummaryService.PropertyFinancialSummary financialSummary =
+                propertyFinancialSummaryService.getPropertySummaryLast12Months(propertyId);
 
-            // Get all transactions for this property from unified_transactions table
-            List<UnifiedTransaction> allTransactions = unifiedTransactionRepository.findByPropertyId(propertyId);
-
-            // Filter to last 12 months
-            List<UnifiedTransaction> recentTransactions = allTransactions.stream()
-                .filter(tx -> !tx.getTransactionDate().isBefore(oneYearAgo))
-                .sorted((a, b) -> b.getTransactionDate().compareTo(a.getTransactionDate()))
-                .collect(Collectors.toList());
-
-            // DEBUG: Log all transaction types to understand what we're working with
-            System.out.println("📊 DEBUG: Transaction Types for Property " + propertyId + ":");
-            recentTransactions.stream()
-                .map(tx -> tx.getFlowDirection() + " | " + tx.getTransactionType() + " | £" + tx.getAmount())
-                .distinct()
-                .forEach(System.out::println);
-
-            // Aggregate by flow direction and transaction type
-            BigDecimal totalRent = recentTransactions.stream()
-                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING)
-                .map(UnifiedTransaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BigDecimal totalExpenses = recentTransactions.stream()
-                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING &&
-                             "EXPENSE".equals(tx.getTransactionType()))
-                .map(UnifiedTransaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BigDecimal totalCommission = recentTransactions.stream()
-                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING &&
-                             (tx.getTransactionType() != null &&
-                              (tx.getTransactionType().toUpperCase().contains("COMMISSION") ||
-                               tx.getTransactionType().toUpperCase().contains("AGENCY") ||
-                               tx.getTransactionType().toUpperCase().contains("FEE") ||
-                               tx.getTransactionType().equals("COMMISSION"))))
-                .map(UnifiedTransaction::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BigDecimal netToOwner = totalRent.subtract(totalExpenses).subtract(totalCommission);
-
-            // Get expense transactions for breakdown table
-            List<UnifiedTransaction> expenseTransactions = recentTransactions.stream()
-                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING &&
-                             "EXPENSE".equals(tx.getTransactionType()))
+            // Extract values from summary (already calculated correctly)
+            BigDecimal totalRent = financialSummary.getTotalRent();
+            BigDecimal totalExpenses = financialSummary.getTotalExpenses();
+            BigDecimal totalCommission = financialSummary.getTotalCommission();
+            BigDecimal netToOwner = financialSummary.getNetToOwner();
+            List<UnifiedTransaction> recentTransactions = financialSummary.getAllTransactions();
+            List<UnifiedTransaction> expenseTransactions = financialSummary.getExpenseTransactions().stream()
                 .limit(20) // Show top 20 recent expenses
                 .collect(Collectors.toList());
 
-            System.out.println("📊 Financial Summary (Last 12 months) - Rent: £" + totalRent +
-                             ", Expenses: £" + totalExpenses + ", Commission: £" + totalCommission +
-                             ", Net: £" + netToOwner);
+            // DEBUG: Log summary
+            System.out.println("📊 Financial Summary (Last 12 months) - Property " + propertyId);
+            System.out.println("   Rent: £" + totalRent + " (" + financialSummary.getRentTransactionCount() + " txs)");
+            System.out.println("   Expenses: £" + totalExpenses + " (" + financialSummary.getExpenseTransactionCount() + " txs)");
+            System.out.println("   Commission: £" + totalCommission + " (" + financialSummary.getCommissionTransactionCount() + " txs)");
+            System.out.println("   Net: £" + netToOwner);
 
             // ===== OCCUPANCY STATUS =====
             // Get active tenants for this property
