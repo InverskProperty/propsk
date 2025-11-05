@@ -231,12 +231,14 @@
                                        class="btn btn-success">
                                         <i class="fas fa-folder"></i> View Documents
                                     </a>
-                                    <button class="btn btn-info" onclick="viewTenants()">
+                                    <a th:href="@{/property-owner/tenants(propertyId=${property.id})}"
+                                       class="btn btn-info">
                                         <i class="fas fa-users"></i> View Tenants
-                                    </button>
-                                    <button class="btn btn-warning" onclick="viewMaintenance()">
+                                    </a>
+                                    <a th:href="@{/property-owner/maintenance(propertyId=${property.id})}"
+                                       class="btn btn-warning">
                                         <i class="fas fa-tools"></i> Maintenance
-                                    </button>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -479,14 +481,6 @@
     <script th:src="@{/js/app.js}" onerror="console.log('App.js not found, continuing without it')"></script>
     
     <script>
-        function viewTenants() {
-            window.location.href = '/property-owner/tenants?propertyId=' + [[${property.id}]];
-        }
-
-        function viewMaintenance() {
-            window.location.href = '/property-owner/maintenance?propertyId=' + [[${property.id}]];
-        }
-        
         function toggleValuationEdit() {
             const viewMode = document.getElementById('valuationView');
             const editMode = document.getElementById('valuationEdit');
