@@ -196,6 +196,10 @@ public class PayPropLeaseCreationService {
 
                 // Extract property ID
                 String propertyId = extractJsonValue(clean, "\"id\":");
+                // Clean up any trailing/leading whitespace or escape characters
+                if (propertyId != null) {
+                    propertyId = propertyId.trim().replaceAll("[\\\\\"]", "");
+                }
                 assignment.setPropertyPaypropId(propertyId);
 
                 // Extract monthly payment
@@ -420,12 +424,17 @@ public class PayPropLeaseCreationService {
      * Find property by PayProp ID
      */
     private Property findPropertyByPayPropId(String paypropId) {
-        log.debug("🔍 Searching for property with PayProp ID: {}", paypropId);
-        Optional<Property> result = propertyRepository.findByPayPropId(paypropId);
+        // Clean the input - remove any whitespace or escape characters
+        String cleanId = paypropId != null ? paypropId.trim() : null;
+
+        log.debug("🔍 Searching for property with PayProp ID: {} (length: {}, cleaned: {})",
+            paypropId, paypropId != null ? paypropId.length() : 0, cleanId);
+
+        Optional<Property> result = propertyRepository.findByPayPropId(cleanId);
         if (result.isPresent()) {
             log.debug("✅ Found property: {} (ID: {})", result.get().getPropertyName(), result.get().getId());
         } else {
-            log.warn("❌ Property NOT FOUND for PayProp ID: {}", paypropId);
+            log.warn("❌ Property NOT FOUND for PayProp ID: {} (cleaned: {})", paypropId, cleanId);
             // Try to find by direct query to debug
             long count = propertyRepository.count();
             log.warn("📊 Total properties in repository: {}", count);
