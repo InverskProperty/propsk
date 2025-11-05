@@ -216,7 +216,9 @@ public interface LettingInstructionRepository extends JpaRepository<LettingInstr
      */
     @Query("SELECT li FROM LettingInstruction li WHERE " +
            "LOWER(li.property.propertyName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) " +
-           "OR LOWER(li.property.address) LIKE LOWER(CONCAT('%', :searchTerm, '%')) " +
+           "OR LOWER(li.property.addressLine1) LIKE LOWER(CONCAT('%', :searchTerm, '%')) " +
+           "OR LOWER(li.property.addressLine2) LIKE LOWER(CONCAT('%', :searchTerm, '%')) " +
+           "OR LOWER(li.property.addressLine3) LIKE LOWER(CONCAT('%', :searchTerm, '%')) " +
            "ORDER BY li.createdAt DESC")
     List<LettingInstruction> searchByPropertyNameOrAddress(@Param("searchTerm") String searchTerm);
 
