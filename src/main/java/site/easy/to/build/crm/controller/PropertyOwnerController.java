@@ -23,6 +23,7 @@ import site.easy.to.build.crm.entity.PropertyOwner;
 import site.easy.to.build.crm.entity.Portfolio;
 import site.easy.to.build.crm.entity.Tenant;
 import site.easy.to.build.crm.entity.Ticket;
+import site.easy.to.build.crm.entity.UnifiedTransaction;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -687,23 +688,23 @@ public class PropertyOwnerController {
     public String viewPropertyDetails(@PathVariable("id") Long propertyId,
                                     Model model, Authentication authentication) {
         System.out.println("🏠 Property Owner Property Details - ID: " + propertyId);
-        
+
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
                 return "redirect:/customer-login?error=not_found";
             }
-            
+
             // Verify ownership by checking if property belongs to this customer
             List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
             boolean ownsProperty = ownedProperties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
-            
+
             if (!ownsProperty) {
                 System.out.println("❌ Property " + propertyId + " not owned by customer " + customer.getCustomerId());
                 return "redirect:/property-owner/properties?error=unauthorized";
             }
-            
+
             System.out.println("✅ Property ownership verified, loading property details view");
 
             // Load the property details for the property owner view
@@ -712,14 +713,106 @@ public class PropertyOwnerController {
                 return "redirect:/property-owner/properties?error=not_found";
             }
 
+            // ===== FINANCIAL DATA (Last 12 months) =====
+            LocalDate oneYearAgo = LocalDate.now().minusYears(1);
+            LocalDate today = LocalDate.now();
+
+            // Get all transactions for this property from unified_transactions table
+            List<UnifiedTransaction> allTransactions = unifiedTransactionRepository.findByPropertyId(propertyId);
+
+            // Filter to last 12 months
+            List<UnifiedTransaction> recentTransactions = allTransactions.stream()
+                .filter(tx -> !tx.getTransactionDate().isBefore(oneYearAgo))
+                .sorted((a, b) -> b.getTransactionDate().compareTo(a.getTransactionDate()))
+                .collect(Collectors.toList());
+
+            // Aggregate by flow direction and transaction type
+            BigDecimal totalRent = recentTransactions.stream()
+                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING)
+                .map(UnifiedTransaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal totalExpenses = recentTransactions.stream()
+                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING &&
+                             "EXPENSE".equals(tx.getTransactionType()))
+                .map(UnifiedTransaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal totalCommission = recentTransactions.stream()
+                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING &&
+                             "COMMISSION".equals(tx.getTransactionType()))
+                .map(UnifiedTransaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal netToOwner = totalRent.subtract(totalExpenses).subtract(totalCommission);
+
+            // Get expense transactions for breakdown table
+            List<UnifiedTransaction> expenseTransactions = recentTransactions.stream()
+                .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING &&
+                             "EXPENSE".equals(tx.getTransactionType()))
+                .limit(20) // Show top 20 recent expenses
+                .collect(Collectors.toList());
+
+            System.out.println("📊 Financial Summary (Last 12 months) - Rent: £" + totalRent +
+                             ", Expenses: £" + totalExpenses + ", Commission: £" + totalCommission +
+                             ", Net: £" + netToOwner);
+
+            // ===== OCCUPANCY STATUS =====
+            // Get active tenants for this property
+            List<Customer> activeTenants = customerService.findActiveTenantsForProperty(propertyId);
+            boolean isOccupied = !activeTenants.isEmpty();
+            Customer currentTenant = activeTenants.isEmpty() ? null : activeTenants.get(0);
+
+            // Get tenancy start date if occupied
+            LocalDate tenancyStartDate = null;
+            if (currentTenant != null) {
+                try {
+                    // Get the assignment to find start date
+                    List<CustomerPropertyAssignment> assignments =
+                        customerPropertyAssignmentRepository.findByPropertyIdAndAssignmentType(propertyId, AssignmentType.TENANT);
+
+                    if (!assignments.isEmpty()) {
+                        // Get the most recent active assignment
+                        Optional<CustomerPropertyAssignment> activeAssignment = assignments.stream()
+                            .filter(a -> a.getEndDate() == null || a.getEndDate().isAfter(LocalDate.now()))
+                            .findFirst();
+
+                        if (activeAssignment.isPresent()) {
+                            tenancyStartDate = activeAssignment.get().getStartDate();
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("⚠️ Could not fetch tenancy start date: " + e.getMessage());
+                }
+            }
+
+            System.out.println("🏘️ Occupancy Status - Occupied: " + isOccupied +
+                             (currentTenant != null ? ", Tenant: " + currentTenant.getFirstName() + " " + currentTenant.getLastName() : ""));
+
+            // Add all attributes to model
             model.addAttribute("customer", customer);
             model.addAttribute("property", property);
             model.addAttribute("pageTitle", "Property Details - " + property.getPropertyName());
 
+            // Financial data
+            model.addAttribute("totalRent", totalRent);
+            model.addAttribute("totalExpenses", totalExpenses);
+            model.addAttribute("totalCommission", totalCommission);
+            model.addAttribute("netToOwner", netToOwner);
+            model.addAttribute("recentTransactions", recentTransactions);
+            model.addAttribute("expenseTransactions", expenseTransactions);
+            model.addAttribute("transactionCount", recentTransactions.size());
+
+            // Occupancy data
+            model.addAttribute("isOccupied", isOccupied);
+            model.addAttribute("currentTenant", currentTenant);
+            model.addAttribute("tenancyStartDate", tenancyStartDate);
+
             return "property-owner/property-details";
-            
+
         } catch (Exception e) {
             System.err.println("❌ Error loading property details: " + e.getMessage());
+            e.printStackTrace();
             model.addAttribute("error", "Error loading property: " + e.getMessage());
             return "property-owner/properties";
         }
