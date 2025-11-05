@@ -83,6 +83,9 @@ public class PayPropSyncOrchestrator {
     @Autowired
     private site.easy.to.build.crm.service.synchronization.TenantCustomerLinkService tenantCustomerLinkService;
 
+    @Autowired
+    private PayPropLeaseCreationService payPropLeaseCreationService;
+
     @Value("${payprop.sync.batch-size:25}")
     private int batchSize;
 
@@ -377,6 +380,18 @@ public class PayPropSyncOrchestrator {
                 log.info("✅ Tenant-customer linking: {}", linkResult.getSummary());
             } catch (Exception e) {
                 log.warn("⚠️ Tenant-customer linking had errors (but continuing): {}", e.getMessage());
+            }
+
+            // STEP 7.75: Create Leases from PayProp Tenant Data
+            log.info("📄 Step 7.75: Creating leases from PayProp tenant data...");
+            try {
+                PayPropLeaseCreationService.LeaseCreationResult leaseResult =
+                    payPropLeaseCreationService.createLeasesFromPayPropData();
+                log.info("✅ Lease creation: {}", leaseResult.getSummary());
+                result.setLeaseCreationResult(SyncResult.success(leaseResult.getSummary()));
+            } catch (Exception e) {
+                log.warn("⚠️ Lease creation had errors (but continuing): {}", e.getMessage());
+                result.setLeaseCreationResult(SyncResult.failure("Lease creation failed: " + e.getMessage()));
             }
 
             // STEP 8: DELEGATED FINANCIAL SYNC - Simple and clean!
@@ -2057,6 +2072,7 @@ public class PayPropSyncOrchestrator {
         private SyncResult contractorsResult;
         private SyncResult relationshipsResult;
         private SyncResult tenantRelationshipsResult;
+        private SyncResult leaseCreationResult;
         private SyncResult filesResult;
         private SyncResult occupancyResult;
         private SyncResult financialSyncResult;
@@ -2066,13 +2082,14 @@ public class PayPropSyncOrchestrator {
         private String overallError;
 
         public boolean isOverallSuccess() {
-            return overallError == null && 
+            return overallError == null &&
                 (propertiesResult == null || propertiesResult.isSuccess()) &&
                 (propertyOwnersResult == null || propertyOwnersResult.isSuccess()) &&
                 (tenantsResult == null || tenantsResult.isSuccess()) &&
                 (contractorsResult == null || contractorsResult.isSuccess()) &&
                 (relationshipsResult == null || relationshipsResult.isSuccess()) &&
                 (tenantRelationshipsResult == null || tenantRelationshipsResult.isSuccess()) &&
+                (leaseCreationResult == null || leaseCreationResult.isSuccess()) &&
                 (filesResult == null || filesResult.isSuccess()) &&
                 (occupancyResult == null || occupancyResult.isSuccess()) &&
                 (financialSyncResult == null || financialSyncResult.isSuccess()) &&
@@ -2083,7 +2100,7 @@ public class PayPropSyncOrchestrator {
 
         public String getSummary() {
             if (overallError != null) return overallError;
-            
+
             StringBuilder summary = new StringBuilder();
             summary.append("Properties: ").append(propertiesResult != null ? propertiesResult.getMessage() : "skipped").append("; ");
             summary.append("Owners: ").append(propertyOwnersResult != null ? propertyOwnersResult.getMessage() : "skipped").append("; ");
@@ -2091,6 +2108,7 @@ public class PayPropSyncOrchestrator {
             summary.append("Contractors: ").append(contractorsResult != null ? contractorsResult.getMessage() : "skipped").append("; ");
             summary.append("Relationships: ").append(relationshipsResult != null ? relationshipsResult.getMessage() : "skipped").append("; ");
             summary.append("Tenant Assignments: ").append(tenantRelationshipsResult != null ? tenantRelationshipsResult.getMessage() : "skipped").append("; ");
+            summary.append("Lease Creation: ").append(leaseCreationResult != null ? leaseCreationResult.getMessage() : "skipped").append("; ");
             summary.append("Financial Sync: ").append(financialSyncResult != null ? financialSyncResult.getMessage() : "skipped").append("; ");
             summary.append("Files: ").append(filesResult != null ? filesResult.getMessage() : "skipped").append("; ");
             summary.append("Occupancy: ").append(occupancyResult != null ? occupancyResult.getMessage() : "skipped").append("; ");
@@ -2118,7 +2136,10 @@ public class PayPropSyncOrchestrator {
         
         public SyncResult getTenantRelationshipsResult() { return tenantRelationshipsResult; }
         public void setTenantRelationshipsResult(SyncResult tenantRelationshipsResult) { this.tenantRelationshipsResult = tenantRelationshipsResult; }
-        
+
+        public SyncResult getLeaseCreationResult() { return leaseCreationResult; }
+        public void setLeaseCreationResult(SyncResult leaseCreationResult) { this.leaseCreationResult = leaseCreationResult; }
+
         public SyncResult getFilesResult() { return filesResult; }
         public void setFilesResult(SyncResult filesResult) { this.filesResult = filesResult; }
         
