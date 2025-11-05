@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -21,7 +23,8 @@ public class Lead {
 
     @Column(name = "status")
     @NotBlank(message = "Status is required")
-    @Pattern(regexp = "^(meeting-to-schedule|scheduled|archived|success|assign-to-sales)$", message = "Invalid status")
+    @Pattern(regexp = "^(meeting-to-schedule|scheduled|archived|success|assign-to-sales|enquiry|viewing-scheduled|viewing-completed|interested|application-submitted|referencing|in-contracts|converted|lost)$",
+             message = "Invalid status")
     private String status;
 
     @Column(name = "phone")
@@ -59,6 +62,52 @@ public class Lead {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    // ============================================================
+    // Property Lead Fields (for PROPERTY_RENTAL lead type)
+    // ============================================================
+
+    @ManyToOne
+    @JoinColumn(name = "property_id")
+    private Property property;
+
+    @Column(name = "lead_type")
+    @Enumerated(EnumType.STRING)
+    private LeadType leadType = LeadType.BUSINESS;
+
+    @Column(name = "desired_move_in_date")
+    private LocalDate desiredMoveInDate;
+
+    @Column(name = "budget_min")
+    private BigDecimal budgetMin;
+
+    @Column(name = "budget_max")
+    private BigDecimal budgetMax;
+
+    @Column(name = "number_of_occupants")
+    private Integer numberOfOccupants;
+
+    @Column(name = "has_pets")
+    private Boolean hasPets = false;
+
+    @Column(name = "has_guarantor")
+    private Boolean hasGuarantor = false;
+
+    @Column(name = "employment_status")
+    private String employmentStatus;
+
+    @Column(name = "lead_source")
+    private String leadSource;
+
+    @Column(name = "converted_at")
+    private LocalDateTime convertedAt;
+
+    @ManyToOne
+    @JoinColumn(name = "converted_to_customer_id")
+    private Customer convertedToCustomer;
+
+    @OneToMany(mappedBy = "lead", cascade = CascadeType.ALL)
+    private List<PropertyViewing> propertyViewings;
 
     public Lead() {
     }
@@ -216,6 +265,155 @@ public class Lead {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    // ============================================================
+    // Getters and Setters for Property Lead Fields
+    // ============================================================
+
+    public Property getProperty() {
+        return property;
+    }
+
+    public void setProperty(Property property) {
+        this.property = property;
+    }
+
+    public LeadType getLeadType() {
+        return leadType;
+    }
+
+    public void setLeadType(LeadType leadType) {
+        this.leadType = leadType;
+    }
+
+    public LocalDate getDesiredMoveInDate() {
+        return desiredMoveInDate;
+    }
+
+    public void setDesiredMoveInDate(LocalDate desiredMoveInDate) {
+        this.desiredMoveInDate = desiredMoveInDate;
+    }
+
+    public BigDecimal getBudgetMin() {
+        return budgetMin;
+    }
+
+    public void setBudgetMin(BigDecimal budgetMin) {
+        this.budgetMin = budgetMin;
+    }
+
+    public BigDecimal getBudgetMax() {
+        return budgetMax;
+    }
+
+    public void setBudgetMax(BigDecimal budgetMax) {
+        this.budgetMax = budgetMax;
+    }
+
+    public Integer getNumberOfOccupants() {
+        return numberOfOccupants;
+    }
+
+    public void setNumberOfOccupants(Integer numberOfOccupants) {
+        this.numberOfOccupants = numberOfOccupants;
+    }
+
+    public Boolean getHasPets() {
+        return hasPets;
+    }
+
+    public void setHasPets(Boolean hasPets) {
+        this.hasPets = hasPets;
+    }
+
+    public Boolean getHasGuarantor() {
+        return hasGuarantor;
+    }
+
+    public void setHasGuarantor(Boolean hasGuarantor) {
+        this.hasGuarantor = hasGuarantor;
+    }
+
+    public String getEmploymentStatus() {
+        return employmentStatus;
+    }
+
+    public void setEmploymentStatus(String employmentStatus) {
+        this.employmentStatus = employmentStatus;
+    }
+
+    public String getLeadSource() {
+        return leadSource;
+    }
+
+    public void setLeadSource(String leadSource) {
+        this.leadSource = leadSource;
+    }
+
+    public LocalDateTime getConvertedAt() {
+        return convertedAt;
+    }
+
+    public void setConvertedAt(LocalDateTime convertedAt) {
+        this.convertedAt = convertedAt;
+    }
+
+    public Customer getConvertedToCustomer() {
+        return convertedToCustomer;
+    }
+
+    public void setConvertedToCustomer(Customer convertedToCustomer) {
+        this.convertedToCustomer = convertedToCustomer;
+    }
+
+    public List<PropertyViewing> getPropertyViewings() {
+        return propertyViewings;
+    }
+
+    public void setPropertyViewings(List<PropertyViewing> propertyViewings) {
+        this.propertyViewings = propertyViewings;
+    }
+
+    public void addPropertyViewing(PropertyViewing viewing) {
+        this.propertyViewings.add(viewing);
+    }
+
+    public void removePropertyViewing(PropertyViewing viewing) {
+        this.propertyViewings.remove(viewing);
+    }
+
+    // ============================================================
+    // Helper Methods for Property Leads
+    // ============================================================
+
+    /**
+     * Check if this is a property rental lead
+     */
+    public boolean isPropertyLead() {
+        return leadType != null && leadType == LeadType.PROPERTY_RENTAL;
+    }
+
+    /**
+     * Check if lead has been converted to a tenant
+     */
+    public boolean isConverted() {
+        return "converted".equalsIgnoreCase(status) && convertedAt != null;
+    }
+
+    /**
+     * Get display string for budget range
+     */
+    public String getBudgetRangeDisplay() {
+        if (budgetMin == null && budgetMax == null) {
+            return "Not specified";
+        } else if (budgetMin != null && budgetMax != null) {
+            return String.format("£%,.2f - £%,.2f", budgetMin, budgetMax);
+        } else if (budgetMin != null) {
+            return String.format("From £%,.2f", budgetMin);
+        } else {
+            return String.format("Up to £%,.2f", budgetMax);
+        }
     }
 }
 

@@ -252,7 +252,34 @@ public class Property {
     // Foreign key (keeping original structure)
     @Column(name = "property_owner_id")
     private Long propertyOwnerId;
-    
+
+    // ============================================================
+    // Property Vacancy Tracking Fields
+    // ============================================================
+
+    @Column(name = "occupancy_status")
+    @Enumerated(EnumType.STRING)
+    private OccupancyStatus occupancyStatus = OccupancyStatus.OCCUPIED;
+
+    @Column(name = "notice_given_date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate noticeGivenDate;
+
+    @Column(name = "expected_vacancy_date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate expectedVacancyDate;
+
+    @Column(name = "advertising_start_date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate advertisingStartDate;
+
+    @Column(name = "available_from_date")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate availableFromDate;
+
+    @Column(name = "last_occupancy_change")
+    private LocalDateTime lastOccupancyChange;
+
     // Constructors
     public Property() {}
     
@@ -803,6 +830,127 @@ public class Property {
         return status.toString();
     }
 
+    // ============================================================
+    // Getters and Setters for Vacancy Tracking Fields
+    // ============================================================
+
+    public OccupancyStatus getOccupancyStatus() {
+        return occupancyStatus;
+    }
+
+    public void setOccupancyStatus(OccupancyStatus occupancyStatus) {
+        this.occupancyStatus = occupancyStatus;
+        this.lastOccupancyChange = LocalDateTime.now();
+    }
+
+    public LocalDate getNoticeGivenDate() {
+        return noticeGivenDate;
+    }
+
+    public void setNoticeGivenDate(LocalDate noticeGivenDate) {
+        this.noticeGivenDate = noticeGivenDate;
+    }
+
+    public LocalDate getExpectedVacancyDate() {
+        return expectedVacancyDate;
+    }
+
+    public void setExpectedVacancyDate(LocalDate expectedVacancyDate) {
+        this.expectedVacancyDate = expectedVacancyDate;
+    }
+
+    public LocalDate getAdvertisingStartDate() {
+        return advertisingStartDate;
+    }
+
+    public void setAdvertisingStartDate(LocalDate advertisingStartDate) {
+        this.advertisingStartDate = advertisingStartDate;
+    }
+
+    public LocalDate getAvailableFromDate() {
+        return availableFromDate;
+    }
+
+    public void setAvailableFromDate(LocalDate availableFromDate) {
+        this.availableFromDate = availableFromDate;
+    }
+
+    public LocalDateTime getLastOccupancyChange() {
+        return lastOccupancyChange;
+    }
+
+    public void setLastOccupancyChange(LocalDateTime lastOccupancyChange) {
+        this.lastOccupancyChange = lastOccupancyChange;
+    }
+
+    // ============================================================
+    // Helper Methods for Vacancy Tracking
+    // ============================================================
+
+    /**
+     * Check if property is available for new lettings
+     */
+    public boolean isAvailableForLetting() {
+        return occupancyStatus != null && occupancyStatus.isAvailableForLetting();
+    }
+
+    /**
+     * Check if property requires marketing attention
+     */
+    public boolean requiresMarketingAttention() {
+        return occupancyStatus != null && occupancyStatus.requiresMarketingAttention();
+    }
+
+    /**
+     * Mark notice as given
+     */
+    public void markNoticeGiven(LocalDate noticeDate, LocalDate expectedVacancy) {
+        this.occupancyStatus = OccupancyStatus.NOTICE_GIVEN;
+        this.noticeGivenDate = noticeDate;
+        this.expectedVacancyDate = expectedVacancy;
+        this.lastOccupancyChange = LocalDateTime.now();
+    }
+
+    /**
+     * Start advertising the property
+     */
+    public void startAdvertising() {
+        this.occupancyStatus = OccupancyStatus.ADVERTISING;
+        this.advertisingStartDate = LocalDate.now();
+        this.lastOccupancyChange = LocalDateTime.now();
+    }
+
+    /**
+     * Mark property as available
+     */
+    public void markAvailable(LocalDate availableFrom) {
+        this.occupancyStatus = OccupancyStatus.AVAILABLE;
+        this.availableFromDate = availableFrom;
+        this.lastOccupancyChange = LocalDateTime.now();
+    }
+
+    /**
+     * Mark property as occupied (after tenant move-in)
+     */
+    public void markOccupied() {
+        this.occupancyStatus = OccupancyStatus.OCCUPIED;
+        this.noticeGivenDate = null;
+        this.expectedVacancyDate = null;
+        this.advertisingStartDate = null;
+        this.availableFromDate = null;
+        this.lastOccupancyChange = LocalDateTime.now();
+    }
+
+    /**
+     * Get days until expected vacancy
+     */
+    public Long getDaysUntilVacancy() {
+        if (expectedVacancyDate == null) {
+            return null;
+        }
+        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), expectedVacancyDate);
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -828,8 +976,11 @@ public class Property {
         if (countryCode == null) {
             countryCode = "UK";
         }
+        if (occupancyStatus == null) {
+            occupancyStatus = OccupancyStatus.OCCUPIED;
+        }
     }
-    
+
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
