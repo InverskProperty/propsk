@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import site.easy.to.build.crm.service.payprop.PayPropOAuth2Service;
+import site.easy.to.build.crm.service.payprop.PayPropLeaseCreationService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,6 +28,9 @@ public class PayPropImportPageController {
 
     @Autowired
     private PayPropOAuth2Service oAuth2Service;
+
+    @Autowired
+    private PayPropLeaseCreationService leaseCreationService;
 
     @GetMapping("/import")
     public String showImportPage(Model model, Authentication authentication) {
@@ -84,5 +88,38 @@ public class PayPropImportPageController {
         response.put("propertiesImported", 44);
         response.put("customersImported", 39);
         return response;
+    }
+
+    /**
+     * Create leases and tenant assignments from PayProp data
+     */
+    @PostMapping("/import/create-leases")
+    @ResponseBody
+    public Map<String, Object> createLeases() {
+        logger.info("🏗️ Create Leases endpoint called");
+
+        try {
+            PayPropLeaseCreationService.LeaseCreationResult result = leaseCreationService.createLeasesFromPayPropData();
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", result.isSuccess());
+            response.put("tenantsProcessed", result.getTotalTenantsFound());
+            response.put("leasesCreated", result.getLeasesCreated());
+            response.put("leasesAlreadyExist", result.getLeasesAlreadyExist());
+            response.put("assignmentsCreated", result.getAssignmentsCreated());
+            response.put("assignmentsAlreadyExist", result.getAssignmentsAlreadyExist());
+            response.put("errors", result.getErrors());
+            response.put("warnings", result.getWarnings());
+            response.put("summary", result.getSummary());
+
+            return response;
+
+        } catch (Exception e) {
+            logger.error("❌ Error creating leases", e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return response;
+        }
     }
 }
