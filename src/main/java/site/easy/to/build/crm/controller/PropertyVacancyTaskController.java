@@ -257,7 +257,7 @@ public class PropertyVacancyTaskController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("task", task);
-            response.put("message", "Task assigned to " + assignedUser.getFirstName());
+            response.put("message", "Task assigned to " + assignedUser.getName());
 
             return ResponseEntity.ok(response);
 

@@ -59,8 +59,8 @@ public class PropertyVacancyController {
 
         // Get properties requiring attention
         List<Property> noticeGiven = vacancyService.getPropertiesWithNoticeGiven();
-        List<Property> advertising = vacancyService.getPropertiesBeingAdvertised();
-        List<Property> available = vacancyService.getPropertiesAvailable();
+        List<Property> advertising = vacancyService.getAdvertisingProperties();
+        List<Property> available = vacancyService.getAvailableProperties();
         List<Property> requiresAttention = vacancyService.getPropertiesRequiringMarketingAttention();
 
         model.addAttribute("noticeGivenProperties", noticeGiven);
@@ -257,7 +257,7 @@ public class PropertyVacancyController {
                         .body(Map.of("error", "Account is inactive"));
             }
 
-            List<Property> properties = vacancyService.getPropertiesBeingAdvertised();
+            List<Property> properties = vacancyService.getAdvertisingProperties();
             return ResponseEntity.ok(properties);
 
         } catch (Exception e) {
@@ -281,7 +281,7 @@ public class PropertyVacancyController {
                         .body(Map.of("error", "Account is inactive"));
             }
 
-            List<Property> properties = vacancyService.getPropertiesAvailable();
+            List<Property> properties = vacancyService.getAvailableProperties();
             return ResponseEntity.ok(properties);
 
         } catch (Exception e) {
@@ -339,7 +339,7 @@ public class PropertyVacancyController {
 
             Map<String, Object> timeline = new HashMap<>();
             timeline.put("propertyId", property.getId());
-            timeline.put("address", property.getAddress());
+            timeline.put("address", property.getAddressLine1());
             timeline.put("occupancyStatus", property.getOccupancyStatus());
             timeline.put("noticeGivenDate", property.getNoticeGivenDate());
             timeline.put("expectedVacancyDate", property.getExpectedVacancyDate());

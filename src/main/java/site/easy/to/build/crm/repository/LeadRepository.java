@@ -146,4 +146,19 @@ public interface LeadRepository extends JpaRepository<Lead, Integer> {
      */
     @Query("SELECT l FROM Lead l WHERE l.property.propertyOwnerId = :ownerId ORDER BY l.createdAt DESC")
     List<Lead> findLeadsByPropertyOwner(@Param("ownerId") Long ownerId);
+
+    /**
+     * Count leads by property
+     */
+    long countByProperty(Property property);
+
+    /**
+     * Count leads by property and status
+     */
+    long countByPropertyAndStatus(Property property, String status);
+
+    /**
+     * Find leads by status (all lead types)
+     */
+    List<Lead> findByStatusOrderByCreatedAtDesc(String status);
 }

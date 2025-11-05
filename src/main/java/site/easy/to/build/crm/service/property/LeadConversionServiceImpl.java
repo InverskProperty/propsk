@@ -105,17 +105,19 @@ public class LeadConversionServiceImpl implements LeadConversionService {
 
         // Lease details
         lease.setInvoiceType("Rent");
-        lease.setInvoiceFrequency(Invoice.InvoiceFrequency.MONTHLY);
+        lease.setCategoryId("RENT"); // Category for rental income
+        lease.setFrequency(Invoice.InvoiceFrequency.monthly);
         lease.setAmount(monthlyRent);
         lease.setStartDate(leaseStartDate);
         lease.setEndDate(leaseEndDate);
-        lease.setNextDueDate(leaseStartDate);
+        lease.setDescription("Monthly rent for property at " +
+                            (property.getAddressLine1() != null ? property.getAddressLine1() : "property"));
 
-        // Set sync status as active
-        lease.setSyncStatus(Invoice.SyncStatus.ACTIVE);
+        // Set sync status as pending (will be synced to PayProp later)
+        lease.setSyncStatus(Invoice.SyncStatus.pending);
 
-        // Generate invoice number
-        lease.setInvoiceNumber("LEASE-" + property.getId() + "-" +
+        // Generate lease reference
+        lease.setLeaseReference("LEASE-" + property.getId() + "-" +
                               leaseStartDate.toString().replace("-", ""));
 
         return invoiceRepository.save(lease);
@@ -233,13 +235,13 @@ public class LeadConversionServiceImpl implements LeadConversionService {
 
     @Override
     public List<Lead> getConvertedLeads() {
-        return leadRepository.findByStatus("converted");
+        return leadRepository.findByStatusOrderByCreatedAtDesc("converted");
     }
 
     @Override
     public List<Lead> getLeadsReadyForConversion() {
         // Leads in 'in-contracts' status are typically ready for conversion
-        return leadRepository.findByStatus("in-contracts");
+        return leadRepository.findByStatusOrderByCreatedAtDesc("in-contracts");
     }
 
     @Override
