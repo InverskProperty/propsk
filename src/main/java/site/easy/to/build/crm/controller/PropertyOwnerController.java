@@ -726,6 +726,13 @@ public class PropertyOwnerController {
                 .sorted((a, b) -> b.getTransactionDate().compareTo(a.getTransactionDate()))
                 .collect(Collectors.toList());
 
+            // DEBUG: Log all transaction types to understand what we're working with
+            System.out.println("📊 DEBUG: Transaction Types for Property " + propertyId + ":");
+            recentTransactions.stream()
+                .map(tx -> tx.getFlowDirection() + " | " + tx.getTransactionType() + " | £" + tx.getAmount())
+                .distinct()
+                .forEach(System.out::println);
+
             // Aggregate by flow direction and transaction type
             BigDecimal totalRent = recentTransactions.stream()
                 .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING)
@@ -740,7 +747,11 @@ public class PropertyOwnerController {
 
             BigDecimal totalCommission = recentTransactions.stream()
                 .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING &&
-                             "COMMISSION".equals(tx.getTransactionType()))
+                             (tx.getTransactionType() != null &&
+                              (tx.getTransactionType().toUpperCase().contains("COMMISSION") ||
+                               tx.getTransactionType().toUpperCase().contains("AGENCY") ||
+                               tx.getTransactionType().toUpperCase().contains("FEE") ||
+                               tx.getTransactionType().equals("COMMISSION"))))
                 .map(UnifiedTransaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -762,6 +773,15 @@ public class PropertyOwnerController {
             List<Customer> activeTenants = customerService.findActiveTenantsForProperty(propertyId);
             boolean isOccupied = !activeTenants.isEmpty();
             Customer currentTenant = activeTenants.isEmpty() ? null : activeTenants.get(0);
+
+            // DEBUG: Log occupancy details
+            System.out.println("🏘️ DEBUG: Active tenants found: " + activeTenants.size());
+            if (currentTenant != null) {
+                System.out.println("   Tenant ID: " + currentTenant.getCustomerId());
+                System.out.println("   First Name: " + currentTenant.getFirstName());
+                System.out.println("   Last Name: " + currentTenant.getLastName());
+                System.out.println("   Email: " + currentTenant.getEmail());
+            }
 
             // Get tenancy start date if occupied
             LocalDate tenancyStartDate = null;

@@ -282,9 +282,16 @@
                                 <div class="mb-3">
                                     <h6 class="mb-1">
                                         <i class="fas fa-user"></i>
-                                        <span th:text="${currentTenant.firstName + ' ' + currentTenant.lastName}">Tenant Name</span>
+                                        <!-- Show name if available, otherwise show email -->
+                                        <span th:if="${currentTenant.firstName != null && !currentTenant.firstName.isEmpty()}"
+                                              th:text="${currentTenant.firstName + ' ' + currentTenant.lastName}">Tenant Name</span>
+                                        <span th:if="${(currentTenant.firstName == null || currentTenant.firstName.isEmpty()) && currentTenant.email != null}"
+                                              th:text="${currentTenant.email}">tenant@example.com</span>
+                                        <span th:if="${(currentTenant.firstName == null || currentTenant.firstName.isEmpty()) && currentTenant.email == null}">
+                                            Tenant
+                                        </span>
                                     </h6>
-                                    <p class="text-muted small mb-0" th:if="${currentTenant.email}">
+                                    <p class="text-muted small mb-0" th:if="${currentTenant.email && (currentTenant.firstName != null && !currentTenant.firstName.isEmpty())}">
                                         <i class="fas fa-envelope"></i>
                                         <span th:text="${currentTenant.email}">tenant@example.com</span>
                                     </p>
