@@ -214,4 +214,107 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     
     // ✅ Find by customer reference (PayProp identifier)
     Optional<Property> findByCustomerReference(String customerReference);
+
+    // ============================================================
+    // Property Vacancy & Occupancy Status Queries
+    // ============================================================
+
+    /**
+     * Find properties by occupancy status
+     */
+    List<Property> findByOccupancyStatusOrderByLastOccupancyChangeDesc(site.easy.to.build.crm.entity.OccupancyStatus status);
+
+    /**
+     * Find properties with multiple occupancy statuses
+     */
+    List<Property> findByOccupancyStatusInOrderByExpectedVacancyDateAsc(List<site.easy.to.build.crm.entity.OccupancyStatus> statuses);
+
+    /**
+     * Find properties with notice given
+     */
+    @Query("SELECT p FROM Property p WHERE p.occupancyStatus = 'NOTICE_GIVEN' ORDER BY p.expectedVacancyDate ASC")
+    List<Property> findPropertiesWithNoticeGiven();
+
+    /**
+     * Find properties being advertised
+     */
+    @Query("SELECT p FROM Property p WHERE p.occupancyStatus = 'ADVERTISING' ORDER BY p.advertisingStartDate DESC")
+    List<Property> findPropertiesBeingAdvertised();
+
+    /**
+     * Find properties available for letting
+     */
+    @Query("SELECT p FROM Property p WHERE p.occupancyStatus IN ('ADVERTISING', 'AVAILABLE') ORDER BY p.availableFromDate ASC")
+    List<Property> findPropertiesAvailableForLetting();
+
+    /**
+     * Find properties requiring marketing attention (notice given or advertising)
+     */
+    @Query("SELECT p FROM Property p WHERE p.occupancyStatus IN ('NOTICE_GIVEN', 'ADVERTISING') " +
+           "ORDER BY p.expectedVacancyDate ASC NULLS LAST, p.advertisingStartDate ASC NULLS LAST")
+    List<Property> findPropertiesRequiringMarketingAttention();
+
+    /**
+     * Find properties with expected vacancy between dates
+     */
+    @Query("SELECT p FROM Property p WHERE p.expectedVacancyDate BETWEEN :startDate AND :endDate ORDER BY p.expectedVacancyDate ASC")
+    List<Property> findByExpectedVacancyDateBetween(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    /**
+     * Find properties available from a specific date
+     */
+    @Query("SELECT p FROM Property p WHERE p.availableFromDate <= :date AND p.occupancyStatus IN ('AVAILABLE', 'ADVERTISING') ORDER BY p.availableFromDate ASC")
+    List<Property> findPropertiesAvailableByDate(@Param("date") LocalDate date);
+
+    /**
+     * Find properties with notice given before a date (urgent)
+     */
+    @Query("SELECT p FROM Property p WHERE p.occupancyStatus = 'NOTICE_GIVEN' " +
+           "AND p.expectedVacancyDate <= :date ORDER BY p.expectedVacancyDate ASC")
+    List<Property> findPropertiesWithUrgentVacancy(@Param("date") LocalDate date);
+
+    /**
+     * Count properties by occupancy status
+     */
+    long countByOccupancyStatus(site.easy.to.build.crm.entity.OccupancyStatus status);
+
+    /**
+     * Find properties suitable for a lead's requirements
+     * (available + matches bedrooms + within budget)
+     */
+    @Query("SELECT p FROM Property p WHERE p.occupancyStatus IN ('ADVERTISING', 'AVAILABLE') " +
+           "AND (:bedrooms IS NULL OR p.bedrooms = :bedrooms) " +
+           "AND (:maxRent IS NULL OR p.monthlyPayment <= :maxRent) " +
+           "AND (:availableFrom IS NULL OR p.availableFromDate IS NULL OR p.availableFromDate <= :availableFrom) " +
+           "ORDER BY p.monthlyPayment ASC")
+    List<Property> findSuitablePropertiesForLead(@Param("bedrooms") Integer bedrooms,
+                                                   @Param("maxRent") java.math.BigDecimal maxRent,
+                                                   @Param("availableFrom") LocalDate availableFrom);
+
+    /**
+     * Find properties owned by a specific owner that are available/advertising
+     */
+    @Query("SELECT p FROM Property p WHERE p.propertyOwnerId = :ownerId " +
+           "AND p.occupancyStatus IN ('ADVERTISING', 'AVAILABLE') ORDER BY p.expectedVacancyDate ASC")
+    List<Property> findAvailablePropertiesByOwner(@Param("ownerId") Long ownerId);
+
+    /**
+     * Get vacancy dashboard statistics
+     */
+    @Query(value = "SELECT " +
+           "occupancy_status, " +
+           "COUNT(*) as count, " +
+           "COUNT(CASE WHEN expected_vacancy_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN 1 END) as urgent_count " +
+           "FROM properties " +
+           "WHERE is_archived = 'N' " +
+           "AND occupancy_status IN ('NOTICE_GIVEN', 'ADVERTISING', 'AVAILABLE') " +
+           "GROUP BY occupancy_status", nativeQuery = true)
+    List<Object[]> getVacancyDashboardStats();
+
+    /**
+     * Find properties with stale advertising (been advertising for > X days)
+     */
+    @Query("SELECT p FROM Property p WHERE p.occupancyStatus = 'ADVERTISING' " +
+           "AND p.advertisingStartDate <= :cutoffDate ORDER BY p.advertisingStartDate ASC")
+    List<Property> findPropertiesWithStaleAdvertising(@Param("cutoffDate") LocalDate cutoffDate);
 }
