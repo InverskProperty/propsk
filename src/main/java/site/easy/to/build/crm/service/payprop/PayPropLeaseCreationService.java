@@ -60,7 +60,7 @@ public class PayPropLeaseCreationService {
     /**
      * Create leases and assignments for all active tenants in PayProp data
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public LeaseCreationResult createLeasesFromPayPropData() {
         log.info("🏗️ Starting PayProp Lease Creation Process");
 
@@ -420,7 +420,17 @@ public class PayPropLeaseCreationService {
      * Find property by PayProp ID
      */
     private Property findPropertyByPayPropId(String paypropId) {
-        return propertyRepository.findByPayPropId(paypropId).orElse(null);
+        log.debug("🔍 Searching for property with PayProp ID: {}", paypropId);
+        Optional<Property> result = propertyRepository.findByPayPropId(paypropId);
+        if (result.isPresent()) {
+            log.debug("✅ Found property: {} (ID: {})", result.get().getPropertyName(), result.get().getId());
+        } else {
+            log.warn("❌ Property NOT FOUND for PayProp ID: {}", paypropId);
+            // Try to find by direct query to debug
+            long count = propertyRepository.count();
+            log.warn("📊 Total properties in repository: {}", count);
+        }
+        return result.orElse(null);
     }
 
     /**
