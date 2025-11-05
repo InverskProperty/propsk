@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+<style>
+    .status-badge {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
+    }
+
+    .status-badge.ADVERTISING { background: #cfe2ff; color: #084298; }
+    .status-badge.VIEWINGS_IN_PROGRESS { background: #fff3cd; color: #664d03; }
+    .status-badge.OFFER_MADE { background: #d1e7dd; color: #0f5132; }
+    .status-badge.ACTIVE_LEASE { background: #cff4fc; color: #055160; }
+    .status-badge.CLOSED { background: #e2e3e5; color: #41464b; }
+
+    .timeline {
+        position: relative;
+        padding: 20px 0;
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-left: 40px;
+        padding-bottom: 30px;
+    }
+
+    .timeline-item:before {
+        content: '';
+        position: absolute;
+        left: 11px;
+        top: 0;
+        width: 2px;
+        height: 100%;
+        background: #e9ecef;
+    }
+
+    .timeline-item:last-child:before {
+        display: none;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: white;
+        border: 3px solid #007bff;
+        z-index: 1;
+    }
+
+    .timeline-marker.completed {
+        background: #28a745;
+        border-color: #28a745;
+    }
+
+    .timeline-marker.active {
+        background: #007bff;
+        border-color: #007bff;
+        box-shadow: 0 0 0 4px rgba(0,123,255,0.2);
+    }
+
+    .metric-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+
+    .metric-value {
+        font-size: 36px;
+        font-weight: 700;
+        color: #212529;
+        margin-bottom: 5px;
+    }
+
+    .metric-label {
+        font-size: 13px;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+
+    .action-buttons .btn {
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-file-alt text-primary"></i> Instruction Details
+                    </h4>
+                    <p class="text-muted" th:text="${instruction.instructionReference}">INST-001-20240101</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/employee/letting-instruction/workspace}">Workspace</a></li>
+                        <li class="breadcrumb-item active">Detail</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Instruction Overview -->
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h4 class="card-title text-white mb-0">
+                                <i class="fas fa-home"></i>
+                                <span th:text="${instruction.property.propertyName}">Property Name</span>
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>Status:</strong>
+                                    <span class="status-badge" th:classappend="${instruction.status.name()}" th:text="${instruction.status.displayName}">Advertising</span>
+                                </div>
+                                <div class="col-6 text-right">
+                                    <strong>Reference:</strong> <code th:text="${instruction.instructionReference}">INST-001</code>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>Property Address:</strong></p>
+                                    <p class="text-muted" th:text="${instruction.property.address}">Property Address</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>Target Rent:</strong></p>
+                                    <p class="text-muted" th:if="${instruction.targetRent != null}">
+                                        £<span th:text="${#numbers.formatDecimal(instruction.targetRent, 0, 2)}">1000</span> per month
+                                    </p>
+                                    <p class="text-muted" th:if="${instruction.targetRent == null}">Not specified</p>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>Advertising Started:</strong></p>
+                                    <p class="text-muted" th:if="${instruction.advertisingStartDate != null}" th:text="${#temporals.format(instruction.advertisingStartDate, 'dd MMMM yyyy')}">01 January 2024</p>
+                                    <p class="text-muted" th:if="${instruction.advertisingStartDate == null}">Not started</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-2"><strong>Expected Vacancy:</strong></p>
+                                    <p class="text-muted" th:if="${instruction.expectedVacancyDate != null}" th:text="${#temporals.format(instruction.expectedVacancyDate, 'dd MMMM yyyy')}">01 February 2024</p>
+                                    <p class="text-muted" th:if="${instruction.expectedVacancyDate == null}">Not specified</p>
+                                </div>
+                            </div>
+
+                            <div th:if="${instruction.propertyDescription != null}">
+                                <p class="mb-2"><strong>Property Description:</strong></p>
+                                <p class="text-muted" th:text="${instruction.propertyDescription}">Property description...</p>
+                            </div>
+
+                            <div th:if="${instruction.keyFeatures != null}" class="mt-3">
+                                <p class="mb-2"><strong>Key Features:</strong></p>
+                                <p class="text-muted" th:text="${instruction.keyFeatures}">Key features...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-cogs"></i> Actions
+                            </h4>
+                        </div>
+                        <div class="card-body action-buttons">
+                            <button class="btn btn-primary" th:if="${instruction.status.name() == 'INSTRUCTION_RECEIVED' || instruction.status.name() == 'PREPARING'}" onclick="startAdvertising()">
+                                <i class="fas fa-bullhorn"></i> Start Advertising
+                            </button>
+                            <button class="btn btn-warning" th:if="${instruction.status.name() == 'ADVERTISING'}" onclick="startViewings()">
+                                <i class="fas fa-users"></i> Start Viewings
+                            </button>
+                            <button class="btn btn-success" th:if="${instruction.status.name() == 'VIEWINGS_IN_PROGRESS'}" onclick="markOfferMade()">
+                                <i class="fas fa-handshake"></i> Mark Offer Made
+                            </button>
+                            <button class="btn btn-info" th:if="${instruction.status.name() == 'OFFER_MADE'}" onclick="convertToLease()">
+                                <i class="fas fa-file-contract"></i> Convert to Lease
+                            </button>
+                            <button class="btn btn-secondary" onclick="addNotes()">
+                                <i class="fas fa-sticky-note"></i> Add Notes
+                            </button>
+                            <button class="btn btn-danger" th:if="${instruction.status.name() != 'CLOSED'}" onclick="closeInstruction()">
+                                <i class="fas fa-times-circle"></i> Close Instruction
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Sidebar -->
+                <div class="col-md-4">
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <div class="metric-card">
+                                <div class="metric-value" th:text="${instruction.numberOfEnquiries != null ? instruction.numberOfEnquiries : 0}">0</div>
+                                <div class="metric-label"><i class="fas fa-envelope"></i> Enquiries</div>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <div class="metric-card">
+                                <div class="metric-value" th:text="${instruction.numberOfViewings != null ? instruction.numberOfViewings : 0}">0</div>
+                                <div class="metric-label"><i class="fas fa-eye"></i> Viewings</div>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3" th:if="${instruction.daysToFill != null}">
+                            <div class="metric-card">
+                                <div class="metric-value" th:text="${instruction.daysToFill}">0</div>
+                                <div class="metric-label"><i class="fas fa-calendar-day"></i> Days to Fill</div>
+                            </div>
+                        </div>
+                        <div class="col-12 mb-3" th:if="${instruction.conversionRate != null}">
+                            <div class="metric-card">
+                                <div class="metric-value" th:text="${#numbers.formatDecimal(instruction.conversionRate * 100, 0, 1)} + '%'">0%</div>
+                                <div class="metric-label"><i class="fas fa-percentage"></i> Conversion Rate</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lifecycle Timeline -->
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-history"></i> Lifecycle
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                <div class="timeline-item">
+                                    <div class="timeline-marker completed"></div>
+                                    <div>
+                                        <strong>Instruction Received</strong>
+                                        <p class="text-muted small mb-0" th:if="${instruction.instructionReceivedDate != null}" th:text="${#temporals.format(instruction.instructionReceivedDate, 'dd MMM yyyy')}">01 Jan 2024</p>
+                                    </div>
+                                </div>
+                                <div class="timeline-item" th:if="${instruction.advertisingStartDate != null}">
+                                    <div class="timeline-marker" th:classappend="${instruction.status.name() == 'ADVERTISING' || instruction.status.name() == 'VIEWINGS_IN_PROGRESS' || instruction.status.name() == 'OFFER_MADE' || instruction.status.name() == 'ACTIVE_LEASE'} ? 'completed' : ''"></div>
+                                    <div>
+                                        <strong>Advertising Started</strong>
+                                        <p class="text-muted small mb-0" th:text="${#temporals.format(instruction.advertisingStartDate, 'dd MMM yyyy')}">05 Jan 2024</p>
+                                    </div>
+                                </div>
+                                <div class="timeline-item" th:if="${instruction.status.name() == 'VIEWINGS_IN_PROGRESS' || instruction.status.name() == 'OFFER_MADE' || instruction.status.name() == 'ACTIVE_LEASE'}">
+                                    <div class="timeline-marker completed"></div>
+                                    <div>
+                                        <strong>Viewings in Progress</strong>
+                                    </div>
+                                </div>
+                                <div class="timeline-item" th:if="${instruction.status.name() == 'OFFER_MADE' || instruction.status.name() == 'ACTIVE_LEASE'}">
+                                    <div class="timeline-marker completed"></div>
+                                    <div>
+                                        <strong>Offer Made</strong>
+                                    </div>
+                                </div>
+                                <div class="timeline-item" th:if="${instruction.leaseStartDate != null}">
+                                    <div class="timeline-marker" th:classappend="${instruction.status.name() == 'ACTIVE_LEASE'} ? 'active' : 'completed'"></div>
+                                    <div>
+                                        <strong>Lease Active</strong>
+                                        <p class="text-muted small mb-0" th:text="${#temporals.format(instruction.leaseStartDate, 'dd MMM yyyy')}">01 Feb 2024</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leads/Enquiries Section -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="card-title text-white mb-0">
+                                <i class="fas fa-users"></i> Leads & Enquiries
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(instruction.leads)}">
+                                <p class="text-muted text-center py-4">No leads assigned to this instruction yet.</p>
+                            </div>
+                            <div th:if="${!#lists.isEmpty(instruction.leads)}">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Contact</th>
+                                            <th>Status</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="lead : ${instruction.leads}">
+                                            <td th:text="${lead.name}">Lead Name</td>
+                                            <td th:text="${lead.phone}">Phone</td>
+                                            <td><span class="badge badge-info" th:text="${lead.status}">Status</span></td>
+                                            <td th:text="${#temporals.format(lead.createdAt, 'dd MMM yyyy')}">Date</td>
+                                            <td>
+                                                <a href="#" class="btn btn-sm btn-primary"><i class="fas fa-eye"></i></a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<div th:replace="~{general/scripts.html}"></div>
+
+<script th:inline="javascript">
+    const instructionId = /*[[${instruction.id}]]*/ 0;
+    const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+    const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
+    function startAdvertising() {
+        if (confirm('Start advertising this property?')) {
+            fetch(`/employee/letting-instruction/${instructionId}/start-advertising`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
+                },
+                body: JSON.stringify({
+                    advertisingStartDate: new Date().toISOString().split('T')[0]
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+        }
+    }
+
+    function startViewings() {
+        if (confirm('Move to viewings stage?')) {
+            fetch(`/employee/letting-instruction/${instructionId}/start-viewings`, {
+                method: 'POST',
+                headers: {
+                    [csrfHeader]: csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+        }
+    }
+
+    function markOfferMade() {
+        const notes = prompt('Add notes about the offer:');
+        if (notes !== null) {
+            fetch(`/employee/letting-instruction/${instructionId}/mark-offer-made`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
+                },
+                body: JSON.stringify({ notes: notes })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+        }
+    }
+
+    function convertToLease() {
+        alert('Convert to lease form - to be implemented');
+        // TODO: Open modal with form for tenant details, lease dates, rent, deposit
+    }
+
+    function addNotes() {
+        const notes = prompt('Add internal notes:');
+        if (notes !== null) {
+            // TODO: API call to add notes
+            alert('Note added: ' + notes);
+        }
+    }
+
+    function closeInstruction() {
+        const reason = prompt('Reason for closing instruction:');
+        if (reason !== null) {
+            fetch(`/employee/letting-instruction/${instructionId}/close`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
+                },
+                body: JSON.stringify({ closureReason: reason })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+        }
+    }
+</script>
+
+</body>
+</html>

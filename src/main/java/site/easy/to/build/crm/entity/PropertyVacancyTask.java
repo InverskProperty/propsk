@@ -25,6 +25,10 @@ public class PropertyVacancyTask {
     @NotNull(message = "Property is required")
     private Property property;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "letting_instruction_id")
+    private LettingInstruction lettingInstruction;
+
     @Column(name = "task_type", nullable = false)
     @NotBlank(message = "Task type is required")
     private String taskType; // INSPECTION, PHOTOGRAPHY, REPAIRS, CLEANING, LISTING_CREATION, KEY_HANDOVER, etc.
@@ -109,6 +113,14 @@ public class PropertyVacancyTask {
 
     public void setProperty(Property property) {
         this.property = property;
+    }
+
+    public LettingInstruction getLettingInstruction() {
+        return lettingInstruction;
+    }
+
+    public void setLettingInstruction(LettingInstruction lettingInstruction) {
+        this.lettingInstruction = lettingInstruction;
     }
 
     public String getTaskType() {

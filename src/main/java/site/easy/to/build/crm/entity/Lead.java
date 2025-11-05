@@ -109,6 +109,14 @@ public class Lead {
     @OneToMany(mappedBy = "lead", cascade = CascadeType.ALL)
     private List<PropertyViewing> propertyViewings;
 
+    // ============================================================
+    // Letting Instruction Relationship
+    // ============================================================
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "letting_instruction_id")
+    private LettingInstruction lettingInstruction;
+
     public Lead() {
     }
 
@@ -377,6 +385,14 @@ public class Lead {
 
     public void addPropertyViewing(PropertyViewing viewing) {
         this.propertyViewings.add(viewing);
+    }
+
+    public LettingInstruction getLettingInstruction() {
+        return lettingInstruction;
+    }
+
+    public void setLettingInstruction(LettingInstruction lettingInstruction) {
+        this.lettingInstruction = lettingInstruction;
     }
 
     public void removePropertyViewing(PropertyViewing viewing) {

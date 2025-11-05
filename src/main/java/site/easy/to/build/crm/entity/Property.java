@@ -181,6 +181,11 @@ public class Property {
     @JoinColumn(name = "block_id")
     private Block block;
 
+    // Letting Instructions - tracks all letting periods for this property
+    @OneToMany(mappedBy = "property", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"property", "leads", "viewings", "tasks", "invoices"})
+    private java.util.List<LettingInstruction> lettingInstructions = new java.util.ArrayList<>();
+
     @Column(name = "portfolio_tags", columnDefinition = "TEXT")
     private String portfolioTags; // Local tags for portfolio assignment
 
@@ -514,6 +519,17 @@ public class Property {
 
     public Block getBlock() { return block; }
     public void setBlock(Block block) { this.block = block; }
+
+    public java.util.List<LettingInstruction> getLettingInstructions() { return lettingInstructions; }
+    public void setLettingInstructions(java.util.List<LettingInstruction> lettingInstructions) {
+        this.lettingInstructions = lettingInstructions;
+    }
+
+    // Helper method to add a letting instruction
+    public void addLettingInstruction(LettingInstruction instruction) {
+        lettingInstructions.add(instruction);
+        instruction.setProperty(this);
+    }
 
     public String getPortfolioTags() { return portfolioTags; }
     public void setPortfolioTags(String portfolioTags) { this.portfolioTags = portfolioTags; }

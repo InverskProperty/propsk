@@ -50,7 +50,11 @@ public class Invoice {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", nullable = false)
     private Property property;
-    
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "letting_instruction_id")
+    private LettingInstruction lettingInstruction;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id", nullable = false)
     private User createdByUser;
@@ -296,7 +300,12 @@ public class Invoice {
     
     public Property getProperty() { return property; }
     public void setProperty(Property property) { this.property = property; }
-    
+
+    public LettingInstruction getLettingInstruction() { return lettingInstruction; }
+    public void setLettingInstruction(LettingInstruction lettingInstruction) {
+        this.lettingInstruction = lettingInstruction;
+    }
+
     public User getCreatedByUser() { return createdByUser; }
     public void setCreatedByUser(User createdByUser) { this.createdByUser = createdByUser; }
     

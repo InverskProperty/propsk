@@ -74,6 +74,10 @@ public class PropertyViewing {
     @JoinColumn(name = "created_by")
     private User createdBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "letting_instruction_id")
+    private LettingInstruction lettingInstruction;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -231,6 +235,14 @@ public class PropertyViewing {
 
     public void setCreatedBy(User createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public LettingInstruction getLettingInstruction() {
+        return lettingInstruction;
+    }
+
+    public void setLettingInstruction(LettingInstruction lettingInstruction) {
+        this.lettingInstruction = lettingInstruction;
     }
 
     // Helper methods
