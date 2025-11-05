@@ -54,12 +54,21 @@ public class PayPropLeaseCreationService {
     @Autowired
     private CustomerPropertyAssignmentRepository assignmentRepository;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     /**
      * Create leases and assignments for all active tenants in PayProp data
      */
     @Transactional
     public LeaseCreationResult createLeasesFromPayPropData() {
         log.info("🏗️ Starting PayProp Lease Creation Process");
+
+        // CRITICAL: Clear JPA EntityManager cache to ensure we see freshly committed properties
+        // from previous sync steps. Without this, findByPayPropId() may use stale/cached queries.
+        entityManager.flush();
+        entityManager.clear();
+        log.info("✅ EntityManager cache cleared - will query fresh property data");
 
         LeaseCreationResult result = new LeaseCreationResult();
         result.setStartTime(LocalDateTime.now());
