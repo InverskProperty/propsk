@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Dashboard CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">Property Vacancy Dashboard</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Page Title -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">Property Vacancy Management</h3>
+                    <p class="text-muted">Track properties through the vacancy workflow from notice given to new tenant</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a th:href="@{/employee/dashboard}">Home</a></li>
+                            <li class="breadcrumb-item active">Vacancy Dashboard</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vacancy Pipeline Statistics -->
+            <div class="row">
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-warning">
+                                    <i class="fas fa-bell"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(noticeGivenProperties)}">0</h3>
+                                    <h5 class="text-muted m-b-0">Notice Given</h5>
+                                    <small class="text-muted">Awaiting vacancy</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-info">
+                                    <i class="fas fa-bullhorn"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(advertisingProperties)}">0</h3>
+                                    <h5 class="text-muted m-b-0">Advertising</h5>
+                                    <small class="text-info">Active listings</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-success">
+                                    <i class="fas fa-key"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(availableProperties)}">0</h3>
+                                    <h5 class="text-muted m-b-0">Available</h5>
+                                    <small class="text-success">Ready to rent</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-danger">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(attentionProperties)}">0</h3>
+                                    <h5 class="text-muted m-b-0">Needs Attention</h5>
+                                    <small class="text-danger">Action required</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Properties with Notice Given -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">
+                                <i class="fas fa-bell text-warning"></i> Properties with Notice Given
+                            </h4>
+                            <h6 class="card-subtitle">Tenants have given notice - prepare for vacancy</h6>
+                            <div class="table-responsive m-t-20">
+                                <table class="table table-hover stylish-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Notice Date</th>
+                                            <th>Expected Vacancy</th>
+                                            <th>Days Until Vacant</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${#lists.isEmpty(noticeGivenProperties)}">
+                                            <td colspan="5" class="text-center text-muted">
+                                                <i class="fas fa-check-circle"></i> No properties with notice given
+                                            </td>
+                                        </tr>
+                                        <tr th:each="property : ${noticeGivenProperties}">
+                                            <td>
+                                                <h6 class="m-b-0" th:text="${property.addressLine1}">Property Address</h6>
+                                                <small class="text-muted" th:text="${property.city}">City</small>
+                                            </td>
+                                            <td th:text="${#temporals.format(property.noticeGivenDate, 'dd MMM yyyy')}">01 Jan 2024</td>
+                                            <td th:text="${#temporals.format(property.expectedVacancyDate, 'dd MMM yyyy')}">31 Jan 2024</td>
+                                            <td>
+                                                <span class="badge"
+                                                      th:classappend="${property.daysUntilVacancy <= 7 ? 'badge-danger' : (property.daysUntilVacancy <= 14 ? 'badge-warning' : 'badge-info')}"
+                                                      th:text="${property.daysUntilVacancy + ' days'}">30 days</span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-success start-advertising-btn"
+                                                        th:attr="data-property-id=${property.id}">
+                                                    <i class="fas fa-bullhorn"></i> Start Advertising
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Properties Being Advertised -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">
+                                <i class="fas fa-bullhorn text-info"></i> Properties Being Advertised
+                            </h4>
+                            <h6 class="card-subtitle">Active rental listings</h6>
+                            <div class="table-responsive m-t-20">
+                                <table class="table table-hover stylish-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Advertising Since</th>
+                                            <th>Days Advertised</th>
+                                            <th>Expected Vacancy</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${#lists.isEmpty(advertisingProperties)}">
+                                            <td colspan="5" class="text-center text-muted">
+                                                <i class="fas fa-info-circle"></i> No properties currently being advertised
+                                            </td>
+                                        </tr>
+                                        <tr th:each="property : ${advertisingProperties}">
+                                            <td>
+                                                <h6 class="m-b-0" th:text="${property.addressLine1}">Property Address</h6>
+                                                <small class="text-muted" th:text="${property.city}">City</small>
+                                            </td>
+                                            <td th:text="${#temporals.format(property.advertisingStartDate, 'dd MMM yyyy')}">01 Jan 2024</td>
+                                            <td>
+                                                <span th:text="${property.daysAdvertising + ' days'}">15 days</span>
+                                            </td>
+                                            <td th:text="${property.expectedVacancyDate != null ? #temporals.format(property.expectedVacancyDate, 'dd MMM yyyy') : 'N/A'}">15 Jan 2024</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-success mark-available-btn"
+                                                        th:attr="data-property-id=${property.id}">
+                                                    <i class="fas fa-key"></i> Mark Available
+                                                </button>
+                                                <a th:href="@{/employee/property-viewing/schedule(propertyId=${property.id})}"
+                                                   class="btn btn-sm btn-info">
+                                                    <i class="fas fa-calendar"></i> Schedule Viewing
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Available Properties -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">
+                                <i class="fas fa-key text-success"></i> Available Properties
+                            </h4>
+                            <h6 class="card-subtitle">Ready for new tenants</h6>
+                            <div class="table-responsive m-t-20">
+                                <table class="table table-hover stylish-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Available From</th>
+                                            <th>Days Available</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${#lists.isEmpty(availableProperties)}">
+                                            <td colspan="5" class="text-center text-muted">
+                                                <i class="fas fa-info-circle"></i> No properties currently available
+                                            </td>
+                                        </tr>
+                                        <tr th:each="property : ${availableProperties}">
+                                            <td>
+                                                <h6 class="m-b-0" th:text="${property.addressLine1}">Property Address</h6>
+                                                <small class="text-muted" th:text="${property.city}">City</small>
+                                            </td>
+                                            <td th:text="${property.availableFromDate != null ? #temporals.format(property.availableFromDate, 'dd MMM yyyy') : 'Now'}">01 Jan 2024</td>
+                                            <td>
+                                                <span th:text="${property.daysVacant + ' days'}">5 days</span>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-success">Available</span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary mark-occupied-btn"
+                                                        th:attr="data-property-id=${property.id}">
+                                                    <i class="fas fa-user-check"></i> Mark Occupied
+                                                </button>
+                                                <a th:href="@{/employee/lead-conversion/dashboard?propertyId=${property.id}}"
+                                                   class="btn btn-sm btn-info">
+                                                    <i class="fas fa-users"></i> View Leads
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Properties Requiring Attention -->
+            <div class="row" th:if="${!#lists.isEmpty(attentionProperties)}">
+                <div class="col-12">
+                    <div class="card border-danger">
+                        <div class="card-body">
+                            <h4 class="card-title text-danger">
+                                <i class="fas fa-exclamation-circle"></i> Properties Requiring Attention
+                            </h4>
+                            <h6 class="card-subtitle">These properties need marketing or workflow updates</h6>
+                            <div class="table-responsive m-t-20">
+                                <table class="table table-hover stylish-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Issue</th>
+                                            <th>Days</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="property : ${attentionProperties}">
+                                            <td>
+                                                <h6 class="m-b-0" th:text="${property.addressLine1}">Property Address</h6>
+                                                <small class="text-muted" th:text="${property.city}">City</small>
+                                            </td>
+                                            <td>
+                                                <span class="text-danger">
+                                                    <i class="fas fa-exclamation-triangle"></i>
+                                                    <span th:if="${property.daysAdvertising > 30}">Advertised for 30+ days</span>
+                                                    <span th:if="${property.daysVacant > 14}">Vacant for 14+ days</span>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-danger" th:text="${property.daysVacant + ' days vacant'}">20 days</span>
+                                            </td>
+                                            <td>
+                                                <a th:href="@{/property/property-details/{id}(id=${property.id})}"
+                                                   class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-eye"></i> Review
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<div th:replace="~{general/scripts.html}"></div>
+
+<script th:inline="javascript">
+$(document).ready(function() {
+    const token = $("meta[name='_csrf']").attr("content");
+    const header = $("meta[name='_csrf_header']").attr("content");
+
+    // Start Advertising
+    $('.start-advertising-btn').click(function() {
+        const propertyId = $(this).data('property-id');
+
+        if (confirm('Start advertising this property?')) {
+            $.ajax({
+                url: '/employee/property-vacancy/api/start-advertising/' + propertyId,
+                type: 'POST',
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader(header, token);
+                },
+                success: function(response) {
+                    toastr.success(response.message || 'Property is now being advertised');
+                    setTimeout(() => location.reload(), 1500);
+                },
+                error: function(xhr) {
+                    const error = xhr.responseJSON?.error || 'Failed to start advertising';
+                    toastr.error(error);
+                }
+            });
+        }
+    });
+
+    // Mark Available
+    $('.mark-available-btn').click(function() {
+        const propertyId = $(this).data('property-id');
+
+        if (confirm('Mark this property as available for rent?')) {
+            $.ajax({
+                url: '/employee/property-vacancy/api/mark-available/' + propertyId,
+                type: 'POST',
+                data: { availableFrom: new Date().toISOString().split('T')[0] },
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader(header, token);
+                },
+                success: function(response) {
+                    toastr.success(response.message || 'Property marked as available');
+                    setTimeout(() => location.reload(), 1500);
+                },
+                error: function(xhr) {
+                    const error = xhr.responseJSON?.error || 'Failed to mark property as available';
+                    toastr.error(error);
+                }
+            });
+        }
+    });
+
+    // Mark Occupied
+    $('.mark-occupied-btn').click(function() {
+        const propertyId = $(this).data('property-id');
+
+        if (confirm('Mark this property as occupied? This should only be done after a tenant has moved in.')) {
+            $.ajax({
+                url: '/employee/property-vacancy/api/mark-occupied/' + propertyId,
+                type: 'POST',
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader(header, token);
+                },
+                success: function(response) {
+                    toastr.success(response.message || 'Property marked as occupied');
+                    setTimeout(() => location.reload(), 1500);
+                },
+                error: function(xhr) {
+                    const error = xhr.responseJSON?.error || 'Failed to mark property as occupied';
+                    toastr.error(error);
+                }
+            });
+        }
+    });
+});
+</script>
+
+</body>
+</html>

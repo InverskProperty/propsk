@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Dashboard CSS -->
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">Lead Conversion Dashboard</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Page Title -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">Lead Conversion Dashboard</h3>
+                    <p class="text-muted">Convert property leads into tenants</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a th:href="@{/employee/dashboard}">Home</a></li>
+                            <li class="breadcrumb-item active">Lead Conversion</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conversion Statistics -->
+            <div class="row">
+                <div class="col-md-4 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-success">
+                                    <i class="fas fa-user-check"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(readyLeads)}">0</h3>
+                                    <h5 class="text-muted m-b-0">Ready to Convert</h5>
+                                    <small class="text-success">In contracts</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-info">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(convertedLeads)}">0</h3>
+                                    <h5 class="text-muted m-b-0">Converted</h5>
+                                    <small class="text-info">All time</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4 col-sm-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex flex-row">
+                                <div class="round round-lg align-self-center round-primary">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <div class="m-l-10 align-self-center">
+                                    <h3 class="m-b-0 font-light" th:text="${#numbers.formatDecimal(avgDaysToConversion, 1, 'COMMA', 0, 'POINT')}">0</h3>
+                                    <h5 class="text-muted m-b-0">Avg Days</h5>
+                                    <small class="text-muted">To conversion</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leads Ready for Conversion -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-success">
+                        <div class="card-body">
+                            <h4 class="card-title text-success">
+                                <i class="fas fa-user-check"></i> Leads Ready for Conversion
+                            </h4>
+                            <h6 class="card-subtitle">These leads are in contracts and ready to become tenants</h6>
+                            <div class="table-responsive m-t-20">
+                                <table class="table table-hover stylish-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Lead Name</th>
+                                            <th>Property</th>
+                                            <th>Created Date</th>
+                                            <th>Days in Pipeline</th>
+                                            <th>Move-in Date</th>
+                                            <th>Budget</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${#lists.isEmpty(readyLeads)}">
+                                            <td colspan="7" class="text-center text-muted">
+                                                <i class="fas fa-info-circle"></i> No leads currently ready for conversion
+                                            </td>
+                                        </tr>
+                                        <tr th:each="lead : ${readyLeads}">
+                                            <td>
+                                                <h6 class="m-b-0" th:text="${lead.name}">Lead Name</h6>
+                                                <small class="text-muted" th:text="${lead.phone}">Phone</small>
+                                            </td>
+                                            <td>
+                                                <span th:if="${lead.property != null}" th:text="${lead.property.addressLine1}">Property</span>
+                                                <span th:if="${lead.property == null}" class="text-muted">Not assigned</span>
+                                            </td>
+                                            <td th:text="${#temporals.format(lead.createdAt, 'dd MMM yyyy')}">01 Jan 2024</td>
+                                            <td>
+                                                <span th:text="${#temporals.until(lead.createdAt.toLocalDate(), #temporals.createNow().toLocalDate(), 'DAYS') + ' days'}">15 days</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${lead.desiredMoveInDate != null}" th:text="${#temporals.format(lead.desiredMoveInDate, 'dd MMM yyyy')}">15 Feb 2024</span>
+                                                <span th:if="${lead.desiredMoveInDate == null}" class="text-muted">Flexible</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${lead.budgetMax != null}">£<span th:text="${lead.budgetMax}">1500</span>/mo</span>
+                                                <span th:if="${lead.budgetMax == null}" class="text-muted">N/A</span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-success convert-lead-btn"
+                                                        th:attr="data-lead-id=${lead.leadId}">
+                                                    <i class="fas fa-user-plus"></i> Convert to Tenant
+                                                </button>
+                                                <button class="btn btn-sm btn-info check-readiness-btn"
+                                                        th:attr="data-lead-id=${lead.leadId}">
+                                                    <i class="fas fa-check-circle"></i> Check
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recently Converted Leads -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">
+                                <i class="fas fa-chart-line text-info"></i> Recently Converted Leads
+                            </h4>
+                            <h6 class="card-subtitle">Leads that have been successfully converted to tenants</h6>
+                            <div class="table-responsive m-t-20">
+                                <table class="table table-hover stylish-table" id="convertedLeadsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Tenant Name</th>
+                                            <th>Property</th>
+                                            <th>Converted Date</th>
+                                            <th>Days to Convert</th>
+                                            <th>Monthly Rent</th>
+                                            <th>Customer Record</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${#lists.isEmpty(convertedLeads)}">
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="fas fa-info-circle"></i> No converted leads yet
+                                            </td>
+                                        </tr>
+                                        <tr th:each="lead : ${convertedLeads}">
+                                            <td>
+                                                <h6 class="m-b-0" th:text="${lead.name}">Tenant Name</h6>
+                                                <small class="text-muted" th:text="${lead.phone}">Phone</small>
+                                            </td>
+                                            <td>
+                                                <span th:if="${lead.property != null}" th:text="${lead.property.addressLine1}">Property</span>
+                                            </td>
+                                            <td th:text="${lead.convertedAt != null ? #temporals.format(lead.convertedAt, 'dd MMM yyyy') : 'N/A'}">15 Jan 2024</td>
+                                            <td>
+                                                <span th:if="${lead.createdAt != null && lead.convertedAt != null}"
+                                                      th:text="${#temporals.until(lead.createdAt.toLocalDate(), lead.convertedAt.toLocalDate(), 'DAYS') + ' days'}">45 days</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${lead.budgetMax != null}">£<span th:text="${lead.budgetMax}">1500</span></span>
+                                                <span th:if="${lead.budgetMax == null}" class="text-muted">N/A</span>
+                                            </td>
+                                            <td>
+                                                <a th:if="${lead.convertedToCustomer != null}"
+                                                   th:href="@{/customer/customer-details/{id}(id=${lead.convertedToCustomer.customerId})}"
+                                                   class="btn btn-sm btn-primary">
+                                                    <i class="fas fa-user"></i> View Customer
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<!-- Convert Lead Modal -->
+<div class="modal fade" id="convertLeadModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-plus"></i> Convert Lead to Tenant
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="convertLeadForm">
+                    <input type="hidden" id="leadId" name="leadId">
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Property <span class="text-danger">*</span></label>
+                                <select class="form-control" id="propertyId" name="propertyId" required>
+                                    <option value="">Select Property</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Monthly Rent <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">£</span>
+                                    </div>
+                                    <input type="number" class="form-control" id="monthlyRent" name="monthlyRent"
+                                           step="0.01" min="0" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Lease Start Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="leaseStartDate" name="leaseStartDate" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Lease End Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="leaseEndDate" name="leaseEndDate" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Deposit Amount</label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text">£</span>
+                                    </div>
+                                    <input type="number" class="form-control" id="depositAmount" name="depositAmount"
+                                           step="0.01" min="0">
+                                </div>
+                                <small class="form-text text-muted">Typically 1-2 months rent</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Note:</strong> This will create a new customer record (tenant), create a lease invoice,
+                        and mark the property as occupied.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmConvertBtn">
+                    <i class="fas fa-user-plus"></i> Convert to Tenant
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/scripts.html}"></div>
+
+<script th:inline="javascript">
+$(document).ready(function() {
+    const token = $("meta[name='_csrf']").attr("content");
+    const header = $("meta[name='_csrf_header']").attr("content");
+
+    // Initialize DataTable
+    $('#convertedLeadsTable').DataTable({
+        "paging": true,
+        "pageLength": 25,
+        "order": [[2, "desc"]] // Sort by converted date
+    });
+
+    // Check Readiness
+    $('.check-readiness-btn').click(function() {
+        const leadId = $(this).data('lead-id');
+
+        $.ajax({
+            url: '/employee/lead-conversion/api/check/' + leadId,
+            type: 'GET',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(header, token);
+            },
+            success: function(response) {
+                if (response.canConvert) {
+                    toastr.success('Lead is ready for conversion!', 'Ready');
+                } else {
+                    toastr.warning(response.status, 'Not Ready');
+                }
+            },
+            error: function(xhr) {
+                toastr.error('Failed to check conversion readiness');
+            }
+        });
+    });
+
+    // Convert Lead Button
+    $('.convert-lead-btn').click(function() {
+        const leadId = $(this).data('lead-id');
+        $('#leadId').val(leadId);
+
+        // Load available properties
+        $.ajax({
+            url: '/employee/lead-conversion/api/matching-properties/' + leadId,
+            type: 'GET',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(header, token);
+            },
+            success: function(response) {
+                const propertySelect = $('#propertyId');
+                propertySelect.empty();
+                propertySelect.append('<option value="">Select Property</option>');
+
+                if (response.matchingProperties && response.matchingProperties.length > 0) {
+                    response.matchingProperties.forEach(function(property) {
+                        propertySelect.append(
+                            '<option value="' + property.id + '">' +
+                            property.addressLine1 + ', ' + property.city +
+                            '</option>'
+                        );
+                    });
+                }
+
+                // Set default dates (today + 1 year)
+                const today = new Date();
+                const oneYearLater = new Date();
+                oneYearLater.setFullYear(today.getFullYear() + 1);
+
+                $('#leaseStartDate').val(today.toISOString().split('T')[0]);
+                $('#leaseEndDate').val(oneYearLater.toISOString().split('T')[0]);
+
+                // Show modal
+                $('#convertLeadModal').modal('show');
+            },
+            error: function(xhr) {
+                toastr.error('Failed to load properties');
+            }
+        });
+    });
+
+    // Confirm Convert
+    $('#confirmConvertBtn').click(function() {
+        const leadId = $('#leadId').val();
+        const propertyId = $('#propertyId').val();
+        const monthlyRent = $('#monthlyRent').val();
+        const leaseStartDate = $('#leaseStartDate').val();
+        const leaseEndDate = $('#leaseEndDate').val();
+        const depositAmount = $('#depositAmount').val();
+
+        if (!propertyId || !monthlyRent || !leaseStartDate || !leaseEndDate) {
+            toastr.error('Please fill in all required fields');
+            return;
+        }
+
+        if (confirm('Are you sure you want to convert this lead to a tenant? This will create a customer record and lease.')) {
+            $.ajax({
+                url: '/employee/lead-conversion/api/convert/' + leadId,
+                type: 'POST',
+                data: {
+                    propertyId: propertyId,
+                    monthlyRent: monthlyRent,
+                    leaseStartDate: leaseStartDate,
+                    leaseEndDate: leaseEndDate,
+                    depositAmount: depositAmount
+                },
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader(header, token);
+                },
+                success: function(response) {
+                    toastr.success('Lead successfully converted to tenant!');
+                    $('#convertLeadModal').modal('hide');
+                    setTimeout(() => location.reload(), 2000);
+                },
+                error: function(xhr) {
+                    const error = xhr.responseJSON?.error || 'Failed to convert lead';
+                    toastr.error(error);
+                }
+            });
+        }
+    });
+});
+</script>
+
+</body>
+</html>
