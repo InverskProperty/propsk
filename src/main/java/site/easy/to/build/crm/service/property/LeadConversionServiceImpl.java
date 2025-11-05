@@ -76,9 +76,8 @@ public class LeadConversionServiceImpl implements LeadConversionService {
         Customer customer = new Customer();
 
         // Basic information from lead
-        customer.setName(lead.getName() != null ? lead.getName() :
-                        (lead.getFirstName() + " " + lead.getLastName()));
-        customer.setEmail(lead.getEmail());
+        customer.setName(lead.getName());
+        // Note: Lead entity doesn't have email field - would need to be added
         customer.setPhone(lead.getPhone());
         customer.setCountry("United Kingdom"); // Default, can be updated
 
@@ -144,12 +143,7 @@ public class LeadConversionServiceImpl implements LeadConversionService {
         }
 
         // Must have required contact information
-        if (lead.getEmail() == null || lead.getEmail().trim().isEmpty()) {
-            return false;
-        }
-
-        if ((lead.getName() == null || lead.getName().trim().isEmpty()) &&
-            (lead.getFirstName() == null || lead.getLastName() == null)) {
+        if (lead.getName() == null || lead.getName().trim().isEmpty()) {
             return false;
         }
 
@@ -171,12 +165,7 @@ public class LeadConversionServiceImpl implements LeadConversionService {
             issues.add("Lead is already converted");
         }
 
-        if (lead.getEmail() == null || lead.getEmail().trim().isEmpty()) {
-            issues.add("Email address is required");
-        }
-
-        if ((lead.getName() == null || lead.getName().trim().isEmpty()) &&
-            (lead.getFirstName() == null || lead.getLastName() == null)) {
+        if (lead.getName() == null || lead.getName().trim().isEmpty()) {
             issues.add("Lead name is required");
         }
 

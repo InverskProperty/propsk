@@ -100,23 +100,25 @@ public class PropertyVacancyTaskServiceImpl implements PropertyVacancyTaskServic
 
     @Override
     public List<PropertyVacancyTask> getActiveTasksForProperty(Property property) {
-        List<String> activeStatuses = Arrays.asList("PENDING", "IN_PROGRESS");
-        return taskRepository.findByPropertyAndStatusInOrderByDueDateAsc(property, activeStatuses);
+        return taskRepository.findActiveTasksForProperty(property);
     }
 
     @Override
     public List<PropertyVacancyTask> getOverdueTasks() {
-        return taskRepository.findOverdueTasks();
+        return taskRepository.findOverdueTasks(LocalDate.now());
     }
 
     @Override
     public List<PropertyVacancyTask> getTasksDueToday() {
-        return taskRepository.findTasksDueToday();
+        LocalDate today = LocalDate.now();
+        return taskRepository.findTasksDueBetween(today, today);
     }
 
     @Override
     public List<PropertyVacancyTask> getTasksDueThisWeek() {
-        return taskRepository.findTasksDueThisWeek();
+        LocalDate today = LocalDate.now();
+        LocalDate endOfWeek = today.plusDays(7);
+        return taskRepository.findTasksDueBetween(today, endOfWeek);
     }
 
     @Override
@@ -131,17 +133,12 @@ public class PropertyVacancyTaskServiceImpl implements PropertyVacancyTaskServic
 
     @Override
     public List<PropertyVacancyTask> getActiveTasksForUser(User user) {
-        List<String> activeStatuses = Arrays.asList("PENDING", "IN_PROGRESS");
-        return taskRepository.findByAssignedToUserAndStatusInOrderByDueDateAsc(user, activeStatuses);
+        return taskRepository.findActiveTasksForUser(user);
     }
 
     @Override
     public List<PropertyVacancyTask> getHighPriorityTasks() {
-        List<String> highPriorities = Arrays.asList("HIGH", "URGENT");
-        return taskRepository.findByPriorityInAndStatusInOrderByDueDateAsc(
-                highPriorities,
-                Arrays.asList("PENDING", "IN_PROGRESS")
-        );
+        return taskRepository.findHighPriorityTasks();
     }
 
     @Override
@@ -156,7 +153,7 @@ public class PropertyVacancyTaskServiceImpl implements PropertyVacancyTaskServic
 
     @Override
     public List<PropertyVacancyTask> getAutoCreatedTasks() {
-        return taskRepository.findByAutoCreatedTrueOrderByCreatedAtDesc();
+        return taskRepository.findAutoCreatedTasks();
     }
 
     @Override
@@ -166,7 +163,7 @@ public class PropertyVacancyTaskServiceImpl implements PropertyVacancyTaskServic
 
     @Override
     public long countOverdueTasksForProperty(Property property) {
-        return taskRepository.countOverdueTasksForProperty(property);
+        return taskRepository.countOverdueTasksForProperty(property, LocalDate.now());
     }
 
     @Override
