@@ -45,6 +45,25 @@
                     </ul>
                 </li>
 
+                <!-- PROPERTY LIFECYCLE MANAGEMENT - NEW property rental lifecycle features -->
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
+                        <i class="fas fa-sync-alt"></i>
+                        <span class="hide-menu">Property Lifecycle</span>
+                    </a>
+                    <ul class="collapse">
+                        <!-- Vacancy Management -->
+                        <li><a th:href="${home + 'employee/property-vacancy/dashboard'}"><i class="fas fa-home text-warning"></i> Vacancy Pipeline</a></li>
+                        <li><a th:href="${home + 'employee/property-vacancy-task/dashboard'}"><i class="fas fa-tasks text-info"></i> Vacancy Tasks</a></li>
+
+                        <!-- Viewing Management -->
+                        <li><a th:href="${home + 'employee/property-viewing/dashboard'}"><i class="fas fa-calendar-check text-primary"></i> Property Viewings</a></li>
+
+                        <!-- Lead Conversion -->
+                        <li><a th:href="${home + 'employee/lead-conversion/dashboard'}"><i class="fas fa-user-check text-success"></i> Lead Conversion</a></li>
+                    </ul>
+                </li>
+
                 <!-- PORTFOLIO MANAGEMENT - Enhanced based on your PortfolioController -->
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
