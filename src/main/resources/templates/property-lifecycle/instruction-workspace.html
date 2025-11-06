@@ -257,8 +257,7 @@
                                 <div class="kanban-column">
                                     <div class="kanban-column-header">
                                         <span><i class="fas fa-clipboard-list"></i> New Instructions</span>
-                                        <span class="badge badge-secondary"
-                                              th:text="${instructions.stream().filter(i -> i.status.name() == 'INSTRUCTION_RECEIVED' || i.status.name() == 'PREPARING').count()}">0</span>
+                                        <span class="badge badge-secondary" th:text="${summary.preparingCount != null ? summary.preparingCount : 0}">0</span>
                                     </div>
                                     <div th:each="instruction : ${instructions}"
                                          th:if="${instruction.status.name() == 'INSTRUCTION_RECEIVED' || instruction.status.name() == 'PREPARING'}"

@@ -67,8 +67,9 @@ public class LettingInstructionService {
         // Create instruction
         LettingInstruction instruction = new LettingInstruction();
         instruction.setProperty(property);
-        instruction.setStatus(InstructionStatus.INSTRUCTION_RECEIVED);
+        instruction.setStatus(InstructionStatus.ADVERTISING); // Start in ADVERTISING status
         instruction.setInstructionReceivedDate(LocalDate.now());
+        instruction.setAdvertisingStartDate(LocalDate.now()); // Start advertising immediately
         instruction.setExpectedVacancyDate(expectedVacancyDate);
         instruction.setTargetRent(targetRent);
         instruction.setTargetLeaseLengthMonths(targetLeaseLengthMonths);
@@ -80,7 +81,7 @@ public class LettingInstructionService {
         instruction.setInstructionReference(reference);
 
         LettingInstruction saved = lettingInstructionRepository.save(instruction);
-        logger.info("Created letting instruction {} for property {}", saved.getInstructionReference(), property.getPropertyName());
+        logger.info("Created letting instruction {} for property {} - now ADVERTISING", saved.getInstructionReference(), property.getPropertyName());
 
         return saved;
     }
@@ -499,11 +500,14 @@ public class LettingInstructionService {
     public InstructionSummary getInstructionSummary() {
         InstructionSummary summary = new InstructionSummary();
 
+        List<LettingInstruction> instructionReceived = getInstructionsByStatus(InstructionStatus.INSTRUCTION_RECEIVED);
+        List<LettingInstruction> preparing = getInstructionsByStatus(InstructionStatus.PREPARING);
         List<LettingInstruction> advertising = getInstructionsByStatus(InstructionStatus.ADVERTISING);
         List<LettingInstruction> viewings = getInstructionsByStatus(InstructionStatus.VIEWINGS_IN_PROGRESS);
         List<LettingInstruction> offers = getInstructionsByStatus(InstructionStatus.OFFER_MADE);
         List<LettingInstruction> activeLeases = getActiveLeases();
 
+        summary.setPreparingCount(instructionReceived.size() + preparing.size());
         summary.setAdvertisingCount(advertising.size());
         summary.setViewingsCount(viewings.size());
         summary.setOffersCount(offers.size());
@@ -520,6 +524,7 @@ public class LettingInstructionService {
      * DTO for dashboard summary statistics
      */
     public static class InstructionSummary {
+        private int preparingCount;
         private int advertisingCount;
         private int viewingsCount;
         private int offersCount;
@@ -528,6 +533,9 @@ public class LettingInstructionService {
         private Double averageConversionRate;
 
         // Getters and setters
+        public int getPreparingCount() { return preparingCount; }
+        public void setPreparingCount(int preparingCount) { this.preparingCount = preparingCount; }
+
         public int getAdvertisingCount() { return advertisingCount; }
         public void setAdvertisingCount(int advertisingCount) { this.advertisingCount = advertisingCount; }
 
