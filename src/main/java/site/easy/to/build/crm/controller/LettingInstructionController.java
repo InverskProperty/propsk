@@ -172,7 +172,8 @@ public class LettingInstructionController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Instruction moved to PREPARING");
-            response.put("data", instruction);
+            response.put("instructionId", instruction.getId());
+            response.put("status", instruction.getStatus().name());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException | IllegalStateException e) {
             Map<String, Object> error = new HashMap<>();
@@ -200,7 +201,8 @@ public class LettingInstructionController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Instruction started advertising");
-            response.put("data", instruction);
+            response.put("instructionId", instruction.getId());
+            response.put("status", instruction.getStatus().name());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException | IllegalStateException e) {
             Map<String, Object> error = new HashMap<>();

@@ -67,9 +67,8 @@ public class LettingInstructionService {
         // Create instruction
         LettingInstruction instruction = new LettingInstruction();
         instruction.setProperty(property);
-        instruction.setStatus(InstructionStatus.ADVERTISING); // Start in ADVERTISING status
+        instruction.setStatus(InstructionStatus.INSTRUCTION_RECEIVED);
         instruction.setInstructionReceivedDate(LocalDate.now());
-        instruction.setAdvertisingStartDate(LocalDate.now()); // Start advertising immediately
         instruction.setExpectedVacancyDate(expectedVacancyDate);
         instruction.setTargetRent(targetRent);
         instruction.setTargetLeaseLengthMonths(targetLeaseLengthMonths);
@@ -81,7 +80,7 @@ public class LettingInstructionService {
         instruction.setInstructionReference(reference);
 
         LettingInstruction saved = lettingInstructionRepository.save(instruction);
-        logger.info("Created letting instruction {} for property {} - now ADVERTISING", saved.getInstructionReference(), property.getPropertyName());
+        logger.info("Created letting instruction {} for property {}", saved.getInstructionReference(), property.getPropertyName());
 
         return saved;
     }
@@ -258,6 +257,53 @@ public class LettingInstructionService {
 
         LettingInstruction saved = lettingInstructionRepository.save(instruction);
         logger.info("Instruction {} closed: {}", instruction.getInstructionReference(), closureReason);
+
+        return saved;
+    }
+
+    /**
+     * Mark offer as accepted (holding deposit paid)
+     * Simplified workflow: ADVERTISING -> OFFER_ACCEPTED
+     */
+    @Transactional
+    public LettingInstruction markOfferAccepted(Long instructionId, Long tenantId, BigDecimal agreedRent, String notes) {
+        LettingInstruction instruction = getInstructionById(instructionId)
+                .orElseThrow(() -> new IllegalArgumentException("Instruction not found: " + instructionId));
+
+        if (!instruction.getStatus().canTransitionTo(InstructionStatus.OFFER_ACCEPTED)) {
+            throw new IllegalStateException("Cannot accept offer from status: " + instruction.getStatus());
+        }
+
+        instruction.setStatus(InstructionStatus.OFFER_ACCEPTED);
+        instruction.setActualRent(agreedRent);
+        // Tenant will be set when converting to active lease
+
+        if (notes != null && !notes.isEmpty()) {
+            String existingNotes = instruction.getInternalNotes() != null ? instruction.getInternalNotes() : "";
+            instruction.setInternalNotes(existingNotes + "\n[" + LocalDate.now() + "] Offer Accepted: " + notes);
+        }
+
+        LettingInstruction saved = lettingInstructionRepository.save(instruction);
+        logger.info("Offer accepted for instruction {} - rent: £{}",
+                    instruction.getInstructionReference(), agreedRent);
+
+        return saved;
+    }
+
+    /**
+     * Cancel instruction
+     */
+    @Transactional
+    public LettingInstruction cancelInstruction(Long instructionId, String reason) {
+        LettingInstruction instruction = getInstructionById(instructionId)
+                .orElseThrow(() -> new IllegalArgumentException("Instruction not found: " + instructionId));
+
+        instruction.setStatus(InstructionStatus.CANCELLED);
+        // Use existing closedDate field if it exists, otherwise skip
+        instruction.setClosureReason(reason);
+
+        LettingInstruction saved = lettingInstructionRepository.save(instruction);
+        logger.info("Cancelled instruction {} - reason: {}", instruction.getInstructionReference(), reason);
 
         return saved;
     }
