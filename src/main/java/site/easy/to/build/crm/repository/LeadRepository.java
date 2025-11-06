@@ -161,4 +161,15 @@ public interface LeadRepository extends JpaRepository<Lead, Integer> {
      * Find leads by status (all lead types)
      */
     List<Lead> findByStatusOrderByCreatedAtDesc(String status);
+
+    /**
+     * Search leads by name, phone, or email (for Select2 dropdown)
+     */
+    @Query("SELECT l FROM Lead l WHERE " +
+           "LOWER(l.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "LOWER(l.phone) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "LOWER(l.email) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "CAST(l.leadId AS string) LIKE CONCAT('%', :searchTerm, '%') " +
+           "ORDER BY l.createdAt DESC")
+    List<Lead> searchLeads(@Param("searchTerm") String searchTerm, Pageable pageable);
 }

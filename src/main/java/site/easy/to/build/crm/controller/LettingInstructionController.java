@@ -10,9 +10,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.entity.InstructionStatus;
+import site.easy.to.build.crm.entity.Lead;
 import site.easy.to.build.crm.entity.LettingInstruction;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.service.LettingInstructionService;
+import site.easy.to.build.crm.service.lead.LeadService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
@@ -37,6 +39,9 @@ public class LettingInstructionController {
 
     @Autowired
     private PropertyService propertyService;
+
+    @Autowired
+    private LeadService leadService;
 
     @Autowired
     private AuthenticationUtils authenticationUtils;
@@ -364,6 +369,49 @@ public class LettingInstructionController {
             error.put("success", false);
             error.put("message", e.getMessage());
             return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * Search leads for Select2 dropdown (AJAX endpoint)
+     */
+    @GetMapping("/search-leads")
+    @ResponseBody
+    public ResponseEntity<List<Map<String, Object>>> searchLeads(@RequestParam(value = "q", required = false, defaultValue = "") String searchTerm) {
+        try {
+            // If search term is empty, return empty list
+            if (searchTerm.trim().isEmpty()) {
+                return ResponseEntity.ok(List.of());
+            }
+
+            List<Lead> leads = leadService.searchLeads(searchTerm, 20);
+
+            // Format for Select2 - convert to simple map with id, text, and additional info
+            List<Map<String, Object>> results = leads.stream()
+                    .map(lead -> {
+                        Map<String, Object> result = new HashMap<>();
+                        result.put("id", lead.getLeadId());
+
+                        // Build display text: "Name - Phone - Email (ID: X)"
+                        StringBuilder text = new StringBuilder(lead.getName());
+                        if (lead.getPhone() != null && !lead.getPhone().isEmpty()) {
+                            text.append(" - ").append(lead.getPhone());
+                        }
+                        if (lead.getEmail() != null && !lead.getEmail().isEmpty()) {
+                            text.append(" - ").append(lead.getEmail());
+                        }
+                        text.append(" (ID: ").append(lead.getLeadId()).append(")");
+
+                        result.put("text", text.toString());
+                        result.put("status", lead.getStatus());
+                        return result;
+                    })
+                    .toList();
+
+            return ResponseEntity.ok(results);
+        } catch (Exception e) {
+            logger.error("Error searching leads", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of());
         }
     }
 

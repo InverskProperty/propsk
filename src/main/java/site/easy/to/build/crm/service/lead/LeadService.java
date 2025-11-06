@@ -31,4 +31,9 @@ public interface LeadService {
     List<Lead> getRecentLeadsByEmployee(int employeeId, int limit);
     List<Lead> getRecentCustomerLeads(int customerId, int limit);
     public void deleteAllByCustomer(Customer customer);
+
+    /**
+     * Search leads by name, phone, email, or ID for Select2 dropdown
+     */
+    List<Lead> searchLeads(String searchTerm, int limit);
 }

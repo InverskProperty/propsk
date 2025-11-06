@@ -8,6 +8,10 @@
 <link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
 
+<!-- Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
 <style>
     .status-badge {
         padding: 8px 16px;
@@ -370,7 +374,37 @@
     </div>
 </div>
 
+<!-- Add Lead Modal -->
+<div class="modal fade" id="addLeadModal" tabindex="-1" role="dialog" aria-labelledby="addLeadModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addLeadModalLabel">Add Lead to Instruction</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="leadSelect">Search for Lead</label>
+                    <select id="leadSelect" class="form-control" style="width: 100%">
+                        <option value="">Start typing to search by name, phone, email, or ID...</option>
+                    </select>
+                    <small class="form-text text-muted">Type at least 2 characters to start searching</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitAddLead()">Add Lead</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div th:replace="~{general/scripts.html}"></div>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script th:inline="javascript">
     const instructionId = /*[[${instruction.id}]]*/ 0;
@@ -465,11 +499,49 @@
         }
     }
 
+    // Initialize Select2 when modal opens
+    $(document).ready(function() {
+        $('#addLeadModal').on('shown.bs.modal', function () {
+            $('#leadSelect').select2({
+                dropdownParent: $('#addLeadModal'),
+                placeholder: 'Start typing to search...',
+                minimumInputLength: 2,
+                ajax: {
+                    url: '/employee/letting-instruction/search-leads',
+                    dataType: 'json',
+                    delay: 300,
+                    data: function (params) {
+                        return {
+                            q: params.term
+                        };
+                    },
+                    processResults: function (data) {
+                        return {
+                            results: data
+                        };
+                    },
+                    cache: true
+                }
+            });
+        });
+
+        // Reset Select2 when modal closes
+        $('#addLeadModal').on('hidden.bs.modal', function () {
+            $('#leadSelect').val(null).trigger('change');
+        });
+    });
+
     function showAddLeadModal() {
-        const leadId = prompt('Enter Lead ID to link to this instruction:');
-        if (leadId !== null && leadId.trim() !== '') {
-            addLeadToInstruction(parseInt(leadId));
+        $('#addLeadModal').modal('show');
+    }
+
+    function submitAddLead() {
+        const leadId = $('#leadSelect').val();
+        if (!leadId || leadId === '') {
+            alert('Please select a lead first');
+            return;
         }
+        addLeadToInstruction(parseInt(leadId));
     }
 
     function addLeadToInstruction(leadId) {
@@ -486,6 +558,7 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                $('#addLeadModal').modal('hide');
                 alert('Lead successfully linked to instruction');
                 location.reload();
             } else {

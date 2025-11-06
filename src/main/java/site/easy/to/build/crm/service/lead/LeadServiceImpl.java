@@ -94,4 +94,10 @@ public class LeadServiceImpl implements LeadService {
     public long countByCustomerId(int customerId) {
         return leadRepository.countByCustomerCustomerId(customerId);
     }
+
+    @Override
+    public List<Lead> searchLeads(String searchTerm, int limit) {
+        Pageable pageable = PageRequest.of(0, limit);
+        return leadRepository.searchLeads(searchTerm, pageable);
+    }
 }

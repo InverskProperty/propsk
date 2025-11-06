@@ -8,8 +8,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import site.easy.to.build.crm.entity.LettingInstruction;
+import site.easy.to.build.crm.entity.InstructionStatus;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.service.LettingInstructionService;
 import site.easy.to.build.crm.service.property.PropertyVacancyService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.user.UserService;
@@ -22,23 +25,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Controller for managing property vacancy workflow.
- * Handles notice periods, advertising status, and vacancy tracking.
+ * Controller for managing property letting instruction pipeline.
+ * Now uses LettingInstruction workflow instead of Property fields.
  */
 @Controller
 @RequestMapping("/employee/property-vacancy")
 public class PropertyVacancyController {
 
+    private final LettingInstructionService lettingInstructionService;
     private final PropertyVacancyService vacancyService;
     private final PropertyService propertyService;
     private final UserService userService;
     private final AuthenticationUtils authenticationUtils;
 
     @Autowired
-    public PropertyVacancyController(PropertyVacancyService vacancyService,
+    public PropertyVacancyController(LettingInstructionService lettingInstructionService,
+                                     PropertyVacancyService vacancyService,
                                      PropertyService propertyService,
                                      UserService userService,
                                      AuthenticationUtils authenticationUtils) {
+        this.lettingInstructionService = lettingInstructionService;
         this.vacancyService = vacancyService;
         this.propertyService = propertyService;
         this.userService = userService;
@@ -46,7 +52,7 @@ public class PropertyVacancyController {
     }
 
     /**
-     * Show vacancy dashboard
+     * Show instruction-based vacancy pipeline dashboard
      */
     @GetMapping("/dashboard")
     public String showDashboard(Model model, Authentication authentication) {
@@ -57,16 +63,16 @@ public class PropertyVacancyController {
             return "error/account-inactive";
         }
 
-        // Get properties requiring attention
-        List<Property> noticeGiven = vacancyService.getPropertiesWithNoticeGiven();
-        List<Property> advertising = vacancyService.getAdvertisingProperties();
-        List<Property> available = vacancyService.getAvailableProperties();
-        List<Property> requiresAttention = vacancyService.getPropertiesRequiringMarketingAttention();
+        // Get instructions by status (mutually exclusive)
+        List<LettingInstruction> instructionReceived = lettingInstructionService.getInstructionsByStatus(InstructionStatus.INSTRUCTION_RECEIVED);
+        List<LettingInstruction> advertising = lettingInstructionService.getInstructionsByStatus(InstructionStatus.ADVERTISING);
+        List<LettingInstruction> offerAccepted = lettingInstructionService.getInstructionsByStatus(InstructionStatus.OFFER_ACCEPTED);
+        List<LettingInstruction> activeLeases = lettingInstructionService.getInstructionsByStatus(InstructionStatus.ACTIVE_LEASE);
 
-        model.addAttribute("noticeGivenProperties", noticeGiven);
-        model.addAttribute("advertisingProperties", advertising);
-        model.addAttribute("availableProperties", available);
-        model.addAttribute("attentionProperties", requiresAttention);
+        model.addAttribute("instructionReceivedList", instructionReceived);
+        model.addAttribute("advertisingList", advertising);
+        model.addAttribute("offerAcceptedList", offerAccepted);
+        model.addAttribute("activeLeasList", activeLeases);
 
         return "employee/property-vacancy/dashboard";
     }
