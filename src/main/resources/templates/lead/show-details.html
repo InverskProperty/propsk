@@ -117,6 +117,54 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Property Viewings Section -->
+                    <div class="card" th:if="${viewings != null && !viewings.isEmpty()}">
+                        <div class="card-body">
+                            <h4 class="card-title">
+                                <i class="fas fa-calendar-check m-r-10"></i>
+                                Property Viewings <span class="badge badge-primary" th:text="${viewings.size()}">0</span>
+                            </h4>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date & Time</th>
+                                            <th>Property</th>
+                                            <th>Type</th>
+                                            <th>Duration</th>
+                                            <th>Status</th>
+                                            <th>Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="viewing : ${viewings}">
+                                            <td>
+                                                <i class="fas fa-calendar"></i>
+                                                <span th:text="${#temporals.format(viewing.scheduledDatetime, 'dd MMM yyyy HH:mm')}">Date</span>
+                                            </td>
+                                            <td th:text="${viewing.property.addressLine1}">Property</td>
+                                            <td>
+                                                <span th:if="${viewing.viewingType == 'IN_PERSON'}" class="badge badge-info">In Person</span>
+                                                <span th:if="${viewing.viewingType == 'VIRTUAL'}" class="badge badge-primary">Virtual</span>
+                                            </td>
+                                            <td th:text="${viewing.durationMinutes} + ' min'">30 min</td>
+                                            <td>
+                                                <span th:if="${viewing.status == 'SCHEDULED'}" class="badge badge-warning">Scheduled</span>
+                                                <span th:if="${viewing.status == 'CONFIRMED'}" class="badge badge-success">Confirmed</span>
+                                                <span th:if="${viewing.status == 'COMPLETED'}" class="badge badge-success">Completed</span>
+                                                <span th:if="${viewing.status == 'CANCELLED'}" class="badge badge-danger">Cancelled</span>
+                                                <span th:if="${viewing.status == 'NO_SHOW'}" class="badge badge-dark">No Show</span>
+                                            </td>
+                                            <td>
+                                                <small th:text="${viewing.notes}">-</small>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- ============================================================== -->

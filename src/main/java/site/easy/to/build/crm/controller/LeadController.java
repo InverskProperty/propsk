@@ -18,6 +18,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.entity.settings.LeadEmailSettings;
+import site.easy.to.build.crm.service.property.PropertyViewingService;
 import site.easy.to.build.crm.google.model.calendar.EventDisplay;
 import site.easy.to.build.crm.google.model.drive.GoogleDriveFolder;
 import site.easy.to.build.crm.google.model.gmail.Attachment;
@@ -60,6 +61,7 @@ public class LeadController {
     private final LeadEmailSettingsService leadEmailSettingsService;
     private final GoogleGmailApiService googleGmailApiService;
     private final EntityManager entityManager;
+    private PropertyViewingService propertyViewingService;
 
     @Autowired
     public LeadController(LeadService leadService, AuthenticationUtils authenticationUtils, UserService userService, CustomerService customerService,
@@ -79,6 +81,11 @@ public class LeadController {
         this.leadEmailSettingsService = leadEmailSettingsService;
         this.googleGmailApiService = googleGmailApiService;
         this.entityManager = entityManager;
+    }
+
+    @Autowired(required = false)
+    public void setPropertyViewingService(PropertyViewingService propertyViewingService) {
+        this.propertyViewingService = propertyViewingService;
     }
 
     @GetMapping("/show/{id}")
@@ -117,9 +124,16 @@ public class LeadController {
             }
         }
 
+        // Get viewings for this lead if service is available
+        List<PropertyViewing> viewings = new ArrayList<>();
+        if (propertyViewingService != null) {
+            viewings = propertyViewingService.getViewingsForLead(lead);
+        }
+
         model.addAttribute("lead", lead);
         model.addAttribute("event", eventDisplay);
         model.addAttribute("attachments", attachments);
+        model.addAttribute("viewings", viewings);
         return "lead/show-details";
     }
 
@@ -549,9 +563,50 @@ public class LeadController {
                 return ResponseEntity.status(404).body(Map.of("success", false, "message", "Lead not found"));
             }
 
-            // For now, create a basic viewing record and update lead status
-            // You can expand this to create PropertyViewing entity when ready
+            // Get the property from the lead or its letting instruction
+            Property property = null;
+            if (lead.getProperty() != null) {
+                property = lead.getProperty();
+            } else if (lead.getLettingInstruction() != null && lead.getLettingInstruction().getProperty() != null) {
+                property = lead.getLettingInstruction().getProperty();
+            }
 
+            if (property == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "No property associated with this lead"));
+            }
+
+            String datetime = (String) request.get("scheduledDatetime");
+            Integer durationMinutes = (Integer) request.get("durationMinutes");
+            String viewingType = (String) request.get("viewingType");
+            String notes = (String) request.get("notes");
+
+            LocalDateTime scheduledDatetime = LocalDateTime.parse(datetime);
+
+            // Create PropertyViewing entity if service is available
+            PropertyViewing viewing = null;
+            if (propertyViewingService != null) {
+                viewing = propertyViewingService.scheduleViewing(
+                    lead,
+                    property,
+                    scheduledDatetime,
+                    durationMinutes != null ? durationMinutes : 30,
+                    viewingType != null ? viewingType : "IN_PERSON",
+                    loggedInUser
+                );
+
+                if (notes != null && !notes.trim().isEmpty()) {
+                    viewing.setNotes(notes);
+                    propertyViewingService.save(viewing);
+                }
+
+                // Link to letting instruction if available
+                if (lead.getLettingInstruction() != null) {
+                    viewing.setLettingInstruction(lead.getLettingInstruction());
+                    propertyViewingService.save(viewing);
+                }
+            }
+
+            // Update lead status
             String previousStatus = lead.getStatus();
             lead.setStatus("viewing-scheduled");
             leadService.save(lead);
@@ -560,11 +615,6 @@ public class LeadController {
             LeadAction leadAction = new LeadAction();
             leadAction.setLead(lead);
             leadAction.setTimestamp(LocalDateTime.now());
-
-            String datetime = (String) request.get("scheduledDatetime");
-            Integer durationMinutes = (Integer) request.get("durationMinutes");
-            String viewingType = (String) request.get("viewingType");
-            String notes = (String) request.get("notes");
 
             StringBuilder action = new StringBuilder("Viewing scheduled for " + datetime);
             if (durationMinutes != null) {
@@ -583,7 +633,8 @@ public class LeadController {
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Viewing scheduled successfully",
-                "leadId", lead.getLeadId()
+                "leadId", lead.getLeadId(),
+                "viewingId", viewing != null ? viewing.getId() : null
             ));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "Error scheduling viewing: " + e.getMessage()));
