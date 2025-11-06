@@ -406,7 +406,12 @@ public class LettingInstructionController {
                                                                 Authentication authentication) {
         try {
             LettingInstruction instruction = lettingInstructionService.addLeadToInstruction(id, request.getLeadId());
-            return ResponseEntity.ok(Map.of("success", true, "message", "Lead added to instruction", "data", instruction));
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Lead added to instruction",
+                "instructionId", instruction.getId(),
+                "leadCount", instruction.getLeads().size()
+            ));
         } catch (IllegalArgumentException | IllegalStateException e) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
@@ -468,7 +473,12 @@ public class LettingInstructionController {
                                                                      Authentication authentication) {
         try {
             LettingInstruction instruction = lettingInstructionService.removeLeadFromInstruction(id, request.getLeadId());
-            return ResponseEntity.ok(Map.of("success", true, "message", "Lead removed from instruction", "data", instruction));
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Lead removed from instruction",
+                "instructionId", instruction.getId(),
+                "leadCount", instruction.getLeads().size()
+            ));
         } catch (IllegalArgumentException | IllegalStateException e) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
