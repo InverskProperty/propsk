@@ -48,7 +48,7 @@ public class LettingInstructionController {
      */
     @GetMapping("/workspace")
     public String instructionWorkspace(Authentication authentication, Model model) {
-        List<LettingInstruction> activeInstructions = lettingInstructionService.getActiveMarketingInstructions();
+        List<LettingInstruction> activeInstructions = lettingInstructionService.getAllActiveInstructions();
         LettingInstructionService.InstructionSummary summary = lettingInstructionService.getInstructionSummary();
 
         model.addAttribute("instructions", activeInstructions);

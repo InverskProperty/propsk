@@ -375,6 +375,14 @@ public class LettingInstructionService {
     // ===== DASHBOARD AND REPORTING QUERIES =====
 
     /**
+     * Get all active instructions (including new/preparing)
+     */
+    @Transactional(readOnly = true)
+    public List<LettingInstruction> getAllActiveInstructions() {
+        return lettingInstructionRepository.findAllActiveInstructions();
+    }
+
+    /**
      * Get all active marketing instructions
      */
     @Transactional(readOnly = true)

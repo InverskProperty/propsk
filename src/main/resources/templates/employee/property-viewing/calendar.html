@@ -51,7 +51,7 @@
                                     <i class="fas fa-calendar"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(scheduledViewings)}">0</h3>
+                                    <h3 class="m-b-0 font-light" th:text="${scheduledViewings != null ? #lists.size(scheduledViewings) : 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Scheduled</h5>
                                     <small class="text-info">Upcoming</small>
                                 </div>
@@ -68,7 +68,7 @@
                                     <i class="fas fa-check-circle"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(completedViewings)}">0</h3>
+                                    <h3 class="m-b-0 font-light" th:text="${completedViewings != null ? #lists.size(completedViewings) : 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Completed</h5>
                                     <small class="text-success">This month</small>
                                 </div>
@@ -85,7 +85,7 @@
                                     <i class="fas fa-clock"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(todayViewings)}">0</h3>
+                                    <h3 class="m-b-0 font-light" th:text="${todayViewings != null ? #lists.size(todayViewings) : 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Today</h5>
                                     <small class="text-warning">Action needed</small>
                                 </div>
@@ -102,7 +102,7 @@
                                     <i class="fas fa-undo"></i>
                                 </div>
                                 <div class="m-l-10 align-self-center">
-                                    <h3 class="m-b-0 font-light" th:text="${#lists.size(needsFollowUp)}">0</h3>
+                                    <h3 class="m-b-0 font-light" th:text="${needsFollowUp != null ? #lists.size(needsFollowUp) : 0}">0</h3>
                                     <h5 class="text-muted m-b-0">Needs Follow-up</h5>
                                     <small class="text-danger">Pending</small>
                                 </div>
