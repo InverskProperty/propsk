@@ -166,7 +166,7 @@ public class LeadController {
 
     @PostMapping("/create")
     public String createLead(@ModelAttribute("lead") @Validated Lead lead, BindingResult bindingResult,
-                             @RequestParam("customerId") Long customerId, @RequestParam("employeeId") int employeeId,
+                             @RequestParam(value = "customerId", required = false) Long customerId, @RequestParam("employeeId") int employeeId,
                              Authentication authentication, @RequestParam("allFiles")@Nullable String files,
                              @RequestParam("folderId") @Nullable String folderId, Model model) throws JsonProcessingException {
 
@@ -183,7 +183,10 @@ public class LeadController {
         }
 
         User employee = userService.findById(Long.valueOf(employeeId));
-        Customer customer = customerService.findByCustomerId(customerId);
+        Customer customer = null;
+        if (customerId != null) {
+            customer = customerService.findByCustomerId(customerId);
+        }
         if(AuthorizationUtil.hasRole(authentication, "ROLE_EMPLOYEE") && (employee.getId() != userId)) {
             return "error/500";
         }
@@ -301,7 +304,7 @@ public class LeadController {
     }
 
     @PostMapping("/update")
-    public String updateLead(@ModelAttribute("lead") @Validated Lead lead, BindingResult bindingResult, @RequestParam("customerId") Long customerId,
+    public String updateLead(@ModelAttribute("lead") @Validated Lead lead, BindingResult bindingResult, @RequestParam(value = "customerId", required = false) Long customerId,
                              @RequestParam("employeeId") int employeeId, Authentication authentication, Model model,
                              @RequestParam("allFiles") @Nullable String files, @RequestParam("folderId") @Nullable String folderId) throws JsonProcessingException {
 
@@ -317,19 +320,24 @@ public class LeadController {
 
         User manager = currLead.getManager();
         User employee = userService.findById(Long.valueOf(employeeId));
-        Customer customer = customerService.findByCustomerId(customerId);
-        if(employee == null || manager == null || customer == null) {
+        Customer customer = null;
+        if (customerId != null) {
+            customer = customerService.findByCustomerId(customerId);
+        }
+        if(employee == null || manager == null) {
             return "error/500";
         }
 
         //check in case the employee created a lead for him/her self,
         // they won't be able to assign lead for customer that isn't created themselves
         if(manager.getId() == employeeId) {
-            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && customer.getUser().getId() != userId) {
+            if (!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && customer != null && customer.getUser().getId() != userId) {
                 return "error/500";
             }
         } else {
-            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && !currLead.getCustomer().getCustomerId().equals(customerId)) {
+            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") &&
+               currLead.getCustomer() != null &&
+               (customerId == null || !currLead.getCustomer().getCustomerId().equals(customerId))) {
                 return "error/500";
             }
         }
@@ -437,7 +445,7 @@ public class LeadController {
 
         boolean isGoogleUser = !(authentication instanceof UsernamePasswordAuthenticationToken);
 
-        if(isGoogleUser && googleGmailApiService != null) {
+        if(isGoogleUser && googleGmailApiService != null && customer != null) {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             if(oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_GMAIL)) {
                 try {
@@ -503,8 +511,15 @@ public class LeadController {
         if (!prevLead.getEmployee().equals(lead.getEmployee())) {
             changes.append("The lead's employee changes from ").append(prevLead.getEmployee().getUsername()).append(" To ").append(lead.getEmployee().getUsername()).append('.');
         }
-        if (!prevLead.getCustomer().equals(lead.getCustomer())) {
-            changes.append("The lead's customer changes from ").append(prevLead.getCustomer().getName()).append(" To ").append(lead.getCustomer().getName()).append('.');
+        // Handle customer changes (customer can be null)
+        Customer prevCustomer = prevLead.getCustomer();
+        Customer newCustomer = lead.getCustomer();
+        if (prevCustomer != null && newCustomer != null && !prevCustomer.equals(newCustomer)) {
+            changes.append("The lead's customer changes from ").append(prevCustomer.getName()).append(" To ").append(newCustomer.getName()).append('.');
+        } else if (prevCustomer == null && newCustomer != null) {
+            changes.append("The lead's customer is set to ").append(newCustomer.getName()).append('.');
+        } else if (prevCustomer != null && newCustomer == null) {
+            changes.append("The lead's customer ").append(prevCustomer.getName()).append(" has been removed.");
         }
         return changes;
     }

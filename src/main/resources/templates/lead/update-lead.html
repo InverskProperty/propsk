@@ -70,61 +70,192 @@
                 <div class="col-lg-12">
                     <div class="card">
                         <div class="card-body">
-                            <h4 class="card-title" th:text="'update ' + ${lead.name} + ' lead'"></h4>
+                            <h4 class="card-title">Update Property Enquiry: <span th:text="${lead.name}"></span></h4>
                             <form th:object="${lead}" id="email-form" th:action="@{/employee/lead/update}" method="post">
                                 <input type="hidden" id="allFiles" name="allFiles">
                                 <input type="hidden" id="leadId" name="leadId" th:field="*{leadId}">
-                                <label class="m-t-20" for="name">Name:</label>
-                                <div class="input-group">
-                                    <input type="text" id="name" th:field="*{name}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></span>
+
+                                <h5 class="m-t-20 m-b-20">Contact Information</h5>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="name">Name: <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <input type="text" id="name" th:field="*{name}" class="form-control" required>
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="phone">Phone:</label>
+                                        <div class="input-group">
+                                            <input type="text" id="phone" th:field="*{phone}" class="form-control">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}"></span>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <label class="m-t-20" for="phone">Phone:</label>
-                                <div class="input-group">
-                                    <input type="text" id="phone" th:field="*{phone}" class="form-control">
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}" autocomplete="off"></span>
+                                <div class="row m-t-15">
+                                    <div class="col-md-6">
+                                        <label for="email">Email:</label>
+                                        <div class="input-group">
+                                            <input type="email" id="email" th:field="*{email}" class="form-control">
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="leadSource">Lead Source:</label>
+                                        <div class="input-group">
+                                            <select id="leadSource" th:field="*{leadSource}" class="form-control">
+                                                <option value="">Not specified</option>
+                                                <option value="RIGHTMOVE">Rightmove</option>
+                                                <option value="ZOOPLA">Zoopla</option>
+                                                <option value="ONTHEMARKET">OnTheMarket</option>
+                                                <option value="WEBSITE">Company Website</option>
+                                                <option value="REFERRAL">Referral</option>
+                                                <option value="WALK_IN">Walk-in</option>
+                                                <option value="PHONE">Phone Call</option>
+                                                <option value="OTHER">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <label class="m-t-20" for="status">status:</label>
-                                <div class="input-group">
-                                    <select id="status" th:field="*{status}" class="form-control">
-                                        <option th:selected="${lead.status == 'meeting-to-schedule' ? 'selected' : ''}" value="meeting-to-schedule">Meeting to be scheduled</option>
-                                        <option th:selected="${lead.status == 'assign-to-sales' ? 'selected' : ''}" value="assign-to-sales">Assign to sales representative</option>
-                                        <option th:selected="${lead.status == 'archived' ? 'selected' : ''}" value="archived">Archived</option>
-                                        <option th:selected="${lead.status == 'success' ? 'selected' : ''}" value="success">success</option>
-                                    </select>
-                                </div>
-                                <div class="input-group">
-                                    <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('status')}" th:errors="*{status}"></span>
+                                <h5 class="m-t-30 m-b-20">Rental Requirements</h5>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="budgetMin">Budget Min (£/month):</label>
+                                        <div class="input-group">
+                                            <input type="number" id="budgetMin" th:field="*{budgetMin}" class="form-control" step="50">
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="budgetMax">Budget Max (£/month):</label>
+                                        <div class="input-group">
+                                            <input type="number" id="budgetMax" th:field="*{budgetMax}" class="form-control" step="50">
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <label class="m-t-20" for="employeeId">Assign Employee:</label>
-                                <div class="input-group">
-                                    <select name="employeeId" id="employeeId" class="form-control">
-                                        <option th:each="employee : ${employees}" th:text="${employee.username}" th:value="${employee.id}" th:selected="${lead.employee.id eq employee.id}"></option>
-                                    </select>
+                                <div class="row m-t-15">
+                                    <div class="col-md-6">
+                                        <label for="desiredMoveInDate">Desired Move-In Date:</label>
+                                        <div class="input-group">
+                                            <input type="date" id="desiredMoveInDate" th:field="*{desiredMoveInDate}" class="form-control">
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="numberOfOccupants">Number of Occupants:</label>
+                                        <div class="input-group">
+                                            <input type="number" id="numberOfOccupants" th:field="*{numberOfOccupants}" class="form-control" min="1">
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <label class="m-t-20" for="customerId">Customer:</label>
-                                <div class="input-group">
-                                    <select name="customerId" id="customerId" class="form-control">
-                                        <option th:each="customer : ${customers}" th:text="${customer.name}" th:value="${customer.customerId}" th:selected="${lead.customer.customerId eq customer.customerId}"></option>
-                                    </select>
+                                <div class="row m-t-15">
+                                    <div class="col-md-4">
+                                        <div class="custom-control custom-checkbox">
+                                            <input type="checkbox" class="custom-control-input" id="hasPets" th:field="*{hasPets}">
+                                            <label class="custom-control-label" for="hasPets">Has Pets</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="custom-control custom-checkbox">
+                                            <input type="checkbox" class="custom-control-input" id="hasGuarantor" th:field="*{hasGuarantor}">
+                                            <label class="custom-control-label" for="hasGuarantor">Has Guarantor</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label for="employmentStatus">Employment:</label>
+                                        <select id="employmentStatus" th:field="*{employmentStatus}" class="form-control">
+                                            <option value="">Not specified</option>
+                                            <option value="EMPLOYED">Employed</option>
+                                            <option value="SELF_EMPLOYED">Self-Employed</option>
+                                            <option value="STUDENT">Student</option>
+                                            <option value="BENEFITS">Benefits</option>
+                                            <option value="RETIRED">Retired</option>
+                                            <option value="OTHER">Other</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <label class="m-t-20"><i class="ti-link"></i> Attachment</label>
+
+                                <h5 class="m-t-30 m-b-20">Lead Status & Assignment</h5>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="status">Status: <span class="text-danger">*</span></label>
+                                        <div class="input-group">
+                                            <select id="status" th:field="*{status}" class="form-control" required>
+                                                <option value="enquiry">Enquiry</option>
+                                                <option value="viewing-scheduled">Viewing Scheduled</option>
+                                                <option value="viewing-completed">Viewing Completed</option>
+                                                <option value="interested">Interested</option>
+                                                <option value="application-submitted">Application Submitted</option>
+                                                <option value="referencing">Referencing</option>
+                                                <option value="in-contracts">In Contracts</option>
+                                                <option value="converted">Converted to Tenant</option>
+                                                <option value="lost">Lost</option>
+                                            </select>
+                                        </div>
+                                        <div class="input-group">
+                                            <span class="text-danger font-weight-bold" th:if="${#fields.hasErrors('status')}" th:errors="*{status}"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label for="employeeId">Assign To:</label>
+                                        <div class="input-group">
+                                            <select name="employeeId" id="employeeId" class="form-control">
+                                                <option th:each="employee : ${employees}" th:text="${employee.username}" th:value="${employee.id}" th:selected="${lead.employee.id eq employee.id}"></option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row m-t-15">
+                                    <div class="col-md-12">
+                                        <label for="customerId">Link to Existing Customer:</label>
+                                        <div class="input-group">
+                                            <select name="customerId" id="customerId" class="form-control">
+                                                <option value="" th:selected="${lead.customer == null}">None (New Prospect)</option>
+                                                <option th:each="customer : ${customers}" th:text="${customer.name}" th:value="${customer.customerId}" th:selected="${lead.customer != null && lead.customer.customerId eq customer.customerId}"></option>
+                                            </select>
+                                        </div>
+                                        <small class="form-text text-muted">Leave as "None" for prospects. Link to customer when they sign a tenancy.</small>
+                                    </div>
+                                </div>
+
+                                <h5 class="m-t-30 m-b-20">Documents</h5>
+
+                                <label><i class="ti-link"></i> Attachments</label>
                                 <div class="form-group">
                                     <div class="dropzone" id="my-dropzone"></div>
                                 </div>
-                                <div th:if="${hasGoogleDriveAccess}" class="col-md-5 m-b-15 custom-control custom-checkbox">
+                                <div th:if="${hasGoogleDriveAccess}" class="col-md-12 m-b-15 custom-control custom-checkbox">
                                     <input type="checkbox" class="custom-control-input trigger-emails" th:id="googleDrive" th:field="*{googleDrive}">
-                                    <label th:for="googleDrive" class="custom-control-label">Upload Docs to your Google Drive</label>
+                                    <label th:for="googleDrive" class="custom-control-label">Upload Documents to Google Drive</label>
                                 </div>
-                                <button type="submit" class="btn btn-primary m-t-20">update Lead</button>
+
+                                <div class="m-t-30">
+                                    <button type="submit" class="btn btn-success btn-lg">
+                                        <i class="fas fa-save"></i> Update Property Enquiry
+                                    </button>
+                                    <a th:href="@{/employee/lead/assigned-leads}" class="btn btn-secondary btn-lg">
+                                        <i class="fas fa-times"></i> Cancel
+                                    </a>
+                                </div>
                             </form>
                         </div>
                     </div>

@@ -30,6 +30,9 @@ public class Lead {
     @Column(name = "phone")
     private String phone;
 
+    @Column(name = "email")
+    private String email;
+
     @Column(name = "meeting_id")
     private String meetingId;
 
@@ -57,7 +60,7 @@ public class Lead {
     private User employee;
 
     @ManyToOne
-    @JoinColumn(name = "customer_id")
+    @JoinColumn(name = "customer_id", nullable = true)
     private Customer customer;
 
     @Column(name = "created_at")
@@ -168,6 +171,14 @@ public class Lead {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getMeetingId() {
