@@ -286,7 +286,60 @@ public class LettingInstructionController {
                                                             Authentication authentication) {
         try {
             LettingInstruction instruction = lettingInstructionService.closeInstruction(id, request.getClosureReason());
-            return ResponseEntity.ok(Map.of("success", true, "message", "Instruction closed", "data", instruction));
+            return ResponseEntity.ok(Map.of("success", true, "message", "Instruction closed"));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * Mark offer as accepted (holding deposit paid)
+     */
+    @PostMapping("/{id}/mark-offer-accepted")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> markOfferAccepted(@PathVariable Long id,
+                                                             @RequestBody MarkOfferAcceptedRequest request,
+                                                             Authentication authentication) {
+        try {
+            LettingInstruction instruction = lettingInstructionService.markOfferAccepted(
+                    id,
+                    request.getTenantId(),
+                    request.getAgreedRent(),
+                    request.getNotes()
+            );
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Offer accepted - holding deposit paid",
+                    "instructionId", instruction.getId(),
+                    "status", instruction.getStatus().name()
+            ));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
+     * Cancel instruction
+     */
+    @PostMapping("/{id}/cancel")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> cancelInstruction(@PathVariable Long id,
+                                                             @RequestBody CancelInstructionRequest request,
+                                                             Authentication authentication) {
+        try {
+            LettingInstruction instruction = lettingInstructionService.cancelInstruction(id, request.getReason());
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Instruction cancelled",
+                    "instructionId", instruction.getId(),
+                    "status", instruction.getStatus().name()
+            ));
         } catch (IllegalArgumentException | IllegalStateException e) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
@@ -506,5 +559,29 @@ public class LettingInstructionController {
         // Getters and setters
         public Long getLeadId() { return leadId; }
         public void setLeadId(Long leadId) { this.leadId = leadId; }
+    }
+
+    public static class MarkOfferAcceptedRequest {
+        private Long tenantId;
+        private BigDecimal agreedRent;
+        private String notes;
+
+        // Getters and setters
+        public Long getTenantId() { return tenantId; }
+        public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+
+        public BigDecimal getAgreedRent() { return agreedRent; }
+        public void setAgreedRent(BigDecimal agreedRent) { this.agreedRent = agreedRent; }
+
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
+    }
+
+    public static class CancelInstructionRequest {
+        private String reason;
+
+        // Getters and setters
+        public String getReason() { return reason; }
+        public void setReason(String reason) { this.reason = reason; }
     }
 }

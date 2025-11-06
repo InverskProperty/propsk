@@ -201,19 +201,19 @@
             <div class="summary-cards">
                 <div class="summary-card advertising">
                     <div class="summary-value" th:text="${summary.advertisingCount}">0</div>
-                    <div class="summary-label">Advertising</div>
-                </div>
-                <div class="summary-card viewings">
-                    <div class="summary-value" th:text="${summary.viewingsCount}">0</div>
-                    <div class="summary-label">Viewings in Progress</div>
+                    <div class="summary-label">Being Marketed</div>
                 </div>
                 <div class="summary-card offers">
                     <div class="summary-value" th:text="${summary.offersCount}">0</div>
-                    <div class="summary-label">Offers Made</div>
+                    <div class="summary-label">Offers Accepted</div>
                 </div>
                 <div class="summary-card leases">
                     <div class="summary-value" th:text="${summary.activeLeasesCount}">0</div>
                     <div class="summary-label">Active Leases</div>
+                </div>
+                <div class="summary-card preparing">
+                    <div class="summary-value" th:text="${summary.preparingCount != null ? summary.preparingCount : 0}">0</div>
+                    <div class="summary-label">New Instructions</div>
                 </div>
             </div>
 
@@ -253,23 +253,18 @@
                     <div class="card">
                         <div class="card-body">
                             <div class="kanban-board">
-                                <!-- Instruction Received / Preparing Column -->
+                                <!-- New Instructions Column -->
                                 <div class="kanban-column">
                                     <div class="kanban-column-header">
-                                        <span><i class="fas fa-clipboard-list"></i> New Instructions</span>
+                                        <span><i class="fas fa-inbox"></i> New</span>
                                         <span class="badge badge-secondary" th:text="${summary.preparingCount != null ? summary.preparingCount : 0}">0</span>
                                     </div>
                                     <div th:each="instruction : ${instructions}"
-                                         th:if="${instruction.status.name() == 'INSTRUCTION_RECEIVED' || instruction.status.name() == 'PREPARING'}"
+                                         th:if="${instruction.status.name() == 'INSTRUCTION_RECEIVED'}"
                                          class="instruction-card status-INSTRUCTION_RECEIVED"
                                          th:onclick="'viewInstruction(' + ${instruction.id} + ')'">
                                         <div class="instruction-property-name" th:text="${instruction.property.propertyName}">Property Name</div>
                                         <div class="instruction-reference" th:text="${instruction.instructionReference}">REF-001</div>
-                                        <div>
-                                            <span class="badge badge-sm"
-                                                  th:classappend="${instruction.status.name() == 'INSTRUCTION_RECEIVED' ? 'badge-secondary' : 'badge-info'}"
-                                                  th:text="${instruction.status.displayName}">Status</span>
-                                        </div>
                                         <div class="instruction-dates">
                                             <div th:if="${instruction.expectedVacancyDate != null}">
                                                 <i class="far fa-calendar"></i> Expected: <span th:text="${#temporals.format(instruction.expectedVacancyDate, 'dd MMM yyyy')}">01 Jan 2024</span>
@@ -287,7 +282,7 @@
                                     </div>
                                 </div>
 
-                                <!-- Advertising Column -->
+                                <!-- Advertising Column (Viewings/Enquiries/Offers happen here) -->
                                 <div class="kanban-column">
                                     <div class="kanban-column-header">
                                         <span><i class="fas fa-bullhorn"></i> Advertising</span>
@@ -324,63 +319,57 @@
                                     </div>
                                 </div>
 
-                                <!-- Viewings in Progress Column -->
+                                <!-- Offer Accepted Column (Holding Deposit Paid, Referencing/Contracting) -->
                                 <div class="kanban-column">
                                     <div class="kanban-column-header">
-                                        <span><i class="fas fa-users"></i> Viewings</span>
-                                        <span class="badge badge-warning" th:text="${summary.viewingsCount}">0</span>
+                                        <span><i class="fas fa-handshake"></i> Offer Accepted</span>
+                                        <span class="badge badge-warning" th:text="${summary.offersCount}">0</span>
                                     </div>
                                     <div th:each="instruction : ${instructions}"
-                                         th:if="${instruction.status.name() == 'VIEWINGS_IN_PROGRESS'}"
-                                         class="instruction-card status-VIEWINGS_IN_PROGRESS"
+                                         th:if="${instruction.status.name() == 'OFFER_ACCEPTED' || instruction.status.name() == 'OFFER_MADE'}"
+                                         class="instruction-card status-OFFER_ACCEPTED"
                                          th:onclick="'viewInstruction(' + ${instruction.id} + ')'">
                                         <div class="instruction-property-name" th:text="${instruction.property.propertyName}">Property Name</div>
                                         <div class="instruction-reference" th:text="${instruction.instructionReference}">REF-001</div>
                                         <div class="instruction-dates">
-                                            <div><i class="far fa-calendar"></i> Started: <span th:text="${#temporals.format(instruction.advertisingStartDate, 'dd MMM yyyy')}">01 Jan 2024</span></div>
-                                            <div th:if="${instruction.targetRent != null}">
-                                                <i class="fas fa-pound-sign"></i> Target: £<span th:text="${#numbers.formatDecimal(instruction.targetRent, 0, 2)}">1000</span>/mo
+                                            <div th:if="${instruction.actualRent != null}">
+                                                <i class="fas fa-pound-sign"></i> Agreed: £<span th:text="${#numbers.formatDecimal(instruction.actualRent, 0, 2)}">1000</span>/mo
+                                            </div>
+                                            <div th:if="${instruction.leaseStartDate != null}">
+                                                <i class="far fa-calendar"></i> Start: <span th:text="${#temporals.format(instruction.leaseStartDate, 'dd MMM yyyy')}">01 Jan 2024</span>
                                             </div>
                                         </div>
                                         <div class="instruction-metrics">
                                             <div class="metric">
-                                                <span class="metric-value" th:text="${instruction.numberOfEnquiries != null ? instruction.numberOfEnquiries : 0}">0</span>
-                                                <i class="fas fa-envelope"></i> Enquiries
-                                            </div>
-                                            <div class="metric">
-                                                <span class="metric-value" th:text="${instruction.numberOfViewings != null ? instruction.numberOfViewings : 0}">0</span>
-                                                <i class="fas fa-eye"></i> Viewings
+                                                <small class="text-muted">Referencing/Contracting</small>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- Offer Made Column -->
+                                <!-- Active Leases Column -->
                                 <div class="kanban-column">
                                     <div class="kanban-column-header">
-                                        <span><i class="fas fa-handshake"></i> Offer Made</span>
-                                        <span class="badge badge-success" th:text="${summary.offersCount}">0</span>
+                                        <span><i class="fas fa-key"></i> Active Leases</span>
+                                        <span class="badge badge-success" th:text="${summary.activeLeasesCount}">0</span>
                                     </div>
                                     <div th:each="instruction : ${instructions}"
-                                         th:if="${instruction.status.name() == 'OFFER_MADE'}"
-                                         class="instruction-card status-OFFER_MADE"
+                                         th:if="${instruction.status.name() == 'ACTIVE_LEASE'}"
+                                         class="instruction-card status-ACTIVE_LEASE"
                                          th:onclick="'viewInstruction(' + ${instruction.id} + ')'">
                                         <div class="instruction-property-name" th:text="${instruction.property.propertyName}">Property Name</div>
                                         <div class="instruction-reference" th:text="${instruction.instructionReference}">REF-001</div>
                                         <div class="instruction-dates">
-                                            <div><i class="far fa-calendar"></i> Started: <span th:text="${#temporals.format(instruction.advertisingStartDate, 'dd MMM yyyy')}">01 Jan 2024</span></div>
-                                            <div th:if="${instruction.targetRent != null}">
-                                                <i class="fas fa-pound-sign"></i> Target: £<span th:text="${#numbers.formatDecimal(instruction.targetRent, 0, 2)}">1000</span>/mo
+                                            <div th:if="${instruction.actualRent != null}">
+                                                <i class="fas fa-pound-sign"></i> Rent: £<span th:text="${#numbers.formatDecimal(instruction.actualRent, 0, 2)}">1000</span>/mo
+                                            </div>
+                                            <div th:if="${instruction.leaseEndDate != null}">
+                                                <i class="far fa-calendar"></i> Ends: <span th:text="${#temporals.format(instruction.leaseEndDate, 'dd MMM yyyy')}">01 Jan 2025</span>
                                             </div>
                                         </div>
                                         <div class="instruction-metrics">
-                                            <div class="metric">
-                                                <span class="metric-value" th:text="${instruction.numberOfEnquiries != null ? instruction.numberOfEnquiries : 0}">0</span>
-                                                <i class="fas fa-envelope"></i> Enquiries
-                                            </div>
-                                            <div class="metric">
-                                                <span class="metric-value" th:text="${instruction.numberOfViewings != null ? instruction.numberOfViewings : 0}">0</span>
-                                                <i class="fas fa-eye"></i> Viewings
+                                            <div class="metric" th:if="${instruction.tenant != null}">
+                                                <i class="fas fa-user"></i> <span th:text="${instruction.tenant.name}">Tenant Name</span>
                                             </div>
                                         </div>
                                     </div>

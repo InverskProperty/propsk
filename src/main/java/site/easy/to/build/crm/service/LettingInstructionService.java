@@ -550,13 +550,14 @@ public class LettingInstructionService {
         List<LettingInstruction> preparing = getInstructionsByStatus(InstructionStatus.PREPARING);
         List<LettingInstruction> advertising = getInstructionsByStatus(InstructionStatus.ADVERTISING);
         List<LettingInstruction> viewings = getInstructionsByStatus(InstructionStatus.VIEWINGS_IN_PROGRESS);
-        List<LettingInstruction> offers = getInstructionsByStatus(InstructionStatus.OFFER_MADE);
+        List<LettingInstruction> offersOld = getInstructionsByStatus(InstructionStatus.OFFER_MADE);
+        List<LettingInstruction> offersNew = getInstructionsByStatus(InstructionStatus.OFFER_ACCEPTED);
         List<LettingInstruction> activeLeases = getActiveLeases();
 
         summary.setPreparingCount(instructionReceived.size() + preparing.size());
-        summary.setAdvertisingCount(advertising.size());
-        summary.setViewingsCount(viewings.size());
-        summary.setOffersCount(offers.size());
+        summary.setAdvertisingCount(advertising.size() + viewings.size()); // Include viewings in advertising count
+        summary.setViewingsCount(viewings.size()); // Keep for backward compatibility
+        summary.setOffersCount(offersOld.size() + offersNew.size()); // Both old and new statuses
         summary.setActiveLeasesCount(activeLeases.size());
         summary.setAverageDaysToFill(getAverageDaysToFill());
         summary.setAverageConversionRate(getAverageConversionRate());
