@@ -52,11 +52,13 @@
                         <span class="hide-menu">Property Lifecycle</span>
                     </a>
                     <ul class="collapse">
-                        <!-- Instruction Workspace - NEW Kanban view -->
+                        <!-- Instruction Workspace - Kanban view of all instructions -->
                         <li><a th:href="${home + 'employee/letting-instruction/workspace'}"><i class="fas fa-columns text-info"></i> Instruction Workspace</a></li>
 
-                        <!-- Vacancy Management -->
-                        <li><a th:href="${home + 'employee/property-vacancy/dashboard'}"><i class="fas fa-home text-warning"></i> Vacancy Pipeline</a></li>
+                        <!-- Lead Pipeline - Move leads through stages per instruction -->
+                        <li><a th:href="${home + 'employee/letting-instruction/lead-pipeline'}"><i class="fas fa-users-cog text-primary"></i> Lead Pipeline</a></li>
+
+                        <!-- Vacancy Tasks -->
                         <li><a th:href="${home + 'employee/vacancy-task/dashboard'}"><i class="fas fa-tasks text-info"></i> Vacancy Tasks</a></li>
 
                         <!-- Viewing Management -->
