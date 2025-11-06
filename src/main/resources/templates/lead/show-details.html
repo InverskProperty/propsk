@@ -83,7 +83,17 @@
                                 </div>
                                 <div class="col-md-2 col-xs-6 b-r"> <strong>Status</strong>
                                     <br>
-                                    <p class="text-muted" th:text="${lead.status}"></p>
+                                    <select id="leadStatusSelect" class="form-control" th:data-lead-id="${lead.leadId}" onchange="updateLeadStatus()">
+                                        <option value="enquiry" th:selected="${lead.status == 'enquiry'}">Enquiry</option>
+                                        <option value="viewing-scheduled" th:selected="${lead.status == 'viewing-scheduled'}">Viewing Scheduled</option>
+                                        <option value="viewing-completed" th:selected="${lead.status == 'viewing-completed'}">Viewing Completed</option>
+                                        <option value="interested" th:selected="${lead.status == 'interested'}">Interested</option>
+                                        <option value="application-submitted" th:selected="${lead.status == 'application-submitted'}">Application Submitted</option>
+                                        <option value="referencing" th:selected="${lead.status == 'referencing'}">Referencing</option>
+                                        <option value="in-contracts" th:selected="${lead.status == 'in-contracts'}">In Contracts</option>
+                                        <option value="converted" th:selected="${lead.status == 'converted'}">Converted</option>
+                                        <option value="lost" th:selected="${lead.status == 'lost'}">Lost</option>
+                                    </select>
                                 </div>
                                 <div class="col-md-4 col-xs-6"> <strong>Assigned Employee</strong>
                                     <br>
@@ -144,6 +154,8 @@
 <!-- ============================================================== -->
 <script th:inline="javascript">
     var home = /*[[${home}]]*/ null;
+    var csrfToken = /*[[${_csrf.token}]]*/ null;
+    var csrfHeader = /*[[${_csrf.headerName}]]*/ null;
 </script>
 <script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript">></script>
 <!--    &lt;!&ndash; Bootstrap tether Core JavaScript &ndash;&gt;-->
@@ -161,6 +173,44 @@
 <!--Custom JavaScript -->
 <script th:src="@{/js/library/custom.min.js}" type="text/javascript">></script>
 <!-- Editable -->
+
+<script>
+function updateLeadStatus() {
+    const selectElement = document.getElementById('leadStatusSelect');
+    const leadId = selectElement.getAttribute('data-lead-id');
+    const newStatus = selectElement.value;
+
+    if (confirm('Are you sure you want to change the status to "' + newStatus.replace(/-/g, ' ') + '"?')) {
+        fetch('/employee/lead/' + leadId + '/status', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                [csrfHeader]: csrfToken
+            },
+            body: JSON.stringify({
+                status: newStatus
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Lead status updated successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+                location.reload();
+            }
+        })
+        .catch(error => {
+            alert('Error updating status: ' + error.message);
+            location.reload();
+        });
+    } else {
+        // User cancelled, reload to reset the dropdown
+        location.reload();
+    }
+}
+</script>
 
 </body>
 </html>

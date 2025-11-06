@@ -7,6 +7,9 @@
 
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
 
+<!-- SortableJS for drag and drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
 <style>
     .kanban-board {
         display: flex;
@@ -58,12 +61,26 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         border-left: 4px solid #ddd;
         transition: all 0.2s;
-        cursor: pointer;
+        cursor: move;
     }
 
     .kanban-card:hover {
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         transform: translateY(-2px);
+    }
+
+    .kanban-card.sortable-ghost {
+        opacity: 0.4;
+        background: #f8f9fa;
+    }
+
+    .kanban-card.sortable-drag {
+        opacity: 1;
+        cursor: grabbing;
+    }
+
+    .kanban-cards-container {
+        min-height: 50px;
     }
 
     .kanban-card h6 {
@@ -227,189 +244,216 @@
             <!-- Kanban Board -->
             <div th:if="${selectedInstruction != null}" class="kanban-board">
                 <!-- Enquiry Column -->
-                <div class="kanban-column column-enquiry">
+                <div class="kanban-column column-enquiry" data-status="enquiry">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-envelope"></i> Enquiry</h6>
                         <span class="badge badge-secondary" th:text="${#lists.size(enquiryLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(enquiryLeads)}" class="empty-column">
-                        <i class="fas fa-envelope fa-2x mb-2"></i>
-                        <p>No enquiries</p>
-                    </div>
-                    <div th:each="lead : ${enquiryLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
-                            <div th:if="${lead.email != null}"><i class="fas fa-envelope"></i> <span th:text="${lead.email}">Email</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(enquiryLeads)}" class="empty-column">
+                            <i class="fas fa-envelope fa-2x mb-2"></i>
+                            <p>No enquiries</p>
                         </div>
-                        <div class="lead-meta">
-                            <div class="meta-item" th:if="${lead.budgetMin != null}">
-                                <i class="fas fa-pound-sign"></i>
-                                <span th:text="${lead.budgetMin} + '-' + ${lead.budgetMax}">800-1200</span>
+                        <div th:each="lead : ${enquiryLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                                <div th:if="${lead.email != null}"><i class="fas fa-envelope"></i> <span th:text="${lead.email}">Email</span></div>
                             </div>
-                            <div class="meta-item" th:if="${lead.createdAt != null}">
-                                <i class="fas fa-calendar"></i>
-                                <span th:text="${#temporals.format(lead.createdAt, 'dd MMM')}">Date</span>
+                            <div class="lead-meta">
+                                <div class="meta-item" th:if="${lead.budgetMin != null}">
+                                    <i class="fas fa-pound-sign"></i>
+                                    <span th:text="${lead.budgetMin} + '-' + ${lead.budgetMax}">800-1200</span>
+                                </div>
+                                <div class="meta-item" th:if="${lead.createdAt != null}">
+                                    <i class="fas fa-calendar"></i>
+                                    <span th:text="${#temporals.format(lead.createdAt, 'dd MMM')}">Date</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Viewing Scheduled Column -->
-                <div class="kanban-column column-viewing-scheduled">
+                <div class="kanban-column column-viewing-scheduled" data-status="viewing-scheduled">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-calendar-check"></i> Viewing Scheduled</h6>
                         <span class="badge badge-info" th:text="${#lists.size(viewingScheduledLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(viewingScheduledLeads)}" class="empty-column">
-                        <i class="fas fa-calendar-check fa-2x mb-2"></i>
-                        <p>No viewings scheduled</p>
-                    </div>
-                    <div th:each="lead : ${viewingScheduledLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(viewingScheduledLeads)}" class="empty-column">
+                            <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                            <p>No viewings scheduled</p>
                         </div>
-                        <div class="lead-meta">
-                            <div class="meta-item">
-                                <i class="fas fa-calendar"></i>
-                                <span th:text="${#temporals.format(lead.createdAt, 'dd MMM')}">Date</span>
+                        <div th:each="lead : ${viewingScheduledLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
+                            <div class="lead-meta">
+                                <div class="meta-item">
+                                    <i class="fas fa-calendar"></i>
+                                    <span th:text="${#temporals.format(lead.createdAt, 'dd MMM')}">Date</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Viewing Completed Column -->
-                <div class="kanban-column column-viewing-completed">
+                <div class="kanban-column column-viewing-completed" data-status="viewing-completed">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-check-circle"></i> Viewing Done</h6>
                         <span class="badge badge-primary" th:text="${#lists.size(viewingCompletedLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(viewingCompletedLeads)}" class="empty-column">
-                        <i class="fas fa-check-circle fa-2x mb-2"></i>
-                        <p>No viewings completed</p>
-                    </div>
-                    <div th:each="lead : ${viewingCompletedLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(viewingCompletedLeads)}" class="empty-column">
+                            <i class="fas fa-check-circle fa-2x mb-2"></i>
+                            <p>No viewings completed</p>
+                        </div>
+                        <div th:each="lead : ${viewingCompletedLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Interested Column -->
-                <div class="kanban-column column-interested">
+                <div class="kanban-column column-interested" data-status="interested">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-star"></i> Interested</h6>
                         <span class="badge badge-warning" th:text="${#lists.size(interestedLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(interestedLeads)}" class="empty-column">
-                        <i class="fas fa-star fa-2x mb-2"></i>
-                        <p>No interested leads</p>
-                    </div>
-                    <div th:each="lead : ${interestedLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(interestedLeads)}" class="empty-column">
+                            <i class="fas fa-star fa-2x mb-2"></i>
+                            <p>No interested leads</p>
+                        </div>
+                        <div th:each="lead : ${interestedLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Application Submitted Column -->
-                <div class="kanban-column column-application">
+                <div class="kanban-column column-application" data-status="application-submitted">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-file-alt"></i> Application</h6>
                         <span class="badge" style="background: #fd7e14; color: white;" th:text="${#lists.size(applicationSubmittedLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(applicationSubmittedLeads)}" class="empty-column">
-                        <i class="fas fa-file-alt fa-2x mb-2"></i>
-                        <p>No applications</p>
-                    </div>
-                    <div th:each="lead : ${applicationSubmittedLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(applicationSubmittedLeads)}" class="empty-column">
+                            <i class="fas fa-file-alt fa-2x mb-2"></i>
+                            <p>No applications</p>
+                        </div>
+                        <div th:each="lead : ${applicationSubmittedLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Referencing Column -->
-                <div class="kanban-column column-referencing">
+                <div class="kanban-column column-referencing" data-status="referencing">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-search"></i> Referencing</h6>
                         <span class="badge badge-danger" th:text="${#lists.size(referencingLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(referencingLeads)}" class="empty-column">
-                        <i class="fas fa-search fa-2x mb-2"></i>
-                        <p>No referencing</p>
-                    </div>
-                    <div th:each="lead : ${referencingLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(referencingLeads)}" class="empty-column">
+                            <i class="fas fa-search fa-2x mb-2"></i>
+                            <p>No referencing</p>
+                        </div>
+                        <div th:each="lead : ${referencingLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- In Contracts Column -->
-                <div class="kanban-column column-contracts">
+                <div class="kanban-column column-contracts" data-status="in-contracts">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-file-signature"></i> In Contracts</h6>
                         <span class="badge" style="background: #6610f2; color: white;" th:text="${#lists.size(inContractsLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(inContractsLeads)}" class="empty-column">
-                        <i class="fas fa-file-signature fa-2x mb-2"></i>
-                        <p>No contracts</p>
-                    </div>
-                    <div th:each="lead : ${inContractsLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(inContractsLeads)}" class="empty-column">
+                            <i class="fas fa-file-signature fa-2x mb-2"></i>
+                            <p>No contracts</p>
+                        </div>
+                        <div th:each="lead : ${inContractsLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Converted Column -->
-                <div class="kanban-column column-converted">
+                <div class="kanban-column column-converted" data-status="converted">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-check-double"></i> Converted</h6>
                         <span class="badge badge-success" th:text="${#lists.size(convertedLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(convertedLeads)}" class="empty-column">
-                        <i class="fas fa-check-double fa-2x mb-2"></i>
-                        <p>No conversions</p>
-                    </div>
-                    <div th:each="lead : ${convertedLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(convertedLeads)}" class="empty-column">
+                            <i class="fas fa-check-double fa-2x mb-2"></i>
+                            <p>No conversions</p>
+                        </div>
+                        <div th:each="lead : ${convertedLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Lost Column -->
-                <div class="kanban-column column-lost">
+                <div class="kanban-column column-lost" data-status="lost">
                     <div class="kanban-column-header">
                         <h6><i class="fas fa-times-circle"></i> Lost</h6>
                         <span class="badge badge-dark" th:text="${#lists.size(lostLeads)}">0</span>
                     </div>
-                    <div th:if="${#lists.isEmpty(lostLeads)}" class="empty-column">
-                        <i class="fas fa-times-circle fa-2x mb-2"></i>
-                        <p>No lost leads</p>
-                    </div>
-                    <div th:each="lead : ${lostLeads}" class="kanban-card"
-                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
-                        <h6 th:text="${lead.name}">Lead Name</h6>
-                        <div class="lead-info">
-                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(lostLeads)}" class="empty-column">
+                            <i class="fas fa-times-circle fa-2x mb-2"></i>
+                            <p>No lost leads</p>
+                        </div>
+                        <div th:each="lead : ${lostLeads}" class="kanban-card"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -433,7 +477,193 @@
     </div>
 </div>
 
+<!-- Viewing Scheduled Modal -->
+<div class="modal fade" id="viewingScheduledModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-calendar-check"></i> Schedule Property Viewing</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="viewingScheduledForm">
+                    <input type="hidden" id="viewing_leadId" name="leadId">
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="viewing_date">Viewing Date *</label>
+                                <input type="date" class="form-control" id="viewing_date" name="date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="viewing_time">Viewing Time *</label>
+                                <input type="time" class="form-control" id="viewing_time" name="time" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="viewing_duration">Duration (minutes)</label>
+                                <select class="form-control" id="viewing_duration" name="duration">
+                                    <option value="15">15 minutes</option>
+                                    <option value="30" selected>30 minutes</option>
+                                    <option value="45">45 minutes</option>
+                                    <option value="60">1 hour</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="viewing_type">Viewing Type</label>
+                                <select class="form-control" id="viewing_type" name="viewingType">
+                                    <option value="IN_PERSON" selected>In Person</option>
+                                    <option value="VIRTUAL">Virtual</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="viewing_notes">Notes (Optional)</label>
+                        <textarea class="form-control" id="viewing_notes" name="notes" rows="3" placeholder="Any special instructions or information about the viewing..."></textarea>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="viewing_emailParticipants" name="emailParticipants">
+                        <label class="form-check-label" for="viewing_emailParticipants">
+                            Send email notification to lead
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitViewingScheduled()">
+                    <i class="fas fa-calendar-check"></i> Schedule Viewing
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Conversion Modal -->
+<div class="modal fade" id="conversionModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-check-double"></i> Convert Lead to Tenant</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> This will convert the lead to a customer (if not already) and set up tenant, lease, and invoice records.
+                </div>
+
+                <form id="conversionForm">
+                    <input type="hidden" id="conversion_leadId" name="leadId">
+
+                    <h6 class="border-bottom pb-2 mb-3">Lease Details</h6>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="lease_startDate">Lease Start Date *</label>
+                                <input type="date" class="form-control" id="lease_startDate" name="leaseStartDate" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="lease_endDate">Lease End Date *</label>
+                                <input type="date" class="form-control" id="lease_endDate" name="leaseEndDate" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="lease_monthlyRent">Monthly Rent (£) *</label>
+                                <input type="number" class="form-control" id="lease_monthlyRent" name="monthlyRent" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="lease_deposit">Deposit (£) *</label>
+                                <input type="number" class="form-control" id="lease_deposit" name="deposit" step="0.01" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="conversion_notes">Notes (Optional)</label>
+                        <textarea class="form-control" id="conversion_notes" name="notes" rows="3" placeholder="Any additional information about the conversion..."></textarea>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="conversion_sendWelcome" name="sendWelcomeEmail" checked>
+                        <label class="form-check-label" for="conversion_sendWelcome">
+                            Send welcome email to new tenant
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="submitConversion()">
+                    <i class="fas fa-check-double"></i> Complete Conversion
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Simple Status Update Modal -->
+<div class="modal fade" id="simpleStatusModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-edit"></i> Update Lead Status</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="simpleStatusForm">
+                    <input type="hidden" id="simple_leadId" name="leadId">
+                    <input type="hidden" id="simple_newStatus" name="newStatus">
+
+                    <p>Moving lead to: <strong id="simple_statusDisplay"></strong></p>
+
+                    <div class="form-group">
+                        <label for="simple_notes">Notes (Optional)</label>
+                        <textarea class="form-control" id="simple_notes" name="notes" rows="3" placeholder="Add any notes about this status change..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitSimpleStatus()">
+                    <i class="fas fa-check"></i> Update Status
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div th:replace="~{general/scripts.html}"></div>
+
+<script th:inline="javascript">
+    var csrfToken = /*[[${_csrf.token}]]*/ null;
+    var csrfHeader = /*[[${_csrf.headerName}]]*/ null;
+</script>
 
 <script>
     function loadInstruction() {
@@ -441,6 +671,228 @@
         if (instructionId) {
             window.location.href = `/employee/letting-instruction/lead-pipeline?instructionId=${instructionId}`;
         }
+    }
+
+    // Global variables for drag event
+    let currentDragEvent = null;
+    let currentLeadId = null;
+    let currentNewStatus = null;
+
+    // Initialize drag-and-drop when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        const containers = document.querySelectorAll('.kanban-cards-container');
+
+        containers.forEach(container => {
+            new Sortable(container, {
+                group: 'kanban',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function(evt) {
+                    const leadId = evt.item.getAttribute('data-lead-id');
+                    const newColumn = evt.to.closest('.kanban-column');
+                    const newStatus = newColumn.getAttribute('data-status');
+
+                    // Disable the onclick handler temporarily
+                    evt.item.onclick = null;
+
+                    // Store event data for modal handlers
+                    currentDragEvent = evt;
+                    currentLeadId = leadId;
+                    currentNewStatus = newStatus;
+
+                    // Show appropriate modal based on status
+                    showStatusModal(leadId, newStatus);
+                }
+            });
+        });
+
+        // Modal close handlers - revert drag if modal closed without submitting
+        $('#viewingScheduledModal, #conversionModal, #simpleStatusModal').on('hidden.bs.modal', function () {
+            if (currentDragEvent && currentDragEvent.from !== currentDragEvent.to) {
+                // Only revert if we haven't successfully submitted
+                const wasSuccess = $(this).data('submitted');
+                if (!wasSuccess) {
+                    revertDrag();
+                }
+                // Reset the flag
+                $(this).data('submitted', false);
+            }
+        });
+    });
+
+    function showStatusModal(leadId, newStatus) {
+        // Determine which modal to show based on the status
+        switch (newStatus) {
+            case 'viewing-scheduled':
+                $('#viewing_leadId').val(leadId);
+                // Set minimum date to today
+                const today = new Date().toISOString().split('T')[0];
+                $('#viewing_date').attr('min', today);
+                $('#viewingScheduledModal').modal('show');
+                break;
+
+            case 'converted':
+                $('#conversion_leadId').val(leadId);
+                // Set default lease dates (start: today, end: 1 year from today)
+                const startDate = new Date().toISOString().split('T')[0];
+                const endDate = new Date();
+                endDate.setFullYear(endDate.getFullYear() + 1);
+                $('#lease_startDate').val(startDate);
+                $('#lease_endDate').val(endDate.toISOString().split('T')[0]);
+                $('#conversionModal').modal('show');
+                break;
+
+            default:
+                // For simple status updates (viewing-completed, interested, application-submitted, referencing, in-contracts, lost)
+                $('#simple_leadId').val(leadId);
+                $('#simple_newStatus').val(newStatus);
+                $('#simple_statusDisplay').text(newStatus.replace(/-/g, ' ').toUpperCase());
+                $('#simpleStatusModal').modal('show');
+                break;
+        }
+    }
+
+    function revertDrag() {
+        if (currentDragEvent && currentDragEvent.from !== currentDragEvent.to) {
+            currentDragEvent.from.insertBefore(currentDragEvent.item, currentDragEvent.from.children[currentDragEvent.oldIndex]);
+        }
+        // Re-enable the onclick handler
+        if (currentLeadId) {
+            setTimeout(() => {
+                const item = document.querySelector(`[data-lead-id="${currentLeadId}"]`);
+                if (item) {
+                    item.onclick = function() {
+                        window.location.href = '/employee/lead/show/' + currentLeadId;
+                    };
+                }
+            }, 100);
+        }
+    }
+
+    function submitViewingScheduled() {
+        const form = document.getElementById('viewingScheduledForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const leadId = $('#viewing_leadId').val();
+        const date = $('#viewing_date').val();
+        const time = $('#viewing_time').val();
+        const duration = $('#viewing_duration').val();
+        const viewingType = $('#viewing_type').val();
+        const notes = $('#viewing_notes').val();
+        const emailParticipants = $('#viewing_emailParticipants').is(':checked');
+
+        const datetime = date + 'T' + time;
+
+        fetch('/employee/lead/' + leadId + '/schedule-viewing', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [csrfHeader]: csrfToken
+            },
+            body: JSON.stringify({
+                scheduledDatetime: datetime,
+                durationMinutes: parseInt(duration),
+                viewingType: viewingType,
+                notes: notes,
+                emailParticipants: emailParticipants
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                $('#viewingScheduledModal').data('submitted', true);
+                $('#viewingScheduledModal').modal('hide');
+                alert('Viewing scheduled successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error scheduling viewing: ' + error.message);
+        });
+    }
+
+    function submitConversion() {
+        const form = document.getElementById('conversionForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const leadId = $('#conversion_leadId').val();
+        const leaseStartDate = $('#lease_startDate').val();
+        const leaseEndDate = $('#lease_endDate').val();
+        const monthlyRent = $('#lease_monthlyRent').val();
+        const deposit = $('#lease_deposit').val();
+        const notes = $('#conversion_notes').val();
+        const sendWelcomeEmail = $('#conversion_sendWelcome').is(':checked');
+
+        fetch('/employee/lead/' + leadId + '/convert', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [csrfHeader]: csrfToken
+            },
+            body: JSON.stringify({
+                leaseStartDate: leaseStartDate,
+                leaseEndDate: leaseEndDate,
+                monthlyRent: parseFloat(monthlyRent),
+                deposit: parseFloat(deposit),
+                notes: notes,
+                sendWelcomeEmail: sendWelcomeEmail
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                $('#conversionModal').data('submitted', true);
+                $('#conversionModal').modal('hide');
+                alert('Lead converted successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error converting lead: ' + error.message);
+        });
+    }
+
+    function submitSimpleStatus() {
+        const leadId = $('#simple_leadId').val();
+        const newStatus = $('#simple_newStatus').val();
+        const notes = $('#simple_notes').val();
+
+        fetch('/employee/lead/' + leadId + '/status', {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                [csrfHeader]: csrfToken
+            },
+            body: JSON.stringify({
+                status: newStatus,
+                notes: notes
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                $('#simpleStatusModal').data('submitted', true);
+                $('#simpleStatusModal').modal('hide');
+                alert('Lead status updated successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error updating status: ' + error.message);
+        });
     }
 </script>
 

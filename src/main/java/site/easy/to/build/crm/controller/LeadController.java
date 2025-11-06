@@ -476,6 +476,198 @@ public class LeadController {
         return "redirect:/employee/lead/created-leads";
     }
 
+    @PatchMapping("/{id}/status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateLeadStatus(@PathVariable("id") int id,
+                                                                 @RequestBody Map<String, String> request,
+                                                                 Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User loggedInUser = userService.findById(Long.valueOf(userId));
+
+            if(loggedInUser.isInactiveUser()) {
+                return ResponseEntity.status(403).body(Map.of("success", false, "message", "Account is inactive"));
+            }
+
+            Lead lead = leadService.findByLeadId(id);
+            if(lead == null) {
+                return ResponseEntity.status(404).body(Map.of("success", false, "message", "Lead not found"));
+            }
+
+            User employee = lead.getEmployee();
+            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") && !AuthorizationUtil.checkIfUserAuthorized(employee, loggedInUser)) {
+                return ResponseEntity.status(403).body(Map.of("success", false, "message", "Access denied"));
+            }
+
+            String newStatus = request.get("status");
+            if(newStatus == null || newStatus.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Status is required"));
+            }
+
+            String previousStatus = lead.getStatus();
+            lead.setStatus(newStatus);
+            leadService.save(lead);
+
+            // Create a lead action to track the status change
+            LeadAction leadAction = new LeadAction();
+            leadAction.setLead(lead);
+            leadAction.setTimestamp(LocalDateTime.now());
+            String notes = request.get("notes");
+            String action = "Status changed from " + previousStatus + " to " + newStatus;
+            if (notes != null && !notes.trim().isEmpty()) {
+                action += ". Notes: " + notes;
+            }
+            leadAction.setAction(action);
+            leadActionService.save(leadAction);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Lead status updated successfully",
+                "leadId", lead.getLeadId(),
+                "newStatus", newStatus
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Error updating status: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id}/schedule-viewing")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> scheduleViewing(@PathVariable("id") int id,
+                                                                @RequestBody Map<String, Object> request,
+                                                                Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User loggedInUser = userService.findById(Long.valueOf(userId));
+
+            if(loggedInUser.isInactiveUser()) {
+                return ResponseEntity.status(403).body(Map.of("success", false, "message", "Account is inactive"));
+            }
+
+            Lead lead = leadService.findByLeadId(id);
+            if(lead == null) {
+                return ResponseEntity.status(404).body(Map.of("success", false, "message", "Lead not found"));
+            }
+
+            // For now, create a basic viewing record and update lead status
+            // You can expand this to create PropertyViewing entity when ready
+
+            String previousStatus = lead.getStatus();
+            lead.setStatus("viewing-scheduled");
+            leadService.save(lead);
+
+            // Create a lead action to track the viewing scheduling
+            LeadAction leadAction = new LeadAction();
+            leadAction.setLead(lead);
+            leadAction.setTimestamp(LocalDateTime.now());
+
+            String datetime = (String) request.get("scheduledDatetime");
+            Integer durationMinutes = (Integer) request.get("durationMinutes");
+            String viewingType = (String) request.get("viewingType");
+            String notes = (String) request.get("notes");
+
+            StringBuilder action = new StringBuilder("Viewing scheduled for " + datetime);
+            if (durationMinutes != null) {
+                action.append(" (" + durationMinutes + " minutes)");
+            }
+            if (viewingType != null) {
+                action.append(" - Type: " + viewingType);
+            }
+            if (notes != null && !notes.trim().isEmpty()) {
+                action.append(". Notes: " + notes);
+            }
+
+            leadAction.setAction(action.toString());
+            leadActionService.save(leadAction);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Viewing scheduled successfully",
+                "leadId", lead.getLeadId()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Error scheduling viewing: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/{id}/convert")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> convertLead(@PathVariable("id") int id,
+                                                            @RequestBody Map<String, Object> request,
+                                                            Authentication authentication) {
+        try {
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            User loggedInUser = userService.findById(Long.valueOf(userId));
+
+            if(loggedInUser.isInactiveUser()) {
+                return ResponseEntity.status(403).body(Map.of("success", false, "message", "Account is inactive"));
+            }
+
+            Lead lead = leadService.findByLeadId(id);
+            if(lead == null) {
+                return ResponseEntity.status(404).body(Map.of("success", false, "message", "Lead not found"));
+            }
+
+            // Update lead status to converted
+            lead.setStatus("converted");
+            lead.setConvertedAt(LocalDateTime.now());
+
+            // If lead doesn't have a customer yet, create one
+            if (lead.getCustomer() == null && lead.getEmail() != null) {
+                Customer customer = new Customer();
+                customer.setName(lead.getName());
+                customer.setEmail(lead.getEmail());
+                customer.setPhone(lead.getPhone());
+                customer.setUser(loggedInUser);
+                customer.setIsTenant(true); // Mark as tenant
+                customer.setCreatedAt(LocalDateTime.now());
+                customer = customerService.save(customer);
+
+                lead.setCustomer(customer);
+                lead.setConvertedToCustomer(customer);
+            } else if (lead.getCustomer() != null) {
+                // Update existing customer to be a tenant
+                Customer customer = lead.getCustomer();
+                customer.setIsTenant(true);
+                customerService.save(customer);
+                lead.setConvertedToCustomer(customer);
+            }
+
+            leadService.save(lead);
+
+            // Create a lead action to track the conversion
+            LeadAction leadAction = new LeadAction();
+            leadAction.setLead(lead);
+            leadAction.setTimestamp(LocalDateTime.now());
+
+            String leaseStartDate = (String) request.get("leaseStartDate");
+            String leaseEndDate = (String) request.get("leaseEndDate");
+            Double monthlyRent = ((Number) request.get("monthlyRent")).doubleValue();
+            Double deposit = ((Number) request.get("deposit")).doubleValue();
+            String notes = (String) request.get("notes");
+
+            StringBuilder action = new StringBuilder("Lead converted to tenant. ");
+            action.append("Lease: " + leaseStartDate + " to " + leaseEndDate);
+            action.append(", Rent: £" + String.format("%.2f", monthlyRent));
+            action.append(", Deposit: £" + String.format("%.2f", deposit));
+            if (notes != null && !notes.trim().isEmpty()) {
+                action.append(". Notes: " + notes);
+            }
+
+            leadAction.setAction(action.toString());
+            leadActionService.save(leadAction);
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Lead converted successfully",
+                "leadId", lead.getLeadId(),
+                "customerId", lead.getCustomer() != null ? lead.getCustomer().getCustomerId() : null
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "Error converting lead: " + e.getMessage()));
+        }
+    }
+
     @PostMapping("/save-attachment/ajax")
     @ResponseBody
     public ResponseEntity<String> saveAttachmentAjax(Authentication authentication) {
