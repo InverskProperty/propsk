@@ -473,14 +473,22 @@
 
                 if (response.success && response.matches) {
                     response.matches.forEach(function(match) {
-                        const property = match.property || match;
-                        const address = property.addressLine1 || '';
-                        const displayText = property.propertyName + (address ? ' - ' + address : '');
-                        console.log('Adding property:', property.id, displayText);
+                        // The match object from PropertyMatch class has: propertyId, propertyName, propertyType, score
+                        const propertyId = match.propertyId;
+                        const propertyName = match.propertyName;
+                        const propertyType = match.propertyType || '';
+
+                        // Build display text
+                        let displayText = propertyName;
+                        if (propertyType && propertyType !== 'null') {
+                            displayText += ' (' + propertyType + ')';
+                        }
+
+                        console.log('Adding property:', propertyId, displayText);
 
                         // Create option and append
                         const option = document.createElement('option');
-                        option.value = property.id;
+                        option.value = propertyId;
                         option.text = displayText;
                         select.append(option);
                     });
