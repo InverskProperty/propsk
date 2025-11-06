@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">Vacancy Tasks</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-tasks text-info"></i> Vacancy Tasks Dashboard
+                    </h4>
+                    <p class="text-muted">Manage property preparation and marketing tasks</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <button class="btn btn-primary" onclick="createTask()">
+                            <i class="fas fa-plus"></i> New Task
+                        </button>
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/">Home</a></li>
+                            <li class="breadcrumb-item active">Vacancy Tasks</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row">
+                <div class="col-lg-3 col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">My Tasks</h5>
+                            <h2 class="mb-0" th:text="${#lists.size(myTasks)}">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card border-left-danger">
+                        <div class="card-body">
+                            <h5 class="card-title text-danger">Overdue</h5>
+                            <h2 class="mb-0 text-danger" th:text="${#lists.size(overdueTasks)}">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card border-left-warning">
+                        <div class="card-body">
+                            <h5 class="card-title text-warning">Due Today</h5>
+                            <h2 class="mb-0 text-warning" th:text="${#lists.size(todayTasks)}">0</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <div class="card border-left-info">
+                        <div class="card-body">
+                            <h5 class="card-title text-info">This Week</h5>
+                            <h2 class="mb-0 text-info" th:text="${#lists.size(weekTasks)}">0</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Lists -->
+            <div class="row">
+                <!-- Overdue Tasks -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header bg-danger text-white">
+                            <h4 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Overdue Tasks</h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(overdueTasks)}" class="text-center text-muted py-4">
+                                <i class="fas fa-check-circle fa-3x mb-3"></i>
+                                <p>No overdue tasks</p>
+                            </div>
+                            <div class="table-responsive" th:if="${!#lists.isEmpty(overdueTasks)}">
+                                <table class="table table-hover">
+                                    <tbody>
+                                    <tr th:each="task : ${overdueTasks}">
+                                        <td>
+                                            <strong th:text="${task.taskType}">Task Type</strong><br/>
+                                            <small class="text-muted" th:text="${task.property.propertyName}">Property</small>
+                                        </td>
+                                        <td class="text-right">
+                                            <span class="badge badge-danger" th:text="${task.dueDate}">Due Date</span>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Today's Tasks -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header bg-warning text-white">
+                            <h4 class="mb-0"><i class="fas fa-calendar-day"></i> Due Today</h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(todayTasks)}" class="text-center text-muted py-4">
+                                <i class="fas fa-calendar-check fa-3x mb-3"></i>
+                                <p>No tasks due today</p>
+                            </div>
+                            <div class="table-responsive" th:if="${!#lists.isEmpty(todayTasks)}">
+                                <table class="table table-hover">
+                                    <tbody>
+                                    <tr th:each="task : ${todayTasks}">
+                                        <td>
+                                            <strong th:text="${task.taskType}">Task Type</strong><br/>
+                                            <small class="text-muted" th:text="${task.property.propertyName}">Property</small>
+                                        </td>
+                                        <td class="text-right">
+                                            <button class="btn btn-sm btn-success" onclick="completeTask(this)" th:attr="data-task-id=${task.id}">
+                                                <i class="fas fa-check"></i> Complete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Tasks -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0"><i class="fas fa-user-check"></i> My Tasks</h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(myTasks)}" class="text-center text-muted py-4">
+                                <i class="fas fa-tasks fa-3x mb-3"></i>
+                                <p>No tasks assigned to you</p>
+                            </div>
+                            <div class="table-responsive" th:if="${!#lists.isEmpty(myTasks)}">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                    <tr>
+                                        <th>Property</th>
+                                        <th>Task Type</th>
+                                        <th>Due Date</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr th:each="task : ${myTasks}">
+                                        <td th:text="${task.property.propertyName}">Property Name</td>
+                                        <td th:text="${task.taskType}">Task Type</td>
+                                        <td th:text="${task.dueDate}">Due Date</td>
+                                        <td>
+                                            <span class="badge badge-warning" th:if="${task.priority == 'HIGH'}">High</span>
+                                            <span class="badge badge-info" th:if="${task.priority == 'MEDIUM'}">Medium</span>
+                                            <span class="badge badge-secondary" th:if="${task.priority == 'LOW'}">Low</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-primary" th:text="${task.status}">Status</span>
+                                        </td>
+                                        <td class="text-right">
+                                            <button class="btn btn-sm btn-info" onclick="viewTask(this)" th:attr="data-task-id=${task.id}">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-success" onclick="completeTask(this)" th:attr="data-task-id=${task.id}">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<div th:replace="~{general/scripts.html}"></div>
+
+<script>
+    function createTask() {
+        alert('Create task functionality - to be implemented');
+    }
+
+    function viewTask(btn) {
+        const taskId = btn.getAttribute('data-task-id');
+        alert('View task ' + taskId + ' - to be implemented');
+    }
+
+    function completeTask(btn) {
+        const taskId = btn.getAttribute('data-task-id');
+        if (confirm('Mark this task as complete?')) {
+            alert('Complete task ' + taskId + ' - to be implemented');
+        }
+    }
+</script>
+
+</body>
+</html>
