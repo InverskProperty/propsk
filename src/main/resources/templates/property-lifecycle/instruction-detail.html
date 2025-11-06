@@ -155,7 +155,15 @@
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <p class="mb-2"><strong>Property Address:</strong></p>
-                                    <p class="text-muted" th:text="${instruction.property.address}">Property Address</p>
+                                    <p class="text-muted">
+                                        <span th:text="${instruction.property.addressLine1}">Address Line 1</span><br th:if="${instruction.property.addressLine1 != null}"/>
+                                        <span th:if="${instruction.property.addressLine2 != null}" th:text="${instruction.property.addressLine2}"></span>
+                                        <span th:if="${instruction.property.addressLine2 != null}"><br/></span>
+                                        <span th:if="${instruction.property.addressLine3 != null}" th:text="${instruction.property.addressLine3}"></span>
+                                        <span th:if="${instruction.property.addressLine3 != null}"><br/></span>
+                                        <span th:if="${instruction.property.city != null}" th:text="${instruction.property.city}"></span>
+                                        <span th:if="${instruction.property.postalCode != null}" th:text="${instruction.property.postalCode}"></span>
+                                    </p>
                                 </div>
                                 <div class="col-md-6">
                                     <p class="mb-2"><strong>Target Rent:</strong></p>
