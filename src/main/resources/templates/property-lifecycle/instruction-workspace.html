@@ -359,14 +359,219 @@
 
 <div th:replace="~{general/scripts.html}"></div>
 
+<!-- Create Instruction Modal -->
+<div class="modal fade" id="createInstructionModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle"></i> Create New Letting Instruction
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="createInstructionForm">
+                    <!-- Property Selection -->
+                    <div class="form-group">
+                        <label for="propertySelect">
+                            Property <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-control" id="propertySelect" name="propertyId" required>
+                            <option value="">-- Select Property --</option>
+                        </select>
+                        <small class="form-text text-muted">Select the property to let</small>
+                    </div>
+
+                    <!-- Target Rent -->
+                    <div class="form-group">
+                        <label for="targetRent">
+                            Target Rent (Monthly) <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text">£</span>
+                            </div>
+                            <input type="number" class="form-control" id="targetRent" name="targetRent"
+                                   step="0.01" min="0" placeholder="1000.00" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">/month</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Target Lease Length -->
+                    <div class="form-group">
+                        <label for="targetLeaseLengthMonths">
+                            Target Lease Length <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="targetLeaseLengthMonths"
+                                   name="targetLeaseLengthMonths" min="1" max="120" placeholder="12" required>
+                            <div class="input-group-append">
+                                <span class="input-group-text">months</span>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">Typical lease length: 6, 12, or 24 months</small>
+                    </div>
+
+                    <!-- Expected Vacancy Date -->
+                    <div class="form-group">
+                        <label for="expectedVacancyDate">
+                            Expected Vacancy Date <span class="text-danger">*</span>
+                        </label>
+                        <input type="date" class="form-control" id="expectedVacancyDate"
+                               name="expectedVacancyDate" required>
+                        <small class="form-text text-muted">When will the property become available?</small>
+                    </div>
+
+                    <!-- Property Description -->
+                    <div class="form-group">
+                        <label for="propertyDescription">
+                            Property Description
+                        </label>
+                        <textarea class="form-control" id="propertyDescription" name="propertyDescription"
+                                  rows="4" placeholder="Enter a detailed description for marketing purposes..."></textarea>
+                        <small class="form-text text-muted">This will be used for marketing materials</small>
+                    </div>
+
+                    <!-- Alert Messages -->
+                    <div id="instructionAlert" class="alert d-none" role="alert"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-success" onclick="submitInstruction()">
+                    <i class="fas fa-save"></i> Create Instruction
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script th:inline="javascript">
+    const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+    const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+    // Load properties when page loads
+    $(document).ready(function() {
+        loadProperties();
+    });
+
+    function loadProperties() {
+        $.ajax({
+            url: '/employee/lease/import-wizard/search-properties',
+            method: 'GET',
+            success: function(response) {
+                const select = $('#propertySelect');
+                select.empty();
+                select.append('<option value="">-- Select Property --</option>');
+
+                if (response.success && response.matches) {
+                    response.matches.forEach(function(match) {
+                        const property = match.property || match;
+                        const address = property.addressLine1 || '';
+                        const displayText = property.propertyName + (address ? ' - ' + address : '');
+                        select.append(new Option(displayText, property.id));
+                    });
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Failed to load properties:', error);
+                showAlert('Failed to load properties. Please refresh the page.', 'danger');
+            }
+        });
+    }
+
     function viewInstruction(instructionId) {
         window.location.href = '/employee/letting-instruction/' + instructionId + '/detail';
     }
 
     function createInstruction() {
-        // TODO: Open modal to create new instruction
-        alert('Create instruction modal - to be implemented');
+        // Set minimum date to today
+        const today = new Date().toISOString().split('T')[0];
+        $('#expectedVacancyDate').attr('min', today);
+
+        // Reset form
+        $('#createInstructionForm')[0].reset();
+        $('#instructionAlert').addClass('d-none');
+
+        // Show modal
+        $('#createInstructionModal').modal('show');
+    }
+
+    function submitInstruction() {
+        // Validate form
+        const form = document.getElementById('createInstructionForm');
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        // Gather form data
+        const formData = {
+            propertyId: parseInt($('#propertySelect').val()),
+            targetRent: parseFloat($('#targetRent').val()),
+            targetLeaseLengthMonths: parseInt($('#targetLeaseLengthMonths').val()),
+            expectedVacancyDate: $('#expectedVacancyDate').val(),
+            propertyDescription: $('#propertyDescription').val()
+        };
+
+        // Validate property selection
+        if (!formData.propertyId) {
+            showAlert('Please select a property', 'warning');
+            return;
+        }
+
+        // Show loading state
+        const submitBtn = event.target;
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+
+        // Submit via AJAX
+        $.ajax({
+            url: '/employee/letting-instruction/create',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Instruction created successfully! Reference: ' + response.reference, 'success');
+
+                    // Reload page after short delay
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    showAlert(response.message || 'Failed to create instruction', 'danger');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            },
+            error: function(xhr, status, error) {
+                let errorMessage = 'Failed to create instruction';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                showAlert(errorMessage, 'danger');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    }
+
+    function showAlert(message, type) {
+        const alert = $('#instructionAlert');
+        alert.removeClass('d-none alert-success alert-danger alert-warning alert-info');
+        alert.addClass('alert-' + type);
+        alert.text(message);
     }
 </script>
 
