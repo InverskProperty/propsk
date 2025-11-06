@@ -319,14 +319,17 @@
             <div class="row">
                 <div class="col-12">
                     <div class="card">
-                        <div class="card-header bg-primary text-white">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                             <h4 class="card-title text-white mb-0">
                                 <i class="fas fa-users"></i> Leads & Enquiries
                             </h4>
+                            <button class="btn btn-light btn-sm" onclick="showAddLeadModal()">
+                                <i class="fas fa-plus"></i> Add Lead
+                            </button>
                         </div>
                         <div class="card-body">
                             <div th:if="${#lists.isEmpty(instruction.leads)}">
-                                <p class="text-muted text-center py-4">No leads assigned to this instruction yet.</p>
+                                <p class="text-muted text-center py-4">No leads assigned to this instruction yet. Click "Add Lead" to link an enquiry.</p>
                             </div>
                             <div th:if="${!#lists.isEmpty(instruction.leads)}">
                                 <table class="table table-hover">
@@ -346,7 +349,12 @@
                                             <td><span class="badge badge-info" th:text="${lead.status}">Status</span></td>
                                             <td th:text="${#temporals.format(lead.createdAt, 'dd MMM yyyy')}">Date</td>
                                             <td>
-                                                <a href="#" class="btn btn-sm btn-primary"><i class="fas fa-eye"></i></a>
+                                                <a th:href="@{/employee/lead/show/{id}(id=${lead.leadId})}" class="btn btn-sm btn-primary" title="View Lead">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <button th:onclick="'removeLead(' + ${lead.leadId} + ')'" class="btn btn-sm btn-danger" title="Remove from Instruction">
+                                                    <i class="fas fa-unlink"></i>
+                                                </button>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -454,6 +462,65 @@
                     alert('Error: ' + error.message);
                 });
             }
+        }
+    }
+
+    function showAddLeadModal() {
+        const leadId = prompt('Enter Lead ID to link to this instruction:');
+        if (leadId !== null && leadId.trim() !== '') {
+            addLeadToInstruction(parseInt(leadId));
+        }
+    }
+
+    function addLeadToInstruction(leadId) {
+        fetch(`/employee/letting-instruction/${instructionId}/add-lead`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [csrfHeader]: csrfToken
+            },
+            body: JSON.stringify({
+                leadId: leadId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Lead successfully linked to instruction');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error linking lead: ' + error.message);
+        });
+    }
+
+    function removeLead(leadId) {
+        if (confirm('Remove this lead from the instruction?')) {
+            fetch(`/employee/letting-instruction/${instructionId}/remove-lead`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
+                },
+                body: JSON.stringify({
+                    leadId: leadId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Lead removed from instruction');
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error removing lead: ' + error.message);
+            });
         }
     }
 </script>
