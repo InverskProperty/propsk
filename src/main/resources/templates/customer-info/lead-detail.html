@@ -75,7 +75,7 @@
                             <div class="row">
                                 <div class="col-md-2 col-xs-6 b-r"> <strong>Customer</strong>
                                     <br>
-                                    <p class="text-muted" th:text="${lead.customer.name}"></p>
+                                    <p class="text-muted" th:text="${lead.customer != null ? lead.customer.name : 'Prospect (No Customer)'}"></p>
                                 </div>
                                 <div class="col-md-2 col-xs-6 b-r"> <strong>Subject</strong>
                                     <br>
