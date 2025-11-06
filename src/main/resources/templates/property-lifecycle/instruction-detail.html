@@ -196,6 +196,14 @@
                                 <p class="mb-2"><strong>Key Features:</strong></p>
                                 <p class="text-muted" th:text="${instruction.keyFeatures}">Key features...</p>
                             </div>
+
+                            <!-- Internal Notes Section -->
+                            <div th:if="${instruction.internalNotes != null}" class="mt-3">
+                                <p class="mb-2"><strong>Internal Notes:</strong></p>
+                                <div class="alert alert-info">
+                                    <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;" th:text="${instruction.internalNotes}">Notes will appear here...</pre>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -207,23 +215,24 @@
                             </h4>
                         </div>
                         <div class="card-body action-buttons">
-                            <button class="btn btn-primary" th:if="${instruction.status.name() == 'INSTRUCTION_RECEIVED' || instruction.status.name() == 'PREPARING'}" onclick="startAdvertising()">
+                            <!-- Start Advertising (when new instruction) -->
+                            <button class="btn btn-primary" th:if="${instruction.status.name() == 'INSTRUCTION_RECEIVED'}" onclick="startAdvertising()">
                                 <i class="fas fa-bullhorn"></i> Start Advertising
                             </button>
-                            <button class="btn btn-warning" th:if="${instruction.status.name() == 'ADVERTISING'}" onclick="startViewings()">
-                                <i class="fas fa-users"></i> Start Viewings
+
+                            <!-- Mark Offer Accepted (when advertising - holding deposit paid) -->
+                            <button class="btn btn-warning" th:if="${instruction.status.name() == 'ADVERTISING'}" onclick="markOfferAccepted()">
+                                <i class="fas fa-handshake"></i> Mark Offer Accepted
                             </button>
-                            <button class="btn btn-success" th:if="${instruction.status.name() == 'VIEWINGS_IN_PROGRESS'}" onclick="markOfferMade()">
-                                <i class="fas fa-handshake"></i> Mark Offer Made
-                            </button>
-                            <button class="btn btn-info" th:if="${instruction.status.name() == 'OFFER_MADE'}" onclick="convertToLease()">
+
+                            <!-- Convert to Lease (when offer accepted - tenant moving in) -->
+                            <button class="btn btn-success" th:if="${instruction.status.name() == 'OFFER_ACCEPTED' || instruction.status.name() == 'OFFER_MADE'}" onclick="convertToLease()">
                                 <i class="fas fa-file-contract"></i> Convert to Lease
                             </button>
-                            <button class="btn btn-secondary" onclick="addNotes()">
-                                <i class="fas fa-sticky-note"></i> Add Notes
-                            </button>
-                            <button class="btn btn-danger" th:if="${instruction.status.name() != 'CLOSED'}" onclick="closeInstruction()">
-                                <i class="fas fa-times-circle"></i> Close Instruction
+
+                            <!-- Cancel Instruction -->
+                            <button class="btn btn-danger" th:if="${instruction.status.name() != 'CANCELLED' && instruction.status.name() != 'CLOSED' && instruction.status.name() != 'ACTIVE_LEASE'}" onclick="cancelInstruction()">
+                                <i class="fas fa-ban"></i> Cancel Instruction
                             </button>
                         </div>
                     </div>
@@ -383,45 +392,36 @@
         }
     }
 
-    function startViewings() {
-        if (confirm('Move to viewings stage?')) {
-            fetch(`/employee/letting-instruction/${instructionId}/start-viewings`, {
-                method: 'POST',
-                headers: {
-                    [csrfHeader]: csrfToken
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
-        }
-    }
+    function markOfferAccepted() {
+        const agreedRent = prompt('Enter agreed monthly rent (£):');
+        if (agreedRent === null) return;
 
-    function markOfferMade() {
-        const notes = prompt('Add notes about the offer:');
-        if (notes !== null) {
-            fetch(`/employee/letting-instruction/${instructionId}/mark-offer-made`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    [csrfHeader]: csrfToken
-                },
-                body: JSON.stringify({ notes: notes })
+        const notes = prompt('Add notes (e.g., holding deposit amount, tenant name):');
+        if (notes === null) return;
+
+        fetch(`/employee/letting-instruction/${instructionId}/mark-offer-accepted`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                [csrfHeader]: csrfToken
+            },
+            body: JSON.stringify({
+                agreedRent: parseFloat(agreedRent),
+                notes: notes
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
-        }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Offer accepted! Holding deposit recorded.');
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
     }
 
     function convertToLease() {
@@ -429,33 +429,31 @@
         // TODO: Open modal with form for tenant details, lease dates, rent, deposit
     }
 
-    function addNotes() {
-        const notes = prompt('Add internal notes:');
-        if (notes !== null) {
-            // TODO: API call to add notes
-            alert('Note added: ' + notes);
-        }
-    }
-
-    function closeInstruction() {
-        const reason = prompt('Reason for closing instruction:');
-        if (reason !== null) {
-            fetch(`/employee/letting-instruction/${instructionId}/close`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    [csrfHeader]: csrfToken
-                },
-                body: JSON.stringify({ closureReason: reason })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            });
+    function cancelInstruction() {
+        const reason = prompt('Reason for cancelling instruction:');
+        if (reason !== null && reason.trim() !== '') {
+            if (confirm('Are you sure you want to cancel this instruction?')) {
+                fetch(`/employee/letting-instruction/${instructionId}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        [csrfHeader]: csrfToken
+                    },
+                    body: JSON.stringify({ reason: reason })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Instruction cancelled');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
+            }
         }
     }
 </script>
