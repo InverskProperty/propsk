@@ -466,6 +466,7 @@
             url: '/employee/lease/import-wizard/search-properties',
             method: 'GET',
             success: function(response) {
+                console.log('Properties loaded:', response);
                 const select = $('#propertySelect');
                 select.empty();
                 select.append('<option value="">-- Select Property --</option>');
@@ -475,8 +476,15 @@
                         const property = match.property || match;
                         const address = property.addressLine1 || '';
                         const displayText = property.propertyName + (address ? ' - ' + address : '');
-                        select.append(new Option(displayText, property.id));
+                        console.log('Adding property:', property.id, displayText);
+
+                        // Create option and append
+                        const option = document.createElement('option');
+                        option.value = property.id;
+                        option.text = displayText;
+                        select.append(option);
                     });
+                    console.log('Total properties loaded:', response.matches.length);
                 }
             },
             error: function(xhr, status, error) {
@@ -511,18 +519,30 @@
             return;
         }
 
+        // Get property value and validate
+        const propertyValue = $('#propertySelect').val();
+        console.log('Property select value:', propertyValue, 'Type:', typeof propertyValue);
+
+        if (!propertyValue || propertyValue === '') {
+            showAlert('Please select a property', 'warning');
+            return;
+        }
+
         // Gather form data
         const formData = {
-            propertyId: parseInt($('#propertySelect').val()),
+            propertyId: parseInt(propertyValue),
             targetRent: parseFloat($('#targetRent').val()),
             targetLeaseLengthMonths: parseInt($('#targetLeaseLengthMonths').val()),
             expectedVacancyDate: $('#expectedVacancyDate').val(),
             propertyDescription: $('#propertyDescription').val()
         };
 
-        // Validate property selection
-        if (!formData.propertyId) {
-            showAlert('Please select a property', 'warning');
+        console.log('Form data to submit:', formData);
+
+        // Validate parsed property ID
+        if (isNaN(formData.propertyId) || formData.propertyId <= 0) {
+            showAlert('Invalid property selection. Please try again.', 'warning');
+            console.error('Invalid property ID after parsing:', formData.propertyId);
             return;
         }
 
