@@ -64,6 +64,49 @@ public class LettingInstructionController {
     }
 
     /**
+     * Lead Journey Kanban - Shows lead progression for a specific instruction
+     */
+    @GetMapping("/lead-pipeline")
+    public String leadPipeline(@RequestParam(required = false) Long instructionId,
+                               Authentication authentication,
+                               Model model) {
+        // Get all active instructions for the dropdown
+        List<LettingInstruction> activeInstructions = lettingInstructionService.getAllActiveInstructions();
+        model.addAttribute("instructions", activeInstructions);
+
+        if (instructionId != null) {
+            LettingInstruction instruction = lettingInstructionService.getInstructionWithDetails(instructionId)
+                    .orElseThrow(() -> new IllegalArgumentException("Instruction not found: " + instructionId));
+
+            model.addAttribute("selectedInstruction", instruction);
+
+            // Group leads by status
+            List<Lead> allLeads = instruction.getLeads();
+
+            model.addAttribute("enquiryLeads",
+                allLeads.stream().filter(l -> "enquiry".equals(l.getStatus())).toList());
+            model.addAttribute("viewingScheduledLeads",
+                allLeads.stream().filter(l -> "viewing-scheduled".equals(l.getStatus())).toList());
+            model.addAttribute("viewingCompletedLeads",
+                allLeads.stream().filter(l -> "viewing-completed".equals(l.getStatus())).toList());
+            model.addAttribute("interestedLeads",
+                allLeads.stream().filter(l -> "interested".equals(l.getStatus())).toList());
+            model.addAttribute("applicationSubmittedLeads",
+                allLeads.stream().filter(l -> "application-submitted".equals(l.getStatus())).toList());
+            model.addAttribute("referencingLeads",
+                allLeads.stream().filter(l -> "referencing".equals(l.getStatus())).toList());
+            model.addAttribute("inContractsLeads",
+                allLeads.stream().filter(l -> "in-contracts".equals(l.getStatus())).toList());
+            model.addAttribute("convertedLeads",
+                allLeads.stream().filter(l -> "converted".equals(l.getStatus())).toList());
+            model.addAttribute("lostLeads",
+                allLeads.stream().filter(l -> "lost".equals(l.getStatus())).toList());
+        }
+
+        return "property-lifecycle/lead-pipeline";
+    }
+
+    /**
      * Single instruction detail view
      */
     @GetMapping("/{id}/detail")

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<style>
+    .kanban-board {
+        display: flex;
+        gap: 15px;
+        overflow-x: auto;
+        padding: 20px 0;
+    }
+
+    .kanban-column {
+        flex: 0 0 280px;
+        min-width: 280px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 15px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .kanban-column-header {
+        background: #fff;
+        border-radius: 6px;
+        padding: 12px 15px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .kanban-column-header h6 {
+        margin: 0;
+        font-weight: 600;
+        font-size: 13px;
+    }
+
+    .kanban-column-header .badge {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    .kanban-card {
+        background: white;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border-left: 4px solid #ddd;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .kanban-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+    }
+
+    .kanban-card h6 {
+        margin: 0 0 6px 0;
+        font-weight: 600;
+        font-size: 14px;
+        color: #333;
+    }
+
+    .kanban-card .lead-info {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 8px;
+    }
+
+    .kanban-card .lead-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        font-size: 11px;
+    }
+
+    .kanban-card .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* Column-specific colors */
+    .column-enquiry .kanban-card { border-left-color: #6c757d; }
+    .column-viewing-scheduled .kanban-card { border-left-color: #17a2b8; }
+    .column-viewing-completed .kanban-card { border-left-color: #007bff; }
+    .column-interested .kanban-card { border-left-color: #ffc107; }
+    .column-application .kanban-card { border-left-color: #fd7e14; }
+    .column-referencing .kanban-card { border-left-color: #dc3545; }
+    .column-contracts .kanban-card { border-left-color: #6610f2; }
+    .column-converted .kanban-card { border-left-color: #28a745; }
+    .column-lost .kanban-card { border-left-color: #343a40; }
+
+    .empty-column {
+        text-align: center;
+        color: #999;
+        padding: 30px 15px;
+    }
+
+    .instruction-selector {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 25px;
+    }
+
+    .instruction-info {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        margin-top: 15px;
+    }
+
+    .instruction-info h5 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+    }
+
+    .instruction-info .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+    }
+
+    .instruction-info .info-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .instruction-info .info-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .instruction-info .info-value {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">Lead Pipeline</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Page Title -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">Lead Journey Pipeline</h3>
+                    <p class="text-muted">Track lead progression through the rental process - per instruction</p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <a th:href="@{/employee/letting-instruction/workspace}" class="btn btn-primary">
+                        <i class="fas fa-th"></i> Instruction Workspace
+                    </a>
+                </div>
+            </div>
+
+            <!-- Instruction Selector -->
+            <div class="instruction-selector">
+                <div class="row">
+                    <div class="col-md-12">
+                        <label for="instructionSelect" class="font-weight-bold">Select Letting Instruction</label>
+                        <select id="instructionSelect" class="form-control" onchange="loadInstruction()">
+                            <option value="">-- Select an instruction to view its leads --</option>
+                            <option th:each="inst : ${instructions}"
+                                    th:value="${inst.id}"
+                                    th:text="${inst.property.addressLine1 + ' - ' + inst.property.city + ' (' + inst.status.name() + ')'}"
+                                    th:selected="${selectedInstruction != null && selectedInstruction.id == inst.id}">
+                            </option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Selected Instruction Info -->
+                <div th:if="${selectedInstruction != null}" class="instruction-info">
+                    <h5><i class="fas fa-info-circle"></i> Instruction Details</h5>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Property</span>
+                            <span class="info-value" th:text="${selectedInstruction.property.addressLine1}">Address</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Status</span>
+                            <span class="info-value" th:text="${selectedInstruction.status.name()}">Status</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Target Rent</span>
+                            <span class="info-value">£<span th:text="${selectedInstruction.targetRent}">1000</span>/mo</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Total Leads</span>
+                            <span class="info-value" th:text="${#lists.size(selectedInstruction.leads)}">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kanban Board -->
+            <div th:if="${selectedInstruction != null}" class="kanban-board">
+                <!-- Enquiry Column -->
+                <div class="kanban-column column-enquiry">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-envelope"></i> Enquiry</h6>
+                        <span class="badge badge-secondary" th:text="${#lists.size(enquiryLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(enquiryLeads)}" class="empty-column">
+                        <i class="fas fa-envelope fa-2x mb-2"></i>
+                        <p>No enquiries</p>
+                    </div>
+                    <div th:each="lead : ${enquiryLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            <div th:if="${lead.email != null}"><i class="fas fa-envelope"></i> <span th:text="${lead.email}">Email</span></div>
+                        </div>
+                        <div class="lead-meta">
+                            <div class="meta-item" th:if="${lead.budgetMin != null}">
+                                <i class="fas fa-pound-sign"></i>
+                                <span th:text="${lead.budgetMin} + '-' + ${lead.budgetMax}">800-1200</span>
+                            </div>
+                            <div class="meta-item" th:if="${lead.createdAt != null}">
+                                <i class="fas fa-calendar"></i>
+                                <span th:text="${#temporals.format(lead.createdAt, 'dd MMM')}">Date</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Viewing Scheduled Column -->
+                <div class="kanban-column column-viewing-scheduled">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-calendar-check"></i> Viewing Scheduled</h6>
+                        <span class="badge badge-info" th:text="${#lists.size(viewingScheduledLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(viewingScheduledLeads)}" class="empty-column">
+                        <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                        <p>No viewings scheduled</p>
+                    </div>
+                    <div th:each="lead : ${viewingScheduledLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                        <div class="lead-meta">
+                            <div class="meta-item">
+                                <i class="fas fa-calendar"></i>
+                                <span th:text="${#temporals.format(lead.createdAt, 'dd MMM')}">Date</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Viewing Completed Column -->
+                <div class="kanban-column column-viewing-completed">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-check-circle"></i> Viewing Done</h6>
+                        <span class="badge badge-primary" th:text="${#lists.size(viewingCompletedLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(viewingCompletedLeads)}" class="empty-column">
+                        <i class="fas fa-check-circle fa-2x mb-2"></i>
+                        <p>No viewings completed</p>
+                    </div>
+                    <div th:each="lead : ${viewingCompletedLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interested Column -->
+                <div class="kanban-column column-interested">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-star"></i> Interested</h6>
+                        <span class="badge badge-warning" th:text="${#lists.size(interestedLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(interestedLeads)}" class="empty-column">
+                        <i class="fas fa-star fa-2x mb-2"></i>
+                        <p>No interested leads</p>
+                    </div>
+                    <div th:each="lead : ${interestedLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Application Submitted Column -->
+                <div class="kanban-column column-application">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-file-alt"></i> Application</h6>
+                        <span class="badge" style="background: #fd7e14; color: white;" th:text="${#lists.size(applicationSubmittedLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(applicationSubmittedLeads)}" class="empty-column">
+                        <i class="fas fa-file-alt fa-2x mb-2"></i>
+                        <p>No applications</p>
+                    </div>
+                    <div th:each="lead : ${applicationSubmittedLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Referencing Column -->
+                <div class="kanban-column column-referencing">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-search"></i> Referencing</h6>
+                        <span class="badge badge-danger" th:text="${#lists.size(referencingLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(referencingLeads)}" class="empty-column">
+                        <i class="fas fa-search fa-2x mb-2"></i>
+                        <p>No referencing</p>
+                    </div>
+                    <div th:each="lead : ${referencingLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- In Contracts Column -->
+                <div class="kanban-column column-contracts">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-file-signature"></i> In Contracts</h6>
+                        <span class="badge" style="background: #6610f2; color: white;" th:text="${#lists.size(inContractsLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(inContractsLeads)}" class="empty-column">
+                        <i class="fas fa-file-signature fa-2x mb-2"></i>
+                        <p>No contracts</p>
+                    </div>
+                    <div th:each="lead : ${inContractsLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Converted Column -->
+                <div class="kanban-column column-converted">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-check-double"></i> Converted</h6>
+                        <span class="badge badge-success" th:text="${#lists.size(convertedLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(convertedLeads)}" class="empty-column">
+                        <i class="fas fa-check-double fa-2x mb-2"></i>
+                        <p>No conversions</p>
+                    </div>
+                    <div th:each="lead : ${convertedLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lost Column -->
+                <div class="kanban-column column-lost">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-times-circle"></i> Lost</h6>
+                        <span class="badge badge-dark" th:text="${#lists.size(lostLeads)}">0</span>
+                    </div>
+                    <div th:if="${#lists.isEmpty(lostLeads)}" class="empty-column">
+                        <i class="fas fa-times-circle fa-2x mb-2"></i>
+                        <p>No lost leads</p>
+                    </div>
+                    <div th:each="lead : ${lostLeads}" class="kanban-card"
+                         th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                        <h6 th:text="${lead.name}">Lead Name</h6>
+                        <div class="lead-info">
+                            <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State - No Instruction Selected -->
+            <div th:if="${selectedInstruction == null}" class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-info-circle fa-4x text-muted mb-3"></i>
+                            <h4>No Instruction Selected</h4>
+                            <p class="text-muted">Please select a letting instruction from the dropdown above to view its lead pipeline.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div th:replace="~{general/footer.html}"></div>
+    </div>
+</div>
+
+<div th:replace="~{general/scripts.html}"></div>
+
+<script>
+    function loadInstruction() {
+        const instructionId = document.getElementById('instructionSelect').value;
+        if (instructionId) {
+            window.location.href = `/employee/letting-instruction/lead-pipeline?instructionId=${instructionId}`;
+        }
+    }
+</script>
+
+</body>
+</html>
