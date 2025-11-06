@@ -249,9 +249,11 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
 
     /**
      * Find properties requiring marketing attention (notice given or advertising)
+     * Note: JPQL doesn't support NULLS LAST, so we use CASE to sort nulls to the end
      */
     @Query("SELECT p FROM Property p WHERE p.occupancyStatus IN ('NOTICE_GIVEN', 'ADVERTISING') " +
-           "ORDER BY p.expectedVacancyDate ASC NULLS LAST, p.advertisingStartDate ASC NULLS LAST")
+           "ORDER BY CASE WHEN p.expectedVacancyDate IS NULL THEN 1 ELSE 0 END, p.expectedVacancyDate ASC, " +
+           "CASE WHEN p.advertisingStartDate IS NULL THEN 1 ELSE 0 END, p.advertisingStartDate ASC")
     List<Property> findPropertiesRequiringMarketingAttention();
 
     /**
