@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
@@ -18,14 +19,15 @@ import java.util.Map;
 
 /**
  * PayProp Raw Import Test Controller
- * 
+ *
  * Test endpoints for the new raw import system that solves the £995 vs £1,075 mystery.
  * Use these endpoints to test Phase 3A implementation.
- * 
+ *
  * IMPORTANT: This is for TESTING ONLY. Remove before production or secure appropriately.
  */
 @RestController
 @RequestMapping("/test/payprop-raw")
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 public class PayPropRawImportTestController {
     
     private static final Logger log = LoggerFactory.getLogger(PayPropRawImportTestController.class);
