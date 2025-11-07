@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -20,14 +21,15 @@ import java.util.stream.Collectors;
 
 /**
  * Enhanced PayProp Raw Import Controller
- * 
+ *
  * Leverages proven PayPropApiClient and PayPropFinancialSyncService patterns
  * to import ALL data from ALL working PayProp endpoints with proper pagination.
- * 
+ *
  * Based on successful endpoint testing results showing 9 working endpoints.
  */
 @Controller
 @RequestMapping("/api/payprop/raw-import")
+@ConditionalOnProperty(name = "payprop.enabled", havingValue = "true", matchIfMissing = false)
 public class PayPropRawImportSimpleController {
     
     private static final Logger log = LoggerFactory.getLogger(PayPropRawImportSimpleController.class);

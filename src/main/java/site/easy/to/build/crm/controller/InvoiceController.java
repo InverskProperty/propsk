@@ -42,10 +42,10 @@ public class InvoiceController {
     
     @Autowired
     private PropertyService propertyService;
-    
-    @Autowired
+
+    @Autowired(required = false)
     private LocalToPayPropSyncService localToPayPropSyncService;
-    
+
     @Autowired
     private UserService userService;
     
