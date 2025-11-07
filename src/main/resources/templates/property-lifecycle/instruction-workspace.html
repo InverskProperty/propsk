@@ -7,6 +7,9 @@
 
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
 
+<!-- SortableJS for drag and drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
 <style>
     .kanban-board {
         display: flex;
@@ -43,7 +46,7 @@
         padding: 15px;
         margin-bottom: 12px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-        cursor: pointer;
+        cursor: move;
         transition: all 0.2s;
         border-left: 4px solid;
     }
@@ -51,6 +54,25 @@
     .instruction-card:hover {
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         transform: translateY(-2px);
+    }
+
+    .instruction-card.sortable-ghost {
+        opacity: 0.4;
+        background: #f8f9fa;
+    }
+
+    .instruction-card.sortable-drag {
+        opacity: 1;
+        cursor: grabbing;
+    }
+
+    .instruction-card.ready-for-lease {
+        border-left-color: #28a745 !important;
+        box-shadow: 0 0 12px rgba(40, 167, 69, 0.3);
+    }
+
+    .instruction-card.ready-for-lease:hover {
+        box-shadow: 0 0 20px rgba(40, 167, 69, 0.5);
     }
 
     .instruction-card.status-INSTRUCTION_RECEIVED,
@@ -62,6 +84,22 @@
         border-left-color: #007bff;
     }
 
+    .instruction-card.status-OFFER_ACCEPTED {
+        border-left-color: #ffc107;
+    }
+
+    .instruction-card.status-REFERENCING {
+        border-left-color: #17a2b8;
+    }
+
+    .instruction-card.status-IN_CONTRACTS {
+        border-left-color: #6610f2;
+    }
+
+    .instruction-card.status-CONTRACTS_COMPLETE {
+        border-left-color: #28a745;
+    }
+
     .instruction-card.status-VIEWINGS_IN_PROGRESS {
         border-left-color: #ffc107;
     }
@@ -71,7 +109,16 @@
     }
 
     .instruction-card.status-ACTIVE_LEASE {
-        border-left-color: #17a2b8;
+        border-left-color: #20c997;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+
+    .badge.pulse {
+        animation: pulse 2s infinite;
     }
 
     .instruction-property-name {
@@ -254,7 +301,7 @@
                         <div class="card-body">
                             <div class="kanban-board">
                                 <!-- New Instructions Column -->
-                                <div class="kanban-column">
+                                <div class="kanban-column" id="column-instruction-received" data-status="INSTRUCTION_RECEIVED">
                                     <div class="kanban-column-header">
                                         <span><i class="fas fa-inbox"></i> New</span>
                                         <span class="badge badge-secondary" th:text="${summary.preparingCount != null ? summary.preparingCount : 0}">0</span>
@@ -262,6 +309,7 @@
                                     <div th:each="instruction : ${instructions}"
                                          th:if="${instruction.status.name() == 'INSTRUCTION_RECEIVED'}"
                                          class="instruction-card status-INSTRUCTION_RECEIVED"
+                                         th:attr="data-instruction-id=${instruction.id}"
                                          th:onclick="'viewInstruction(' + ${instruction.id} + ')'">
                                         <div class="instruction-property-name" th:text="${instruction.property.propertyName}">Property Name</div>
                                         <div class="instruction-reference" th:text="${instruction.instructionReference}">REF-001</div>
@@ -283,7 +331,7 @@
                                 </div>
 
                                 <!-- Advertising Column (Viewings/Enquiries/Offers happen here) -->
-                                <div class="kanban-column">
+                                <div class="kanban-column" id="column-advertising" data-status="ADVERTISING">
                                     <div class="kanban-column-header">
                                         <span><i class="fas fa-bullhorn"></i> Advertising</span>
                                         <span class="badge badge-primary" th:text="${summary.advertisingCount}">0</span>
@@ -297,6 +345,7 @@
                                     <div th:each="instruction : ${instructions}"
                                          th:if="${instruction.status.name() == 'ADVERTISING'}"
                                          class="instruction-card status-ADVERTISING"
+                                         th:attr="data-instruction-id=${instruction.id}"
                                          th:onclick="'viewInstruction(' + ${instruction.id} + ')'">
                                         <div class="instruction-property-name" th:text="${instruction.property.propertyName}">Property Name</div>
                                         <div class="instruction-reference" th:text="${instruction.instructionReference}">REF-001</div>
@@ -319,15 +368,16 @@
                                     </div>
                                 </div>
 
-                                <!-- Offer Accepted Column (Holding Deposit Paid, Referencing/Contracting) -->
-                                <div class="kanban-column">
+                                <!-- Offer Accepted Column (All interim stages) -->
+                                <div class="kanban-column" id="column-offer-accepted" data-status="OFFER_ACCEPTED">
                                     <div class="kanban-column-header">
                                         <span><i class="fas fa-handshake"></i> Offer Accepted</span>
                                         <span class="badge badge-warning" th:text="${summary.offersCount}">0</span>
                                     </div>
                                     <div th:each="instruction : ${instructions}"
-                                         th:if="${instruction.status.name() == 'OFFER_ACCEPTED' || instruction.status.name() == 'OFFER_MADE'}"
-                                         class="instruction-card status-OFFER_ACCEPTED"
+                                         th:if="${instruction.status.name() == 'OFFER_ACCEPTED' || instruction.status.name() == 'REFERENCING' || instruction.status.name() == 'IN_CONTRACTS' || instruction.status.name() == 'CONTRACTS_COMPLETE' || instruction.status.name() == 'OFFER_MADE'}"
+                                         th:class="'instruction-card status-' + ${instruction.status.name()} + ${instruction.status.name() == 'CONTRACTS_COMPLETE' ? ' ready-for-lease' : ''}"
+                                         th:attr="data-instruction-id=${instruction.id}"
                                          th:onclick="'viewInstruction(' + ${instruction.id} + ')'">
                                         <div class="instruction-property-name" th:text="${instruction.property.propertyName}">Property Name</div>
                                         <div class="instruction-reference" th:text="${instruction.instructionReference}">REF-001</div>
@@ -339,16 +389,30 @@
                                                 <i class="far fa-calendar"></i> Start: <span th:text="${#temporals.format(instruction.leaseStartDate, 'dd MMM yyyy')}">01 Jan 2024</span>
                                             </div>
                                         </div>
-                                        <div class="instruction-metrics">
-                                            <div class="metric">
-                                                <small class="text-muted">Referencing/Contracting</small>
+
+                                        <!-- Lead Progress Indicator -->
+                                        <div class="instruction-metrics" style="border-top: 1px solid #e9ecef; padding-top: 10px; margin-top: 10px;">
+                                            <div style="width: 100%;">
+                                                <small class="text-muted d-block mb-1">Status:</small>
+                                                <span th:if="${instruction.status.name() == 'OFFER_ACCEPTED'}" class="badge badge-warning badge-sm">
+                                                    <i class="fas fa-handshake"></i> Offer Accepted
+                                                </span>
+                                                <span th:if="${instruction.status.name() == 'REFERENCING'}" class="badge badge-info badge-sm">
+                                                    <i class="fas fa-search"></i> Referencing
+                                                </span>
+                                                <span th:if="${instruction.status.name() == 'IN_CONTRACTS'}" class="badge badge-info badge-sm">
+                                                    <i class="fas fa-file-signature"></i> In Contracts
+                                                </span>
+                                                <span th:if="${instruction.status.name() == 'CONTRACTS_COMPLETE'}" class="badge badge-success badge-sm pulse">
+                                                    <i class="fas fa-check-circle"></i> Ready for Lease!
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Active Leases Column -->
-                                <div class="kanban-column">
+                                <div class="kanban-column" id="column-active-lease" data-status="ACTIVE_LEASE">
                                     <div class="kanban-column-header">
                                         <span><i class="fas fa-key"></i> Active Leases</span>
                                         <span class="badge badge-success" th:text="${summary.activeLeasesCount}">0</span>
@@ -356,6 +420,7 @@
                                     <div th:each="instruction : ${instructions}"
                                          th:if="${instruction.status.name() == 'ACTIVE_LEASE'}"
                                          class="instruction-card status-ACTIVE_LEASE"
+                                         th:attr="data-instruction-id=${instruction.id}"
                                          th:onclick="'viewInstruction(' + ${instruction.id} + ')'">
                                         <div class="instruction-property-name" th:text="${instruction.property.propertyName}">Property Name</div>
                                         <div class="instruction-reference" th:text="${instruction.instructionReference}">REF-001</div>
