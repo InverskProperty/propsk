@@ -562,6 +562,62 @@ public class LettingInstructionController {
         }
     }
 
+    /**
+     * Generic status transition endpoint for drag-and-drop Kanban
+     * Validates transitions using InstructionStatus.canTransitionTo()
+     */
+    @PostMapping("/{id}/transition-status")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> transitionStatus(@PathVariable Long id,
+                                                                @RequestBody TransitionStatusRequest request,
+                                                                Authentication authentication) {
+        try {
+            LettingInstruction instruction = lettingInstructionService.getInstructionById(id)
+                    .orElse(null);
+            if (instruction == null) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "Instruction not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
+
+            // Parse new status
+            InstructionStatus newStatus;
+            try {
+                newStatus = InstructionStatus.valueOf(request.getNewStatus());
+            } catch (IllegalArgumentException e) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "Invalid status: " + request.getNewStatus());
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            // Validate transition
+            if (!instruction.getStatus().canTransitionTo(newStatus)) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("success", false);
+                error.put("message", "Invalid transition from " + instruction.getStatus().getDisplayName() +
+                         " to " + newStatus.getDisplayName());
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            // Perform transition
+            instruction = lettingInstructionService.transitionStatus(id, newStatus);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Status updated to " + newStatus.getDisplayName(),
+                    "instructionId", instruction.getId(),
+                    "status", instruction.getStatus().name()
+            ));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
     // ===== REQUEST DTOs =====
 
     public static class CreateInstructionRequest {
@@ -686,5 +742,13 @@ public class LettingInstructionController {
         // Getters and setters
         public String getReason() { return reason; }
         public void setReason(String reason) { this.reason = reason; }
+    }
+
+    public static class TransitionStatusRequest {
+        private String newStatus;
+
+        // Getters and setters
+        public String getNewStatus() { return newStatus; }
+        public void setNewStatus(String newStatus) { this.newStatus = newStatus; }
     }
 }

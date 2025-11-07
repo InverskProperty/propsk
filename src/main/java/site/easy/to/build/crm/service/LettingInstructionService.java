@@ -405,6 +405,32 @@ public class LettingInstructionService {
     }
 
     /**
+     * Generic status transition method for drag-and-drop Kanban
+     * Validates transition rules and updates instruction status
+     */
+    public LettingInstruction transitionStatus(Long instructionId, InstructionStatus newStatus) {
+        LettingInstruction instruction = getInstructionById(instructionId)
+                .orElseThrow(() -> new IllegalArgumentException("Instruction not found: " + instructionId));
+
+        InstructionStatus currentStatus = instruction.getStatus();
+
+        // Validate transition
+        if (!currentStatus.canTransitionTo(newStatus)) {
+            throw new IllegalStateException("Invalid transition from " + currentStatus.getDisplayName() +
+                    " to " + newStatus.getDisplayName());
+        }
+
+        // Update status
+        instruction.setStatus(newStatus);
+        instruction.setUpdatedAt(LocalDateTime.now());
+
+        logger.info("Instruction {} transitioned from {} to {}",
+                instructionId, currentStatus.name(), newStatus.name());
+
+        return lettingInstructionRepository.save(instruction);
+    }
+
+    /**
      * Recalculate metrics for all active instructions
      */
     public void recalculateAllMetrics() {

@@ -549,9 +549,13 @@
     const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
 
+    // Track current drag event for modal handling
+    let currentDragEvent = null;
+
     // Load properties when page loads
     $(document).ready(function() {
         loadProperties();
+        initializeDragAndDrop();
     });
 
     function loadProperties() {
@@ -693,6 +697,154 @@
         alert.removeClass('d-none alert-success alert-danger alert-warning alert-info');
         alert.addClass('alert-' + type);
         alert.text(message);
+    }
+
+    /**
+     * Initialize drag-and-drop functionality for instruction cards
+     */
+    function initializeDragAndDrop() {
+        const columns = document.querySelectorAll('.kanban-column');
+
+        columns.forEach(column => {
+            new Sortable(column, {
+                group: 'instructions',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                filter: '.kanban-column-header',
+                draggable: '.instruction-card',
+                onEnd: function(evt) {
+                    const instructionId = evt.item.getAttribute('data-instruction-id');
+                    const newStatus = evt.to.getAttribute('data-status');
+                    const oldStatus = evt.from.getAttribute('data-status');
+
+                    // If dropped in same column, do nothing
+                    if (newStatus === oldStatus) {
+                        return;
+                    }
+
+                    // Store drag event for modal handling
+                    currentDragEvent = {
+                        instructionId: instructionId,
+                        newStatus: newStatus,
+                        oldStatus: oldStatus,
+                        element: evt.item
+                    };
+
+                    // Show appropriate modal based on transition
+                    showInstructionStatusModal(instructionId, oldStatus, newStatus);
+                }
+            });
+        });
+    }
+
+    /**
+     * Show appropriate modal based on status transition
+     */
+    function showInstructionStatusModal(instructionId, oldStatus, newStatus) {
+        switch (newStatus) {
+            case 'ADVERTISING':
+                // INSTRUCTION_RECEIVED → ADVERTISING
+                showStartMarketingModal(instructionId);
+                break;
+
+            case 'OFFER_ACCEPTED':
+                // ADVERTISING → OFFER_ACCEPTED
+                showAcceptOfferModal(instructionId);
+                break;
+
+            case 'ACTIVE_LEASE':
+                // CONTRACTS_COMPLETE → ACTIVE_LEASE (Create Lease)
+                showLeaseCreationModal(instructionId);
+                break;
+
+            default:
+                // For simple transitions (OFFER_ACCEPTED → REFERENCING → IN_CONTRACTS → CONTRACTS_COMPLETE)
+                showSimpleStatusUpdateModal(instructionId, oldStatus, newStatus);
+                break;
+        }
+    }
+
+    /**
+     * Modal: Start Marketing (INSTRUCTION_RECEIVED → ADVERTISING)
+     */
+    function showStartMarketingModal(instructionId) {
+        // TODO: Implement modal for starting marketing
+        // For now, just do simple update
+        updateInstructionStatus(instructionId, 'ADVERTISING');
+    }
+
+    /**
+     * Modal: Accept Offer (ADVERTISING → OFFER_ACCEPTED)
+     * This modal should allow selecting which lead/tenant won
+     */
+    function showAcceptOfferModal(instructionId) {
+        // TODO: Implement modal for accepting offer and linking tenant
+        // For now, just do simple update
+        updateInstructionStatus(instructionId, 'OFFER_ACCEPTED');
+    }
+
+    /**
+     * Modal: Simple Status Update (interim statuses)
+     */
+    function showSimpleStatusUpdateModal(instructionId, oldStatus, newStatus) {
+        // For now, just do simple update
+        updateInstructionStatus(instructionId, newStatus);
+    }
+
+    /**
+     * Modal: Create Lease (CONTRACTS_COMPLETE → ACTIVE_LEASE)
+     * This is the convergence point with lead pipeline
+     */
+    function showLeaseCreationModal(instructionId) {
+        // TODO: Implement lease creation modal
+        // This should validate that attached tenant is at contracts-complete
+        // For now, just do simple update
+        updateInstructionStatus(instructionId, 'ACTIVE_LEASE');
+    }
+
+    /**
+     * Update instruction status via API
+     */
+    function updateInstructionStatus(instructionId, newStatus) {
+        $.ajax({
+            url: '/employee/letting-instruction/' + instructionId + '/transition-status',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ newStatus: newStatus }),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Status updated successfully!', 'success');
+
+                    // Reload page after short delay
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showAlert(response.message || 'Failed to update status', 'danger');
+                    // Revert the card position
+                    if (currentDragEvent) {
+                        currentDragEvent.element.remove();
+                        document.querySelector('[data-status="' + currentDragEvent.oldStatus + '"]').appendChild(currentDragEvent.element);
+                    }
+                }
+            },
+            error: function(xhr, status, error) {
+                let errorMessage = 'Failed to update status';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                showAlert(errorMessage, 'danger');
+                // Revert the card position
+                if (currentDragEvent) {
+                    currentDragEvent.element.remove();
+                    document.querySelector('[data-status="' + currentDragEvent.oldStatus + '"]').appendChild(currentDragEvent.element);
+                }
+            }
+        });
     }
 </script>
 
