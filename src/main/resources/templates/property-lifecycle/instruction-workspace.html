@@ -545,6 +545,193 @@
     </div>
 </div>
 
+<!-- Start Marketing Modal (INSTRUCTION_RECEIVED → ADVERTISING) -->
+<div class="modal fade" id="startMarketingModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-bullhorn"></i> Start Marketing Property
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to start marketing this property. This will:</p>
+                <ul>
+                    <li>Update the instruction status to <strong>Advertising</strong></li>
+                    <li>Make the property visible on listing portals</li>
+                    <li>Enable tenant lead creation for this property</li>
+                </ul>
+                <div class="form-group">
+                    <label for="marketingNotes">Marketing Notes (optional)</label>
+                    <textarea class="form-control" id="marketingNotes" rows="3"
+                              placeholder="Any special marketing instructions..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-info" onclick="confirmStartMarketing()">
+                    <i class="fas fa-check"></i> Start Marketing
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Accept Offer Modal (ADVERTISING → OFFER_ACCEPTED) -->
+<div class="modal fade" id="acceptOfferModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-handshake"></i> Accept Tenant Offer
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Select the tenant whose offer has been accepted for this property:</p>
+                <div class="form-group">
+                    <label for="selectedTenantId">Selected Tenant <span class="text-danger">*</span></label>
+                    <select class="form-control" id="selectedTenantId" required>
+                        <option value="">-- Select Tenant --</option>
+                    </select>
+                    <small class="form-text text-muted">Only leads in "Viewing Scheduled" or later stages are shown</small>
+                </div>
+                <div class="form-group">
+                    <label for="agreedRent">Agreed Monthly Rent <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">£</span>
+                        </div>
+                        <input type="number" class="form-control" id="agreedRent" step="0.01"
+                               placeholder="1000.00" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="offerNotes">Notes</label>
+                    <textarea class="form-control" id="offerNotes" rows="3"
+                              placeholder="Offer details, move-in date, special terms..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-warning" onclick="confirmAcceptOffer()">
+                    <i class="fas fa-check"></i> Accept Offer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Simple Status Update Modal -->
+<div class="modal fade" id="simpleStatusModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-arrow-right"></i> Update Status
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Update instruction status to <strong id="targetStatusName"></strong>?</p>
+                <div class="form-group">
+                    <label for="simpleStatusNotes">Notes (optional)</label>
+                    <textarea class="form-control" id="simpleStatusNotes" rows="2"
+                              placeholder="Any relevant notes..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-primary" onclick="confirmSimpleStatusUpdate()">
+                    <i class="fas fa-check"></i> Update Status
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lease Creation Modal (CONTRACTS_COMPLETE → ACTIVE_LEASE) -->
+<div class="modal fade" id="leaseCreationModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-signature"></i> Create Lease
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Convergence Point:</strong> This creates a lease, linking the property instruction
+                    with the tenant lead. Both instruction and lead will move to "Active Lease" status.
+                </div>
+                <div class="form-group">
+                    <label>Tenant</label>
+                    <input type="text" class="form-control" id="leaseTenantName" readonly>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="leaseStartDate">Lease Start Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="leaseStartDate" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="leaseLengthMonths">Lease Length <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="leaseLengthMonths"
+                                       min="1" max="120" value="12" required>
+                                <div class="input-group-append">
+                                    <span class="input-group-text">months</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="monthlyRent">Monthly Rent <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">£</span>
+                        </div>
+                        <input type="number" class="form-control" id="monthlyRent" step="0.01" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="leaseNotes">Lease Notes</label>
+                    <textarea class="form-control" id="leaseNotes" rows="3"
+                              placeholder="Special terms, conditions, or notes..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-success" onclick="confirmCreateLease()">
+                    <i class="fas fa-save"></i> Create Lease
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script th:inline="javascript">
     const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
     const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
@@ -769,9 +956,19 @@
      * Modal: Start Marketing (INSTRUCTION_RECEIVED → ADVERTISING)
      */
     function showStartMarketingModal(instructionId) {
-        // TODO: Implement modal for starting marketing
-        // For now, just do simple update
-        updateInstructionStatus(instructionId, 'ADVERTISING');
+        currentDragEvent.targetStatus = 'ADVERTISING';
+        $('#startMarketingModal').modal('show');
+    }
+
+    function confirmStartMarketing() {
+        if (!currentDragEvent) return;
+
+        const notes = $('#marketingNotes').val();
+        // TODO: Save notes to instruction
+
+        updateInstructionStatus(currentDragEvent.instructionId, 'ADVERTISING');
+        $('#startMarketingModal').modal('hide');
+        $('#marketingNotes').val(''); // Clear for next use
     }
 
     /**
@@ -779,17 +976,77 @@
      * This modal should allow selecting which lead/tenant won
      */
     function showAcceptOfferModal(instructionId) {
-        // TODO: Implement modal for accepting offer and linking tenant
-        // For now, just do simple update
-        updateInstructionStatus(instructionId, 'OFFER_ACCEPTED');
+        currentDragEvent.targetStatus = 'OFFER_ACCEPTED';
+
+        // TODO: Load available tenant leads for this property
+        // For now, show empty dropdown
+        const tenantSelect = $('#selectedTenantId');
+        tenantSelect.html('<option value="">-- No leads available yet --</option>');
+
+        $('#acceptOfferModal').modal('show');
+    }
+
+    function confirmAcceptOffer() {
+        if (!currentDragEvent) return;
+
+        const tenantId = $('#selectedTenantId').val();
+        const agreedRent = $('#agreedRent').val();
+        const notes = $('#offerNotes').val();
+
+        if (!tenantId) {
+            showAlert('Please select a tenant', 'warning');
+            return;
+        }
+
+        if (!agreedRent || agreedRent <= 0) {
+            showAlert('Please enter the agreed rent amount', 'warning');
+            return;
+        }
+
+        // TODO: Save tenant selection and agreed rent to instruction
+
+        updateInstructionStatus(currentDragEvent.instructionId, 'OFFER_ACCEPTED');
+        $('#acceptOfferModal').modal('hide');
+
+        // Clear form
+        $('#selectedTenantId').val('');
+        $('#agreedRent').val('');
+        $('#offerNotes').val('');
     }
 
     /**
      * Modal: Simple Status Update (interim statuses)
      */
     function showSimpleStatusUpdateModal(instructionId, oldStatus, newStatus) {
-        // For now, just do simple update
-        updateInstructionStatus(instructionId, newStatus);
+        currentDragEvent.targetStatus = newStatus;
+
+        // Set the display name
+        const statusDisplayNames = {
+            'INSTRUCTION_RECEIVED': 'Instruction Received',
+            'ADVERTISING': 'Advertising',
+            'VIEWING_SCHEDULED': 'Viewing Scheduled',
+            'OFFER_ACCEPTED': 'Offer Accepted',
+            'REFERENCING': 'Referencing',
+            'CONTRACTS_SENT': 'Contracts Sent',
+            'CONTRACTS_COMPLETE': 'Contracts Complete',
+            'ACTIVE_LEASE': 'Active Lease',
+            'LEASE_ENDING': 'Lease Ending',
+            'ENDED': 'Ended'
+        };
+
+        $('#targetStatusName').text(statusDisplayNames[newStatus] || newStatus);
+        $('#simpleStatusModal').modal('show');
+    }
+
+    function confirmSimpleStatusUpdate() {
+        if (!currentDragEvent) return;
+
+        const notes = $('#simpleStatusNotes').val();
+        // TODO: Save notes to instruction
+
+        updateInstructionStatus(currentDragEvent.instructionId, currentDragEvent.targetStatus);
+        $('#simpleStatusModal').modal('hide');
+        $('#simpleStatusNotes').val(''); // Clear for next use
     }
 
     /**
@@ -797,10 +1054,53 @@
      * This is the convergence point with lead pipeline
      */
     function showLeaseCreationModal(instructionId) {
-        // TODO: Implement lease creation modal
-        // This should validate that attached tenant is at contracts-complete
-        // For now, just do simple update
-        updateInstructionStatus(instructionId, 'ACTIVE_LEASE');
+        currentDragEvent.targetStatus = 'ACTIVE_LEASE';
+
+        // TODO: Load instruction details and attached tenant
+        // For now, show placeholder
+        $('#leaseTenantName').val('Tenant name will be loaded here');
+
+        // Set default start date to today
+        const today = new Date().toISOString().split('T')[0];
+        $('#leaseStartDate').val(today);
+
+        $('#leaseCreationModal').modal('show');
+    }
+
+    function confirmCreateLease() {
+        if (!currentDragEvent) return;
+
+        const startDate = $('#leaseStartDate').val();
+        const lengthMonths = $('#leaseLengthMonths').val();
+        const rent = $('#monthlyRent').val();
+        const notes = $('#leaseNotes').val();
+
+        if (!startDate) {
+            showAlert('Please enter the lease start date', 'warning');
+            return;
+        }
+
+        if (!lengthMonths || lengthMonths <= 0) {
+            showAlert('Please enter the lease length', 'warning');
+            return;
+        }
+
+        if (!rent || rent <= 0) {
+            showAlert('Please enter the monthly rent', 'warning');
+            return;
+        }
+
+        // TODO: Call backend to create actual Lease entity
+        // This should link the instruction to the tenant and update both statuses
+
+        updateInstructionStatus(currentDragEvent.instructionId, 'ACTIVE_LEASE');
+        $('#leaseCreationModal').modal('hide');
+
+        // Clear form
+        $('#leaseStartDate').val('');
+        $('#leaseLengthMonths').val('12');
+        $('#monthlyRent').val('');
+        $('#leaseNotes').val('');
     }
 
     /**
