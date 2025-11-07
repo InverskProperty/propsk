@@ -23,7 +23,7 @@ public class Lead {
 
     @Column(name = "status")
     @NotBlank(message = "Status is required")
-    @Pattern(regexp = "^(meeting-to-schedule|scheduled|archived|success|assign-to-sales|enquiry|viewing-scheduled|viewing-completed|interested|application-submitted|referencing|in-contracts|converted|lost)$",
+    @Pattern(regexp = "^(meeting-to-schedule|scheduled|archived|success|assign-to-sales|enquiry|viewing-scheduled|viewing-completed|interested|application-submitted|referencing|in-contracts|contracts-complete|converted|lost)$",
              message = "Invalid status")
     private String status;
 

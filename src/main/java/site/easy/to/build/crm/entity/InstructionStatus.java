@@ -27,9 +27,27 @@ public enum InstructionStatus {
 
     /**
      * Holding deposit paid, proceeding with referencing and contracts
-     * Next: ACTIVE_LEASE, back to ADVERTISING (if falls through), or CANCELLED
+     * Next: REFERENCING, back to ADVERTISING (if falls through), or CANCELLED
      */
-    OFFER_ACCEPTED("Offer Accepted", "Holding deposit paid, in referencing/contracting"),
+    OFFER_ACCEPTED("Offer Accepted", "Holding deposit paid, offer accepted"),
+
+    /**
+     * Tenant referencing in progress
+     * Next: IN_CONTRACTS, back to ADVERTISING (if falls through), or CANCELLED
+     */
+    REFERENCING("Referencing", "Tenant referencing in progress"),
+
+    /**
+     * Tenancy agreement being prepared and signed
+     * Next: CONTRACTS_COMPLETE, back to REFERENCING, or CANCELLED
+     */
+    IN_CONTRACTS("In Contracts", "Tenancy agreement being prepared and signed"),
+
+    /**
+     * All contracts signed, ready for lease creation
+     * Next: ACTIVE_LEASE or back to IN_CONTRACTS
+     */
+    CONTRACTS_COMPLETE("Contracts Complete", "All contracts signed, ready for lease creation"),
 
     /**
      * Tenant has moved in, lease is active
@@ -80,6 +98,9 @@ public enum InstructionStatus {
             case INSTRUCTION_RECEIVED -> 0;
             case ADVERTISING -> 1;
             case OFFER_ACCEPTED -> 2;
+            case REFERENCING -> 2;  // Grouped with OFFER_ACCEPTED in UI
+            case IN_CONTRACTS -> 2; // Grouped with OFFER_ACCEPTED in UI
+            case CONTRACTS_COMPLETE -> 2; // Grouped with OFFER_ACCEPTED in UI
             case ACTIVE_LEASE -> 3;
             case CANCELLED -> 4;
             // Legacy statuses
@@ -98,6 +119,9 @@ public enum InstructionStatus {
             case INSTRUCTION_RECEIVED -> "badge-secondary";
             case ADVERTISING -> "badge-primary";
             case OFFER_ACCEPTED -> "badge-warning";
+            case REFERENCING -> "badge-info";
+            case IN_CONTRACTS -> "badge-info";
+            case CONTRACTS_COMPLETE -> "badge-success";
             case ACTIVE_LEASE -> "badge-success";
             case CANCELLED -> "badge-dark";
             // Legacy statuses
@@ -126,7 +150,10 @@ public enum InstructionStatus {
         return switch (this) {
             case INSTRUCTION_RECEIVED -> newStatus == ADVERTISING || newStatus == CANCELLED;
             case ADVERTISING -> newStatus == OFFER_ACCEPTED || newStatus == CANCELLED;
-            case OFFER_ACCEPTED -> newStatus == ACTIVE_LEASE || newStatus == ADVERTISING || newStatus == CANCELLED;
+            case OFFER_ACCEPTED -> newStatus == REFERENCING || newStatus == ADVERTISING || newStatus == CANCELLED;
+            case REFERENCING -> newStatus == IN_CONTRACTS || newStatus == ADVERTISING || newStatus == CANCELLED;
+            case IN_CONTRACTS -> newStatus == CONTRACTS_COMPLETE || newStatus == REFERENCING || newStatus == CANCELLED;
+            case CONTRACTS_COMPLETE -> newStatus == ACTIVE_LEASE || newStatus == IN_CONTRACTS || newStatus == CANCELLED;
             case ACTIVE_LEASE -> newStatus == INSTRUCTION_RECEIVED || newStatus == CANCELLED; // Can re-let
             case CANCELLED -> false; // Terminal state
             // Legacy statuses

@@ -97,6 +97,8 @@ public class LettingInstructionController {
                 allLeads.stream().filter(l -> "referencing".equals(l.getStatus())).toList());
             model.addAttribute("inContractsLeads",
                 allLeads.stream().filter(l -> "in-contracts".equals(l.getStatus())).toList());
+            model.addAttribute("contractsCompleteLeads",
+                allLeads.stream().filter(l -> "contracts-complete".equals(l.getStatus())).toList());
             model.addAttribute("convertedLeads",
                 allLeads.stream().filter(l -> "converted".equals(l.getStatus())).toList());
             model.addAttribute("lostLeads",

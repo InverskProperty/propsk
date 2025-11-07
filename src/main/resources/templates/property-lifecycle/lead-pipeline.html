@@ -117,8 +117,27 @@
     .column-application .kanban-card { border-left-color: #fd7e14; }
     .column-referencing .kanban-card { border-left-color: #dc3545; }
     .column-contracts .kanban-card { border-left-color: #6610f2; }
-    .column-converted .kanban-card { border-left-color: #28a745; }
+    .column-contracts-complete .kanban-card { border-left-color: #28a745; }
+    .column-converted .kanban-card { border-left-color: #20c997; }
     .column-lost .kanban-card { border-left-color: #343a40; }
+
+    /* Ready for lease styling */
+    .kanban-card.ready-for-lease {
+        box-shadow: 0 0 12px rgba(40, 167, 69, 0.3);
+    }
+
+    .kanban-card.ready-for-lease:hover {
+        box-shadow: 0 0 20px rgba(40, 167, 69, 0.5);
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+
+    .badge.pulse {
+        animation: pulse 2s infinite;
+    }
 
     .empty-column {
         text-align: center;
@@ -409,6 +428,33 @@
                             <h6 th:text="${lead.name}">Lead Name</h6>
                             <div class="lead-info">
                                 <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contracts Complete Column -->
+                <div class="kanban-column column-contracts-complete" data-status="contracts-complete">
+                    <div class="kanban-column-header">
+                        <h6><i class="fas fa-check-circle"></i> Contracts Complete</h6>
+                        <span class="badge badge-success" th:text="${#lists.size(contractsCompleteLeads)}">0</span>
+                    </div>
+                    <div class="kanban-cards-container">
+                        <div th:if="${#lists.isEmpty(contractsCompleteLeads)}" class="empty-column">
+                            <i class="fas fa-check-circle fa-2x mb-2"></i>
+                            <p>Ready for lease</p>
+                        </div>
+                        <div th:each="lead : ${contractsCompleteLeads}" class="kanban-card ready-for-lease"
+                             th:attr="data-lead-id=${lead.leadId}"
+                             th:onclick="'window.location.href=\'/employee/lead/show/' + ${lead.leadId} + '\''">
+                            <h6 th:text="${lead.name}">Lead Name</h6>
+                            <div class="lead-info">
+                                <div th:if="${lead.phone != null}"><i class="fas fa-phone"></i> <span th:text="${lead.phone}">Phone</span></div>
+                            </div>
+                            <div class="mt-2">
+                                <span class="badge badge-success badge-sm pulse">
+                                    <i class="fas fa-star"></i> Ready for Lease!
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -732,7 +778,9 @@
                 $('#viewingScheduledModal').modal('show');
                 break;
 
+            case 'contracts-complete':
             case 'converted':
+                // Both contracts-complete and converted trigger the lease creation modal
                 $('#conversion_leadId').val(leadId);
                 // Set default lease dates (start: today, end: 1 year from today)
                 const startDate = new Date().toISOString().split('T')[0];
