@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
@@ -76,6 +77,7 @@ public class PropertyViewing {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "letting_instruction_id")
+    @JsonIgnore  // Completely exclude from JSON to prevent circular reference
     private LettingInstruction lettingInstruction;
 
     @PrePersist

@@ -3,6 +3,7 @@ package site.easy.to.build.crm.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -53,6 +54,7 @@ public class Invoice {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "letting_instruction_id")
+    @JsonIgnore  // Completely exclude from JSON to prevent circular reference
     private LettingInstruction lettingInstruction;
 
     @ManyToOne(fetch = FetchType.LAZY)
