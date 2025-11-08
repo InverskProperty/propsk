@@ -41,6 +41,7 @@ public class LettingInstruction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id", nullable = false)
     @NotNull(message = "Property is required")
+    @JsonIgnoreProperties({"lettingInstructions", "owner", "assignedUsers"})
     private Property property;
 
     // ===== INSTRUCTION STATUS =====
@@ -89,6 +90,7 @@ public class LettingInstruction {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id")
+    @JsonIgnoreProperties({"properties", "leads", "invoices", "user"})
     private Customer tenant; // Set when status = ACTIVE_LEASE
 
     @Column(name = "actual_rent", precision = 10, scale = 2)
