@@ -169,8 +169,9 @@
                                                 <small th:text="${viewing.notes}">-</small>
                                             </td>
                                             <td>
-                                                <button class="btn btn-sm btn-primary"
-                                                        th:onclick="|editViewing(${viewing.id}, '${#temporals.format(viewing.scheduledDatetime, 'yyyy-MM-dd HH:mm')}')|"
+                                                <button class="btn btn-sm btn-primary edit-viewing-btn"
+                                                        th:data-viewing-id="${viewing.id}"
+                                                        th:data-scheduled-datetime="${#temporals.format(viewing.scheduledDatetime, 'yyyy-MM-dd HH:mm')}"
                                                         th:if="${viewing.status == 'SCHEDULED'}">
                                                     <i class="fas fa-edit"></i> Edit
                                                 </button>
@@ -274,6 +275,19 @@ function updateLeadStatus() {
         location.reload();
     }
 }
+
+// Event delegation for edit viewing buttons
+document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('click', function(event) {
+        if (event.target.closest('.edit-viewing-btn')) {
+            const button = event.target.closest('.edit-viewing-btn');
+            const viewingId = button.getAttribute('data-viewing-id');
+            const currentDateTime = button.getAttribute('data-scheduled-datetime');
+
+            editViewing(viewingId, currentDateTime);
+        }
+    });
+});
 
 function editViewing(viewingId, currentDateTime) {
     const newDateTime = prompt('Enter new viewing date and time (YYYY-MM-DD HH:MM):', currentDateTime);
