@@ -170,7 +170,7 @@
                                             </td>
                                             <td>
                                                 <button class="btn btn-sm btn-primary"
-                                                        th:onclick="'editViewing(' + ${viewing.id} + ', \'' + ${#temporals.format(viewing.scheduledDatetime, 'yyyy-MM-dd\'T\'HH:mm')} + '\')'"
+                                                        th:onclick="|editViewing(${viewing.id}, '${#temporals.format(viewing.scheduledDatetime, 'yyyy-MM-dd HH:mm')}')|"
                                                         th:if="${viewing.status == 'SCHEDULED'}">
                                                     <i class="fas fa-edit"></i> Edit
                                                 </button>
@@ -276,10 +276,10 @@ function updateLeadStatus() {
 }
 
 function editViewing(viewingId, currentDateTime) {
-    const newDateTime = prompt('Enter new viewing date and time (YYYY-MM-DD HH:MM):', currentDateTime.replace('T', ' '));
+    const newDateTime = prompt('Enter new viewing date and time (YYYY-MM-DD HH:MM):', currentDateTime);
 
     if (newDateTime) {
-        // Convert to ISO format
+        // Convert to ISO format (add seconds and replace space with T)
         const isoDateTime = newDateTime.replace(' ', 'T') + ':00';
 
         const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
