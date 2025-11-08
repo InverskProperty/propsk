@@ -11,6 +11,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.entity.InstructionStatus;
 import site.easy.to.build.crm.entity.Lead;
+import site.easy.to.build.crm.entity.LeadStatus;
 import site.easy.to.build.crm.entity.LettingInstruction;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.service.LettingInstructionService;
@@ -84,25 +85,25 @@ public class LettingInstructionController {
             List<Lead> allLeads = instruction.getLeads();
 
             model.addAttribute("enquiryLeads",
-                allLeads.stream().filter(l -> "enquiry".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.ENQUIRY).toList());
             model.addAttribute("viewingScheduledLeads",
-                allLeads.stream().filter(l -> "viewing-scheduled".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.VIEWING_SCHEDULED).toList());
             model.addAttribute("viewingCompletedLeads",
-                allLeads.stream().filter(l -> "viewing-completed".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.VIEWING_COMPLETED).toList());
             model.addAttribute("interestedLeads",
-                allLeads.stream().filter(l -> "interested".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.INTERESTED).toList());
             model.addAttribute("applicationSubmittedLeads",
-                allLeads.stream().filter(l -> "application-submitted".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.APPLICATION_SUBMITTED).toList());
             model.addAttribute("referencingLeads",
-                allLeads.stream().filter(l -> "referencing".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.REFERENCING).toList());
             model.addAttribute("inContractsLeads",
-                allLeads.stream().filter(l -> "in-contracts".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.IN_CONTRACTS).toList());
             model.addAttribute("contractsCompleteLeads",
-                allLeads.stream().filter(l -> "contracts-complete".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.CONTRACTS_COMPLETE).toList());
             model.addAttribute("convertedLeads",
-                allLeads.stream().filter(l -> "converted".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.CONVERTED).toList());
             model.addAttribute("lostLeads",
-                allLeads.stream().filter(l -> "lost".equals(l.getStatus())).toList());
+                allLeads.stream().filter(l -> l.getStatus() == LeadStatus.LOST).toList());
         }
 
         return "property-lifecycle/lead-pipeline";
