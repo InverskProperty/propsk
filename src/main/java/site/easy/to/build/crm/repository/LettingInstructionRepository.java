@@ -65,15 +65,21 @@ public interface LettingInstructionRepository extends JpaRepository<LettingInstr
     Optional<LettingInstruction> findActiveInstructionForProperty(@Param("property") Property property);
 
     /**
-     * Find all active instructions (not closed or leased)
+     * Find all active instructions (not closed or ended)
      * Use case: Full instruction workspace with all stages
+     * Includes all statuses from initial instruction through to active lease
      */
     @Query("SELECT li FROM LettingInstruction li WHERE " +
            "li.status IN (site.easy.to.build.crm.entity.InstructionStatus.INSTRUCTION_RECEIVED, " +
            "site.easy.to.build.crm.entity.InstructionStatus.PREPARING, " +
            "site.easy.to.build.crm.entity.InstructionStatus.ADVERTISING, " +
            "site.easy.to.build.crm.entity.InstructionStatus.VIEWINGS_IN_PROGRESS, " +
-           "site.easy.to.build.crm.entity.InstructionStatus.OFFER_MADE) " +
+           "site.easy.to.build.crm.entity.InstructionStatus.OFFER_MADE, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.OFFER_ACCEPTED, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.REFERENCING, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.IN_CONTRACTS, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.CONTRACTS_COMPLETE, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.ACTIVE_LEASE) " +
            "ORDER BY li.createdAt DESC")
     List<LettingInstruction> findAllActiveInstructions();
 
