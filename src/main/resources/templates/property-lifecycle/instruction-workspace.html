@@ -723,14 +723,9 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="leaseLengthMonths">Lease Length <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <input type="number" class="form-control" id="leaseLengthMonths"
-                                       min="1" max="120" value="12" required>
-                                <div class="input-group-append">
-                                    <span class="input-group-text">months</span>
-                                </div>
-                            </div>
+                            <label for="leaseEndDate">Lease End Date <small class="text-muted">(optional)</small></label>
+                            <input type="date" class="form-control" id="leaseEndDate">
+                            <small class="form-text text-muted">Leave blank for rolling/periodic tenancy</small>
                         </div>
                     </div>
                 </div>
@@ -1181,7 +1176,7 @@
 
         const tenantId = $('#leaseTenantId').val();
         const startDate = $('#leaseStartDate').val();
-        const lengthMonths = $('#leaseLengthMonths').val();
+        const endDate = $('#leaseEndDate').val(); // Optional - can be blank for rolling tenancy
         const rent = $('#monthlyRent').val();
         const depositAmount = $('#depositAmount').val();
         const notes = $('#leaseNotes').val();
@@ -1202,11 +1197,6 @@
             return;
         }
 
-        if (!lengthMonths || lengthMonths <= 0) {
-            showAlert('Please enter the lease length', 'warning');
-            return;
-        }
-
         if (!rent || rent <= 0) {
             showAlert('Please enter the monthly rent', 'warning');
             return;
@@ -1217,12 +1207,6 @@
             return;
         }
 
-        // Calculate lease end date
-        const leaseStartDate = new Date(startDate);
-        const leaseEndDate = new Date(leaseStartDate);
-        leaseEndDate.setMonth(leaseEndDate.getMonth() + parseInt(lengthMonths));
-        const endDateStr = leaseEndDate.toISOString().split('T')[0];
-
         // Call backend to create lease
         $.ajax({
             url: '/employee/letting-instruction/' + currentDragEvent.instructionId + '/create-lease',
@@ -1231,7 +1215,7 @@
             data: JSON.stringify({
                 tenantId: tenantId,
                 leaseStartDate: startDate,
-                leaseEndDate: endDateStr,
+                leaseEndDate: endDate || null, // Can be null for rolling/periodic tenancy
                 actualRent: rent,
                 depositAmount: depositAmount || 0,
                 tenantAddress: tenantAddress,
@@ -1250,7 +1234,7 @@
 
                     // Clear form
                     $('#leaseStartDate').val('');
-                    $('#leaseLengthMonths').val('12');
+                    $('#leaseEndDate').val('');
                     $('#monthlyRent').val('');
                     $('#depositAmount').val('');
                     $('#tenantAddress').val('');
