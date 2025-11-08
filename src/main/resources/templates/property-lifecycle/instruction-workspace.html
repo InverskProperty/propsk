@@ -595,13 +595,16 @@
                 </button>
             </div>
             <div class="modal-body">
-                <p>Select the tenant whose offer has been accepted for this property:</p>
+                <div class="alert alert-info">
+                    <i class="fas fa-home"></i> Property: <strong id="offerPropertyAddress">Loading...</strong>
+                </div>
+                <p>Select the lead whose offer has been accepted (sorted by pipeline progress):</p>
                 <div class="form-group">
-                    <label for="selectedTenantId">Selected Tenant <span class="text-danger">*</span></label>
+                    <label for="selectedTenantId">Selected Lead <span class="text-danger">*</span></label>
                     <select class="form-control" id="selectedTenantId" required>
-                        <option value="">-- Select Tenant --</option>
+                        <option value="">-- Loading leads... --</option>
                     </select>
-                    <small class="form-text text-muted">Only leads in "Viewing Scheduled" or later stages are shown</small>
+                    <small class="form-text text-muted">Leads are sorted by how far they've progressed (furthest first)</small>
                 </div>
                 <div class="form-group">
                     <label for="agreedRent">Agreed Monthly Rent <span class="text-danger">*</span></label>
@@ -978,12 +981,46 @@
     function showAcceptOfferModal(instructionId) {
         currentDragEvent.targetStatus = 'OFFER_ACCEPTED';
 
-        // TODO: Load available tenant leads for this property
-        // For now, show empty dropdown
-        const tenantSelect = $('#selectedTenantId');
-        tenantSelect.html('<option value="">-- No leads available yet --</option>');
+        // Fetch leads for this instruction
+        fetch(`/employee/letting-instruction/${instructionId}/leads`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            const tenantSelect = $('#selectedTenantId');
 
-        $('#acceptOfferModal').modal('show');
+            if (data.success && data.leads && data.leads.length > 0) {
+                // Populate dropdown with leads (sorted by pipeline progress)
+                let options = '<option value="">-- Select a lead --</option>';
+
+                data.leads.forEach(lead => {
+                    const displayText = `${lead.name} - ${lead.statusDisplay}` +
+                                      (lead.email ? ` (${lead.email})` : '') +
+                                      (lead.budgetMax ? ` - Budget: £${lead.budgetMax}` : '');
+
+                    options += `<option value="${lead.leadId}">${displayText}</option>`;
+                });
+
+                tenantSelect.html(options);
+
+                // Show property address in modal
+                $('#offerPropertyAddress').text(data.propertyAddress || 'Property');
+            } else {
+                tenantSelect.html('<option value="">-- No leads available for this property --</option>');
+                $('#offerPropertyAddress').text('');
+            }
+
+            $('#acceptOfferModal').modal('show');
+        })
+        .catch(error => {
+            console.error('Error fetching leads:', error);
+            const tenantSelect = $('#selectedTenantId');
+            tenantSelect.html('<option value="">-- Error loading leads --</option>');
+            $('#acceptOfferModal').modal('show');
+        });
     }
 
     function confirmAcceptOffer() {

@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Controller for letting instruction management
@@ -373,6 +374,79 @@ public class LettingInstructionController {
             error.put("message", e.getMessage());
             return ResponseEntity.badRequest().body(error);
         }
+    }
+
+    /**
+     * Get leads for instruction (sorted by pipeline progress)
+     * Used when moving instruction to OFFER_ACCEPTED to select winning tenant
+     */
+    @GetMapping("/{id}/leads")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getInstructionLeads(@PathVariable Long id,
+                                                                   Authentication authentication) {
+        try {
+            Optional<LettingInstruction> instructionOpt = lettingInstructionService.getInstructionById(id);
+            if (instructionOpt.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("success", false, "message", "Instruction not found"));
+            }
+
+            LettingInstruction instruction = instructionOpt.get();
+            List<Lead> leads = instruction.getLeads();
+
+            // Sort leads by pipeline progress (furthest along first)
+            // Status order: IN_CONTRACTS > REFERENCING > APPLICATION_SUBMITTED >
+            //               INTERESTED > VIEWING_COMPLETED > VIEWING_SCHEDULED > ENQUIRY
+            leads.sort((l1, l2) -> {
+                int priority1 = getLeadPriority(l1.getStatus());
+                int priority2 = getLeadPriority(l2.getStatus());
+                return Integer.compare(priority2, priority1); // Higher priority first
+            });
+
+            // Convert to simplified DTO for frontend
+            List<Map<String, Object>> leadData = leads.stream()
+                    .map(lead -> {
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("leadId", lead.getLeadId());
+                        data.put("name", lead.getName());
+                        data.put("email", lead.getEmail());
+                        data.put("phone", lead.getPhone());
+                        data.put("status", lead.getStatusValue());
+                        data.put("statusDisplay", lead.getStatus().getDisplayName());
+                        data.put("budgetMin", lead.getBudgetMin());
+                        data.put("budgetMax", lead.getBudgetMax());
+                        return data;
+                    })
+                    .toList();
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "leads", leadData,
+                    "propertyAddress", instruction.getProperty().getPropertyName()
+            ));
+
+        } catch (Exception e) {
+            logger.error("Error fetching leads for instruction {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", "Failed to fetch leads"));
+        }
+    }
+
+    /**
+     * Get priority score for lead status (higher = further along)
+     */
+    private int getLeadPriority(LeadStatus status) {
+        return switch (status) {
+            case IN_CONTRACTS -> 70;
+            case REFERENCING -> 60;
+            case APPLICATION_SUBMITTED -> 50;
+            case INTERESTED -> 40;
+            case VIEWING_COMPLETED -> 30;
+            case VIEWING_SCHEDULED -> 20;
+            case ENQUIRY -> 10;
+            case CONVERTED, LOST -> 0; // Already converted or lost
+            default -> 0; // Fallback for any other status
+        };
     }
 
     /**
