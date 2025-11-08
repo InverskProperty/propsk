@@ -601,7 +601,7 @@ public class LettingInstructionController {
     @GetMapping("/api/{id}")
     @ResponseBody
     public ResponseEntity<LettingInstruction> getInstruction(@PathVariable Long id) {
-        return lettingInstructionService.getInstructionById(id)
+        return lettingInstructionService.getInstructionWithDetails(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }

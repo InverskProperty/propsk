@@ -1131,12 +1131,15 @@
 
         // Load instruction details and tenant information
         $.ajax({
-            url: '/employee/letting-instruction/' + instructionId,
+            url: '/employee/letting-instruction/api/' + instructionId,
             method: 'GET',
             success: function(instruction) {
-                // Set tenant information
+                console.log('Loaded instruction:', instruction);
+
+                // Try to find the selected lead (should be in IN_CONTRACTS or CONTRACTS_COMPLETE status)
+                // First check if instruction already has a tenant assigned
                 if (instruction.tenant) {
-                    $('#leaseTenantId').val(instruction.tenant.id);
+                    $('#leaseTenantId').val(instruction.tenant.customerId);
                     $('#leaseTenantName').val(instruction.tenant.name);
 
                     // Pre-populate address if available
@@ -1149,24 +1152,77 @@
                     if (instruction.tenant.postcode) {
                         $('#tenantPostcode').val(instruction.tenant.postcode);
                     }
+
+                    // Pre-populate rent
+                    if (instruction.actualRent) {
+                        $('#monthlyRent').val(instruction.actualRent);
+                    }
+
+                    // Set default start date to today
+                    const today = new Date().toISOString().split('T')[0];
+                    $('#leaseStartDate').val(today);
+
+                    $('#leaseCreationModal').modal('show');
                 } else {
-                    $('#leaseTenantName').val('No tenant assigned yet');
-                    $('#leaseTenantId').val('');
+                    // No tenant assigned yet - need to fetch leads to find the selected one
+                    $.ajax({
+                        url: '/employee/letting-instruction/' + instructionId + '/leads',
+                        method: 'GET',
+                        success: function(response) {
+                            console.log('Loaded leads:', response);
+
+                            if (response.success && response.leads && response.leads.length > 0) {
+                                // Find the lead that's furthest along (IN_CONTRACTS or CONTRACTS_COMPLETE)
+                                const selectedLead = response.leads.find(lead =>
+                                    lead.status === 'IN_CONTRACTS' || lead.status === 'CONTRACTS_COMPLETE'
+                                ) || response.leads[0]; // Fallback to first lead
+
+                                $('#leaseTenantId').val(selectedLead.leadId);
+                                $('#leaseTenantName').val(selectedLead.name);
+
+                                console.log('Selected lead:', selectedLead);
+                            } else {
+                                $('#leaseTenantName').val('No lead selected - please go back and select one');
+                                $('#leaseTenantId').val('');
+                            }
+
+                            // Pre-populate rent if already set (from offer accepted)
+                            if (instruction.actualRent) {
+                                $('#monthlyRent').val(instruction.actualRent);
+                            }
+
+                            // Set default start date to today
+                            const today = new Date().toISOString().split('T')[0];
+                            $('#leaseStartDate').val(today);
+
+                            $('#leaseCreationModal').modal('show');
+                        },
+                        error: function(xhr, status, error) {
+                            console.error('Error loading leads:', xhr, status, error);
+                            showAlert('Error loading lead information', 'danger');
+
+                            // Revert the drag
+                            if (currentDragEvent) {
+                                currentDragEvent.element.remove();
+                                document.querySelector('[data-status="' + currentDragEvent.oldStatus + '"]').appendChild(currentDragEvent.element);
+                            }
+                        }
+                    });
                 }
-
-                // Pre-populate rent if already set (from offer accepted)
-                if (instruction.agreedRent) {
-                    $('#monthlyRent').val(instruction.agreedRent);
-                }
-
-                // Set default start date to today
-                const today = new Date().toISOString().split('T')[0];
-                $('#leaseStartDate').val(today);
-
-                $('#leaseCreationModal').modal('show');
             },
-            error: function(xhr) {
-                showAlert('Error loading instruction details', 'danger');
+            error: function(xhr, status, error) {
+                console.error('Error loading instruction details:', xhr, status, error);
+                let errorMessage = 'Error loading instruction details';
+                if (xhr.responseText) {
+                    errorMessage += ': ' + xhr.responseText;
+                }
+                showAlert(errorMessage, 'danger');
+
+                // Revert the drag if modal can't be shown
+                if (currentDragEvent) {
+                    currentDragEvent.element.remove();
+                    document.querySelector('[data-status="' + currentDragEvent.oldStatus + '"]').appendChild(currentDragEvent.element);
+                }
             }
         });
     }
