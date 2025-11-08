@@ -329,6 +329,37 @@ public class LettingInstructionController {
     }
 
     /**
+     * Create lease with full tenant details (including address)
+     */
+    @PostMapping("/{id}/create-lease")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> createLease(@PathVariable Long id,
+                                                            @RequestBody ConvertToLeaseRequest request,
+                                                            Authentication authentication) {
+        try {
+            LettingInstruction instruction = lettingInstructionService.convertToActiveLease(
+                    id,
+                    request.getTenantId(),
+                    request.getLeaseStartDate(),
+                    request.getLeaseEndDate(),
+                    request.getActualRent(),
+                    request.getDepositAmount(),
+                    request.getLeaseSignedDate(),
+                    request.getTenantAddress(),
+                    request.getTenantCity(),
+                    request.getTenantPostcode()
+            );
+            return ResponseEntity.ok(Map.of("success", true, "message", "Lease created successfully", "data", instruction));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            logger.error("Error creating lease for instruction {}: {}", id, e.getMessage(), e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
      * Close instruction
      */
     @PostMapping("/{id}/close")
@@ -758,6 +789,10 @@ public class LettingInstructionController {
         private BigDecimal actualRent;
         private BigDecimal depositAmount;
         private LocalDate leaseSignedDate;
+        private String tenantAddress;
+        private String tenantCity;
+        private String tenantPostcode;
+        private String notes;
 
         // Getters and setters
         public Long getTenantId() { return tenantId; }
@@ -777,6 +812,18 @@ public class LettingInstructionController {
 
         public LocalDate getLeaseSignedDate() { return leaseSignedDate; }
         public void setLeaseSignedDate(LocalDate leaseSignedDate) { this.leaseSignedDate = leaseSignedDate; }
+
+        public String getTenantAddress() { return tenantAddress; }
+        public void setTenantAddress(String tenantAddress) { this.tenantAddress = tenantAddress; }
+
+        public String getTenantCity() { return tenantCity; }
+        public void setTenantCity(String tenantCity) { this.tenantCity = tenantCity; }
+
+        public String getTenantPostcode() { return tenantPostcode; }
+        public void setTenantPostcode(String tenantPostcode) { this.tenantPostcode = tenantPostcode; }
+
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
     }
 
     public static class CloseInstructionRequest {

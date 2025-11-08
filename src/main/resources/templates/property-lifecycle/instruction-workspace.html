@@ -685,9 +685,35 @@
                     with the tenant lead. Both instruction and lead will move to "Active Lease" status.
                 </div>
                 <div class="form-group">
-                    <label>Tenant</label>
+                    <label>Tenant Name</label>
                     <input type="text" class="form-control" id="leaseTenantName" readonly>
+                    <input type="hidden" id="leaseTenantId">
                 </div>
+
+                <!-- Tenant Address Details -->
+                <h6 class="mt-3 mb-2"><i class="fas fa-map-marker-alt"></i> Tenant Address</h6>
+                <div class="form-group">
+                    <label for="tenantAddress">Address <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="tenantAddress"
+                           placeholder="Street address" required>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="tenantCity">City <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="tenantCity" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="tenantPostcode">Postcode <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="tenantPostcode" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lease Details -->
+                <h6 class="mt-3 mb-2"><i class="fas fa-file-contract"></i> Lease Details</h6>
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
@@ -708,13 +734,28 @@
                         </div>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="monthlyRent">Monthly Rent <span class="text-danger">*</span></label>
-                    <div class="input-group">
-                        <div class="input-group-prepend">
-                            <span class="input-group-text">£</span>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="monthlyRent">Monthly Rent <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">£</span>
+                                </div>
+                                <input type="number" class="form-control" id="monthlyRent" step="0.01" required>
+                            </div>
                         </div>
-                        <input type="number" class="form-control" id="monthlyRent" step="0.01" required>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="depositAmount">Deposit Amount</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">£</span>
+                                </div>
+                                <input type="number" class="form-control" id="depositAmount" step="0.01" placeholder="0.00">
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -1093,24 +1134,68 @@
     function showLeaseCreationModal(instructionId) {
         currentDragEvent.targetStatus = 'ACTIVE_LEASE';
 
-        // TODO: Load instruction details and attached tenant
-        // For now, show placeholder
-        $('#leaseTenantName').val('Tenant name will be loaded here');
+        // Load instruction details and tenant information
+        $.ajax({
+            url: '/employee/letting-instruction/' + instructionId,
+            method: 'GET',
+            success: function(instruction) {
+                // Set tenant information
+                if (instruction.tenant) {
+                    $('#leaseTenantId').val(instruction.tenant.id);
+                    $('#leaseTenantName').val(instruction.tenant.name);
 
-        // Set default start date to today
-        const today = new Date().toISOString().split('T')[0];
-        $('#leaseStartDate').val(today);
+                    // Pre-populate address if available
+                    if (instruction.tenant.address) {
+                        $('#tenantAddress').val(instruction.tenant.address);
+                    }
+                    if (instruction.tenant.city) {
+                        $('#tenantCity').val(instruction.tenant.city);
+                    }
+                    if (instruction.tenant.postcode) {
+                        $('#tenantPostcode').val(instruction.tenant.postcode);
+                    }
+                } else {
+                    $('#leaseTenantName').val('No tenant assigned yet');
+                    $('#leaseTenantId').val('');
+                }
 
-        $('#leaseCreationModal').modal('show');
+                // Pre-populate rent if already set (from offer accepted)
+                if (instruction.agreedRent) {
+                    $('#monthlyRent').val(instruction.agreedRent);
+                }
+
+                // Set default start date to today
+                const today = new Date().toISOString().split('T')[0];
+                $('#leaseStartDate').val(today);
+
+                $('#leaseCreationModal').modal('show');
+            },
+            error: function(xhr) {
+                showAlert('Error loading instruction details', 'danger');
+            }
+        });
     }
 
     function confirmCreateLease() {
         if (!currentDragEvent) return;
 
+        const tenantId = $('#leaseTenantId').val();
         const startDate = $('#leaseStartDate').val();
         const lengthMonths = $('#leaseLengthMonths').val();
         const rent = $('#monthlyRent').val();
+        const depositAmount = $('#depositAmount').val();
         const notes = $('#leaseNotes').val();
+
+        // Tenant address fields
+        const tenantAddress = $('#tenantAddress').val();
+        const tenantCity = $('#tenantCity').val();
+        const tenantPostcode = $('#tenantPostcode').val();
+
+        // Validation
+        if (!tenantId) {
+            showAlert('Tenant information is missing', 'warning');
+            return;
+        }
 
         if (!startDate) {
             showAlert('Please enter the lease start date', 'warning');
@@ -1127,17 +1212,62 @@
             return;
         }
 
-        // TODO: Call backend to create actual Lease entity
-        // This should link the instruction to the tenant and update both statuses
+        if (!tenantAddress || !tenantCity || !tenantPostcode) {
+            showAlert('Please complete all required tenant address fields', 'warning');
+            return;
+        }
 
-        updateInstructionStatus(currentDragEvent.instructionId, 'ACTIVE_LEASE');
-        $('#leaseCreationModal').modal('hide');
+        // Calculate lease end date
+        const leaseStartDate = new Date(startDate);
+        const leaseEndDate = new Date(leaseStartDate);
+        leaseEndDate.setMonth(leaseEndDate.getMonth() + parseInt(lengthMonths));
+        const endDateStr = leaseEndDate.toISOString().split('T')[0];
 
-        // Clear form
-        $('#leaseStartDate').val('');
-        $('#leaseLengthMonths').val('12');
-        $('#monthlyRent').val('');
-        $('#leaseNotes').val('');
+        // Call backend to create lease
+        $.ajax({
+            url: '/employee/letting-instruction/' + currentDragEvent.instructionId + '/create-lease',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                tenantId: tenantId,
+                leaseStartDate: startDate,
+                leaseEndDate: endDateStr,
+                actualRent: rent,
+                depositAmount: depositAmount || 0,
+                tenantAddress: tenantAddress,
+                tenantCity: tenantCity,
+                tenantPostcode: tenantPostcode,
+                leaseSignedDate: null,
+                notes: notes
+            }),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Lease created successfully!', 'success');
+                    $('#leaseCreationModal').modal('hide');
+
+                    // Clear form
+                    $('#leaseStartDate').val('');
+                    $('#leaseLengthMonths').val('12');
+                    $('#monthlyRent').val('');
+                    $('#depositAmount').val('');
+                    $('#tenantAddress').val('');
+                    $('#tenantCity').val('');
+                    $('#tenantPostcode').val('');
+                    $('#leaseNotes').val('');
+
+                    // Reload the workspace
+                    location.reload();
+                } else {
+                    showAlert('Error: ' + (response.message || 'Failed to create lease'), 'danger');
+                }
+            },
+            error: function(xhr) {
+                showAlert('Error creating lease: ' + xhr.responseText, 'danger');
+            }
+        });
     }
 
     /**
