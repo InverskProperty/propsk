@@ -673,7 +673,9 @@ public class LeadController {
 
             // Parse dates
             LocalDate leaseStartDate = leaseStartDateStr != null ? LocalDate.parse(leaseStartDateStr) : LocalDate.now();
-            LocalDate leaseEndDate = leaseEndDateStr != null ? LocalDate.parse(leaseEndDateStr) : leaseStartDate.plusYears(1);
+            LocalDate leaseEndDate = (leaseEndDateStr != null && !leaseEndDateStr.trim().isEmpty())
+                ? LocalDate.parse(leaseEndDateStr)
+                : null; // null = rolling/periodic tenancy
 
             // Create conversion request
             LeadConversionService.ConversionRequest conversionRequest = new LeadConversionService.ConversionRequest(

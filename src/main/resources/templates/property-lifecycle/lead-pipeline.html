@@ -630,8 +630,9 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label for="lease_endDate">Lease End Date *</label>
-                                <input type="date" class="form-control" id="lease_endDate" name="leaseEndDate" required>
+                                <label for="lease_endDate">Lease End Date <small class="text-muted">(optional)</small></label>
+                                <input type="date" class="form-control" id="lease_endDate" name="leaseEndDate">
+                                <small class="form-text text-muted">Leave blank for rolling/periodic tenancy</small>
                             </div>
                         </div>
                     </div>
@@ -895,7 +896,7 @@
             },
             body: JSON.stringify({
                 leaseStartDate: leaseStartDate,
-                leaseEndDate: leaseEndDate,
+                leaseEndDate: leaseEndDate || null, // Can be null for rolling/periodic tenancy
                 monthlyRent: parseFloat(monthlyRent),
                 deposit: parseFloat(deposit),
                 notes: notes,
