@@ -734,13 +734,17 @@
                 animation: 150,
                 ghostClass: 'sortable-ghost',
                 dragClass: 'sortable-drag',
+                delay: 100, // Add small delay to distinguish click from drag
+                delayOnTouchOnly: false,
                 onEnd: function(evt) {
+                    // Only proceed if actually moved to a different column
+                    if (evt.from === evt.to) {
+                        return; // Same column, treat as a click
+                    }
+
                     const leadId = evt.item.getAttribute('data-lead-id');
                     const newColumn = evt.to.closest('.kanban-column');
                     const newStatus = newColumn.getAttribute('data-status');
-
-                    // Disable the onclick handler temporarily
-                    evt.item.onclick = null;
 
                     // Store event data for modal handlers
                     currentDragEvent = evt;
