@@ -276,7 +276,29 @@ public class LettingInstructionService {
 
         instruction.setStatus(InstructionStatus.OFFER_ACCEPTED);
         instruction.setActualRent(agreedRent);
-        // Tenant will be set when converting to active lease
+
+        // Update the selected lead's status to IN_CONTRACTS
+        // Note: tenantId parameter is actually the leadId from the frontend
+        if (tenantId != null) {
+            Lead selectedLead = leadRepository.findById(tenantId.intValue())
+                    .orElseThrow(() -> new IllegalArgumentException("Lead not found: " + tenantId));
+
+            selectedLead.setStatus(LeadStatus.IN_CONTRACTS);
+            leadRepository.save(selectedLead);
+
+            logger.info("Updated lead {} status to IN_CONTRACTS for instruction {}",
+                       selectedLead.getLeadId(), instruction.getInstructionReference());
+
+            // Update other leads on this instruction to LOST status
+            instruction.getLeads().stream()
+                    .filter(lead -> lead.getLeadId() != selectedLead.getLeadId())
+                    .filter(lead -> lead.getStatus() != LeadStatus.CONVERTED && lead.getStatus() != LeadStatus.LOST)
+                    .forEach(lead -> {
+                        lead.setStatus(LeadStatus.LOST);
+                        leadRepository.save(lead);
+                        logger.info("Marked lead {} as LOST (didn't win property)", lead.getLeadId());
+                    });
+        }
 
         if (notes != null && !notes.isEmpty()) {
             String existingNotes = instruction.getInternalNotes() != null ? instruction.getInternalNotes() : "";
