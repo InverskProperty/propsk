@@ -1,8 +1,11 @@
 package site.easy.to.build.crm.service.property;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.LeadRepository;
@@ -22,19 +25,24 @@ import java.util.List;
 @Service
 public class LeadConversionServiceImpl implements LeadConversionService {
 
+    private static final Logger logger = LoggerFactory.getLogger(LeadConversionServiceImpl.class);
+
     private final LeadRepository leadRepository;
     private final CustomerRepository customerRepository;
     private final InvoiceRepository invoiceRepository;
     private final PropertyRepository propertyRepository;
+    private final CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
 
     public LeadConversionServiceImpl(LeadRepository leadRepository,
                                      CustomerRepository customerRepository,
                                      InvoiceRepository invoiceRepository,
-                                     PropertyRepository propertyRepository) {
+                                     PropertyRepository propertyRepository,
+                                     CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository) {
         this.leadRepository = leadRepository;
         this.customerRepository = customerRepository;
         this.invoiceRepository = invoiceRepository;
         this.propertyRepository = propertyRepository;
+        this.customerPropertyAssignmentRepository = customerPropertyAssignmentRepository;
     }
 
     @Override
@@ -56,6 +64,19 @@ public class LeadConversionServiceImpl implements LeadConversionService {
 
         // Create customer from lead
         Customer customer = createCustomerFromLead(lead);
+
+        // Create property-customer assignment (TENANT type)
+        CustomerPropertyAssignment assignment = new CustomerPropertyAssignment();
+        assignment.setCustomer(customer);
+        assignment.setProperty(property);
+        assignment.setAssignmentType(AssignmentType.TENANT);
+        assignment.setIsPrimary(true);
+        assignment.setStartDate(leaseStartDate);
+        assignment.setEndDate(leaseEndDate);
+        assignment.setSyncStatus("LOCAL_ONLY");
+        customerPropertyAssignmentRepository.save(assignment);
+        logger.info("Created property-customer TENANT assignment for property {} and customer {}",
+                   property.getId(), customer.getCustomerId());
 
         // Create lease invoice
         Invoice lease = createLeaseForTenant(customer, property, leaseStartDate, leaseEndDate, monthlyRent);
