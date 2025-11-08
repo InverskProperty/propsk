@@ -84,20 +84,28 @@
                                 <div class="col-md-2 col-xs-6 b-r"> <strong>Status</strong>
                                     <br>
                                     <select id="leadStatusSelect" class="form-control" th:data-lead-id="${lead.leadId}" onchange="updateLeadStatus()">
-                                        <option value="enquiry" th:selected="${lead.status == 'enquiry'}">Enquiry</option>
-                                        <option value="viewing-scheduled" th:selected="${lead.status == 'viewing-scheduled'}">Viewing Scheduled</option>
-                                        <option value="viewing-completed" th:selected="${lead.status == 'viewing-completed'}">Viewing Completed</option>
-                                        <option value="interested" th:selected="${lead.status == 'interested'}">Interested</option>
-                                        <option value="application-submitted" th:selected="${lead.status == 'application-submitted'}">Application Submitted</option>
-                                        <option value="referencing" th:selected="${lead.status == 'referencing'}">Referencing</option>
-                                        <option value="in-contracts" th:selected="${lead.status == 'in-contracts'}">In Contracts</option>
-                                        <option value="converted" th:selected="${lead.status == 'converted'}">Converted</option>
-                                        <option value="lost" th:selected="${lead.status == 'lost'}">Lost</option>
+                                        <option value="enquiry" th:selected="${lead.statusValue == 'enquiry'}">Enquiry</option>
+                                        <option value="viewing-scheduled" th:selected="${lead.statusValue == 'viewing-scheduled'}">Viewing Scheduled</option>
+                                        <option value="viewing-completed" th:selected="${lead.statusValue == 'viewing-completed'}">Viewing Completed</option>
+                                        <option value="interested" th:selected="${lead.statusValue == 'interested'}">Interested</option>
+                                        <option value="application-submitted" th:selected="${lead.statusValue == 'application-submitted'}">Application Submitted</option>
+                                        <option value="referencing" th:selected="${lead.statusValue == 'referencing'}">Referencing</option>
+                                        <option value="in-contracts" th:selected="${lead.statusValue == 'in-contracts'}">In Contracts</option>
+                                        <option value="converted" th:selected="${lead.statusValue == 'converted'}">Converted</option>
+                                        <option value="lost" th:selected="${lead.statusValue == 'lost'}">Lost</option>
                                     </select>
                                 </div>
-                                <div class="col-md-4 col-xs-6"> <strong>Assigned Employee</strong>
+                                <div class="col-md-2 col-xs-6 b-r"> <strong>Assigned Employee</strong>
                                     <br>
                                     <p class="text-muted" th:text="${lead.employee.username}"></p>
+                                </div>
+                                <div class="col-md-2 col-xs-6 b-r"> <strong>Phone</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${lead.phone != null ? lead.phone : 'Not provided'}"></p>
+                                </div>
+                                <div class="col-md-2 col-xs-6"> <strong>Email</strong>
+                                    <br>
+                                    <p class="text-muted" th:text="${lead.email != null ? lead.email : 'Not provided'}"></p>
                                 </div>
                                 <div class="col-md-12">
                                     <h4>
