@@ -62,11 +62,16 @@ public class PropertyViewingController {
             return "error/account-inactive";
         }
 
+        // Get viewings for calendar display
+        List<PropertyViewing> scheduledViewings = viewingService.getViewingsByStatus("SCHEDULED");
+        List<PropertyViewing> completedViewings = viewingService.getViewingsByStatus("COMPLETED");
+        List<PropertyViewing> todayViewings = viewingService.getTodaysViewingsForUser(loggedInUser);
         List<PropertyViewing> upcomingViewings = viewingService.getUpcomingViewings();
-        List<PropertyViewing> todaysViewings = viewingService.getTodaysViewingsForUser(loggedInUser);
 
+        model.addAttribute("scheduledViewings", scheduledViewings);
+        model.addAttribute("completedViewings", completedViewings);
+        model.addAttribute("todayViewings", todayViewings);
         model.addAttribute("upcomingViewings", upcomingViewings);
-        model.addAttribute("todaysViewings", todaysViewings);
         model.addAttribute("user", loggedInUser);
 
         return "employee/property-viewing/calendar";

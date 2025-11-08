@@ -143,6 +143,7 @@
                                             <th>Duration</th>
                                             <th>Status</th>
                                             <th>Notes</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -166,6 +167,13 @@
                                             </td>
                                             <td>
                                                 <small th:text="${viewing.notes}">-</small>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary"
+                                                        th:onclick="'editViewing(' + ${viewing.id} + ', \'' + ${#temporals.format(viewing.scheduledDatetime, 'yyyy-MM-dd\'T\'HH:mm')} + '\')'"
+                                                        th:if="${viewing.status == 'SCHEDULED'}">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -264,6 +272,37 @@ function updateLeadStatus() {
     } else {
         // User cancelled, reload to reset the dropdown
         location.reload();
+    }
+}
+
+function editViewing(viewingId, currentDateTime) {
+    const newDateTime = prompt('Enter new viewing date and time (YYYY-MM-DD HH:MM):', currentDateTime.replace('T', ' '));
+
+    if (newDateTime) {
+        // Convert to ISO format
+        const isoDateTime = newDateTime.replace(' ', 'T') + ':00';
+
+        const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+        fetch(`/employee/property-viewing/api/reschedule/${viewingId}?newDateTime=${encodeURIComponent(isoDateTime)}`, {
+            method: 'POST',
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Viewing rescheduled successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || data.message));
+            }
+        })
+        .catch(error => {
+            alert('Error rescheduling viewing: ' + error.message);
+        });
     }
 }
 </script>
