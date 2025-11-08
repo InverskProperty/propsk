@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -118,15 +119,19 @@ public class LettingInstruction {
     // ===== RELATIONSHIPS TO CHILD ENTITIES =====
 
     @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
+    @JsonIgnoreProperties("lettingInstruction")
     private List<Lead> leads = new ArrayList<>();
 
     @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
+    @JsonIgnoreProperties("lettingInstruction")
     private List<PropertyViewing> viewings = new ArrayList<>();
 
     @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
+    @JsonIgnoreProperties("lettingInstruction")
     private List<PropertyVacancyTask> tasks = new ArrayList<>();
 
     @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
+    @JsonIgnoreProperties("lettingInstruction")
     private List<Invoice> invoices = new ArrayList<>();
 
     // ===== METRICS (Calculated or Updated) =====

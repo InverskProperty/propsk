@@ -214,6 +214,9 @@
                     <p class="text-muted">Track lead progression through the rental process - per instruction</p>
                 </div>
                 <div class="col-md-4 align-self-center text-right">
+                    <a th:href="@{/employee/lead/create}" class="btn btn-success mr-2" th:if="${selectedInstruction != null}">
+                        <i class="fas fa-plus"></i> Create Lead
+                    </a>
                     <a th:href="@{/employee/letting-instruction/workspace}" class="btn btn-primary">
                         <i class="fas fa-th"></i> Instruction Workspace
                     </a>
