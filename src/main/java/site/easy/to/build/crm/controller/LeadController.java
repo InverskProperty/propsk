@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.entity.settings.LeadEmailSettings;
 import site.easy.to.build.crm.service.property.PropertyViewingService;
+import site.easy.to.build.crm.service.LeadConversionService;
 import site.easy.to.build.crm.google.model.calendar.EventDisplay;
 import site.easy.to.build.crm.google.model.drive.GoogleDriveFolder;
 import site.easy.to.build.crm.google.model.gmail.Attachment;
@@ -38,7 +39,9 @@ import site.easy.to.build.crm.util.*;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.security.GeneralSecurityException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -61,13 +64,15 @@ public class LeadController {
     private final LeadEmailSettingsService leadEmailSettingsService;
     private final GoogleGmailApiService googleGmailApiService;
     private final EntityManager entityManager;
+    private final LeadConversionService leadConversionService;
     private PropertyViewingService propertyViewingService;
 
     @Autowired
     public LeadController(LeadService leadService, AuthenticationUtils authenticationUtils, UserService userService, CustomerService customerService,
                           LeadActionService leadActionService, GoogleCalendarApiService googleCalendarApiService, FileService fileService,
                           GoogleDriveApiService googleDriveApiService, GoogleDriveFileService googleDriveFileService, FileUtil fileUtil,
-                          LeadEmailSettingsService leadEmailSettingsService, GoogleGmailApiService googleGmailApiService, EntityManager entityManager) {
+                          LeadEmailSettingsService leadEmailSettingsService, GoogleGmailApiService googleGmailApiService, EntityManager entityManager,
+                          LeadConversionService leadConversionService) {
         this.leadService = leadService;
         this.authenticationUtils = authenticationUtils;
         this.userService = userService;
@@ -81,6 +86,7 @@ public class LeadController {
         this.leadEmailSettingsService = leadEmailSettingsService;
         this.googleGmailApiService = googleGmailApiService;
         this.entityManager = entityManager;
+        this.leadConversionService = leadConversionService;
     }
 
     @Autowired(required = false)
@@ -518,8 +524,8 @@ public class LeadController {
                 return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Status is required"));
             }
 
-            String previousStatus = lead.getStatus();
-            lead.setStatus(newStatus);
+            LeadStatus previousStatus = lead.getStatus();
+            lead.setStatusValue(newStatus); // Use setStatusValue for string conversion
             leadService.save(lead);
 
             // Create a lead action to track the status change
@@ -607,8 +613,8 @@ public class LeadController {
             }
 
             // Update lead status
-            String previousStatus = lead.getStatus();
-            lead.setStatus("viewing-scheduled");
+            LeadStatus previousStatus = lead.getStatus();
+            lead.setStatus(LeadStatus.VIEWING_SCHEDULED);
             leadService.save(lead);
 
             // Create a lead action to track the viewing scheduling
@@ -659,62 +665,44 @@ public class LeadController {
                 return ResponseEntity.status(404).body(Map.of("success", false, "message", "Lead not found"));
             }
 
-            // Update lead status to converted
-            lead.setStatus("converted");
-            lead.setConvertedAt(LocalDateTime.now());
-
-            // If lead doesn't have a customer yet, create one
-            if (lead.getCustomer() == null && lead.getEmail() != null) {
-                Customer customer = new Customer();
-                customer.setName(lead.getName());
-                customer.setEmail(lead.getEmail());
-                customer.setPhone(lead.getPhone());
-                customer.setUser(loggedInUser);
-                customer.setIsTenant(true); // Mark as tenant
-                customer.setCreatedAt(LocalDateTime.now());
-                customer = customerService.save(customer);
-
-                lead.setCustomer(customer);
-                lead.setConvertedToCustomer(customer);
-            } else if (lead.getCustomer() != null) {
-                // Update existing customer to be a tenant
-                Customer customer = lead.getCustomer();
-                customer.setIsTenant(true);
-                customerService.save(customer);
-                lead.setConvertedToCustomer(customer);
-            }
-
-            leadService.save(lead);
-
-            // Create a lead action to track the conversion
-            LeadAction leadAction = new LeadAction();
-            leadAction.setLead(lead);
-            leadAction.setTimestamp(LocalDateTime.now());
-
-            String leaseStartDate = (String) request.get("leaseStartDate");
-            String leaseEndDate = (String) request.get("leaseEndDate");
+            // Extract conversion parameters from request
+            String leaseStartDateStr = (String) request.get("leaseStartDate");
+            String leaseEndDateStr = (String) request.get("leaseEndDate");
             Double monthlyRent = ((Number) request.get("monthlyRent")).doubleValue();
             Double deposit = ((Number) request.get("deposit")).doubleValue();
-            String notes = (String) request.get("notes");
 
-            StringBuilder action = new StringBuilder("Lead converted to tenant. ");
-            action.append("Lease: " + leaseStartDate + " to " + leaseEndDate);
-            action.append(", Rent: £" + String.format("%.2f", monthlyRent));
-            action.append(", Deposit: £" + String.format("%.2f", deposit));
-            if (notes != null && !notes.trim().isEmpty()) {
-                action.append(". Notes: " + notes);
-            }
+            // Parse dates
+            LocalDate leaseStartDate = leaseStartDateStr != null ? LocalDate.parse(leaseStartDateStr) : LocalDate.now();
+            LocalDate leaseEndDate = leaseEndDateStr != null ? LocalDate.parse(leaseEndDateStr) : leaseStartDate.plusYears(1);
 
-            leadAction.setAction(action.toString());
-            leadActionService.save(leadAction);
+            // Create conversion request
+            LeadConversionService.ConversionRequest conversionRequest = new LeadConversionService.ConversionRequest(
+                leaseStartDate,
+                leaseEndDate,
+                BigDecimal.valueOf(monthlyRent),
+                BigDecimal.valueOf(deposit)
+            );
+
+            // Use the unified conversion service (handles Lead, Customer, Instruction, Invoice atomically)
+            LeadConversionService.ConversionResult result = leadConversionService.convertLeadToTenant(
+                Long.valueOf(id),
+                conversionRequest,
+                userId
+            );
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "message", "Lead converted successfully",
-                "leadId", lead.getLeadId(),
-                "customerId", lead.getCustomer() != null ? lead.getCustomer().getCustomerId() : null
+                "message", "Lead converted successfully to tenant",
+                "leadId", result.getLead().getLeadId(),
+                "customerId", result.getCustomer().getCustomerId(),
+                "instructionId", result.getInstruction() != null ? result.getInstruction().getId() : null,
+                "instructionReference", result.getInstruction() != null ? result.getInstruction().getInstructionReference() : null
             ));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            // Business logic errors (validation failures)
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         } catch (Exception e) {
+            // Unexpected errors
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "Error converting lead: " + e.getMessage()));
         }
     }

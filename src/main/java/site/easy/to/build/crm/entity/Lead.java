@@ -22,10 +22,8 @@ public class Lead {
     private String name;
 
     @Column(name = "status")
-    @NotBlank(message = "Status is required")
-    @Pattern(regexp = "^(meeting-to-schedule|scheduled|archived|success|assign-to-sales|enquiry|viewing-scheduled|viewing-completed|interested|application-submitted|referencing|in-contracts|contracts-complete|converted|lost)$",
-             message = "Invalid status")
-    private String status;
+    @Convert(converter = LeadStatusConverter.class)
+    private LeadStatus status = LeadStatus.ENQUIRY;
 
     @Column(name = "phone")
     private String phone;
@@ -127,7 +125,7 @@ public class Lead {
                 List<LeadAction> leadActions, List<File> files, List<GoogleDriveFile> googleDriveFiles, User manager, User employee,
                 Customer customer, LocalDateTime createdAt) {
         this.name = name;
-        this.status = status;
+        this.status = status != null ? LeadStatus.fromValue(status) : LeadStatus.ENQUIRY;
         this.phone = phone;
         this.meetingId = meetingId;
         this.googleDrive = googleDrive;
@@ -157,12 +155,26 @@ public class Lead {
         this.name = name;
     }
 
-    public String getStatus() {
+    public LeadStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(LeadStatus status) {
         this.status = status;
+    }
+
+    /**
+     * Get status as string value (for backward compatibility with JSON/API)
+     */
+    public String getStatusValue() {
+        return status != null ? status.getValue() : null;
+    }
+
+    /**
+     * Set status from string value (for backward compatibility with JSON/API)
+     */
+    public void setStatusValue(String statusValue) {
+        this.status = statusValue != null ? LeadStatus.fromValue(statusValue) : LeadStatus.ENQUIRY;
     }
 
     public String getPhone() {
@@ -384,6 +396,24 @@ public class Lead {
 
     public void setConvertedToCustomer(Customer convertedToCustomer) {
         this.convertedToCustomer = convertedToCustomer;
+
+        // Ensure consistency: if we're setting convertedToCustomer and customer is null, set customer too
+        if (convertedToCustomer != null && this.customer == null) {
+            this.customer = convertedToCustomer;
+        }
+    }
+
+    /**
+     * Validate that customer and convertedToCustomer are consistent
+     * @return true if valid, false if there's a data integrity issue
+     */
+    public boolean isCustomerReferenceConsistent() {
+        // If both are set, they must be the same customer
+        if (customer != null && convertedToCustomer != null) {
+            return customer.getCustomerId().equals(convertedToCustomer.getCustomerId());
+        }
+        // Otherwise, it's OK (one or both are null)
+        return true;
     }
 
     public List<PropertyViewing> getPropertyViewings() {
@@ -425,7 +455,7 @@ public class Lead {
      * Check if lead has been converted to a tenant
      */
     public boolean isConverted() {
-        return "converted".equalsIgnoreCase(status) && convertedAt != null;
+        return status == LeadStatus.CONVERTED && convertedAt != null;
     }
 
     /**

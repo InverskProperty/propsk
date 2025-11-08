@@ -180,7 +180,7 @@ public class GoogleCalendarApiServiceImpl implements GoogleCalendarApiService {
         Lead lead = leadService.findByMeetingId(eventId);
         if (lead != null) {
             lead.setEmployee(oAuthUser.getUser());
-            lead.setStatus(status);
+            lead.setStatusValue(status); // Use setStatusValue for string conversion
             if(status.equals("Meeting canceled")){
                 lead.setMeetingId("");
             } else {

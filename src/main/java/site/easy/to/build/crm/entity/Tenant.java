@@ -7,6 +7,20 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Tenant Entity - PayProp Integration Only
+ *
+ * IMPORTANT: This entity is used ONLY for PayProp synchronization.
+ * For internal tenant tracking, use Customer entity with isTenant=true.
+ *
+ * This class maintains data structure compatible with PayProp's tenant API
+ * and handles PayProp-specific fields like payPropId, payPropCustomerId, etc.
+ *
+ * Relationship to Customer:
+ * - A Tenant record links to a Customer record (via customer_id)
+ * - Customer.isTenant=true indicates an internal tenant
+ * - Tenant entity is for external PayProp sync data
+ */
 @Entity
 @Table(name = "tenants")
 public class Tenant {

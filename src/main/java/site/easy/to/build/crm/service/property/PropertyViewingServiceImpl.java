@@ -3,9 +3,11 @@ package site.easy.to.build.crm.service.property;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.entity.Lead;
+import site.easy.to.build.crm.entity.LeadStatus;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyViewing;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.repository.LeadRepository;
 import site.easy.to.build.crm.repository.PropertyViewingRepository;
 
 import java.time.LocalDateTime;
@@ -20,9 +22,11 @@ import java.util.List;
 public class PropertyViewingServiceImpl implements PropertyViewingService {
 
     private final PropertyViewingRepository viewingRepository;
+    private final LeadRepository leadRepository;
 
-    public PropertyViewingServiceImpl(PropertyViewingRepository viewingRepository) {
+    public PropertyViewingServiceImpl(PropertyViewingRepository viewingRepository, LeadRepository leadRepository) {
         this.viewingRepository = viewingRepository;
+        this.leadRepository = leadRepository;
     }
 
     @Override
@@ -33,6 +37,12 @@ public class PropertyViewingServiceImpl implements PropertyViewingService {
         viewing.setDurationMinutes(durationMinutes != null ? durationMinutes : 30);
         viewing.setViewingType(viewingType != null ? viewingType : "IN_PERSON");
         viewing.setStatus("SCHEDULED");
+
+        // Update lead status to VIEWING_SCHEDULED if appropriate
+        if (lead != null && lead.getStatus() == LeadStatus.ENQUIRY) {
+            lead.setStatus(LeadStatus.VIEWING_SCHEDULED);
+            leadRepository.save(lead);
+        }
 
         return viewingRepository.save(viewing);
     }
@@ -83,6 +93,21 @@ public class PropertyViewingServiceImpl implements PropertyViewingService {
     public PropertyViewing completeViewing(Long viewingId, String feedback, String interestedLevel) {
         PropertyViewing viewing = getViewingById(viewingId);
         viewing.complete(feedback, interestedLevel);
+
+        // Update lead status to reflect viewing completion
+        Lead lead = viewing.getLead();
+        if (lead != null && lead.getStatus() == LeadStatus.VIEWING_SCHEDULED) {
+            lead.setStatus(LeadStatus.VIEWING_COMPLETED);
+
+            // If highly interested, move directly to INTERESTED status
+            if ("VERY_INTERESTED".equalsIgnoreCase(interestedLevel) ||
+                "HIGH".equalsIgnoreCase(interestedLevel)) {
+                lead.setStatus(LeadStatus.INTERESTED);
+            }
+
+            leadRepository.save(lead);
+        }
+
         return viewingRepository.save(viewing);
     }
 

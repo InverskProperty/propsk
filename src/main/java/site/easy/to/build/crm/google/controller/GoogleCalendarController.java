@@ -180,7 +180,7 @@ public class GoogleCalendarController {
                 Lead lead = leadService.findByLeadId(leadId);
                 User employee = oAuthUser.getUser();
                 lead.setEmployee(employee);
-                lead.setStatus("Scheduled");
+                lead.setStatusValue("Scheduled"); // Use setStatusValue for string conversion
                 lead.setMeetingId(calendarId);
                 leadService.save(lead);
             }

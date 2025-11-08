@@ -126,7 +126,7 @@ public class LeadConversionServiceImpl implements LeadConversionService {
     @Override
     @Transactional
     public Lead markLeadAsConverted(Lead lead, Customer customer) {
-        lead.setStatus("converted");
+        lead.setStatus(LeadStatus.CONVERTED);
         lead.setConvertedAt(LocalDateTime.now());
         lead.setConvertedToCustomer(customer);
         return leadRepository.save(lead);
@@ -193,11 +193,11 @@ public class LeadConversionServiceImpl implements LeadConversionService {
     @Override
     @Transactional
     public Lead reverseConversion(Lead lead) {
-        if (!"converted".equals(lead.getStatus())) {
+        if (lead.getStatus() != LeadStatus.CONVERTED) {
             throw new IllegalStateException("Lead is not converted, cannot reverse");
         }
 
-        lead.setStatus("lost");
+        lead.setStatus(LeadStatus.LOST);
         lead.setConvertedAt(null);
         lead.setConvertedToCustomer(null);
 

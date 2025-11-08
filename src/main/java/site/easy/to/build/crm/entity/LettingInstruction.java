@@ -117,13 +117,13 @@ public class LettingInstruction {
 
     // ===== RELATIONSHIPS TO CHILD ENTITIES =====
 
-    @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
     private List<Lead> leads = new ArrayList<>();
 
-    @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
     private List<PropertyViewing> viewings = new ArrayList<>();
 
-    @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
     private List<PropertyVacancyTask> tasks = new ArrayList<>();
 
     @OneToMany(mappedBy = "lettingInstruction", cascade = CascadeType.ALL)
@@ -344,6 +344,28 @@ public class LettingInstruction {
         viewings.add(viewing);
         viewing.setLettingInstruction(this);
         this.numberOfViewings = viewings.size();
+    }
+
+    /**
+     * Remove a lead from this instruction (properly unlinks without deleting)
+     */
+    public void removeLead(Lead lead) {
+        if (leads != null) {
+            leads.remove(lead);
+            lead.setLettingInstruction(null); // Explicitly unlink
+            this.numberOfEnquiries = leads.size();
+        }
+    }
+
+    /**
+     * Remove a viewing from this instruction (properly unlinks without deleting)
+     */
+    public void removeViewing(PropertyViewing viewing) {
+        if (viewings != null) {
+            viewings.remove(viewing);
+            viewing.setLettingInstruction(null); // Explicitly unlink
+            this.numberOfViewings = viewings.size();
+        }
     }
 
     /**
