@@ -41,6 +41,12 @@ public class LettingInstructionService {
     @Autowired
     private LeadRepository leadRepository;
 
+    @Autowired
+    private InvoiceRepository invoiceRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
+
     // ===== CRUD OPERATIONS =====
 
     /**
@@ -215,33 +221,158 @@ public class LettingInstructionService {
 
     /**
      * Convert instruction to active lease
+     * Comprehensive process that handles:
+     * 1. Lead to Customer conversion (if needed)
+     * 2. Customer-Property junction table assignment
+     * 3. Rent invoice/lease creation
+     * 4. Lead status update to CONVERTED
+     * 5. Instruction status update to ACTIVE_LEASE
+     * 6. Property status update to OCCUPIED
      */
-    public LettingInstruction convertToActiveLease(Long instructionId, Long tenantId,
+    @Transactional
+    public LettingInstruction convertToActiveLease(Long instructionId, Long leadIdOrCustomerId,
                                                    LocalDate leaseStartDate, LocalDate leaseEndDate,
                                                    BigDecimal actualRent, BigDecimal depositAmount,
                                                    LocalDate leaseSignedDate) {
         LettingInstruction instruction = getInstructionById(instructionId)
                 .orElseThrow(() -> new IllegalArgumentException("Instruction not found: " + instructionId));
 
-        if (instruction.getStatus() != InstructionStatus.OFFER_MADE) {
-            throw new IllegalStateException("Can only convert to lease from OFFER_MADE status");
+        // Allow conversion from OFFER_ACCEPTED, IN_CONTRACTS, or CONTRACTS_COMPLETE
+        if (instruction.getStatus() != InstructionStatus.OFFER_ACCEPTED &&
+            instruction.getStatus() != InstructionStatus.IN_CONTRACTS &&
+            instruction.getStatus() != InstructionStatus.CONTRACTS_COMPLETE) {
+            throw new IllegalStateException("Can only convert to lease from OFFER_ACCEPTED, IN_CONTRACTS, or CONTRACTS_COMPLETE status. Current: " + instruction.getStatus());
         }
 
-        // Get tenant
-        Customer tenant = customerRepository.findById(tenantId)
-                .orElseThrow(() -> new IllegalArgumentException("Tenant not found: " + tenantId));
+        Property property = instruction.getProperty();
+        Customer tenant;
+        Lead lead = null;
 
-        // Convert to active lease
-        instruction.convertToActiveLease(tenant, leaseStartDate, leaseEndDate, actualRent, depositAmount);
-        instruction.setLeaseSignedDate(leaseSignedDate);
-        instruction.setAdvertisingEndDate(LocalDate.now());
+        // Step 1: Get or create customer from lead
+        // First try to find as lead ID
+        Optional<Lead> leadOpt = leadRepository.findById(leadIdOrCustomerId.intValue());
+        if (leadOpt.isPresent()) {
+            lead = leadOpt.get();
+
+            // Check if lead already has a customer
+            if (lead.getCustomer() != null) {
+                tenant = lead.getCustomer();
+                logger.info("Lead {} already has customer {}", lead.getLeadId(), tenant.getCustomerId());
+            } else {
+                // Create customer from lead
+                tenant = new Customer();
+                tenant.setName(lead.getName());
+                tenant.setEmail(lead.getEmail());
+                tenant.setPhone(lead.getPhone());
+                tenant.setCountry("United Kingdom");
+                tenant.setIsTenant(true);
+                tenant.setCustomerType(CustomerType.TENANT);
+
+                if (lead.getEmploymentStatus() != null) {
+                    tenant.setDescription("Employment: " + lead.getEmploymentStatus());
+                }
+
+                tenant = customerRepository.save(tenant);
+                logger.info("Created customer {} from lead {}", tenant.getCustomerId(), lead.getLeadId());
+
+                // Link customer to lead
+                lead.setCustomer(tenant);
+                leadRepository.save(lead);
+            }
+        } else {
+            // Try as customer ID
+            tenant = customerRepository.findById(leadIdOrCustomerId)
+                    .orElseThrow(() -> new IllegalArgumentException("Lead or Customer not found: " + leadIdOrCustomerId));
+            logger.info("Using existing customer {}", tenant.getCustomerId());
+        }
+
+        // Step 2: Create property-customer assignment (TENANT type)
+        CustomerPropertyAssignment assignment = new CustomerPropertyAssignment();
+        assignment.setCustomer(tenant);
+        assignment.setProperty(property);
+        assignment.setAssignmentType(AssignmentType.TENANT);
+        assignment.setIsPrimary(true);
+        assignment.setStartDate(leaseStartDate);
+        assignment.setEndDate(leaseEndDate);
+        assignment.setSyncStatus("LOCAL_ONLY");
+
+        customerPropertyAssignmentRepository.save(assignment);
+        logger.info("Created property-customer TENANT assignment for property {} and customer {}",
+                   property.getId(), tenant.getCustomerId());
+
+        // Step 3: Create rent invoice (recurring lease)
+        Invoice rentInvoice = new Invoice();
+        rentInvoice.setCustomer(tenant);
+        rentInvoice.setProperty(property);
+        rentInvoice.setInvoiceType("Rent");
+        rentInvoice.setCategoryId("RENT");
+        rentInvoice.setFrequency(Invoice.InvoiceFrequency.monthly);
+        rentInvoice.setAmount(actualRent);
+        rentInvoice.setStartDate(leaseStartDate);
+        rentInvoice.setEndDate(leaseEndDate);
+        rentInvoice.setDescription("Monthly rent for " + property.getPropertyName());
+        rentInvoice.setSyncStatus(Invoice.SyncStatus.pending);
+
+        // Generate lease reference
+        String leaseRef = "LEASE-" + property.getId() + "-" +
+                         leaseStartDate.toString().replace("-", "");
+        rentInvoice.setLeaseReference(leaseRef);
+
+        invoiceRepository.save(rentInvoice);
+        logger.info("Created rent invoice with lease reference {} for £{}/month",
+                   leaseRef, actualRent);
+
+        // Step 4: If there was a deposit, create deposit invoice
+        if (depositAmount != null && depositAmount.compareTo(BigDecimal.ZERO) > 0) {
+            Invoice depositInvoice = new Invoice();
+            depositInvoice.setCustomer(tenant);
+            depositInvoice.setProperty(property);
+            depositInvoice.setInvoiceType("Deposit");
+            depositInvoice.setCategoryId("DEPOSIT");
+            depositInvoice.setFrequency(Invoice.InvoiceFrequency.one_time);
+            depositInvoice.setAmount(depositAmount);
+            depositInvoice.setStartDate(leaseStartDate);
+            depositInvoice.setDescription("Security deposit for " + property.getPropertyName());
+            depositInvoice.setSyncStatus(Invoice.SyncStatus.pending);
+            depositInvoice.setLeaseReference(leaseRef);
+
+            invoiceRepository.save(depositInvoice);
+            logger.info("Created deposit invoice for £{}", depositAmount);
+        }
+
+        // Step 5: Update lead status to CONVERTED (if there was a lead)
+        if (lead != null) {
+            lead.setStatus(LeadStatus.CONVERTED);
+            lead.setConvertedAt(LocalDateTime.now());
+            lead.setConvertedToCustomer(tenant);
+            leadRepository.save(lead);
+            logger.info("Marked lead {} as CONVERTED", lead.getLeadId());
+        }
+
+        // Step 6: Update instruction to ACTIVE_LEASE
+        instruction.setTenant(tenant);
+        instruction.setLeaseStartDate(leaseStartDate);
+        instruction.setLeaseEndDate(leaseEndDate);
+        instruction.setActualRent(actualRent);
+        instruction.setDepositAmount(depositAmount);
+        instruction.setLeaseSignedDate(leaseSignedDate != null ? leaseSignedDate : LocalDate.now());
+        instruction.setStatus(InstructionStatus.ACTIVE_LEASE);
+
+        if (instruction.getAdvertisingEndDate() == null) {
+            instruction.setAdvertisingEndDate(LocalDate.now());
+        }
 
         // Calculate metrics
         calculateInstructionMetrics(instruction);
 
         LettingInstruction saved = lettingInstructionRepository.save(instruction);
-        logger.info("Instruction {} converted to ACTIVE_LEASE with tenant {}",
-                instruction.getInstructionReference(), tenant.getName());
+        logger.info("Instruction {} converted to ACTIVE_LEASE with tenant {} (lease ref: {})",
+                instruction.getInstructionReference(), tenant.getName(), leaseRef);
+
+        // Step 7: Update property status to OCCUPIED
+        property.markOccupied();
+        propertyRepository.save(property);
+        logger.info("Property {} marked as OCCUPIED", property.getId());
 
         return saved;
     }
