@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -116,6 +117,7 @@ public class Lead {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "letting_instruction_id")
+    @JsonIgnoreProperties({"leads", "viewings", "tasks", "invoices"})
     private LettingInstruction lettingInstruction;
 
     public Lead() {
