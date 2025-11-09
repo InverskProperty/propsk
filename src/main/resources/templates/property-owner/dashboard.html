@@ -363,6 +363,73 @@
                 </div>
             </div>
 
+            <!-- Letting Activity Section -->
+            <div th:if="${lettingStats}" class="row mt-3">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">
+                                <i class="fas fa-key text-success"></i> Letting Activity
+                            </h4>
+                            <p class="card-subtitle text-muted">Track the status of your vacant and marketing properties</p>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <!-- Currently Marketing -->
+                                <div class="col-md-3 col-sm-6 mb-3">
+                                    <div class="stat-box p-3" style="border-left: 4px solid #007bff; background-color: #f8f9fa; border-radius: 5px;">
+                                        <i class="fas fa-bullhorn fa-2x text-primary mb-2"></i>
+                                        <h3 class="text-primary mb-0" th:text="${lettingStats.advertising ?: 0}">0</h3>
+                                        <small class="text-muted">Currently Marketing</small>
+                                    </div>
+                                </div>
+
+                                <!-- Active Enquiries -->
+                                <div class="col-md-3 col-sm-6 mb-3">
+                                    <div class="stat-box p-3" style="border-left: 4px solid #17a2b8; background-color: #f8f9fa; border-radius: 5px;">
+                                        <i class="fas fa-user-friends fa-2x text-info mb-2"></i>
+                                        <h3 class="text-info mb-0" th:text="${lettingStats.totalLeads ?: 0}">0</h3>
+                                        <small class="text-muted">Active Enquiries</small>
+                                    </div>
+                                </div>
+
+                                <!-- Scheduled Viewings -->
+                                <div class="col-md-3 col-sm-6 mb-3">
+                                    <div class="stat-box p-3" style="border-left: 4px solid #ffc107; background-color: #f8f9fa; border-radius: 5px;">
+                                        <i class="fas fa-calendar-check fa-2x text-warning mb-2"></i>
+                                        <h3 class="text-warning mb-0" th:text="${lettingStats.upcomingViewings ?: 0}">0</h3>
+                                        <small class="text-muted">Scheduled Viewings</small>
+                                    </div>
+                                </div>
+
+                                <!-- Active Tenancies -->
+                                <div class="col-md-3 col-sm-6 mb-3">
+                                    <div class="stat-box p-3" style="border-left: 4px solid #28a745; background-color: #f8f9fa; border-radius: 5px;">
+                                        <i class="fas fa-home fa-2x text-success mb-2"></i>
+                                        <h3 class="text-success mb-0" th:text="${lettingStats.activeLeases ?: 0}">0</h3>
+                                        <small class="text-muted">Active Tenancies</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Info Message -->
+                            <div class="row mt-3" th:if="${lettingStats.advertising > 0}">
+                                <div class="col-12">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        <strong>Letting in Progress:</strong>
+                                        You have <span th:text="${lettingStats.advertising}">0</span> propert<span th:text="${lettingStats.advertising == 1 ? 'y' : 'ies'}">ies</span> currently being marketed.
+                                        <span th:if="${lettingStats.totalLeads > 0}">
+                                            We've received <span th:text="${lettingStats.totalLeads}">0</span> enquir<span th:text="${lettingStats.totalLeads == 1 ? 'y' : 'ies'}">ies</span> so far.
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Portfolio Overview Cards -->
             <div class="row">
                 <div class="col-lg-3 col-md-6">

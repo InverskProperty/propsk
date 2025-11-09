@@ -24,6 +24,9 @@ import site.easy.to.build.crm.entity.Portfolio;
 import site.easy.to.build.crm.entity.Tenant;
 import site.easy.to.build.crm.entity.Ticket;
 import site.easy.to.build.crm.entity.UnifiedTransaction;
+import site.easy.to.build.crm.entity.LettingInstruction;
+import site.easy.to.build.crm.entity.InstructionStatus;
+import site.easy.to.build.crm.entity.PropertyViewing;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -125,6 +128,13 @@ public class PropertyOwnerController {
 
     @Autowired
     private PropertyFinancialSummaryService propertyFinancialSummaryService;
+
+    // Letting instruction and viewing repositories for property owner dashboard
+    @Autowired
+    private site.easy.to.build.crm.repository.LettingInstructionRepository lettingInstructionRepository;
+
+    @Autowired
+    private site.easy.to.build.crm.repository.PropertyViewingRepository propertyViewingRepository;
 
     // ObjectMapper for JSON serialization
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -279,25 +289,45 @@ public class PropertyOwnerController {
                             .filter(property -> !assignedPropertyIds.contains(property.getId()))
                             .count();
                         model.addAttribute("unassignedPropertiesCount", unassignedCount);
-                        
+
                         // Calculate basic stats
                         int totalProperties = properties.size();
                         int syncedCount = (int) properties.stream()
                             .filter(property -> property.getPayPropId() != null && !property.getPayPropId().trim().isEmpty())
                             .count();
-                        
+
                         model.addAttribute("totalSynced", syncedCount);
                         model.addAttribute("totalPendingSync", totalProperties - syncedCount);
-                        
+
                         model.addAttribute("portfolioSystemEnabled", true);
                         System.out.println("DEBUG: ✅ Portfolio system loaded successfully!");
-                        
+
                     } else {
                         System.out.println("DEBUG: ❌ PortfolioService is null");
                         model.addAttribute("portfolioSystemEnabled", false);
                         model.addAttribute("portfolios", List.of());
                     }
-                    
+
+                    // ===== LETTING ACTIVITY STATISTICS =====
+                    System.out.println("🔍 STEP 6B: Loading Letting Activity Statistics...");
+                    try {
+                        Map<String, Object> lettingStats = calculateLettingStats(customer.getCustomerId(), properties);
+                        model.addAttribute("lettingStats", lettingStats);
+                        System.out.println("🔍 STEP 6B: ✅ Letting stats loaded successfully! Stats: " + lettingStats.keySet());
+                    } catch (Exception e) {
+                        System.err.println("🚨 STEP 6B FAILED: ERROR loading letting stats: " + e.getMessage());
+                        e.printStackTrace();
+                        // Provide default stats on error
+                        Map<String, Object> defaultLettingStats = new HashMap<>();
+                        defaultLettingStats.put("advertising", 0L);
+                        defaultLettingStats.put("totalLeads", 0L);
+                        defaultLettingStats.put("upcomingViewings", 0L);
+                        defaultLettingStats.put("activeLeases", 0L);
+                        defaultLettingStats.put("totalInstructions", 0L);
+                        model.addAttribute("lettingStats", defaultLettingStats);
+                        System.out.println("🔍 STEP 6B: ✅ Default letting stats loaded as fallback");
+                    }
+
                 } catch (Exception e) {
                     System.err.println("ERROR loading property/portfolio data: " + e.getMessage());
                     e.printStackTrace();
@@ -4025,5 +4055,88 @@ public class PropertyOwnerController {
         }
 
         return report.toString();
+    }
+
+    // ===== LETTING ACTIVITY HELPER METHODS =====
+
+    /**
+     * Calculate letting activity statistics for property owner dashboard
+     *
+     * @param customerId The customer ID of the property owner
+     * @param properties List of properties owned by the customer
+     * @return Map containing letting statistics
+     */
+    private Map<String, Object> calculateLettingStats(Long customerId, List<Property> properties) {
+        Map<String, Object> stats = new HashMap<>();
+
+        try {
+            // Get all active instructions for this owner
+            List<LettingInstruction> activeInstructions =
+                lettingInstructionRepository.findActiveInstructionsByPropertyOwner(customerId);
+
+            // Count instructions by status
+            long advertising = activeInstructions.stream()
+                .filter(i -> i.getStatus() == InstructionStatus.ADVERTISING)
+                .count();
+
+            long offerAccepted = activeInstructions.stream()
+                .filter(i -> i.getStatus() == InstructionStatus.OFFER_ACCEPTED)
+                .count();
+
+            long activeLeases = activeInstructions.stream()
+                .filter(i -> i.getStatus() == InstructionStatus.ACTIVE_LEASE)
+                .count();
+
+            // Count total leads (enquiries) from all active instructions
+            long totalLeads = activeInstructions.stream()
+                .flatMap(i -> i.getLeads() != null ? i.getLeads().stream() : java.util.stream.Stream.empty())
+                .filter(l -> l.getStatus() != null && !l.getStatus().equals("lost") && !l.getStatus().equals("archived"))
+                .count();
+
+            // Count upcoming viewings
+            LocalDateTime now = LocalDateTime.now();
+            long upcomingViewings = 0;
+
+            for (Property property : properties) {
+                List<PropertyViewing> viewings = propertyViewingRepository
+                    .findByPropertyOrderByScheduledDatetimeDesc(property);
+
+                upcomingViewings += viewings.stream()
+                    .filter(v -> v.getScheduledDatetime() != null && v.getScheduledDatetime().isAfter(now))
+                    .filter(v -> "SCHEDULED".equalsIgnoreCase(v.getStatus()) ||
+                                "CONFIRMED".equalsIgnoreCase(v.getStatus()))
+                    .count();
+            }
+
+            // Add all stats to map
+            stats.put("advertising", advertising);
+            stats.put("offerAccepted", offerAccepted);
+            stats.put("activeLeases", activeLeases);
+            stats.put("totalLeads", totalLeads);
+            stats.put("upcomingViewings", upcomingViewings);
+            stats.put("totalInstructions", activeInstructions.size());
+            stats.put("vacantProperties", advertising); // Properties being marketed = vacant
+
+            System.out.println("📊 Letting Stats Calculated:");
+            System.out.println("   Currently Marketing: " + advertising);
+            System.out.println("   Active Enquiries: " + totalLeads);
+            System.out.println("   Upcoming Viewings: " + upcomingViewings);
+            System.out.println("   Active Leases: " + activeLeases);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error calculating letting stats: " + e.getMessage());
+            e.printStackTrace();
+
+            // Return zeros on error
+            stats.put("advertising", 0L);
+            stats.put("offerAccepted", 0L);
+            stats.put("activeLeases", 0L);
+            stats.put("totalLeads", 0L);
+            stats.put("upcomingViewings", 0L);
+            stats.put("totalInstructions", 0L);
+            stats.put("vacantProperties", 0L);
+        }
+
+        return stats;
     }
 }

@@ -300,4 +300,36 @@ public interface LettingInstructionRepository extends JpaRepository<LettingInstr
            "AND li.status = site.easy.to.build.crm.entity.InstructionStatus.ACTIVE_LEASE " +
            "AND (li.leaseEndDate IS NULL OR li.leaseEndDate >= CURRENT_DATE)")
     long countActiveLeasesByTenant(@Param("tenant") Customer tenant);
+
+    // ===== PROPERTY OWNER QUERIES =====
+
+    /**
+     * Find all instructions for properties owned by a specific customer
+     * Use case: Property owner portal - show all letting activity
+     */
+    @Query("SELECT li FROM LettingInstruction li " +
+           "WHERE li.property.id IN " +
+           "(SELECT cpa.property.id FROM CustomerPropertyAssignment cpa " +
+           "WHERE cpa.customer.customerId = :customerId " +
+           "AND cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.OWNER) " +
+           "ORDER BY li.createdAt DESC")
+    List<LettingInstruction> findByPropertyOwnerCustomerId(@Param("customerId") Long customerId);
+
+    /**
+     * Find active instructions only for property owner
+     * Use case: Property owner dashboard - show current letting activity
+     */
+    @Query("SELECT li FROM LettingInstruction li " +
+           "WHERE li.property.id IN " +
+           "(SELECT cpa.property.id FROM CustomerPropertyAssignment cpa " +
+           "WHERE cpa.customer.customerId = :customerId " +
+           "AND cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.OWNER) " +
+           "AND li.status IN (site.easy.to.build.crm.entity.InstructionStatus.INSTRUCTION_RECEIVED, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.PREPARING, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.ADVERTISING, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.VIEWINGS_IN_PROGRESS, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.OFFER_ACCEPTED, " +
+           "site.easy.to.build.crm.entity.InstructionStatus.ACTIVE_LEASE) " +
+           "ORDER BY li.advertisingStartDate DESC NULLS LAST, li.createdAt DESC")
+    List<LettingInstruction> findActiveInstructionsByPropertyOwner(@Param("customerId") Long customerId);
 }
