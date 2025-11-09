@@ -339,11 +339,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     /**
      * Find all invoices for a property that overlap with a date range
      * Used for calculating total rent due in a period
+     * UPDATED: Include both active and inactive leases (ended leases still count for historical rent due)
+     * Only exclude soft-deleted records
      */
     @Query("SELECT i FROM Invoice i WHERE i.property.id = :propertyId " +
            "AND i.startDate <= :endDate " +
            "AND (i.endDate IS NULL OR i.endDate >= :startDate) " +
-           "AND i.isActive = true AND i.deletedAt IS NULL")
+           "AND i.deletedAt IS NULL")
     List<Invoice> findByPropertyIdAndDateRange(
         @Param("propertyId") Long propertyId,
         @Param("startDate") LocalDate startDate,
@@ -353,11 +355,12 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     /**
      * Find all invoices (leases) for a property that overlap with a date range
      * Used for lease-based statement generation
+     * UPDATED: Include both active and inactive leases for historical statements
      */
     @Query("SELECT i FROM Invoice i WHERE i.property = :property " +
            "AND i.startDate <= :endDate " +
            "AND (i.endDate IS NULL OR i.endDate >= :startDate) " +
-           "AND i.isActive = true AND i.deletedAt IS NULL " +
+           "AND i.deletedAt IS NULL " +
            "ORDER BY i.startDate, i.leaseReference")
     List<Invoice> findByPropertyAndDateRangeOverlap(
         @Param("property") Property property,

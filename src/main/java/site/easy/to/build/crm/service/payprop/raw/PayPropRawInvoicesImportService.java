@@ -225,7 +225,7 @@ public class PayPropRawInvoicesImportService {
         if (toDate == null) {
             return true; // No end date = active
         }
-        
+
         try {
             java.sql.Date endDate = getDateValue(invoice, "to_date");
             if (endDate == null) {

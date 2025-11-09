@@ -1314,7 +1314,6 @@ public class BodenHouseStatementTemplateService {
                 SELECT gross_amount, payment_day, from_date, to_date, frequency
                 FROM payprop_export_invoices
                 WHERE property_id = ?
-                AND is_active_instruction = TRUE
                 AND (from_date <= ? OR from_date IS NULL)
                 AND (to_date >= ? OR to_date IS NULL)
                 ORDER BY from_date DESC
