@@ -649,10 +649,20 @@ public class PropertyOwnerController {
                 .filter(i -> i.getStatus() == InstructionStatus.ADVERTISING)
                 .count();
 
-            long activeLeaseCount = latestInstructionByProperty.values().stream()
-                .filter(i -> i.getStatus() == InstructionStatus.ACTIVE_LEASE)
+            // Count ACTUAL active tenancies (properties with TENANT assignments)
+            long activeLeaseCount = properties.stream()
+                .filter(property -> {
+                    List<CustomerPropertyAssignment> tenantAssignments =
+                        customerPropertyAssignmentRepository.findActiveAssignmentsByPropertyAndType(
+                            property.getId(),
+                            AssignmentType.TENANT,
+                            LocalDate.now()
+                        );
+                    return !tenantAssignments.isEmpty();
+                })
                 .count();
 
+            // Vacant = properties WITHOUT active tenants
             long vacantCount = properties.size() - activeLeaseCount;
 
             // Add attributes to model
@@ -4191,7 +4201,7 @@ public class PropertyOwnerController {
                 lettingInstructionRepository.findActiveInstructionsByPropertyOwner(customerId);
             System.out.println("   Active Instructions Found: " + activeInstructions.size());
 
-            // Count instructions by status
+            // Count instructions by status (currently being marketed)
             long advertising = activeInstructions.stream()
                 .filter(i -> i.getStatus() == InstructionStatus.ADVERTISING)
                 .count();
@@ -4200,9 +4210,20 @@ public class PropertyOwnerController {
                 .filter(i -> i.getStatus() == InstructionStatus.OFFER_ACCEPTED)
                 .count();
 
-            long activeLeases = activeInstructions.stream()
-                .filter(i -> i.getStatus() == InstructionStatus.ACTIVE_LEASE)
+            // Count ACTUAL active tenancies (properties with TENANT assignments) - NOT just from instructions
+            long activeLeases = properties.stream()
+                .filter(property -> {
+                    List<CustomerPropertyAssignment> tenantAssignments =
+                        customerPropertyAssignmentRepository.findActiveAssignmentsByPropertyAndType(
+                            property.getId(),
+                            AssignmentType.TENANT,
+                            LocalDate.now()
+                        );
+                    return !tenantAssignments.isEmpty();
+                })
                 .count();
+
+            System.out.println("   Active Tenancies (from TENANT assignments): " + activeLeases);
 
             // Count total leads (enquiries) from all active instructions
             long totalLeads = activeInstructions.stream()
@@ -4231,6 +4252,9 @@ public class PropertyOwnerController {
                 upcomingViewings += propertyViewings;
             }
 
+            // Calculate vacant properties (total - occupied)
+            long vacantProperties = properties.size() - activeLeases;
+
             // Add all stats to map
             stats.put("advertising", advertising);
             stats.put("offerAccepted", offerAccepted);
@@ -4238,13 +4262,15 @@ public class PropertyOwnerController {
             stats.put("totalLeads", totalLeads);
             stats.put("upcomingViewings", upcomingViewings);
             stats.put("totalInstructions", activeInstructions.size());
-            stats.put("vacantProperties", advertising); // Properties being marketed = vacant
+            stats.put("vacantProperties", vacantProperties); // Total properties - occupied properties
 
             System.out.println("📊 ===== FINAL LETTING STATS =====");
             System.out.println("   Currently Marketing: " + advertising);
             System.out.println("   Active Enquiries: " + totalLeads);
             System.out.println("   Upcoming Viewings: " + upcomingViewings);
-            System.out.println("   Active Leases: " + activeLeases);
+            System.out.println("   Active Tenancies: " + activeLeases);
+            System.out.println("   Vacant Properties: " + vacantProperties);
+            System.out.println("   Total Properties: " + properties.size());
             System.out.println("   Total Instructions: " + activeInstructions.size());
             System.out.println("====================================");
 

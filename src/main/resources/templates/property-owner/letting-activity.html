@@ -137,6 +137,7 @@
                         <div class="card-body text-white text-center">
                             <h2 class="text-white" th:text="${advertisingCount}">0</h2>
                             <p class="mb-0"><i class="fas fa-bullhorn"></i> Currently Marketing</p>
+                            <small style="opacity: 0.8;">Being advertised now</small>
                         </div>
                     </div>
                 </div>
@@ -145,6 +146,7 @@
                         <div class="card-body text-white text-center">
                             <h2 class="text-white" th:text="${vacantCount}">0</h2>
                             <p class="mb-0"><i class="fas fa-home"></i> Vacant Properties</p>
+                            <small style="opacity: 0.8;">No active tenants</small>
                         </div>
                     </div>
                 </div>
@@ -153,6 +155,7 @@
                         <div class="card-body text-white text-center">
                             <h2 class="text-white" th:text="${upcomingViewingsByProperty.size()}">0</h2>
                             <p class="mb-0"><i class="fas fa-calendar-check"></i> Properties with Viewings</p>
+                            <small style="opacity: 0.8;">Scheduled viewings</small>
                         </div>
                     </div>
                 </div>
@@ -161,7 +164,23 @@
                         <div class="card-body text-white text-center">
                             <h2 class="text-white" th:text="${activeLeaseCount}">0</h2>
                             <p class="mb-0"><i class="fas fa-check-circle"></i> Active Tenancies</p>
+                            <small style="opacity: 0.8;">Currently occupied</small>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Alert explaining the stats -->
+            <div class="row mt-3">
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>What these numbers mean:</strong>
+                        <ul class="mb-0 mt-2" style="list-style: none; padding-left: 0;">
+                            <li><strong>Currently Marketing:</strong> Properties actively being advertised for new tenants</li>
+                            <li><strong>Vacant Properties:</strong> Properties without active tenants (may or may not be marketing yet)</li>
+                            <li><strong>Active Tenancies:</strong> Properties with tenants currently living in them</li>
+                        </ul>
                     </div>
                 </div>
             </div>
