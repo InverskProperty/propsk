@@ -349,7 +349,13 @@ public class LettingInstructionController {
                     request.getTenantCity(),
                     request.getTenantPostcode()
             );
-            return ResponseEntity.ok(Map.of("success", true, "message", "Lease created successfully", "data", instruction));
+            // Return only essential data to avoid circular reference issues
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Lease created successfully");
+            response.put("instructionId", instruction.getId());
+            response.put("status", instruction.getStatus());
+            return ResponseEntity.ok(response);
         } catch (IllegalArgumentException | IllegalStateException e) {
             logger.error("Error creating lease for instruction {}: {}", id, e.getMessage(), e);
             Map<String, Object> error = new HashMap<>();
