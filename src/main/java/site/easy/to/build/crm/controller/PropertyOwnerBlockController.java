@@ -63,6 +63,9 @@ public class PropertyOwnerBlockController {
     @Autowired
     private UnifiedFinancialDataService unifiedFinancialDataService;
 
+    @Autowired
+    private site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository assignmentRepository;
+
     // ===== AUTHORIZATION HELPERS =====
 
     /**
@@ -122,31 +125,59 @@ public class PropertyOwnerBlockController {
         if (customer == null || blockId == null) return false;
 
         try {
+            log.info("🔍 Checking block {} access for customer {} ({})",
+                blockId, customer.getCustomerId(), customer.getCustomerType());
+
             Block block = blockRepository.findById(blockId).orElse(null);
-            if (block == null) return false;
+            if (block == null) {
+                log.warn("❌ Block {} not found", blockId);
+                return false;
+            }
 
             // FIXED: Support standalone blocks - check portfolio ownership IF portfolio exists
             Portfolio portfolio = block.getPortfolio();
+            log.info("📋 Block {} portfolio: {}", blockId, portfolio != null ? portfolio.getId() : "NULL");
+
             if (portfolio != null) {
+                log.info("📋 Portfolio {} owned by customer {}", portfolio.getId(), portfolio.getPropertyOwnerId());
+
                 // Block belongs to a portfolio - check portfolio access
                 if (customer.getCustomerType() == CustomerType.PROPERTY_OWNER) {
                     // Property owners must own the portfolio
                     if (portfolio.getPropertyOwnerId() == null ||
                         !portfolio.getPropertyOwnerId().equals(customer.getCustomerId().longValue())) {
+                        log.warn("❌ Property owner {} does not own portfolio {}",
+                            customer.getCustomerId(), portfolio.getId());
                         return false; // Owner doesn't own this portfolio
                     }
                 } else if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                    // Delegated users: Check if they have access to properties from the portfolio's owner
+                    // Delegated users: Check if they have MANAGER access to properties from the portfolio's owner
+                    // FIXED: Check through assignments rather than property.propertyOwnerId field
                     List<Property> delegatedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                    log.info("🔍 Delegated user has access to {} properties via MANAGER assignments", delegatedProperties.size());
+
+                    // Get OWNER assignments for the delegated properties to find the actual owners
                     boolean hasOwnerProperties = delegatedProperties.stream()
-                        .anyMatch(p -> p.getPropertyOwnerId() != null &&
-                                     p.getPropertyOwnerId().equals(portfolio.getPropertyOwnerId()));
+                        .anyMatch(p -> {
+                            // Check via CustomerPropertyAssignment OWNER records, not just property.propertyOwnerId
+                            List<CustomerPropertyAssignment> ownerAssignments =
+                                assignmentRepository.findByPropertyIdAndAssignmentType(p.getId(), AssignmentType.OWNER);
+                            boolean matches = ownerAssignments.stream()
+                                .anyMatch(a -> a.getCustomer() != null &&
+                                             a.getCustomer().getCustomerId().equals(portfolio.getPropertyOwnerId()));
+                            if (matches) {
+                                log.debug("Property {} has OWNER assignment to customer {} (portfolio owner)",
+                                    p.getId(), portfolio.getPropertyOwnerId());
+                            }
+                            return matches;
+                        });
 
                     if (!hasOwnerProperties) {
-                        log.debug("Delegated user {} has no properties from portfolio owner {}",
+                        log.warn("❌ Delegated user {} has no MANAGER access to properties owned by portfolio owner {}",
                             customer.getCustomerId(), portfolio.getPropertyOwnerId());
                         return false; // Delegated user has no properties from this portfolio's owner
                     }
+                    log.info("✅ Delegated user has MANAGER access to properties from portfolio owner - continuing to property check");
                     // Continue to property-level check below
                 }
             }
@@ -156,14 +187,20 @@ public class PropertyOwnerBlockController {
             // 1. Standalone blocks (portfolio_id = NULL)
             // 2. Portfolio blocks where user has property assignments
             List<Property> blockProperties = propertyBlockAssignmentRepository.findPropertiesByBlockIdOrdered(blockId);
+            log.info("🏠 Block {} contains {} properties", blockId, blockProperties.size());
+
             if (blockProperties.isEmpty()) {
                 // Block has no properties - grant access if they own the portfolio
-                return portfolio != null &&
+                boolean emptyBlockAccess = portfolio != null &&
                        portfolio.getPropertyOwnerId() != null &&
                        portfolio.getPropertyOwnerId().equals(customer.getCustomerId().longValue());
+                log.info("📦 Empty block - access based on portfolio ownership: {}", emptyBlockAccess);
+                return emptyBlockAccess;
             }
 
             List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            log.info("🔍 Customer has access to {} total properties", customerProperties.size());
+
             Set<Long> customerPropertyIds = customerProperties.stream()
                 .map(Property::getId)
                 .collect(Collectors.toSet());
@@ -172,12 +209,18 @@ public class PropertyOwnerBlockController {
             boolean hasPropertyAccess = blockProperties.stream()
                 .anyMatch(blockProp -> customerPropertyIds.contains(blockProp.getId()));
 
-            log.debug("Block {} access check for customer {}: portfolio={}, hasPropertyAccess={}",
-                blockId, customer.getCustomerId(), portfolio != null ? portfolio.getId() : "NULL", hasPropertyAccess);
+            if (!hasPropertyAccess) {
+                log.warn("❌ Customer {} has NO properties in block {}. Block properties: {}, Customer properties: {}",
+                    customer.getCustomerId(), blockId,
+                    blockProperties.stream().map(Property::getId).limit(5).collect(Collectors.toList()),
+                    customerPropertyIds.stream().limit(5).collect(Collectors.toList()));
+            } else {
+                log.info("✅ Customer {} HAS property access to block {}", customer.getCustomerId(), blockId);
+            }
 
             return hasPropertyAccess;
         } catch (Exception e) {
-            log.error("Error checking block access for customer {}: {}", customer.getCustomerId(), e.getMessage());
+            log.error("❌ Error checking block access for customer {}: {}", customer.getCustomerId(), e.getMessage(), e);
             return false;
         }
     }
