@@ -224,7 +224,37 @@
                                                     <span class="ml-2"><i class="fas fa-bath"></i> <span th:text="${property.bathrooms}">0</span> bath</span>
                                                 </p>
 
-                                                <!-- Status Badge -->
+                                                <!-- Occupancy Status Badge -->
+                                                <div class="mb-2">
+                                                    <div th:if="${tenantsByProperty.containsKey(property.id)}">
+                                                        <span class="badge badge-success" style="font-size: 13px; padding: 8px 12px;">
+                                                            <i class="fas fa-user-check"></i> OCCUPIED
+                                                            (<span th:text="${tenantsByProperty.get(property.id).size()}">0</span> Tenant<span th:if="${tenantsByProperty.get(property.id).size() > 1}">s</span>)
+                                                        </span>
+                                                        <div class="mt-2" th:each="assignment : ${tenantsByProperty.get(property.id)}">
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-calendar-alt"></i>
+                                                                <span th:if="${assignment.customer != null}">
+                                                                    <strong th:text="${assignment.customer.name}">Tenant Name</strong> -
+                                                                </span>
+                                                                Since: <span th:text="${#temporals.format(assignment.startDate, 'dd MMM yyyy')}">Date</span>
+                                                                <span th:if="${assignment.endDate != null}">
+                                                                    to <span th:text="${#temporals.format(assignment.endDate, 'dd MMM yyyy')}">Date</span>
+                                                                </span>
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                    <div th:unless="${tenantsByProperty.containsKey(property.id)}">
+                                                        <span class="badge badge-warning" style="font-size: 13px; padding: 8px 12px;">
+                                                            <i class="fas fa-home"></i> VACANT
+                                                        </span>
+                                                        <div class="mt-1">
+                                                            <small class="text-muted">Available for letting</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <!-- Letting Instruction Status Badge -->
                                                 <div th:if="${latestInstructionByProperty.get(property.id) != null}">
                                                     <span class="status-badge"
                                                           th:classappend="${latestInstructionByProperty.get(property.id)?.status?.name() == 'ADVERTISING' ? 'status-advertising' :
@@ -324,11 +354,11 @@
 </div>
 
 <!-- jQuery -->
-<script th:src="@{/js/jquery.min.js}"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <!-- Bootstrap -->
-<script th:src="@{/js/bootstrap.bundle.min.js}"></script>
-<!-- Custom scripts -->
-<script th:src="@{/js/custom.min.js}"></script>
+<script th:src="@{/css/bootstrap.bundle.min.js}"></script>
+<!-- Custom scripts if available -->
+<script th:src="@{/css/custom.min.js}" th:if="${false}"></script>
 
 </body>
 </html>

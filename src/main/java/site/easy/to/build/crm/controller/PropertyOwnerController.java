@@ -665,12 +665,29 @@ public class PropertyOwnerController {
             // Vacant = properties WITHOUT active tenants
             long vacantCount = properties.size() - activeLeaseCount;
 
+            // Get tenant information for each property
+            Map<Long, List<CustomerPropertyAssignment>> tenantsByProperty = new HashMap<>();
+            for (Property property : properties) {
+                List<CustomerPropertyAssignment> tenantAssignments =
+                    customerPropertyAssignmentRepository.findActiveAssignmentsByPropertyAndType(
+                        property.getId(),
+                        AssignmentType.TENANT,
+                        LocalDate.now()
+                    );
+                if (!tenantAssignments.isEmpty()) {
+                    tenantsByProperty.put(property.getId(), tenantAssignments);
+                }
+            }
+
+            System.out.println("✅ Found tenant information for " + tenantsByProperty.size() + " occupied properties");
+
             // Add attributes to model
             model.addAttribute("customer", customer);
             model.addAttribute("customerName", customer.getName() != null ? customer.getName() : customer.getEmail());
             model.addAttribute("properties", properties);
             model.addAttribute("latestInstructionByProperty", latestInstructionByProperty);
             model.addAttribute("upcomingViewingsByProperty", upcomingViewingsByProperty);
+            model.addAttribute("tenantsByProperty", tenantsByProperty);
             model.addAttribute("advertisingCount", advertisingCount);
             model.addAttribute("activeLeaseCount", activeLeaseCount);
             model.addAttribute("vacantCount", vacantCount);
