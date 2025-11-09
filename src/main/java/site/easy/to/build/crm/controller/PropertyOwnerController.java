@@ -585,6 +585,99 @@ public class PropertyOwnerController {
     }
 
     /**
+     * Property Owner Letting Activity - Detailed view of letting status for all owned properties
+     * Shows property-by-property breakdown of instructions, leads, and viewings
+     */
+    @GetMapping("/property-owner/letting-activity")
+    public String lettingActivity(Model model, Authentication authentication) {
+        System.out.println("🔑 Property Owner Letting Activity - Loading letting data...");
+
+        try {
+            // Get authenticated property owner
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+
+            if (customer == null) {
+                model.addAttribute("error", "Unable to authenticate property owner");
+                return "redirect:/property-owner/dashboard";
+            }
+
+            System.out.println("✅ Customer found: " + customer.getCustomerId());
+
+            // Get all properties for this owner
+            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            System.out.println("✅ Found " + properties.size() + " properties");
+
+            // Get all letting instructions for this owner
+            List<LettingInstruction> allInstructions =
+                lettingInstructionRepository.findByPropertyOwnerCustomerId(customer.getCustomerId());
+            System.out.println("✅ Found " + allInstructions.size() + " total instructions");
+
+            // Group instructions by property
+            Map<Long, LettingInstruction> latestInstructionByProperty = new HashMap<>();
+            for (Property property : properties) {
+                // Get the most recent instruction for each property
+                allInstructions.stream()
+                    .filter(i -> i.getProperty().getId().equals(property.getId()))
+                    .max((i1, i2) -> i1.getCreatedAt().compareTo(i2.getCreatedAt()))
+                    .ifPresent(instruction -> latestInstructionByProperty.put(property.getId(), instruction));
+            }
+
+            // Get upcoming viewings for each property
+            Map<Long, List<PropertyViewing>> upcomingViewingsByProperty = new HashMap<>();
+            LocalDateTime now = LocalDateTime.now();
+
+            for (Property property : properties) {
+                List<PropertyViewing> allViewings = propertyViewingRepository
+                    .findByPropertyOrderByScheduledDatetimeDesc(property);
+
+                List<PropertyViewing> upcomingViewings = allViewings.stream()
+                    .filter(v -> v.getScheduledDatetime() != null && v.getScheduledDatetime().isAfter(now))
+                    .filter(v -> "SCHEDULED".equalsIgnoreCase(v.getStatus()) ||
+                                "CONFIRMED".equalsIgnoreCase(v.getStatus()))
+                    .sorted((v1, v2) -> v1.getScheduledDatetime().compareTo(v2.getScheduledDatetime()))
+                    .collect(Collectors.toList());
+
+                if (!upcomingViewings.isEmpty()) {
+                    upcomingViewingsByProperty.put(property.getId(), upcomingViewings);
+                }
+            }
+
+            System.out.println("✅ Found upcoming viewings for " + upcomingViewingsByProperty.size() + " properties");
+
+            // Calculate summary statistics
+            long advertisingCount = latestInstructionByProperty.values().stream()
+                .filter(i -> i.getStatus() == InstructionStatus.ADVERTISING)
+                .count();
+
+            long activeLeaseCount = latestInstructionByProperty.values().stream()
+                .filter(i -> i.getStatus() == InstructionStatus.ACTIVE_LEASE)
+                .count();
+
+            long vacantCount = properties.size() - activeLeaseCount;
+
+            // Add attributes to model
+            model.addAttribute("customer", customer);
+            model.addAttribute("customerName", customer.getName() != null ? customer.getName() : customer.getEmail());
+            model.addAttribute("properties", properties);
+            model.addAttribute("latestInstructionByProperty", latestInstructionByProperty);
+            model.addAttribute("upcomingViewingsByProperty", upcomingViewingsByProperty);
+            model.addAttribute("advertisingCount", advertisingCount);
+            model.addAttribute("activeLeaseCount", activeLeaseCount);
+            model.addAttribute("vacantCount", vacantCount);
+            model.addAttribute("totalProperties", properties.size());
+
+            System.out.println("✅ Letting Activity page loaded successfully");
+            return "property-owner/letting-activity";
+
+        } catch (Exception e) {
+            System.err.println("❌ Error loading letting activity: " + e.getMessage());
+            e.printStackTrace();
+            model.addAttribute("error", "Error loading letting activity: " + e.getMessage());
+            return "redirect:/property-owner/dashboard";
+        }
+    }
+
+    /**
      * Property Owner Properties - Show properties owned by the authenticated property owner
      */
     @GetMapping("/property-owner/properties")  
@@ -4070,9 +4163,33 @@ public class PropertyOwnerController {
         Map<String, Object> stats = new HashMap<>();
 
         try {
+            System.out.println("📊 ===== CALCULATING LETTING STATS =====");
+            System.out.println("   Customer ID: " + customerId);
+            System.out.println("   Number of Properties: " + properties.size());
+
+            // Get ALL instructions first (for debugging)
+            List<LettingInstruction> allInstructions =
+                lettingInstructionRepository.findByPropertyOwnerCustomerId(customerId);
+            System.out.println("   Total Instructions Found: " + allInstructions.size());
+
+            if (allInstructions.isEmpty()) {
+                System.out.println("   ⚠️  WARNING: No letting instructions found for this customer!");
+                System.out.println("   This could mean:");
+                System.out.println("      - No instructions have been created yet");
+                System.out.println("      - Customer ID doesn't match any property assignments");
+                System.out.println("      - Property assignments don't have type=OWNER");
+            } else {
+                System.out.println("   Instruction statuses breakdown:");
+                for (LettingInstruction inst : allInstructions) {
+                    System.out.println("      - Property " + inst.getProperty().getId() +
+                                     ": " + inst.getStatus());
+                }
+            }
+
             // Get all active instructions for this owner
             List<LettingInstruction> activeInstructions =
                 lettingInstructionRepository.findActiveInstructionsByPropertyOwner(customerId);
+            System.out.println("   Active Instructions Found: " + activeInstructions.size());
 
             // Count instructions by status
             long advertising = activeInstructions.stream()
@@ -4101,11 +4218,17 @@ public class PropertyOwnerController {
                 List<PropertyViewing> viewings = propertyViewingRepository
                     .findByPropertyOrderByScheduledDatetimeDesc(property);
 
-                upcomingViewings += viewings.stream()
+                long propertyViewings = viewings.stream()
                     .filter(v -> v.getScheduledDatetime() != null && v.getScheduledDatetime().isAfter(now))
                     .filter(v -> "SCHEDULED".equalsIgnoreCase(v.getStatus()) ||
                                 "CONFIRMED".equalsIgnoreCase(v.getStatus()))
                     .count();
+
+                if (propertyViewings > 0) {
+                    System.out.println("      Property " + property.getId() + " has " + propertyViewings + " upcoming viewings");
+                }
+
+                upcomingViewings += propertyViewings;
             }
 
             // Add all stats to map
@@ -4117,11 +4240,13 @@ public class PropertyOwnerController {
             stats.put("totalInstructions", activeInstructions.size());
             stats.put("vacantProperties", advertising); // Properties being marketed = vacant
 
-            System.out.println("📊 Letting Stats Calculated:");
+            System.out.println("📊 ===== FINAL LETTING STATS =====");
             System.out.println("   Currently Marketing: " + advertising);
             System.out.println("   Active Enquiries: " + totalLeads);
             System.out.println("   Upcoming Viewings: " + upcomingViewings);
             System.out.println("   Active Leases: " + activeLeases);
+            System.out.println("   Total Instructions: " + activeInstructions.size());
+            System.out.println("====================================");
 
         } catch (Exception e) {
             System.err.println("❌ Error calculating letting stats: " + e.getMessage());

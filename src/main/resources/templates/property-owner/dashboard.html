@@ -364,7 +364,7 @@
             </div>
 
             <!-- Letting Activity Section -->
-            <div th:if="${lettingStats}" class="row mt-3">
+            <div class="row mt-3">
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
@@ -373,7 +373,7 @@
                             </h4>
                             <p class="card-subtitle text-muted">Track the status of your vacant and marketing properties</p>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" th:if="${lettingStats != null}">
                             <div class="row text-center">
                                 <!-- Currently Marketing -->
                                 <div class="col-md-3 col-sm-6 mb-3">
@@ -423,6 +423,31 @@
                                             We've received <span th:text="${lettingStats.totalLeads}">0</span> enquir<span th:text="${lettingStats.totalLeads == 1 ? 'y' : 'ies'}">ies</span> so far.
                                         </span>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- View Details Button -->
+                            <div class="row mt-2">
+                                <div class="col-12 text-center">
+                                    <a href="/property-owner/letting-activity" class="btn btn-primary">
+                                        <i class="fas fa-list-ul"></i> View Detailed Letting Activity
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Fallback when lettingStats is null -->
+                        <div class="card-body" th:if="${lettingStats == null}">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>Letting data unavailable.</strong>
+                                There was an error loading letting activity statistics. Please contact support if this persists.
+                            </div>
+                            <div class="row mt-2">
+                                <div class="col-12 text-center">
+                                    <a href="/property-owner/letting-activity" class="btn btn-primary">
+                                        <i class="fas fa-list-ul"></i> View Detailed Letting Activity
+                                    </a>
                                 </div>
                             </div>
                         </div>

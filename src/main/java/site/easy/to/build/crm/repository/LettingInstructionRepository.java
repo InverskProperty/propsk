@@ -304,26 +304,28 @@ public interface LettingInstructionRepository extends JpaRepository<LettingInstr
     // ===== PROPERTY OWNER QUERIES =====
 
     /**
-     * Find all instructions for properties owned by a specific customer
-     * Use case: Property owner portal - show all letting activity
+     * Find all instructions for properties assigned to a customer (OWNER or MANAGER)
+     * Use case: Property owner portal - show all letting activity (including delegated users)
      */
     @Query("SELECT li FROM LettingInstruction li " +
            "WHERE li.property.id IN " +
            "(SELECT cpa.property.id FROM CustomerPropertyAssignment cpa " +
            "WHERE cpa.customer.customerId = :customerId " +
-           "AND cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.OWNER) " +
+           "AND (cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.OWNER " +
+           "OR cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.MANAGER)) " +
            "ORDER BY li.createdAt DESC")
     List<LettingInstruction> findByPropertyOwnerCustomerId(@Param("customerId") Long customerId);
 
     /**
-     * Find active instructions only for property owner
-     * Use case: Property owner dashboard - show current letting activity
+     * Find active instructions for properties assigned to customer (OWNER or MANAGER)
+     * Use case: Property owner dashboard - show current letting activity (including delegated users)
      */
     @Query("SELECT li FROM LettingInstruction li " +
            "WHERE li.property.id IN " +
            "(SELECT cpa.property.id FROM CustomerPropertyAssignment cpa " +
            "WHERE cpa.customer.customerId = :customerId " +
-           "AND cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.OWNER) " +
+           "AND (cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.OWNER " +
+           "OR cpa.assignmentType = site.easy.to.build.crm.entity.AssignmentType.MANAGER)) " +
            "AND li.status IN (site.easy.to.build.crm.entity.InstructionStatus.INSTRUCTION_RECEIVED, " +
            "site.easy.to.build.crm.entity.InstructionStatus.PREPARING, " +
            "site.easy.to.build.crm.entity.InstructionStatus.ADVERTISING, " +

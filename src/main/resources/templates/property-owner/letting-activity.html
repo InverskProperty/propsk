@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Letting Activity - Property Owner Portal</title>
+
+    <!-- CSRF Meta Tags -->
+    <meta name="_csrf" content="${_csrf.token}"/>
+    <meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+    <!-- Bootstrap Core CSS -->
+    <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+
+    <style>
+        .property-card {
+            border-left: 4px solid #dee2e6;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .property-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .property-card.status-advertising {
+            border-left-color: #007bff;
+        }
+
+        .property-card.status-active-lease {
+            border-left-color: #28a745;
+        }
+
+        .property-card.status-vacant {
+            border-left-color: #6c757d;
+        }
+
+        .property-card.status-offer-accepted {
+            border-left-color: #ffc107;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.status-advertising {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .status-badge.status-active-lease {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .status-badge.status-vacant {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .status-badge.status-offer-accepted {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .stat-item i {
+            width: 25px;
+            text-align: center;
+            margin-right: 10px;
+        }
+
+        .viewing-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .viewing-item {
+            border-left: 3px solid #17a2b8;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .summary-cards .card {
+            border: none;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+
+<body class="fix-header fix-sidebar card-no-border">
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Page Title -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-key text-success"></i> Letting Activity
+                    </h3>
+                    <p class="text-muted mb-0">
+                        Detailed letting status for your <span th:text="${totalProperties}">0</span> properties
+                    </p>
+                </div>
+                <div class="col-md-4 align-self-center text-right">
+                    <a href="/property-owner/dashboard" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row summary-cards">
+                <div class="col-md-3">
+                    <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <div class="card-body text-white text-center">
+                            <h2 class="text-white" th:text="${advertisingCount}">0</h2>
+                            <p class="mb-0"><i class="fas fa-bullhorn"></i> Currently Marketing</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                        <div class="card-body text-white text-center">
+                            <h2 class="text-white" th:text="${vacantCount}">0</h2>
+                            <p class="mb-0"><i class="fas fa-home"></i> Vacant Properties</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                        <div class="card-body text-white text-center">
+                            <h2 class="text-white" th:text="${upcomingViewingsByProperty.size()}">0</h2>
+                            <p class="mb-0"><i class="fas fa-calendar-check"></i> Properties with Viewings</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                        <div class="card-body text-white text-center">
+                            <h2 class="text-white" th:text="${activeLeaseCount}">0</h2>
+                            <p class="mb-0"><i class="fas fa-check-circle"></i> Active Tenancies</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Properties List -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-building"></i> Property-by-Property Status
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <!-- No properties message -->
+                            <div th:if="${properties == null or properties.isEmpty()}" class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> No properties found. Please contact support if this is unexpected.
+                            </div>
+
+                            <!-- Property cards -->
+                            <div th:each="property : ${properties}">
+                                <div class="property-card card"
+                                     th:classappend="${latestInstructionByProperty.get(property.id)?.status?.name() == 'ADVERTISING' ? 'status-advertising' :
+                                                      latestInstructionByProperty.get(property.id)?.status?.name() == 'ACTIVE_LEASE' ? 'status-active-lease' :
+                                                      latestInstructionByProperty.get(property.id)?.status?.name() == 'OFFER_ACCEPTED' ? 'status-offer-accepted' : 'status-vacant'}">
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <!-- Property Info -->
+                                            <div class="col-md-4">
+                                                <h5 class="mb-2">
+                                                    <i class="fas fa-building text-primary"></i>
+                                                    <span th:text="${property.propertyName}">Property Name</span>
+                                                </h5>
+                                                <p class="text-muted mb-2">
+                                                    <i class="fas fa-map-marker-alt"></i>
+                                                    <span th:text="${property.addressLine1}">Address</span>
+                                                </p>
+                                                <p class="text-muted mb-2">
+                                                    <i class="fas fa-bed"></i>
+                                                    <span th:text="${property.bedrooms}">0</span> bed
+                                                    <span class="ml-2"><i class="fas fa-bath"></i> <span th:text="${property.bathrooms}">0</span> bath</span>
+                                                </p>
+
+                                                <!-- Status Badge -->
+                                                <div th:if="${latestInstructionByProperty.get(property.id) != null}">
+                                                    <span class="status-badge"
+                                                          th:classappend="${latestInstructionByProperty.get(property.id)?.status?.name() == 'ADVERTISING' ? 'status-advertising' :
+                                                                          latestInstructionByProperty.get(property.id)?.status?.name() == 'ACTIVE_LEASE' ? 'status-active-lease' :
+                                                                          latestInstructionByProperty.get(property.id)?.status?.name() == 'OFFER_ACCEPTED' ? 'status-offer-accepted' : 'status-vacant'}"
+                                                          th:text="${latestInstructionByProperty.get(property.id).status.name().replace('_', ' ')}">
+                                                        Status
+                                                    </span>
+                                                </div>
+                                                <div th:unless="${latestInstructionByProperty.get(property.id) != null}">
+                                                    <span class="status-badge status-vacant">NO INSTRUCTION</span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Letting Info -->
+                                            <div class="col-md-4">
+                                                <h6 class="text-muted mb-3"><i class="fas fa-info-circle"></i> Letting Information</h6>
+
+                                                <div th:if="${latestInstructionByProperty.get(property.id) != null}">
+                                                    <div class="stat-item" th:if="${latestInstructionByProperty.get(property.id).targetRent != null}">
+                                                        <i class="fas fa-pound-sign text-success"></i>
+                                                        <span>
+                                                            Target Rent: £<span th:text="${#numbers.formatDecimal(latestInstructionByProperty.get(property.id).targetRent, 1, 2)}">0</span>/month
+                                                        </span>
+                                                    </div>
+
+                                                    <div class="stat-item" th:if="${latestInstructionByProperty.get(property.id).numberOfEnquiries != null}">
+                                                        <i class="fas fa-user-friends text-info"></i>
+                                                        <span>
+                                                            Enquiries: <span th:text="${latestInstructionByProperty.get(property.id).numberOfEnquiries}">0</span>
+                                                        </span>
+                                                    </div>
+
+                                                    <div class="stat-item" th:if="${latestInstructionByProperty.get(property.id).numberOfViewings != null}">
+                                                        <i class="fas fa-eye text-warning"></i>
+                                                        <span>
+                                                            Viewings Held: <span th:text="${latestInstructionByProperty.get(property.id).numberOfViewings}">0</span>
+                                                        </span>
+                                                    </div>
+
+                                                    <div class="stat-item" th:if="${latestInstructionByProperty.get(property.id).advertisingStartDate != null}">
+                                                        <i class="fas fa-calendar text-primary"></i>
+                                                        <span>
+                                                            Advertising Since: <span th:text="${#temporals.format(latestInstructionByProperty.get(property.id).advertisingStartDate, 'dd MMM yyyy')}">Date</span>
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div th:unless="${latestInstructionByProperty.get(property.id) != null}">
+                                                    <p class="text-muted">
+                                                        <i class="fas fa-exclamation-circle"></i> No active letting instruction
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Upcoming Viewings -->
+                                            <div class="col-md-4">
+                                                <h6 class="text-muted mb-3"><i class="fas fa-calendar-check"></i> Upcoming Viewings</h6>
+
+                                                <div th:if="${upcomingViewingsByProperty.get(property.id) != null and not #lists.isEmpty(upcomingViewingsByProperty.get(property.id))}">
+                                                    <div class="viewing-list">
+                                                        <div th:each="viewing : ${upcomingViewingsByProperty.get(property.id)}" class="viewing-item">
+                                                            <div>
+                                                                <i class="fas fa-clock text-info"></i>
+                                                                <strong th:text="${#temporals.format(viewing.scheduledDatetime, 'dd MMM yyyy')}">Date</strong>
+                                                                at
+                                                                <strong th:text="${#temporals.format(viewing.scheduledDatetime, 'HH:mm')}">Time</strong>
+                                                            </div>
+                                                            <div class="mt-1">
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-user"></i> <span th:text="${viewing.lead != null ? 'Enquiry #' + viewing.lead.leadId : 'Direct viewing'}">Lead</span>
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div th:unless="${upcomingViewingsByProperty.get(property.id) != null and not #lists.isEmpty(upcomingViewingsByProperty.get(property.id))}">
+                                                    <p class="text-muted">
+                                                        <i class="fas fa-calendar-times"></i> No viewings scheduled
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <footer th:replace="~{general/footer.html}"></footer>
+    </div>
+</div>
+
+<!-- jQuery -->
+<script th:src="@{/js/jquery.min.js}"></script>
+<!-- Bootstrap -->
+<script th:src="@{/js/bootstrap.bundle.min.js}"></script>
+<!-- Custom scripts -->
+<script th:src="@{/js/custom.min.js}"></script>
+
+</body>
+</html>
