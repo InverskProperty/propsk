@@ -176,6 +176,13 @@
 			<version>2.15.2</version>
 		</dependency>
 
+		<!-- Jackson Hibernate5 Module for lazy loading support -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.datatype</groupId>
+			<artifactId>jackson-datatype-hibernate5-jakarta</artifactId>
+			<version>2.15.2</version>
+		</dependency>
+
 		<!-- =====================================
 		     FILE PROCESSING & UTILITIES
 		     ===================================== -->
