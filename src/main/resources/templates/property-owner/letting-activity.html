@@ -190,9 +190,21 @@
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header">
-                            <h4 class="card-title mb-0">
-                                <i class="fas fa-building"></i> Property-by-Property Status
-                            </h4>
+                            <div class="row align-items-center">
+                                <div class="col-md-6">
+                                    <h4 class="card-title mb-0">
+                                        <i class="fas fa-building"></i> Property-by-Property Status
+                                    </h4>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <div class="custom-control custom-switch d-inline-block">
+                                        <input type="checkbox" class="custom-control-input" id="toggleOccupied">
+                                        <label class="custom-control-label" for="toggleOccupied">
+                                            <i class="fas fa-user-check"></i> Show Occupied Properties
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         <div class="card-body">
                             <!-- No properties message -->
@@ -205,7 +217,8 @@
                                 <div class="property-card card"
                                      th:classappend="${latestInstructionByProperty.get(property.id)?.status?.name() == 'ADVERTISING' ? 'status-advertising' :
                                                       latestInstructionByProperty.get(property.id)?.status?.name() == 'ACTIVE_LEASE' ? 'status-active-lease' :
-                                                      latestInstructionByProperty.get(property.id)?.status?.name() == 'OFFER_ACCEPTED' ? 'status-offer-accepted' : 'status-vacant'}">
+                                                      latestInstructionByProperty.get(property.id)?.status?.name() == 'OFFER_ACCEPTED' ? 'status-offer-accepted' : 'status-vacant'}"
+                                     th:attr="data-occupied=${tenantsByProperty.containsKey(property.id) ? 'true' : 'false'}">
                                     <div class="card-body">
                                         <div class="row">
                                             <!-- Property Info -->
@@ -359,6 +372,27 @@
 <script th:src="@{/css/bootstrap.bundle.min.js}"></script>
 <!-- Custom scripts if available -->
 <script th:src="@{/css/custom.min.js}" th:if="${false}"></script>
+
+<!-- Toggle Occupied Properties Script -->
+<script>
+$(document).ready(function() {
+    // By default, hide occupied properties (focus on vacant/letting activity)
+    $('.property-card[data-occupied="true"]').parent().hide();
+
+    // Toggle occupied properties visibility
+    $('#toggleOccupied').on('change', function() {
+        const showOccupied = $(this).is(':checked');
+
+        if (showOccupied) {
+            // Show occupied properties
+            $('.property-card[data-occupied="true"]').parent().slideDown(300);
+        } else {
+            // Hide occupied properties (default - focus on vacant)
+            $('.property-card[data-occupied="true"]').parent().slideUp(300);
+        }
+    });
+});
+</script>
 
 </body>
 </html>
