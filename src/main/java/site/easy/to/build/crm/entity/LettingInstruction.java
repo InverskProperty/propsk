@@ -249,14 +249,14 @@ public class LettingInstruction {
     }
 
     /**
-     * Mark offer made
+     * Mark offer accepted
      */
     public void markOfferMade() {
         if (this.status == InstructionStatus.VIEWINGS_IN_PROGRESS ||
             this.status == InstructionStatus.ADVERTISING) {
-            this.status = InstructionStatus.OFFER_MADE;
+            this.status = InstructionStatus.OFFER_ACCEPTED;
         } else {
-            throw new IllegalStateException("Cannot mark offer made from status: " + this.status);
+            throw new IllegalStateException("Cannot mark offer accepted from status: " + this.status);
         }
     }
 
@@ -265,7 +265,7 @@ public class LettingInstruction {
      */
     public void convertToActiveLease(Customer tenant, LocalDate leaseStart, LocalDate leaseEnd,
                                      BigDecimal rent, BigDecimal deposit) {
-        if (this.status != InstructionStatus.OFFER_MADE) {
+        if (this.status != InstructionStatus.OFFER_ACCEPTED) {
             throw new IllegalStateException("Cannot convert to lease from status: " + this.status);
         }
 

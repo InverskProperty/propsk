@@ -691,7 +691,12 @@
                 </div>
 
                 <!-- Tenant Address Details -->
-                <h6 class="mt-3 mb-2"><i class="fas fa-map-marker-alt"></i> Tenant Address</h6>
+                <h6 class="mt-3 mb-2">
+                    <i class="fas fa-map-marker-alt"></i> Tenant Address
+                    <button type="button" class="btn btn-sm btn-outline-primary ml-2" id="usePropertyAddressBtn">
+                        <i class="fas fa-copy"></i> Use Property Address
+                    </button>
+                </h6>
                 <div class="form-group">
                     <label for="tenantAddress">Address <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="tenantAddress"
@@ -1003,11 +1008,51 @@
         if (!currentDragEvent) return;
 
         const notes = $('#marketingNotes').val();
-        // TODO: Save notes to instruction
 
-        updateInstructionStatus(currentDragEvent.instructionId, 'ADVERTISING');
-        $('#startMarketingModal').modal('hide');
-        $('#marketingNotes').val(''); // Clear for next use
+        // Call specialized endpoint that saves marketing notes
+        $.ajax({
+            url: '/employee/letting-instruction/' + currentDragEvent.instructionId + '/start-advertising',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                advertisingStartDate: null, // Will default to today in backend
+                keyFeatures: null,
+                marketingNotes: notes
+            }),
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Marketing started! Notes saved successfully.', 'success');
+                    $('#startMarketingModal').modal('hide');
+                    $('#marketingNotes').val(''); // Clear for next use
+
+                    // Complete the drag operation
+                    if (currentDragEvent) {
+                        currentDragEvent.element.remove();
+                        document.querySelector('[data-status="' + currentDragEvent.targetStatus + '"]').appendChild(currentDragEvent.element);
+                        currentDragEvent = null;
+                    }
+
+                    // Reload page to show updated data
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert('Error: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error starting marketing:', xhr, status, error);
+                let errorMessage = 'Failed to start marketing';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage += ': ' + xhr.responseJSON.message;
+                }
+                showAlert(errorMessage, 'danger');
+
+                // Revert the drag
+                if (currentDragEvent) {
+                    currentDragEvent.element.remove();
+                    document.querySelector('[data-status="' + currentDragEvent.oldStatus + '"]').appendChild(currentDragEvent.element);
+                }
+            }
+        });
     }
 
     /**
@@ -1076,15 +1121,54 @@
             return;
         }
 
-        // TODO: Save tenant selection and agreed rent to instruction
+        // Call specialized endpoint that saves tenant selection, rent, and marks other leads as LOST
+        $.ajax({
+            url: '/employee/letting-instruction/' + currentDragEvent.instructionId + '/mark-offer-accepted',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                tenantId: parseInt(tenantId),
+                agreedRent: parseFloat(agreedRent),
+                notes: notes
+            }),
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Offer accepted! Rent and tenant saved successfully.', 'success');
+                    $('#acceptOfferModal').modal('hide');
 
-        updateInstructionStatus(currentDragEvent.instructionId, 'OFFER_ACCEPTED');
-        $('#acceptOfferModal').modal('hide');
+                    // Clear form
+                    $('#selectedTenantId').val('');
+                    $('#agreedRent').val('');
+                    $('#offerNotes').val('');
 
-        // Clear form
-        $('#selectedTenantId').val('');
-        $('#agreedRent').val('');
-        $('#offerNotes').val('');
+                    // Complete the drag operation
+                    if (currentDragEvent) {
+                        currentDragEvent.element.remove();
+                        document.querySelector('[data-status="' + currentDragEvent.targetStatus + '"]').appendChild(currentDragEvent.element);
+                        currentDragEvent = null;
+                    }
+
+                    // Reload page to show updated data
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert('Error: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error accepting offer:', xhr, status, error);
+                let errorMessage = 'Failed to accept offer';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage += ': ' + xhr.responseJSON.message;
+                }
+                showAlert(errorMessage, 'danger');
+
+                // Revert the drag
+                if (currentDragEvent) {
+                    currentDragEvent.element.remove();
+                    document.querySelector('[data-status="' + currentDragEvent.oldStatus + '"]').appendChild(currentDragEvent.element);
+                }
+            }
+        });
     }
 
     /**
@@ -1115,11 +1199,50 @@
         if (!currentDragEvent) return;
 
         const notes = $('#simpleStatusNotes').val();
-        // TODO: Save notes to instruction
 
-        updateInstructionStatus(currentDragEvent.instructionId, currentDragEvent.targetStatus);
-        $('#simpleStatusModal').modal('hide');
-        $('#simpleStatusNotes').val(''); // Clear for next use
+        // Call transition-status endpoint with notes
+        $.ajax({
+            url: '/employee/letting-instruction/' + currentDragEvent.instructionId + '/transition-status',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                newStatus: currentDragEvent.targetStatus,
+                notes: notes
+            }),
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Status updated successfully! Notes saved.', 'success');
+                    $('#simpleStatusModal').modal('hide');
+                    $('#simpleStatusNotes').val(''); // Clear for next use
+
+                    // Complete the drag operation
+                    if (currentDragEvent) {
+                        currentDragEvent.element.remove();
+                        document.querySelector('[data-status="' + currentDragEvent.targetStatus + '"]').appendChild(currentDragEvent.element);
+                        currentDragEvent = null;
+                    }
+
+                    // Reload page to show updated data
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert('Error: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error updating status:', xhr, status, error);
+                let errorMessage = 'Failed to update status';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage += ': ' + xhr.responseJSON.message;
+                }
+                showAlert(errorMessage, 'danger');
+
+                // Revert the drag
+                if (currentDragEvent) {
+                    currentDragEvent.element.remove();
+                    document.querySelector('[data-status="' + currentDragEvent.oldStatus + '"]').appendChild(currentDragEvent.element);
+                }
+            }
+        });
     }
 
     /**
@@ -1135,6 +1258,28 @@
             method: 'GET',
             success: function(instruction) {
                 console.log('Loaded instruction:', instruction);
+
+                // Store property address for "Use Property Address" button
+                window.currentPropertyAddress = {
+                    address: instruction.property?.address || '',
+                    city: instruction.property?.city || '',
+                    postcode: instruction.property?.postcode || ''
+                };
+
+                // Setup "Use Property Address" button handler
+                $('#usePropertyAddressBtn').off('click').on('click', function() {
+                    if (window.currentPropertyAddress) {
+                        $('#tenantAddress').val(window.currentPropertyAddress.address);
+                        $('#tenantCity').val(window.currentPropertyAddress.city);
+                        $('#tenantPostcode').val(window.currentPropertyAddress.postcode);
+
+                        // Visual feedback
+                        $(this).html('<i class="fas fa-check"></i> Address Copied!').addClass('btn-success').removeClass('btn-outline-primary');
+                        setTimeout(() => {
+                            $(this).html('<i class="fas fa-copy"></i> Use Property Address').removeClass('btn-success').addClass('btn-outline-primary');
+                        }, 1500);
+                    }
+                });
 
                 // Try to find the selected lead (should be in IN_CONTRACTS or CONTRACTS_COMPLETE status)
                 // First check if instruction already has a tenant assigned

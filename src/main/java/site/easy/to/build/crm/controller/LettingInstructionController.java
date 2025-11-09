@@ -14,6 +14,7 @@ import site.easy.to.build.crm.entity.Lead;
 import site.easy.to.build.crm.entity.LeadStatus;
 import site.easy.to.build.crm.entity.LettingInstruction;
 import site.easy.to.build.crm.entity.User;
+import site.easy.to.build.crm.repository.LettingInstructionRepository;
 import site.easy.to.build.crm.service.LettingInstructionService;
 import site.easy.to.build.crm.service.lead.LeadService;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -38,6 +39,9 @@ public class LettingInstructionController {
 
     @Autowired
     private LettingInstructionService lettingInstructionService;
+
+    @Autowired
+    private LettingInstructionRepository lettingInstructionRepository;
 
     @Autowired
     private PropertyService propertyService;
@@ -716,6 +720,24 @@ public class LettingInstructionController {
             // Perform transition
             instruction = lettingInstructionService.transitionStatus(id, newStatus);
 
+            // Save transition notes if provided
+            if (request.getNotes() != null && !request.getNotes().trim().isEmpty()) {
+                String timestamp = java.time.LocalDateTime.now().format(
+                    java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                );
+                String noteEntry = String.format("[%s] Status changed to %s: %s\n",
+                    timestamp, newStatus.getDisplayName(), request.getNotes());
+
+                String existingNotes = instruction.getInternalNotes();
+                if (existingNotes == null || existingNotes.trim().isEmpty()) {
+                    instruction.setInternalNotes(noteEntry);
+                } else {
+                    instruction.setInternalNotes(existingNotes + "\n" + noteEntry);
+                }
+
+                instruction = lettingInstructionRepository.save(instruction);
+            }
+
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Status updated to " + newStatus.getDisplayName(),
@@ -874,9 +896,12 @@ public class LettingInstructionController {
 
     public static class TransitionStatusRequest {
         private String newStatus;
+        private String notes;
 
         // Getters and setters
         public String getNewStatus() { return newStatus; }
         public void setNewStatus(String newStatus) { this.newStatus = newStatus; }
+        public String getNotes() { return notes; }
+        public void setNotes(String notes) { this.notes = notes; }
     }
 }
