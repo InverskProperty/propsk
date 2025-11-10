@@ -242,6 +242,24 @@
                 </div>
             </div>
 
+            <!-- Financial Summary -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-header bg-primary">
+                            <h4 class="card-title text-white">
+                                <i class="fas fa-chart-line"></i> Block Financial Summary (Last 12 Months)
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="financialSummaryContainer">
+                                <p class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading financial summary...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Properties in Block -->
             <div class="row">
                 <div class="col-lg-12">
@@ -336,10 +354,112 @@ function syncBlockWithPayProp() {
     });
 }
 
-// Load properties in block
+// Load financial summary and properties in block
 $(document).ready(function() {
+    loadFinancialSummary();
     loadBlockProperties();
 });
+
+function loadFinancialSummary() {
+    $('#financialSummaryContainer').html('<p class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading financial summary...</p>');
+
+    fetch(`/blocks/api/${blockId}/financial-summary`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (data.propertySummaries && data.propertySummaries.length > 0) {
+                    renderFinancialSummary(data);
+                } else {
+                    $('#financialSummaryContainer').html(`
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i>
+                            No financial data available. Assign properties to this block to see financial summaries.
+                        </div>
+                    `);
+                }
+            } else {
+                $('#financialSummaryContainer').html(`
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Failed to load financial summary: ${data.error || 'Unknown error'}
+                    </div>
+                `);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading financial summary:', error);
+            $('#financialSummaryContainer').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Error loading financial summary: ${error.message}
+                </div>
+            `);
+        });
+}
+
+function renderFinancialSummary(data) {
+    const formatCurrency = (amount) => {
+        return '£' + parseFloat(amount).toLocaleString('en-GB', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    };
+
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered">
+                <thead class="thead-light">
+                    <tr>
+                        <th>Property</th>
+                        <th class="text-right">Total Rent</th>
+                        <th class="text-right">Expenses</th>
+                        <th class="text-right">Commission</th>
+                        <th class="text-right">Net to Owner</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    // Add each property row
+    data.propertySummaries.forEach(property => {
+        html += `
+            <tr>
+                <td>
+                    <a href="/property/${property.propertyId}" class="font-weight-bold">
+                        ${property.propertyName}
+                    </a>
+                </td>
+                <td class="text-right">${formatCurrency(property.totalRent)}</td>
+                <td class="text-right">${formatCurrency(property.totalExpenses)}</td>
+                <td class="text-right">${formatCurrency(property.totalCommission)}</td>
+                <td class="text-right font-weight-bold">${formatCurrency(property.netToOwner)}</td>
+            </tr>
+        `;
+    });
+
+    // Add totals row
+    const totals = data.totals;
+    html += `
+                </tbody>
+                <tfoot class="bg-light">
+                    <tr class="font-weight-bold" style="font-size: 1.1em;">
+                        <td><strong>TOTAL</strong></td>
+                        <td class="text-right text-primary"><strong>${formatCurrency(totals.totalRent)}</strong></td>
+                        <td class="text-right text-danger"><strong>${formatCurrency(totals.totalExpenses)}</strong></td>
+                        <td class="text-right text-warning"><strong>${formatCurrency(totals.totalCommission)}</strong></td>
+                        <td class="text-right text-success"><strong>${formatCurrency(totals.netToOwner)}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <p class="text-muted small mb-0">
+            <i class="fas fa-info-circle"></i>
+            <strong>Period:</strong> ${data.period}
+        </p>
+    `;
+
+    $('#financialSummaryContainer').html(html);
+}
 
 function loadBlockProperties() {
     $('#propertiesContainer').html('<p class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading properties...</p>');

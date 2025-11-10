@@ -46,6 +46,9 @@ public class BlockViewController {
     @Autowired
     private site.easy.to.build.crm.repository.PropertyRepository propertyRepository;
 
+    @Autowired
+    private site.easy.to.build.crm.service.financial.PropertyFinancialSummaryService financialSummaryService;
+
     // ===== UTILITY METHODS =====
 
     /**
@@ -622,6 +625,78 @@ public class BlockViewController {
             log.error("❌ Failed to fetch assignment overview: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Failed to fetch assignment overview: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get financial summary for all properties in a block
+     * GET /blocks/api/{id}/financial-summary
+     */
+    @GetMapping("/api/{id}/financial-summary")
+    @ResponseBody
+    public ResponseEntity<?> getBlockFinancialSummary(@PathVariable Long id, Authentication auth) {
+        log.info("💰 Fetching financial summary for block {}", id);
+
+        try {
+            // Check if block exists
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Get all properties in the block
+            List<Property> properties = propertyBlockAssignmentRepository.findPropertiesByBlockIdOrdered(id);
+
+            // Calculate financial summary for each property (last 12 months)
+            List<Map<String, Object>> propertySummaries = new ArrayList<>();
+            java.math.BigDecimal totalRent = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal totalExpenses = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal totalCommission = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal totalNet = java.math.BigDecimal.ZERO;
+
+            for (Property property : properties) {
+                try {
+                    var summary = financialSummaryService.getPropertySummaryLast12Months(property.getId());
+
+                    Map<String, Object> propSummary = new HashMap<>();
+                    propSummary.put("propertyId", property.getId());
+                    propSummary.put("propertyName", property.getPropertyName());
+                    propSummary.put("totalRent", summary.getTotalRent());
+                    propSummary.put("totalExpenses", summary.getTotalExpenses());
+                    propSummary.put("totalCommission", summary.getTotalCommission());
+                    propSummary.put("netToOwner", summary.getNetToOwner());
+
+                    propertySummaries.add(propSummary);
+
+                    // Add to totals
+                    totalRent = totalRent.add(summary.getTotalRent());
+                    totalExpenses = totalExpenses.add(summary.getTotalExpenses());
+                    totalCommission = totalCommission.add(summary.getTotalCommission());
+                    totalNet = totalNet.add(summary.getNetToOwner());
+
+                } catch (Exception e) {
+                    log.error("Failed to get financial summary for property {}: {}", property.getId(), e.getMessage());
+                }
+            }
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "blockId", id,
+                "blockName", blockOpt.get().getName(),
+                "period", "Last 12 Months",
+                "propertySummaries", propertySummaries,
+                "totals", Map.of(
+                    "totalRent", totalRent,
+                    "totalExpenses", totalExpenses,
+                    "totalCommission", totalCommission,
+                    "netToOwner", totalNet
+                )
+            ));
+
+        } catch (Exception e) {
+            log.error("❌ Failed to fetch financial summary for block {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to fetch financial summary: " + e.getMessage()));
         }
     }
 
