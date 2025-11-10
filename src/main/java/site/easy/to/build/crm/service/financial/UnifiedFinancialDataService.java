@@ -144,11 +144,14 @@ public class UnifiedFinancialDataService {
             .map(tx -> tx.getAmount().abs())
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // COMMISSIONS (calculated fees)
-        BigDecimal totalCommissions = transactions.stream()
-            .filter(StatementTransactionDto::isAgencyFee)
-            .map(tx -> tx.getAmount().abs())
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // COMMISSIONS (calculated from rent received × property commission percentage)
+        BigDecimal commissionPercentage = property.getCommissionPercentage() != null
+            ? property.getCommissionPercentage()
+            : BigDecimal.valueOf(15.0); // Default to 15% if not set
+
+        BigDecimal totalCommissions = rentReceived
+            .multiply(commissionPercentage)
+            .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
 
         // NET TO OWNER
         BigDecimal netOwnerIncome = rentReceived.subtract(totalExpenses).subtract(totalCommissions);

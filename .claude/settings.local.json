@@ -21,7 +21,8 @@
       "Bash(git log:*)",
       "mcp__render__get_deploy",
       "Bash(javac:*)",
-      "Bash(java:*)"
+      "Bash(java:*)",
+      "Bash(python3 -c \"\nimport os\nimport mysql.connector\n\nconn = mysql.connector.connect(\n    host=''autorack.proxy.rlwy.net'',\n    port=45349,\n    user=''root'',\n    password=''bvitbJhYIVGfVIOBlQHWvZFewEFgEwEh'',\n    database=''railway''\n)\n\ncursor = conn.cursor()\ncursor.execute(\"\"\"\"\"\"\nSELECT id, property_name, payprop_id, monthly_payment, commission_percentage \nFROM properties \nWHERE property_name LIKE ''%Flat 26%'' OR payprop_id = ''oRZQ8ldM1m''\n\"\"\"\"\"\")\n\nprint(''ID | Property Name | PayProp ID | Monthly Payment | Commission %'')\nprint(''-'' * 80)\nfor row in cursor.fetchall():\n    print(f''{row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]}'')\n\nconn.close()\n\")"
     ],
     "deny": [],
     "ask": [],
