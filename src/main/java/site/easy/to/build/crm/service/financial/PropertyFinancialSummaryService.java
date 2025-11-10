@@ -164,13 +164,27 @@ public class PropertyFinancialSummaryService {
         if (type == null) return false;
 
         String typeLower = type.toLowerCase();
+
+        // Special handling for payment_to_beneficiary - these can be either:
+        // 1. Owner payments (beneficiary) - NOT an expense
+        // 2. Contractor/vendor payments - IS an expense
+        // We distinguish by checking the description for "(beneficiary)" which indicates owner payment
+        if (typeLower.equals("payment_to_beneficiary")) {
+            String description = tx.getDescription();
+            if (description != null && description.toLowerCase().contains("(beneficiary)")) {
+                // This is a payment to the property owner, NOT an expense
+                return false;
+            }
+            // Otherwise, it's a payment to a contractor/vendor, which IS an expense
+            return true;
+        }
+
         return typeLower.contains("expense") ||
                typeLower.contains("repair") ||
                typeLower.contains("maintenance") ||
                typeLower.contains("utility") ||
                typeLower.contains("tax") ||
-               typeLower.contains("insurance") ||
-               typeLower.equals("payment_to_beneficiary"); // This is often landlord expense payments
+               typeLower.contains("insurance");
     }
 
     /**
