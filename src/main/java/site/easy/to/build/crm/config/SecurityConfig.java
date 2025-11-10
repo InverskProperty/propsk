@@ -92,7 +92,7 @@ public class SecurityConfig {
 
                     // Customer portal routes - require authentication
                     .requestMatchers("/customer-login/**").hasAnyAuthority("ROLE_PROPERTY_OWNER", "ROLE_TENANT", "ROLE_CONTRACTOR", "ROLE_DELEGATED_USER", "ROLE_MANAGER", "ROLE_ADMIN")
-                    .requestMatchers("/property-owner/**").hasAnyAuthority("ROLE_PROPERTY_OWNER", "ROLE_MANAGER", "ROLE_ADMIN")
+                    .requestMatchers("/property-owner/**").hasAnyAuthority("ROLE_PROPERTY_OWNER", "ROLE_DELEGATED_USER", "ROLE_MANAGER", "ROLE_ADMIN")
                     .requestMatchers("/tenant/**").hasAuthority("ROLE_TENANT")
                     .requestMatchers("/contractor/**").hasAuthority("ROLE_CONTRACTOR")
                     // REMOVED: debug-sync from here - it belongs in main chain
