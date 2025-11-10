@@ -401,7 +401,8 @@ function displayFinancialSummary(data) {
                     <thead class="thead-light">
                         <tr>
                             <th>Property</th>
-                            <th class="text-right">Total Rent</th>
+                            <th class="text-right">Rent Due</th>
+                            <th class="text-right">Rent Received</th>
                             <th class="text-right">Expenses</th>
                             <th class="text-right">Commission</th>
                             <th class="text-right">Net to Owner</th>
@@ -418,6 +419,7 @@ function displayFinancialSummary(data) {
             html += `
                 <tr onclick="viewProperty(${prop.propertyId})" style="cursor: pointer;">
                     <td>${prop.propertyName}</td>
+                    <td class="text-right text-info">£${formatCurrency(prop.rentDue || 0)}</td>
                     <td class="text-right">£${formatCurrency(prop.totalRent || 0)}</td>
                     <td class="text-right">£${formatCurrency(prop.totalExpenses || 0)}</td>
                     <td class="text-right">£${formatCurrency(prop.totalCommission || 0)}</td>
@@ -437,6 +439,7 @@ function displayFinancialSummary(data) {
                     <tfoot class="bg-light">
                         <tr class="font-weight-bold" style="font-size: 1.1em;">
                             <td><strong>TOTAL</strong></td>
+                            <td class="text-right text-info"><strong>£${formatCurrency(totals.totalRentDue || 0)}</strong></td>
                             <td class="text-right text-primary"><strong>£${formatCurrency(totals.totalRent || 0)}</strong></td>
                             <td class="text-right text-danger"><strong>£${formatCurrency(totals.totalExpenses || 0)}</strong></td>
                             <td class="text-right text-warning"><strong>£${formatCurrency(totals.totalCommission || 0)}</strong></td>

@@ -983,6 +983,7 @@ public class PropertyOwnerBlockController {
                 Map<String, Object> propData = new HashMap<>();
                 propData.put("propertyId", property.getId());
                 propData.put("propertyName", property.getPropertyName());
+                propData.put("rentDue", rentDue);  // Expected rent based on invoices/leases
                 propData.put("totalRent", rentReceived);  // Use rentReceived as totalRent for consistency
                 propData.put("totalExpenses", expenses);
                 propData.put("totalCommission", commissions);  // Renamed from commissions
@@ -1001,6 +1002,7 @@ public class PropertyOwnerBlockController {
 
             // Totals object (match admin API structure)
             response.put("totals", Map.of(
+                "totalRentDue", totalRentDue,
                 "totalRent", totalRentReceived,
                 "totalExpenses", totalExpenses,
                 "totalCommission", totalCommissions,
