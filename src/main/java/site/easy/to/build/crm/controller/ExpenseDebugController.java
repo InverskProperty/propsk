@@ -129,7 +129,7 @@ public class ExpenseDebugController {
         """;
 
         Query query = entityManager.createNativeQuery(sql);
-        query.setParameter("propertyId", propertyId);
+        query.setParameter("propertyId", propertyId.toString());
 
         List<Object[]> results = query.getResultList();
 
