@@ -1179,9 +1179,9 @@ public class PropertyOwnerBlockController {
                     .filter(instruction -> instruction.getStatus() != InstructionStatus.CANCELLED &&
                                          instruction.getStatus() != InstructionStatus.CLOSED)
                     .max((i1, i2) -> {
-                        if (i1.getInstructionDate() == null) return -1;
-                        if (i2.getInstructionDate() == null) return 1;
-                        return i1.getInstructionDate().compareTo(i2.getInstructionDate());
+                        if (i1.getInstructionReceivedDate() == null) return -1;
+                        if (i2.getInstructionReceivedDate() == null) return 1;
+                        return i1.getInstructionReceivedDate().compareTo(i2.getInstructionReceivedDate());
                     })
                     .ifPresent(instruction -> {
                         // Use the instruction status display name
