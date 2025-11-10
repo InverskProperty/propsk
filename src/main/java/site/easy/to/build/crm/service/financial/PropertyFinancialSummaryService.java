@@ -6,9 +6,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import site.easy.to.build.crm.entity.UnifiedTransaction;
+import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
+import site.easy.to.build.crm.repository.PropertyRepository;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +34,9 @@ public class PropertyFinancialSummaryService {
 
     @Autowired
     private UnifiedTransactionRepository unifiedTransactionRepository;
+
+    @Autowired
+    private PropertyRepository propertyRepository;
 
     /**
      * Financial summary DTO for a property
@@ -218,6 +224,10 @@ public class PropertyFinancialSummaryService {
         summary.setPeriodStart(fromDate);
         summary.setPeriodEnd(toDate);
 
+        // Fetch the property to get commission percentage
+        Property property = propertyRepository.findById(propertyId)
+            .orElseThrow(() -> new RuntimeException("Property not found: " + propertyId));
+
         // Get all transactions for this property
         List<UnifiedTransaction> allTransactions = unifiedTransactionRepository.findByPropertyId(propertyId);
 
@@ -238,20 +248,28 @@ public class PropertyFinancialSummaryService {
 
         BigDecimal totalRent = BigDecimal.ZERO;
         BigDecimal totalExpenses = BigDecimal.ZERO;
-        BigDecimal totalCommission = BigDecimal.ZERO;
 
         for (UnifiedTransaction tx : periodTransactions) {
             if (isRentTransaction(tx)) {
                 rentTxs.add(tx);
                 totalRent = totalRent.add(tx.getAmount());
             } else if (isCommissionTransaction(tx)) {
+                // Track commission transactions for reference, but don't sum them
                 commissionTxs.add(tx);
-                totalCommission = totalCommission.add(tx.getAmount());
             } else if (isExpenseTransaction(tx)) {
                 expenseTxs.add(tx);
                 totalExpenses = totalExpenses.add(tx.getAmount());
             }
         }
+
+        // CALCULATE commission from percentage, not from transactions
+        BigDecimal commissionPercentage = property.getCommissionPercentage() != null
+            ? property.getCommissionPercentage()
+            : BigDecimal.valueOf(15.0); // Default to 15% if not set
+
+        BigDecimal totalCommission = totalRent
+            .multiply(commissionPercentage)
+            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
         summary.setRentTransactions(rentTxs);
         summary.setExpenseTransactions(expenseTxs);
@@ -266,8 +284,8 @@ public class PropertyFinancialSummaryService {
         summary.setTotalCommission(totalCommission);
         summary.setNetToOwner(totalRent.subtract(totalExpenses).subtract(totalCommission));
 
-        log.info("Property {} financial summary ({} to {}): Rent=£{}, Expenses=£{}, Commission=£{}, Net=£{}",
-                propertyId, fromDate, toDate, totalRent, totalExpenses, totalCommission, summary.getNetToOwner());
+        log.info("Property {} financial summary ({} to {}): Rent=£{}, Expenses=£{}, Commission=£{} ({}% of rent), Net=£{}",
+                propertyId, fromDate, toDate, totalRent, totalExpenses, totalCommission, commissionPercentage, summary.getNetToOwner());
 
         return summary;
     }
