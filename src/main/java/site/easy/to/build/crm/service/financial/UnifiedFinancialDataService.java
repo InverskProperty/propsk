@@ -110,7 +110,7 @@ public class UnifiedFinancialDataService {
      * - Rent DUE: Calculated from local invoices
      * - Rent RECEIVED: Actual incoming transactions from historical + PayProp
      * - Expenses: Actual expenses from historical + PayProp
-     * - Commissions: Calculated from commission percentages
+     * - Commissions: CALCULATED from rent received × property.commission_percentage
      */
     public Map<String, Object> getPropertyFinancialSummary(Property property) {
         LocalDate twoYearsAgo = LocalDate.now().minusYears(2);
