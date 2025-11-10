@@ -328,8 +328,8 @@ function loadBlockFinancials() {
 }
 
 function displayFinancialSummary(data) {
-    // API returns data directly, not nested in summary object
-    const properties = data.properties || [];
+    // API returns data with propertySummaries array
+    const properties = data.propertySummaries || [];
 
     let html = `
         <div class="row mb-3">
@@ -386,12 +386,14 @@ function displayFinancialSummary(data) {
                 <small class="text-muted">(${properties.length} properties)</small>
             </h6>
             <div class="table-responsive">
-                <table class="table table-sm table-hover">
-                    <thead>
+                <table class="table table-sm table-hover table-bordered">
+                    <thead class="thead-light">
                         <tr>
                             <th>Property</th>
-                            <th class="text-right">Rent Due</th>
-                            <th class="text-right">Received</th>
+                            <th class="text-right">Total Rent</th>
+                            <th class="text-right">Expenses</th>
+                            <th class="text-right">Commission</th>
+                            <th class="text-right">Net to Owner</th>
                             <th class="text-right">Arrears</th>
                         </tr>
                     </thead>
@@ -399,19 +401,38 @@ function displayFinancialSummary(data) {
         `;
 
         properties.forEach(prop => {
-            const arrearsClass = prop.rentArrears > 0 ? 'text-danger' : 'text-success';
+            const arrearsAmount = prop.arrears || 0;
+            const arrearsClass = arrearsAmount > 0 ? 'text-danger' : 'text-success';
+
             html += `
                 <tr onclick="viewProperty(${prop.propertyId})" style="cursor: pointer;">
                     <td>${prop.propertyName}</td>
-                    <td class="text-right">£${formatCurrency(prop.rentDue)}</td>
-                    <td class="text-right text-success">£${formatCurrency(prop.rentReceived)}</td>
-                    <td class="text-right ${arrearsClass}">£${formatCurrency(prop.rentArrears)}</td>
+                    <td class="text-right">£${formatCurrency(prop.totalRent || 0)}</td>
+                    <td class="text-right">£${formatCurrency(prop.totalExpenses || 0)}</td>
+                    <td class="text-right">£${formatCurrency(prop.totalCommission || 0)}</td>
+                    <td class="text-right font-weight-bold">£${formatCurrency(prop.netToOwner || 0)}</td>
+                    <td class="text-right ${arrearsClass}">£${formatCurrency(arrearsAmount)}</td>
                 </tr>
             `;
         });
 
+        // Add totals row
+        const totals = data.totals || {};
+        const totalArrearsAmount = totals.totalArrears || 0;
+        const totalArrearsClass = totalArrearsAmount > 0 ? 'text-danger' : 'text-success';
+
         html += `
                     </tbody>
+                    <tfoot class="bg-light">
+                        <tr class="font-weight-bold" style="font-size: 1.1em;">
+                            <td><strong>TOTAL</strong></td>
+                            <td class="text-right text-primary"><strong>£${formatCurrency(totals.totalRent || 0)}</strong></td>
+                            <td class="text-right text-danger"><strong>£${formatCurrency(totals.totalExpenses || 0)}</strong></td>
+                            <td class="text-right text-warning"><strong>£${formatCurrency(totals.totalCommission || 0)}</strong></td>
+                            <td class="text-right text-success"><strong>£${formatCurrency(totals.netToOwner || 0)}</strong></td>
+                            <td class="text-right ${totalArrearsClass}"><strong>£${formatCurrency(totalArrearsAmount)}</strong></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         `;

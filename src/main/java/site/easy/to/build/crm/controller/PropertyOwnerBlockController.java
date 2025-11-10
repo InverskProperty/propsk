@@ -979,41 +979,33 @@ public class PropertyOwnerBlockController {
                 totalNetOwnerIncome = totalNetOwnerIncome.add(netIncome);
                 totalTransactions += txCount;
 
-                // Add property summary to response
+                // Add property summary to response (match admin API structure)
                 Map<String, Object> propData = new HashMap<>();
                 propData.put("propertyId", property.getId());
                 propData.put("propertyName", property.getPropertyName());
-                propData.put("rentDue", rentDue);
-                propData.put("rentReceived", rentReceived);
-                propData.put("rentArrears", rentArrears);
-                propData.put("expenses", expenses);
-                propData.put("commissions", commissions);
-                propData.put("netOwnerIncome", netIncome);
+                propData.put("totalRent", rentReceived);  // Use rentReceived as totalRent for consistency
+                propData.put("totalExpenses", expenses);
+                propData.put("totalCommission", commissions);  // Renamed from commissions
+                propData.put("netToOwner", netIncome);  // Renamed from netOwnerIncome
+                propData.put("arrears", rentArrears);  // Renamed from rentArrears
                 propertyFinancials.add(propData);
             }
 
+            // Build response matching admin API structure
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("blockId", id);
             response.put("blockName", block.getName());
-            response.put("propertyCount", blockProperties.size());
+            response.put("period", "All Time");  // Match admin API structure
+            response.put("propertySummaries", propertyFinancials);  // Renamed from properties
 
-            // Aggregated totals
-            response.put("totalRentDue", totalRentDue);
-            response.put("totalRentReceived", totalRentReceived);
-            response.put("totalRentArrears", totalRentArrears);
-            response.put("totalExpenses", totalExpenses);
-            response.put("totalCommissions", totalCommissions);
-            response.put("totalNetOwnerIncome", totalNetOwnerIncome);
-            response.put("totalTransactions", totalTransactions);
-
-            // Per-property breakdown
-            response.put("properties", propertyFinancials);
-
-            // Date range (2 years)
-            response.put("dateRange", Map.of(
-                "from", java.time.LocalDate.now().minusYears(2).toString(),
-                "to", java.time.LocalDate.now().toString()
+            // Totals object (match admin API structure)
+            response.put("totals", Map.of(
+                "totalRent", totalRentReceived,
+                "totalExpenses", totalExpenses,
+                "totalCommission", totalCommissions,
+                "netToOwner", totalNetOwnerIncome,
+                "totalArrears", totalRentArrears
             ));
 
             log.info("✅ Block {} financial summary: {} properties, £{} rent due, £{} received",

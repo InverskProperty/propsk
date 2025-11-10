@@ -415,6 +415,7 @@ function renderFinancialSummary(data) {
                         <th class="text-right">Expenses</th>
                         <th class="text-right">Commission</th>
                         <th class="text-right">Net to Owner</th>
+                        <th class="text-right">Arrears</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -422,6 +423,9 @@ function renderFinancialSummary(data) {
 
     // Add each property row
     data.propertySummaries.forEach(property => {
+        const arrearsAmount = property.arrears || 0;
+        const arrearsClass = arrearsAmount > 0 ? 'text-danger' : 'text-success';
+
         html += `
             <tr>
                 <td>
@@ -433,12 +437,16 @@ function renderFinancialSummary(data) {
                 <td class="text-right">${formatCurrency(property.totalExpenses)}</td>
                 <td class="text-right">${formatCurrency(property.totalCommission)}</td>
                 <td class="text-right font-weight-bold">${formatCurrency(property.netToOwner)}</td>
+                <td class="text-right ${arrearsClass}">${formatCurrency(arrearsAmount)}</td>
             </tr>
         `;
     });
 
     // Add totals row
     const totals = data.totals;
+    const totalArrearsAmount = totals.totalArrears || 0;
+    const totalArrearsClass = totalArrearsAmount > 0 ? 'text-danger' : 'text-success';
+
     html += `
                 </tbody>
                 <tfoot class="bg-light">
@@ -448,6 +456,7 @@ function renderFinancialSummary(data) {
                         <td class="text-right text-danger"><strong>${formatCurrency(totals.totalExpenses)}</strong></td>
                         <td class="text-right text-warning"><strong>${formatCurrency(totals.totalCommission)}</strong></td>
                         <td class="text-right text-success"><strong>${formatCurrency(totals.netToOwner)}</strong></td>
+                        <td class="text-right ${totalArrearsClass}"><strong>${formatCurrency(totalArrearsAmount)}</strong></td>
                     </tr>
                 </tfoot>
             </table>

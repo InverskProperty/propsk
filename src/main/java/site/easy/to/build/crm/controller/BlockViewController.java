@@ -653,10 +653,15 @@ public class BlockViewController {
             java.math.BigDecimal totalExpenses = java.math.BigDecimal.ZERO;
             java.math.BigDecimal totalCommission = java.math.BigDecimal.ZERO;
             java.math.BigDecimal totalNet = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal totalArrears = java.math.BigDecimal.ZERO;
 
             for (Property property : properties) {
                 try {
                     var summary = financialSummaryService.getPropertySummaryLast12Months(property.getId());
+
+                    // Get arrears data from unified financial data service
+                    Map<String, Object> unifiedSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+                    java.math.BigDecimal arrears = (java.math.BigDecimal) unifiedSummary.getOrDefault("rentArrears", java.math.BigDecimal.ZERO);
 
                     Map<String, Object> propSummary = new HashMap<>();
                     propSummary.put("propertyId", property.getId());
@@ -665,6 +670,7 @@ public class BlockViewController {
                     propSummary.put("totalExpenses", summary.getTotalExpenses());
                     propSummary.put("totalCommission", summary.getTotalCommission());
                     propSummary.put("netToOwner", summary.getNetToOwner());
+                    propSummary.put("arrears", arrears);
 
                     propertySummaries.add(propSummary);
 
@@ -673,6 +679,7 @@ public class BlockViewController {
                     totalExpenses = totalExpenses.add(summary.getTotalExpenses());
                     totalCommission = totalCommission.add(summary.getTotalCommission());
                     totalNet = totalNet.add(summary.getNetToOwner());
+                    totalArrears = totalArrears.add(arrears);
 
                 } catch (Exception e) {
                     log.error("Failed to get financial summary for property {}: {}", property.getId(), e.getMessage());
@@ -689,7 +696,8 @@ public class BlockViewController {
                     "totalRent", totalRent,
                     "totalExpenses", totalExpenses,
                     "totalCommission", totalCommission,
-                    "netToOwner", totalNet
+                    "netToOwner", totalNet,
+                    "totalArrears", totalArrears
                 )
             ));
 
