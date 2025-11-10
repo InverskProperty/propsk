@@ -49,6 +49,9 @@ public class BlockViewController {
     @Autowired
     private site.easy.to.build.crm.service.financial.PropertyFinancialSummaryService financialSummaryService;
 
+    @Autowired
+    private site.easy.to.build.crm.service.financial.UnifiedFinancialDataService unifiedFinancialDataService;
+
     // ===== UTILITY METHODS =====
 
     /**
