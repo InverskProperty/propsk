@@ -139,10 +139,22 @@ public class PropertyFinancialSummaryService {
         if (type == null) return false;
 
         String typeLower = type.toLowerCase();
+
+        // IMPORTANT: payment_to_agency is the disbursement of the commission, not the commission itself
+        // commission_payment records the commission charge
+        // payment_to_agency records the payment of that same commission to the agency
+        // To avoid double-counting, we only count commission_payment, NOT payment_to_agency
+        // However, we still classify payment_to_agency as "commission-related" so it's not counted as expense
+
+        // Count only commission_payment and other fee-related transactions
+        if (typeLower.equals("payment_to_agency")) {
+            // This is a disbursement, not a charge - don't count it in commission total
+            return false;
+        }
+
         return typeLower.contains("commission") ||
-               typeLower.contains("agency") ||
-               typeLower.contains("fee") ||
-               typeLower.equals("payment_to_agency");
+               typeLower.contains("agency_fee") ||  // agency_fee (not payment_to_agency)
+               typeLower.contains("management_fee");
     }
 
     /**
@@ -164,6 +176,11 @@ public class PropertyFinancialSummaryService {
         if (type == null) return false;
 
         String typeLower = type.toLowerCase();
+
+        // Exclude payment_to_agency - it's a commission disbursement, not an expense
+        if (typeLower.equals("payment_to_agency")) {
+            return false;
+        }
 
         // Special handling for payment_to_beneficiary - these can be either:
         // 1. Owner payments (beneficiary) - NOT an expense
