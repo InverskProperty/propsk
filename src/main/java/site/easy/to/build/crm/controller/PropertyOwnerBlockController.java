@@ -1167,7 +1167,41 @@ public class PropertyOwnerBlockController {
         dto.put("county", property.getCounty());
         dto.put("postcode", property.getPostcode());
         dto.put("countryCode", property.getCountryCode());
-        dto.put("status", property.getStatus());
+
+        // Get current letting instruction status instead of legacy property.status field
+        String currentStatus = "Vacant"; // Default for properties with no instruction
+        try {
+            if (property.getLettingInstructions() != null && !property.getLettingInstructions().isEmpty()) {
+                // Get the most recent letting instruction
+                property.getLettingInstructions().stream()
+                    .filter(instruction -> instruction.getStatus() != InstructionStatus.CANCELLED &&
+                                         instruction.getStatus() != InstructionStatus.CLOSED)
+                    .max((i1, i2) -> {
+                        if (i1.getInstructionDate() == null) return -1;
+                        if (i2.getInstructionDate() == null) return 1;
+                        return i1.getInstructionDate().compareTo(i2.getInstructionDate());
+                    })
+                    .ifPresent(instruction -> {
+                        // Use the instruction status display name
+                        InstructionStatus status = instruction.getStatus();
+                        if (status == InstructionStatus.ACTIVE_LEASE) {
+                            dto.put("status", "Occupied");
+                        } else if (status == InstructionStatus.ADVERTISING) {
+                            dto.put("status", "Available");
+                        } else {
+                            dto.put("status", status.getDisplayName());
+                        }
+                    });
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get letting instruction status for property {}: {}", property.getId(), e.getMessage());
+        }
+
+        // Set default if not set by letting instruction
+        if (!dto.containsKey("status")) {
+            dto.put("status", currentStatus);
+        }
+
         dto.put("isArchived", property.getIsArchived());
 
         // Add block info if assigned
