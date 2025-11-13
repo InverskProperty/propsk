@@ -146,8 +146,8 @@ public class PropertyController {
             debug.append("Customer ID: ").append(customer.getCustomerId()).append("<br>");
             debug.append("Customer Type: ").append(customer.getCustomerType()).append("<br>");
             
-            // 5. Property lookup
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            // 5. Property lookup (with delegated user filtering)
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             debug.append("Properties found: ").append(properties.size()).append("<br>");
             
             // 6. Assignment lookup
@@ -204,8 +204,8 @@ public class PropertyController {
             
             System.out.println("✅ [PropertyController] Found Customer ID " + customer.getCustomerId() + " for email " + email);
             
-            // Now find properties owned by this customer using the assignment table
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            // Now find properties owned by this customer using the assignment table (with delegated user filtering)
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             System.out.println("✅ [PropertyController] Found " + properties.size() + " properties for customer " + customer.getCustomerId());
             
             return properties;

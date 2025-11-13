@@ -934,7 +934,8 @@ public class StatementController {
     @ResponseBody
     public ResponseEntity<List<Property>> getPropertiesForOwner(@PathVariable Integer ownerId) {
         try {
-            List<Property> properties = propertyService.getPropertiesByOwner(ownerId.longValue());
+            // Uses findPropertiesAccessibleByCustomer which handles delegated user filtering
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(ownerId.longValue());
             return ResponseEntity.ok(properties);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -1011,8 +1012,9 @@ public class StatementController {
         try {
             if ("property-owner".equals(type)) {
                 Customer propertyOwner = customerService.findByCustomerId(customerId.longValue());
-                List<Property> properties = propertyService.getPropertiesByOwner(customerId.longValue());
-                
+                // Uses findPropertiesAccessibleByCustomer which handles delegated user filtering
+                List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId.longValue());
+
                 return ResponseEntity.ok(Map.of(
                     "propertyOwner", propertyOwner,
                     "properties", properties,

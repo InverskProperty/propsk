@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" content="${_csrf.token}"/>
+<meta name="_csrf_header" content="${_csrf.headerName}"/>
+
+<!-- Editable CSS -->
+<link rel="stylesheet" type="text/css" th:href="@{/css/dataTables.bootstrap4.css}">
+<link rel="stylesheet" type="text/css" th:href="@{/css/responsive.dataTables.min.css}">
+<link th:href="@{/css/login-register-lock.css}" rel="stylesheet">
+<link th:href="@{/css/jquery.toast.css}" rel="stylesheet">
+<!-- Custom CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<!-- page css -->
+<link th:href="@{/css/pages/inbox.css}" rel="stylesheet">
+
+<!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+<!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+</head>
+
+<body class="skin-blue fixed-layout">
+<!-- ============================================================== -->
+<!-- Preloader - style you can find in spinners.css -->
+<!-- ============================================================== -->
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+<!-- ============================================================== -->
+<!-- Main wrapper - style you can find in pages.scss -->
+<!-- ============================================================== -->
+<div id="main-wrapper">
+    <!-- ============================================================== -->
+    <!-- Topbar header - style you can find in pages.scss -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/header.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Topbar header -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <div th:replace="~{general/left-sidebar.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End Left Sidebar - style you can find in sidebar.scss  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- Page wrapper  -->
+    <!-- ============================================================== -->
+    <div class="page-wrapper">
+        <!-- ============================================================== -->
+        <!-- Container fluid  -->
+        <!-- ============================================================== -->
+        <div class="container-fluid">
+            <!-- ============================================================== -->
+            <!-- Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <div class="row page-titles">
+                <div class="col-md-5 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-users text-info"></i> My Team
+                    </h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="${home}">Home</a></li>
+                        <li class="breadcrumb-item active">Team Management</li>
+                    </ol>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Bread crumb and right sidebar toggle -->
+            <!-- ============================================================== -->
+            <!-- ============================================================== -->
+            <!-- Start Page Content -->
+            <!-- ============================================================== -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                                <h3 class="text-success"><i class="fa fa-check-circle"></i> Success</h3>
+                                <span th:text="${successMessage}"></span>
+                            </div>
+                            <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                                <h3 class="text-danger"><i class="fa fa-exclamation-circle"></i> Error</h3>
+                                <span th:text="${errorMessage}"></span>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 class="card-title">Delegated Users & Managers</h4>
+                                    <h6 class="card-subtitle">People who can manage your properties on your behalf</h6>
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-info" data-toggle="modal" data-target="#inviteTeamMemberModal">
+                                        <i class="fas fa-user-plus"></i> Invite Team Member
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive m-t-40">
+                                <table id="team-table" class="table display table-bordered table-striped no-wrap">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Phone</th>
+                                            <th>Role</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${teamMembers != null && !teamMembers.empty}" th:each="member : ${teamMembers}">
+                                            <td th:text="${member.name}"></td>
+                                            <td th:text="${member.email}"></td>
+                                            <td th:text="${member.phone ?: '-'}"></td>
+                                            <td>
+                                                <span th:if="${member.customerType?.name() == 'DELEGATED_USER'}" class="badge badge-warning">
+                                                    Delegated User
+                                                </span>
+                                                <span th:if="${member.customerType?.name() == 'MANAGER'}" class="badge badge-info">
+                                                    Manager
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${member.customerLoginInfo != null && !member.customerLoginInfo.accountLocked}"
+                                                      class="badge badge-success">
+                                                    Active
+                                                </span>
+                                                <span th:if="${member.customerLoginInfo == null}"
+                                                      class="badge badge-secondary">
+                                                    No Login
+                                                </span>
+                                                <span th:if="${member.customerLoginInfo != null && member.customerLoginInfo.accountLocked}"
+                                                      class="badge badge-danger">
+                                                    Locked
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button type="button" class="btn btn-sm btn-danger"
+                                                        onclick="confirmRemove(this)"
+                                                        th:attr="data-member-id=${member.customerId},
+                                                                data-member-name=${member.name}">
+                                                    <i class="fas fa-user-times"></i> Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        <tr th:if="${teamMembers == null || teamMembers.empty}">
+                                            <td colspan="6" class="text-center text-muted">
+                                                <i class="fas fa-info-circle"></i>
+                                                You haven't invited any team members yet. Click "Invite Team Member" to get started.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ============================================================== -->
+            <!-- End Page Content -->
+            <!-- ============================================================== -->
+        </div>
+        <!-- ============================================================== -->
+        <!-- End Container fluid  -->
+        <!-- ============================================================== -->
+    </div>
+    <!-- ============================================================== -->
+    <!-- End Page wrapper  -->
+    <!-- ============================================================== -->
+    <!-- ============================================================== -->
+    <!-- footer -->\n    <!-- ============================================================== -->
+    <div th:replace="~{general/footer.html}"></div>
+    <!-- ============================================================== -->
+    <!-- End footer -->
+    <!-- ============================================================== -->
+</div>
+<!-- ============================================================== -->
+<!-- End Wrapper -->
+<!-- ============================================================== -->
+
+<!-- Invite Team Member Modal -->
+<div class="modal fade" id="inviteTeamMemberModal" tabindex="-1" role="dialog" aria-labelledby="inviteTeamMemberModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="inviteTeamMemberModalLabel">
+                    <i class="fas fa-user-plus"></i> Invite Team Member
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="inviteForm" th:action="@{/property-owner/team/invite}" method="post">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="memberName">Full Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="memberName" name="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="memberEmail">Email Address <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="memberEmail" name="email" required>
+                        <small class="form-text text-muted">They will use this email to log in</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="memberPhone">Phone Number</label>
+                        <input type="tel" class="form-control" id="memberPhone" name="phone">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="memberRole">Role <span class="text-danger">*</span></label>
+                        <select class="form-control" id="memberRole" name="customerType" required>
+                            <option value="">Select Role</option>
+                            <option value="DELEGATED_USER">Delegated User - Can manage properties on your behalf</option>
+                            <option value="MANAGER">Manager - Can manage properties with extended permissions</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tempPassword">Temporary Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="tempPassword" name="temporaryPassword"
+                               required minlength="8">
+                        <small class="form-text text-muted">Minimum 8 characters. Share this with them securely.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="confirmPassword" name="confirmPassword" required>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Note:</strong> This person will be able to view and manage all your properties.
+                        Make sure you trust them with this access.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-paper-plane"></i> Send Invitation
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- All Jquery -->
+<!-- ============================================================== -->
+<script th:inline="javascript">
+    var home = /*[[${home}]]*/ null;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/popper.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/bootstrap.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/waves.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sidebarmenu.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/custom.min.js}" type="text/javascript"></script>
+<script th:src="@{/js/library/jquery.toast.js}"></script>
+<script th:src="@{/js/library/toastr.js}"></script>
+<!-- Editable -->
+<script th:src="@{/js/library/jquery.dataTables.min.js}"></script>
+<script th:src="@{/js/library/dataTables.responsive.min.js}"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#team-table').DataTable({
+            responsive: true,
+            "order": [[0, "asc"]]
+        });
+
+        // Password validation
+        $('#inviteForm').submit(function(e) {
+            const password = $('#tempPassword').val();
+            const confirm = $('#confirmPassword').val();
+
+            if (password !== confirm) {
+                e.preventDefault();
+                $.toast({
+                    heading: 'Error',
+                    text: 'Passwords do not match!',
+                    position: 'top-right',
+                    loaderBg: '#ff6849',
+                    icon: 'error',
+                    hideAfter: 3000
+                });
+                return false;
+            }
+
+            if (password.length < 8) {
+                e.preventDefault();
+                $.toast({
+                    heading: 'Error',
+                    text: 'Password must be at least 8 characters long!',
+                    position: 'top-right',
+                    loaderBg: '#ff6849',
+                    icon: 'error',
+                    hideAfter: 3000
+                });
+                return false;
+            }
+        });
+    });
+
+    function confirmRemove(button) {
+        const memberId = $(button).data('member-id');
+        const memberName = $(button).data('member-name');
+
+        if (confirm('Are you sure you want to remove ' + memberName + ' from your team? They will no longer be able to access your properties.')) {
+            // Get CSRF token
+            const token = $('meta[name="_csrf"]').attr('content');
+            const header = $('meta[name="_csrf_header"]').attr('content');
+
+            $.ajax({
+                url: home + 'property-owner/team/remove/' + memberId,
+                type: 'POST',
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader(header, token);
+                },
+                success: function(response) {
+                    $.toast({
+                        heading: 'Success',
+                        text: 'Team member removed successfully!',
+                        position: 'top-right',
+                        loaderBg: '#ff6849',
+                        icon: 'success',
+                        hideAfter: 3000
+                    });
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1000);
+                },
+                error: function(xhr, status, error) {
+                    $.toast({
+                        heading: 'Error',
+                        text: 'Failed to remove team member: ' + (xhr.responseText || error),
+                        position: 'top-right',
+                        loaderBg: '#ff6849',
+                        icon: 'error',
+                        hideAfter: 5000
+                    });
+                }
+            });
+        }
+    }
+</script>
+</body>
+</html>

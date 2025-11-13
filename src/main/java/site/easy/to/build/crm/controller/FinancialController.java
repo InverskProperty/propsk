@@ -723,8 +723,8 @@ public class FinancialController {
         Map<String, Object> summary = new HashMap<>();
         
         try {
-            // Get all properties for this customer
-            List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customerId.longValue());
+            // Get all properties for this customer (with delegated user filtering)
+            List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId.longValue());
             List<Long> propertyIds = customerProperties.stream()
                 .map(Property::getId)
                 .collect(Collectors.toList());

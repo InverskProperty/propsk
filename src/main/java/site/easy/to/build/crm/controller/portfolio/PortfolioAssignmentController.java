@@ -124,8 +124,8 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
                 // Owner-specific portfolio - only show properties for this owner
                 Long ownerId = targetPortfolio.getPropertyOwnerId();
 
-                // Get properties for this owner
-                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
+                // Get properties for this owner (with delegated user filtering)
+                allProperties = propertyService.findPropertiesAccessibleByCustomer(ownerId);
                 log.info("Owner-specific portfolio {} for owner {} - showing {} properties for this owner",
                     portfolioId, ownerId, allProperties.size());
             } else {
@@ -216,7 +216,7 @@ public class PortfolioAssignmentController extends PortfolioControllerBase {
                 Long ownerId = portfolio.getPropertyOwnerId();
                 log.info("Portfolio {} is owner-specific for owner ID: {}", portfolioId, ownerId);
 
-                allSystemProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
+                allSystemProperties = propertyService.findPropertiesAccessibleByCustomer(ownerId);
                 log.info("Owner has {} total properties from assignments", allSystemProperties.size());
             } else {
                 // Shared portfolio - show all properties

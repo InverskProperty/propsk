@@ -201,8 +201,8 @@ public class CustomerProfileController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
-            // Get all properties for this customer (owner or delegated)
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            // Get all properties for this customer (owner or delegated, with filtering)
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
             Map<String, Object> response = new HashMap<>();
             List<Map<String, Object>> propertyFinancials = new ArrayList<>();
@@ -247,8 +247,8 @@ public class CustomerProfileController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
 
-            // Get all properties for this customer to verify access
-            List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            // Get all properties for this customer to verify access (with filtering)
+            List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             Property property = customerProperties.stream()
                 .filter(p -> p.getId().equals(propertyId))
                 .findFirst()

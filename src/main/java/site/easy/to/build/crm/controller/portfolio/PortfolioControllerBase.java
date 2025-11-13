@@ -118,9 +118,9 @@ public class PortfolioControllerBase {
 
                         // Delegated user check
                         if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                            // Get properties assigned to this delegated user
+                            // Get properties assigned to this delegated user (with filtering)
                             java.util.List<Property> delegatedProperties =
-                                propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                                propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
                             System.out.println("🔍 hasPortfolioAccess: Delegated user has " + delegatedProperties.size() + " assigned properties");
 

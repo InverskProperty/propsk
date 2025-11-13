@@ -48,6 +48,15 @@
                         </span>
                     </a>
                     <div class="dropdown-menu dropdown-menu-right animated flipInY">
+                        <!-- Delegated User Indicator in Dropdown -->
+                        <div th:if="${customer != null && (customer.customerType?.name() == 'DELEGATED_USER' || customer.customerType?.name() == 'MANAGER') && customer.managesOwner != null}"
+                             class="dropdown-item-text" style="background-color: #e8f4f8; border-left: 3px solid #17a2b8; padding: 8px 15px; margin-bottom: 5px;">
+                            <small style="color: #17a2b8;">
+                                <i class="fas fa-user-shield"></i>
+                                <strong>Managing for:</strong><br>
+                                <span th:text="${customer.managesOwner.name}" style="color: #333;">Owner Name</span>
+                            </small>
+                        </div>
                         <!-- text-->
                         <a th:if="${!#authorization.expression('hasRole(''ROLE_CUSTOMER'')')}"
                            th:href="${home + 'employee/profile'}" class="dropdown-item"><i class="ti-user"></i> My Profile</a>

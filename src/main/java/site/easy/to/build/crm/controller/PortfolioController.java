@@ -182,7 +182,8 @@ public class PortfolioController {
                         unassignedProperties = unassignedProperties.stream()
                             .filter(property -> {
                                 try {
-                                    List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(selectedOwnerId.longValue());
+                                    // Uses findPropertiesAccessibleByCustomer which handles delegated user filtering
+                                    List<Property> ownerProperties = propertyService.findPropertiesAccessibleByCustomer(selectedOwnerId.longValue());
                                     return ownerProperties.stream().anyMatch(p -> p.getId().equals(property.getId()));
                                 } catch (Exception e) {
                                     return false;
@@ -952,8 +953,8 @@ public class PortfolioController {
                 // Owner-specific portfolio - only show properties for this owner
                 Long ownerId = targetPortfolio.getPropertyOwnerId();
 
-                // Use the existing method that works with junction table
-                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
+                // Uses findPropertiesAccessibleByCustomer which handles delegated user filtering
+                allProperties = propertyService.findPropertiesAccessibleByCustomer(ownerId);
                 System.out.println("Owner-specific portfolio " + portfolioId +
                                   " for owner " + ownerId +
                                   " - showing " + allProperties.size() + " properties for this owner");
@@ -1078,14 +1079,14 @@ public class PortfolioController {
                 Long ownerId = portfolio.getPropertyOwnerId();
                 System.out.println("🎯 [Controller] Portfolio " + portfolioId + " is owner-specific for owner ID: " + ownerId);
 
-                // Get all properties for this owner using junction table
-                allProperties = propertyService.findPropertiesByCustomerAssignments(ownerId);
+                // Uses findPropertiesAccessibleByCustomer which handles delegated user filtering
+                allProperties = propertyService.findPropertiesAccessibleByCustomer(ownerId);
                 System.out.println("📦 [Controller] Owner has " + allProperties.size() + " total properties from junction table");
             } else {
                 // Shared portfolio - different logic based on user type
                 if (authUser != null && "CUSTOMER".equals(authUser.getType())) {
-                    // Property owners and delegated users see their own properties
-                    allProperties = propertyService.findPropertiesByCustomerAssignments(authUser.getId().longValue());
+                    // Property owners and delegated users see their own properties (with filtering)
+                    allProperties = propertyService.findPropertiesAccessibleByCustomer(authUser.getId().longValue());
                     System.out.println("👤 [Controller] Customer/delegated user - showing " + allProperties.size() + " properties for customer " + authUser.getId());
                 } else {
                     // Other users (employees) see all properties

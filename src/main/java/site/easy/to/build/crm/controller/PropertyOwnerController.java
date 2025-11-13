@@ -225,10 +225,10 @@ public class PropertyOwnerController {
                     }
                 }
                 
-                // Get properties for this specific customer
+                // Get properties for this specific customer (includes delegated user filtering)
                 System.out.println("🔍 STEP 5: Loading Properties...");
                 try {
-                    List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                    List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
                     model.addAttribute("properties", properties);
                     model.addAttribute("totalProperties", properties.size());
                     System.out.println("🔍 STEP 5: ✅ Found " + properties.size() + " properties for customer " + customer.getCustomerId());
@@ -425,9 +425,9 @@ public class PropertyOwnerController {
                     model.addAttribute("maintenanceStats", getDefaultMaintenanceStats());
                 }
                 
-                // Get properties for this specific customer
+                // Get properties for this specific customer (includes delegated user filtering)
                 try {
-                    List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                    List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
                     model.addAttribute("properties", properties);
                     model.addAttribute("totalProperties", properties.size());
                     System.out.println("DEBUG: Found " + properties.size() + " properties for customer " + customer.getCustomerId());
@@ -506,9 +506,9 @@ public class PropertyOwnerController {
                     
                     // Find a customer that has properties
                     for (Customer testCustomer : allCustomers) {
-                        List<Property> testProperties = propertyService.findPropertiesByCustomerAssignments(testCustomer.getCustomerId());
+                        List<Property> testProperties = propertyService.findPropertiesAccessibleByCustomer(testCustomer.getCustomerId());
                         if (testProperties.size() > 0) {
-                            System.out.println("DEBUG: TEMP TEST - Found customer " + testCustomer.getCustomerId() + 
+                            System.out.println("DEBUG: TEMP TEST - Found customer " + testCustomer.getCustomerId() +
                                             " with " + testProperties.size() + " properties");
                             break;
                         }

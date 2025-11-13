@@ -152,8 +152,8 @@ public class PropertyOwnerBlockController {
                     }
                 } else if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
                     // Delegated users: Check if they have MANAGER access to properties from the portfolio's owner
-                    // FIXED: Check through assignments rather than property.propertyOwnerId field
-                    List<Property> delegatedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                    // Uses findPropertiesAccessibleByCustomer which handles delegated user filtering
+                    List<Property> delegatedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
                     log.info("🔍 Delegated user has access to {} properties via MANAGER assignments", delegatedProperties.size());
 
                     // Get OWNER assignments for the delegated properties to find the actual owners
@@ -198,7 +198,7 @@ public class PropertyOwnerBlockController {
                 return emptyBlockAccess;
             }
 
-            List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             log.info("🔍 Customer has access to {} total properties", customerProperties.size());
 
             Set<Long> customerPropertyIds = customerProperties.stream()
@@ -235,7 +235,8 @@ public class PropertyOwnerBlockController {
         try {
             // FIXED: Get blocks by property assignments instead of portfolio-centric approach
             // This supports both standalone blocks AND portfolio blocks
-            List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            // Uses findPropertiesAccessibleByCustomer which handles delegated user filtering
+            List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             Set<Long> accessibleBlockIds = new HashSet<>();
 
             log.debug("Finding accessible blocks for customer {} with {} properties",
