@@ -1281,11 +1281,16 @@ public class CustomerController {
             model.addAttribute("submitUrl", "/employee/customer/" + id + "/edit");
             model.addAttribute("cancelUrl", backUrl);
             model.addAttribute("isEdit", true);
-            
+
+            // Add list of property owners for delegated user/manager assignment
+            List<Customer> propertyOwners = customerService.findPropertyOwners();
+            System.out.println("🔍 [Edit Customer] Found " + propertyOwners.size() + " property owners for dropdown");
+            model.addAttribute("propertyOwners", propertyOwners);
+
             // Add missing attributes that the template expects
             model.addAttribute("isGoogleUser", false);
             model.addAttribute("hasGoogleGmailAccess", false);
-            
+
             return "customer/create-customer";  // Reuse the create form for editing
             
         } catch (Exception e) {
