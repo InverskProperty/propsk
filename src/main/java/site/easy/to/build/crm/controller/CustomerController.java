@@ -2072,10 +2072,11 @@ public class CustomerController {
 
             // Apply search filter if provided
             if (search != null && !search.trim().isEmpty()) {
+                final String searchLower = search.toLowerCase();
                 customers = customers.stream()
-                    .filter(c -> c.getName().toLowerCase().contains(search.toLowerCase()) ||
-                                c.getEmail().toLowerCase().contains(search.toLowerCase()) ||
-                                (c.getCity() != null && c.getCity().toLowerCase().contains(search.toLowerCase())))
+                    .filter(c -> (c.getName() != null && c.getName().toLowerCase().contains(searchLower)) ||
+                                (c.getEmail() != null && c.getEmail().toLowerCase().contains(searchLower)) ||
+                                (c.getCity() != null && c.getCity().toLowerCase().contains(searchLower)))
                     .collect(Collectors.toList());
             }
 
