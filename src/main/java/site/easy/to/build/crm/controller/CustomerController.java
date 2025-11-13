@@ -1385,12 +1385,16 @@ public class CustomerController {
             model.addAttribute("user", user);
             model.addAttribute("pageTitle", "Create " + displayType);
             model.addAttribute("cancelUrl", cancelUrl);
-            
+
+            // Get list of property owners for delegated user/manager assignment
+            List<Customer> propertyOwners = customerService.findPropertyOwners();
+            model.addAttribute("propertyOwners", propertyOwners);
+
             // Template compatibility
             model.addAttribute("isGoogleUser", false);
             model.addAttribute("hasGoogleGmailAccess", false);
             model.addAttribute("isEdit", false);
-            
+
             return "customer/create-customer";
             
         } catch (Exception e) {
@@ -1440,6 +1444,11 @@ public class CustomerController {
                             @RequestParam(value = "bankSwiftCode", required = false) String bankSwiftCode,
                             // Notes
                             @RequestParam(value = "notes", required = false) String notes,
+                            // Login Credentials
+                            @RequestParam(value = "temporaryPassword", required = false) String temporaryPassword,
+                            @RequestParam(value = "confirmPassword", required = false) String confirmPassword,
+                            // Delegated User / Manager Assignment
+                            @RequestParam(value = "managesOwnerId", required = false) Long managesOwnerId,
                             HttpServletRequest request,
                             Authentication authentication,
                             RedirectAttributes redirectAttributes) {
@@ -1498,12 +1507,41 @@ public class CustomerController {
                 customer.setCustomerType(CustomerType.CONTRACTOR);
                 customer.setEntityType("contractor");
                 System.out.println("🔍 Setting as CONTRACTOR");
+            } else if ("MANAGER".equals(finalCustomerType)) {
+                customer.setIsContractor(false);
+                customer.setIsTenant(false);
+                customer.setIsPropertyOwner(false);
+                customer.setCustomerType(CustomerType.MANAGER);
+                customer.setEntityType("manager");
+                System.out.println("🔍 Setting as MANAGER");
+            } else if ("ADMIN".equals(finalCustomerType)) {
+                customer.setIsContractor(false);
+                customer.setIsTenant(false);
+                customer.setIsPropertyOwner(false);
+                customer.setCustomerType(CustomerType.ADMIN);
+                customer.setEntityType("admin");
+                System.out.println("🔍 Setting as ADMIN");
             } else {
                 // Default to tenant if no type specified
                 customer.setIsTenant(true);
                 customer.setCustomerType(CustomerType.TENANT);
                 customer.setEntityType("tenant");
                 System.out.println("🔍 Defaulting to TENANT");
+            }
+
+            // ===== SET DELEGATED USER / MANAGER OWNER ASSIGNMENT =====
+            if (("DELEGATED_USER".equals(finalCustomerType) || "MANAGER".equals(finalCustomerType)) && managesOwnerId != null) {
+                try {
+                    Customer propertyOwner = customerService.findByCustomerId(managesOwnerId);
+                    if (propertyOwner != null) {
+                        customer.setManagesOwner(propertyOwner);
+                        System.out.println("🔍 Assigned to property owner: " + propertyOwner.getName() + " (ID: " + managesOwnerId + ")");
+                    } else {
+                        System.err.println("❌ Property owner not found with ID: " + managesOwnerId);
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ Error assigning property owner: " + e.getMessage());
+                }
             }
 
             // ===== SET CORE FIELDS =====
@@ -1607,7 +1645,61 @@ public class CustomerController {
             System.out.println("🔍 About to save customer...");
             Customer savedCustomer = customerService.save(customer);
             System.out.println("🔍 Customer saved successfully with ID: " + savedCustomer.getCustomerId());
-            
+
+            // ===== CREATE LOGIN CREDENTIALS IF PROVIDED =====
+            if (temporaryPassword != null && !temporaryPassword.trim().isEmpty()) {
+                System.out.println("🔍 Temporary password provided, creating login credentials...");
+
+                // Validate password match
+                if (confirmPassword == null || !temporaryPassword.equals(confirmPassword)) {
+                    System.err.println("❌ Password and confirmation do not match");
+                    redirectAttributes.addFlashAttribute("errorMessage",
+                        "Customer created but login NOT created: passwords do not match");
+                } else if (temporaryPassword.length() < 8) {
+                    System.err.println("❌ Password too short (minimum 8 characters)");
+                    redirectAttributes.addFlashAttribute("errorMessage",
+                        "Customer created but login NOT created: password must be at least 8 characters");
+                } else {
+                    try {
+                        // Check if login already exists
+                        CustomerLoginInfo existingLogin = customerLoginInfoService.findByEmail(email);
+                        if (existingLogin != null) {
+                            System.out.println("⚠️ Login already exists for email: " + email);
+                            redirectAttributes.addFlashAttribute("warningMessage",
+                                "Customer created but login already exists for this email");
+                        } else {
+                            // Create new login info
+                            CustomerLoginInfo loginInfo = new CustomerLoginInfo();
+                            loginInfo.setUsername(email);
+                            loginInfo.setPassword(temporaryPassword); // Service will hash it
+                            loginInfo.setPasswordSet(true);
+                            loginInfo.setAccountLocked(false);
+                            loginInfo.setLoginAttempts(0);
+                            loginInfo.setCreatedAt(LocalDateTime.now());
+
+                            // Save login info
+                            CustomerLoginInfo savedLoginInfo = customerLoginInfoService.save(loginInfo);
+                            System.out.println("✅ Login credentials created with ID: " + savedLoginInfo.getId());
+
+                            // Link customer to login info
+                            savedCustomer.setCustomerLoginInfo(savedLoginInfo);
+                            customerService.save(savedCustomer);
+                            System.out.println("✅ Customer linked to login credentials");
+
+                            redirectAttributes.addFlashAttribute("successMessage",
+                                "Customer and login credentials created successfully! User can now log in with email and the temporary password.");
+                        }
+                    } catch (Exception e) {
+                        System.err.println("❌ Error creating login: " + e.getMessage());
+                        e.printStackTrace();
+                        redirectAttributes.addFlashAttribute("warningMessage",
+                            "Customer created but failed to create login: " + e.getMessage());
+                    }
+                }
+            } else {
+                System.out.println("🔍 No temporary password provided, skipping login creation");
+            }
+
             // ===== POST-CREATION ACTIONS =====
             
             // Store additional PayProp data in description or future custom fields
@@ -1646,6 +1738,141 @@ public class CustomerController {
             redirectAttributes.addFlashAttribute("errorMessage", 
                 "Error creating customer: " + e.getMessage());
             return "redirect:/employee/customer/create-customer";
+        }
+    }
+
+    /**
+     * Update customer role and delegated owner assignment
+     */
+    @PostMapping("/{customerId}/update-role")
+    @ResponseBody
+    public ResponseEntity<?> updateCustomerRole(
+            @PathVariable Long customerId,
+            @RequestParam String customerType,
+            @RequestParam(required = false) Long managesOwnerId,
+            Authentication authentication) {
+
+        try {
+            System.out.println("🔍 [Update Role] Customer ID: " + customerId);
+            System.out.println("🔍 [Update Role] New customer type: " + customerType);
+            System.out.println("🔍 [Update Role] Manages owner ID: " + managesOwnerId);
+
+            // Find customer
+            Customer customer = customerService.findByCustomerId(customerId);
+            if (customer == null) {
+                System.err.println("❌ [Update Role] Customer not found: " + customerId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", "Customer not found"));
+            }
+
+            // Parse and validate customer type
+            CustomerType newCustomerType;
+            try {
+                newCustomerType = CustomerType.valueOf(customerType);
+            } catch (IllegalArgumentException e) {
+                System.err.println("❌ [Update Role] Invalid customer type: " + customerType);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", "Invalid customer type: " + customerType));
+            }
+
+            // Validate delegated user/manager assignment
+            if ((newCustomerType == CustomerType.DELEGATED_USER || newCustomerType == CustomerType.MANAGER)) {
+                if (managesOwnerId == null) {
+                    System.err.println("❌ [Update Role] Delegated user/manager requires property owner assignment");
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("message", "Delegated users and managers must be assigned to a property owner"));
+                }
+
+                // Verify the property owner exists
+                Customer propertyOwner = customerService.findByCustomerId(managesOwnerId);
+                if (propertyOwner == null) {
+                    System.err.println("❌ [Update Role] Property owner not found: " + managesOwnerId);
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("message", "Property owner not found"));
+                }
+
+                if (propertyOwner.getCustomerType() != CustomerType.PROPERTY_OWNER) {
+                    System.err.println("❌ [Update Role] Assigned customer is not a property owner: " + managesOwnerId);
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("message", "Selected customer is not a property owner"));
+                }
+
+                customer.setManagesOwner(propertyOwner);
+                System.out.println("✅ [Update Role] Assigned to property owner: " + propertyOwner.getName());
+            } else {
+                // Clear manages owner for non-delegated types
+                if (customer.getManagesOwner() != null) {
+                    System.out.println("🔍 [Update Role] Clearing manages owner assignment");
+                    customer.setManagesOwner(null);
+                }
+            }
+
+            // Update customer type
+            customer.setCustomerType(newCustomerType);
+
+            // Update entity type and legacy boolean flags for backward compatibility
+            switch (newCustomerType) {
+                case PROPERTY_OWNER:
+                    customer.setEntityType("property_owner");
+                    customer.setIsPropertyOwner(true);
+                    customer.setIsTenant(false);
+                    customer.setIsContractor(false);
+                    break;
+                case TENANT:
+                    customer.setEntityType("tenant");
+                    customer.setIsPropertyOwner(false);
+                    customer.setIsTenant(true);
+                    customer.setIsContractor(false);
+                    break;
+                case CONTRACTOR:
+                    customer.setEntityType("contractor");
+                    customer.setIsPropertyOwner(false);
+                    customer.setIsTenant(false);
+                    customer.setIsContractor(true);
+                    break;
+                case DELEGATED_USER:
+                    customer.setEntityType("delegated_user");
+                    customer.setIsPropertyOwner(true); // Delegated users have owner-like permissions
+                    customer.setIsTenant(false);
+                    customer.setIsContractor(false);
+                    break;
+                case MANAGER:
+                    customer.setEntityType("manager");
+                    customer.setIsPropertyOwner(true); // Managers have owner-like permissions
+                    customer.setIsTenant(false);
+                    customer.setIsContractor(false);
+                    break;
+                case ADMIN:
+                    customer.setEntityType("admin");
+                    customer.setIsPropertyOwner(false);
+                    customer.setIsTenant(false);
+                    customer.setIsContractor(false);
+                    break;
+                case REGULAR_CUSTOMER:
+                default:
+                    customer.setEntityType("customer");
+                    customer.setIsPropertyOwner(false);
+                    customer.setIsTenant(false);
+                    customer.setIsContractor(false);
+                    break;
+            }
+
+            // Save changes
+            Customer updatedCustomer = customerService.save(customer);
+            System.out.println("✅ [Update Role] Customer role updated successfully: " + updatedCustomer.getName());
+
+            return ResponseEntity.ok(Map.of(
+                "message", "Customer role updated successfully",
+                "customerId", updatedCustomer.getCustomerId(),
+                "customerType", updatedCustomer.getCustomerType().name(),
+                "managesOwnerId", updatedCustomer.getManagesOwnerId() != null ? updatedCustomer.getManagesOwnerId() : null
+            ));
+
+        } catch (Exception e) {
+            System.err.println("❌ [Update Role] Error updating customer role: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "Error updating customer role: " + e.getMessage()));
         }
     }
 

@@ -11,6 +11,7 @@ public enum CustomerType {
     TENANT("Tenant", "tenant"),
     CONTRACTOR("Contractor", "contractor"),
     EMPLOYEE("Employee", "employee"),
+    MANAGER("Manager", "manager"),
     ADMIN("Admin", "admin"),
     SUPER_ADMIN("Super Admin", "super_admin");
     

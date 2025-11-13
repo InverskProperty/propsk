@@ -89,8 +89,11 @@
                                             <th>Name</th>
                                             <th>Email</th>
                                             <th>Phone</th>
+                                            <th>Customer Type</th>
+                                            <th>Manages Owner</th>
                                             <th>Country</th>
                                             <th>Show Full Details</th>
+                                            <th th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">Edit Role</th>
                                             <th th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">Delete</th>
                                         </tr>
                                     </thead>
@@ -100,11 +103,32 @@
                                             <td th:text="${customer.name}"></td>
                                             <td th:text="${customer.email}"></td>
                                             <td th:text="${customer.phone}"></td>
+                                            <td>
+                                                <span th:if="${customer.customerType != null}"
+                                                      th:text="${customer.customerType.displayName}"
+                                                      th:class="${'badge badge-' + (customer.customerType.name() == 'PROPERTY_OWNER' ? 'success' : customer.customerType.name() == 'TENANT' ? 'info' : customer.customerType.name() == 'DELEGATED_USER' ? 'warning' : customer.customerType.name() == 'MANAGER' ? 'warning' : 'secondary')}">
+                                                </span>
+                                                <span th:if="${customer.customerType == null}" class="badge badge-secondary">Unknown</span>
+                                            </td>
+                                            <td>
+                                                <span th:if="${customer.managesOwner != null}" th:text="${customer.managesOwner.name}"></span>
+                                                <span th:if="${customer.managesOwner == null}">-</span>
+                                            </td>
                                             <td th:text="${customer.country}"></td>
                                             <td><a th:href="${home + 'employee/customer/' + customer.customerId}"><i class="fas fa-eye"></i></a></td>
                                             <td th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
+                                                <button type="button" class="btn btn-sm btn-info"
+                                                        onclick="openEditRoleModal(this)"
+                                                        th:attr="data-customer-id=${customer.customerId},
+                                                                data-customer-name=${customer.name},
+                                                                data-customer-type=${customer.customerType != null ? customer.customerType.name() : 'REGULAR_CUSTOMER'},
+                                                                data-manages-owner-id=${customer.managesOwnerId}">
+                                                    <i class="fas fa-user-edit"></i> Edit Role
+                                                </button>
+                                            </td>
+                                            <td th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
                                                 <form th:action="${home + 'employee/customer/delete-customer/' + customer.customerId}" method="post">
-                                                    <button type="submit" class="btn btn-primary">
+                                                    <button type="submit" class="btn btn-sm btn-danger">
                                                         <i class="mdi mdi-delete"></i>
                                                     </button>
                                                 </form>
@@ -177,6 +201,184 @@
 <script>
     $('#config-table').DataTable({
         responsive: true
+    });
+</script>
+
+<!-- Edit Role Modal -->
+<div class="modal fade" id="editRoleModal" tabindex="-1" role="dialog" aria-labelledby="editRoleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editRoleModalLabel">Edit Customer Role</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="editRoleForm">
+                <div class="modal-body">
+                    <input type="hidden" id="editCustomerId" name="customerId">
+
+                    <div class="form-group">
+                        <label for="editCustomerName">Customer Name</label>
+                        <input type="text" class="form-control" id="editCustomerName" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editCustomerType">Customer Type <span class="text-danger">*</span></label>
+                        <select class="form-control" id="editCustomerType" name="customerType" required>
+                            <option value="">Select Customer Type</option>
+                            <option value="REGULAR_CUSTOMER">Regular Customer</option>
+                            <option value="TENANT">Tenant</option>
+                            <option value="PROPERTY_OWNER">Property Owner</option>
+                            <option value="CONTRACTOR">Contractor</option>
+                            <option value="DELEGATED_USER">Delegated User (Manager for Property Owner)</option>
+                            <option value="MANAGER">Manager</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="editOwnerAssignmentSection" style="display: none;">
+                        <label for="editManagesOwnerId">Manages Property Owner <span class="text-danger">*</span></label>
+                        <select class="form-control" id="editManagesOwnerId" name="managesOwnerId">
+                            <option value="">Select Property Owner</option>
+                            <option th:each="owner : ${customers}"
+                                    th:if="${owner.customerType != null && owner.customerType.name() == 'PROPERTY_OWNER'}"
+                                    th:value="${owner.customerId}"
+                                    th:text="${owner.name + ' (' + owner.email + ')'}">
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="alert alert-warning mt-3">
+                        <i class="fa fa-exclamation-triangle"></i> <strong>Note:</strong> Changing a customer's role will affect their access permissions immediately.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Open edit role modal and populate with customer data
+    function openEditRoleModal(button) {
+        const customerId = $(button).data('customer-id');
+        const customerName = $(button).data('customer-name');
+        const customerType = $(button).data('customer-type');
+        const managesOwnerId = $(button).data('manages-owner-id');
+
+        console.log('🔍 Opening edit modal for:', {customerId, customerName, customerType, managesOwnerId});
+
+        // Populate modal fields
+        $('#editCustomerId').val(customerId);
+        $('#editCustomerName').val(customerName);
+        $('#editCustomerType').val(customerType);
+        $('#editManagesOwnerId').val(managesOwnerId || '');
+
+        // Show/hide owner assignment section
+        updateOwnerAssignmentSection();
+
+        // Show modal
+        $('#editRoleModal').modal('show');
+    }
+
+    // Update owner assignment section visibility based on selected customer type
+    function updateOwnerAssignmentSection() {
+        const customerType = $('#editCustomerType').val();
+
+        if (customerType === 'DELEGATED_USER' || customerType === 'MANAGER') {
+            $('#editOwnerAssignmentSection').show();
+            $('#editManagesOwnerId').attr('required', true);
+        } else {
+            $('#editOwnerAssignmentSection').hide();
+            $('#editManagesOwnerId').attr('required', false);
+            $('#editManagesOwnerId').val('');
+        }
+    }
+
+    // Handle customer type change
+    $('#editCustomerType').on('change', function() {
+        updateOwnerAssignmentSection();
+    });
+
+    // Handle form submission
+    $('#editRoleForm').on('submit', function(e) {
+        e.preventDefault();
+
+        const customerId = $('#editCustomerId').val();
+        const customerType = $('#editCustomerType').val();
+        const managesOwnerId = $('#editManagesOwnerId').val();
+
+        console.log('💾 Submitting role update:', {customerId, customerType, managesOwnerId});
+
+        // Validate required fields
+        if (!customerType) {
+            alert('❌ Please select a customer type');
+            return;
+        }
+
+        if ((customerType === 'DELEGATED_USER' || customerType === 'MANAGER') && !managesOwnerId) {
+            alert('❌ Please select a property owner for this delegated user/manager');
+            return;
+        }
+
+        // Get CSRF token
+        const token = $('meta[name="_csrf"]').attr('content');
+        const header = $('meta[name="_csrf_header"]').attr('content');
+
+        // Submit via AJAX
+        $.ajax({
+            url: home + 'employee/customer/' + customerId + '/update-role',
+            type: 'POST',
+            data: {
+                customerType: customerType,
+                managesOwnerId: managesOwnerId || null
+            },
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(header, token);
+            },
+            success: function(response) {
+                console.log('✅ Role updated successfully');
+                $('#editRoleModal').modal('hide');
+
+                // Show success message
+                $.toast({
+                    heading: 'Success',
+                    text: 'Customer role updated successfully!',
+                    position: 'top-right',
+                    loaderBg: '#ff6849',
+                    icon: 'success',
+                    hideAfter: 3000
+                });
+
+                // Reload page to show updated data
+                setTimeout(function() {
+                    location.reload();
+                }, 1000);
+            },
+            error: function(xhr, status, error) {
+                console.error('❌ Error updating role:', error);
+
+                let errorMessage = 'Failed to update customer role';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                } else if (xhr.responseText) {
+                    errorMessage = xhr.responseText;
+                }
+
+                $.toast({
+                    heading: 'Error',
+                    text: errorMessage,
+                    position: 'top-right',
+                    loaderBg: '#ff6849',
+                    icon: 'error',
+                    hideAfter: 5000
+                });
+            }
+        });
     });
 </script>
 </body>

@@ -34,6 +34,11 @@ public interface PropertyService {
     // NEW: Find properties where customer has any assignment (OWNER, MANAGER, etc.)
     List<Property> findPropertiesByCustomerAssignments(Long customerId);
 
+    // NEW: Find properties accessible by customer (handles delegated users and managers)
+    // If customer is DELEGATED_USER or MANAGER, returns their assigned owner's properties
+    // Otherwise, returns properties owned by the customer
+    List<Property> findPropertiesAccessibleByCustomer(Long customerId);
+
     // FIXED: Added missing methods that were causing compilation errors
     List<Property> getPropertiesByOwner(Long ownerId);
     Property getPropertyByTenant(Long tenantId);

@@ -134,6 +134,9 @@ public class CustomerUserDetails implements UserDetailsService {
                 case EMPLOYEE:
                     System.out.println("DEBUG: CustomerType is EMPLOYEE, returning ROLE_EMPLOYEE");
                     return "ROLE_EMPLOYEE";
+                case MANAGER:
+                    System.out.println("DEBUG: CustomerType is MANAGER, returning ROLE_PROPERTY_OWNER (for customer-login access)");
+                    return "ROLE_PROPERTY_OWNER"; // Managers access customer-login portal, not employee portal
                 case ADMIN:
                     System.out.println("DEBUG: CustomerType is ADMIN, returning ROLE_ADMIN");
                     return "ROLE_ADMIN";

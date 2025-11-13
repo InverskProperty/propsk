@@ -142,6 +142,9 @@
                                                     <option value="TENANT" th:selected="${customerType == 'Tenant'}">Tenant</option>
                                                     <option value="PROPERTY_OWNER" th:selected="${customerType == 'Property Owner'}">Property Owner</option>
                                                     <option value="CONTRACTOR" th:selected="${customerType == 'Contractor'}">Contractor</option>
+                                                    <option value="DELEGATED_USER">Delegated User (Manager for Property Owner)</option>
+                                                    <option value="MANAGER">Manager</option>
+                                                    <option value="ADMIN">Admin</option>
                                                 </select>
                                                 <small class="field-help">This determines PayProp entity type and available features</small>
                                             </div>
@@ -245,7 +248,50 @@
                                     </div>
                                 </div>
 
-                                <!-- SECTION 3: Property Selection (Tenants Only) -->
+                                <!-- SECTION 3: Login Credentials -->
+                                <div class="form-section">
+                                    <h5><i class="fa fa-key"></i> Login Credentials (Optional)</h5>
+                                    <p class="text-muted small">Set a temporary password to enable immediate login access. If left blank, user will need to register separately.</p>
+
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Temporary Password</label>
+                                                <input type="password" class="form-control" name="temporaryPassword" id="temporaryPassword"
+                                                    placeholder="Leave blank to skip login creation" minlength="8">
+                                                <small class="field-help">Minimum 8 characters. User should change this on first login.</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="form-group">
+                                                <label class="control-label">Confirm Password</label>
+                                                <input type="password" class="form-control" name="confirmPassword" id="confirmPassword"
+                                                    placeholder="Confirm temporary password">
+                                                <small class="field-help">Must match temporary password</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- SECTION 3B: Property Owner Assignment (Delegated Users & Managers Only) -->
+                                <div id="ownerAssignmentSection" class="form-section conditional-section" style="display:none;">
+                                    <h5><i class="fa fa-user-tie"></i> Property Owner Assignment</h5>
+                                    <p class="text-muted small">Select the property owner this delegated user/manager will manage for.</p>
+
+                                    <div class="form-group">
+                                        <label class="control-label required-field">Manages Property Owner</label>
+                                        <select class="form-control" name="managesOwnerId" id="managesOwnerId">
+                                            <option value="">Select Property Owner</option>
+                                            <option th:each="owner : ${propertyOwners}"
+                                                    th:value="${owner.customerId}"
+                                                    th:text="${owner.name + ' (' + owner.email + ')'}">
+                                            </option>
+                                        </select>
+                                        <small class="field-help">This user will only be able to access this property owner's data</small>
+                                    </div>
+                                </div>
+
+                                <!-- SECTION 4: Property Selection (Tenants Only) -->
                                 <div id="propertySection" class="form-section conditional-section">
                                     <h5><i class="fa fa-building"></i> Property Assignment</h5>
                                     
@@ -571,10 +617,10 @@ $(document).ready(function() {
     function updateFormSections() {
         const customerType = $('#customerTypeSelection').val();
         const accountType = $('#accountType').val();
-        
+
         // Hide all conditional sections
         $('.conditional-section').removeClass('show');
-        
+
         // Show sections based on customer type
         if (customerType === 'TENANT') {
             $('#propertySection').addClass('show');
@@ -583,6 +629,12 @@ $(document).ready(function() {
         } else if (customerType === 'PROPERTY_OWNER') {
             $('#paymentMethodSection').addClass('show');
             $('#emailField').attr('maxlength', '100'); // Owner email limit
+        } else if (customerType === 'DELEGATED_USER' || customerType === 'MANAGER') {
+            $('#ownerAssignmentSection').addClass('show');
+            $('#managesOwnerId').attr('required', true);
+            $('#emailField').attr('maxlength', '100');
+        } else {
+            $('#managesOwnerId').attr('required', false);
         }
         
         // Show account type specific fields
@@ -911,6 +963,23 @@ $(document).ready(function() {
 
     // Form Submission Enhancement
     $('#customerForm').submit(function(e) {
+        // Password validation if temporary password is provided
+        const tempPassword = $('#temporaryPassword').val();
+        const confirmPassword = $('#confirmPassword').val();
+
+        if (tempPassword || confirmPassword) {
+            if (tempPassword !== confirmPassword) {
+                e.preventDefault();
+                alert('❌ Password and confirmation password do not match!');
+                return false;
+            }
+            if (tempPassword.length < 8) {
+                e.preventDefault();
+                alert('❌ Password must be at least 8 characters long!');
+                return false;
+            }
+        }
+
         // PayProp sync validation if enabled
         if ($('#syncToPayProp').is(':checked')) {
             const isPayPropReady = validateCustomerPayPropRequirements();

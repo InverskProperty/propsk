@@ -25,6 +25,7 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
@@ -408,13 +409,51 @@ public class PropertyServiceImpl implements PropertyService {
         try {
             var assignments = assignmentRepository.findByCustomerCustomerIdAndAssignmentType(
                 tenantId, AssignmentType.TENANT);
-            
+
             return assignments.stream()
                 .map(assignment -> assignment.getProperty())
                 .findFirst()
                 .orElse(null);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    @Override
+    public List<Property> findPropertiesAccessibleByCustomer(Long customerId) {
+        try {
+            System.out.println("🔍 [PropertyService] Finding properties accessible by Customer ID: " + customerId);
+
+            // Check if this customer is a delegated user or manager
+            String sql = "SELECT customer_type, manages_owner_id FROM customers WHERE customer_id = ?";
+            List<Map<String, Object>> result = jdbcTemplate.queryForList(sql, customerId);
+
+            if (result.isEmpty()) {
+                System.out.println("❌ [PropertyService] Customer not found: " + customerId);
+                return new ArrayList<>();
+            }
+
+            Map<String, Object> customerData = result.get(0);
+            String customerType = (String) customerData.get("customer_type");
+            Object managesOwnerIdObj = customerData.get("manages_owner_id");
+
+            System.out.println("📊 [PropertyService] Customer type: " + customerType + ", manages_owner_id: " + managesOwnerIdObj);
+
+            // If delegated user or manager with an assigned owner, return that owner's properties
+            if (("DELEGATED_USER".equals(customerType) || "MANAGER".equals(customerType)) && managesOwnerIdObj != null) {
+                Long managesOwnerId = ((Number) managesOwnerIdObj).longValue();
+                System.out.println("✅ [PropertyService] Delegated user/manager - returning properties for owner ID: " + managesOwnerId);
+                return findPropertiesByCustomerAssignments(managesOwnerId);
+            }
+
+            // Otherwise, return properties owned by this customer
+            System.out.println("✅ [PropertyService] Regular owner - returning properties for customer ID: " + customerId);
+            return findPropertiesByCustomerAssignments(customerId);
+
+        } catch (Exception e) {
+            System.err.println("❌ [PropertyService] Error finding accessible properties for customer " + customerId + ": " + e.getMessage());
+            e.printStackTrace();
+            return new ArrayList<>();
         }
     }
 

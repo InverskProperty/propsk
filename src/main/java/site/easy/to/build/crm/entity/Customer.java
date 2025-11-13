@@ -107,6 +107,12 @@ public class Customer {
     @JsonIgnore
     private CustomerLoginInfo customerLoginInfo;
 
+    // For DELEGATED_USER and MANAGER types: the property owner they manage for
+    @ManyToOne
+    @JoinColumn(name = "manages_owner_id")
+    @JsonIgnore
+    private Customer managesOwner;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -899,6 +905,18 @@ public class Customer {
         }
     }
 
+    public Customer getManagesOwner() {
+        return managesOwner;
+    }
+
+    public void setManagesOwner(Customer managesOwner) {
+        this.managesOwner = managesOwner;
+    }
+
+    public Long getManagesOwnerId() {
+        return managesOwner != null ? managesOwner.getCustomerId() : null;
+    }
+
     @Override
     public String toString() {
         return "Customer{" +
@@ -908,6 +926,7 @@ public class Customer {
                ", customerType=" + customerType +
                ", accountType=" + accountType +
                ", payPropSynced=" + payPropSynced +
+               ", managesOwnerId=" + getManagesOwnerId() +
                '}';
     }
 }
