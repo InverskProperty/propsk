@@ -1388,6 +1388,10 @@ public class CustomerController {
 
             // Get list of property owners for delegated user/manager assignment
             List<Customer> propertyOwners = customerService.findPropertyOwners();
+            System.out.println("🔍 [Create Customer] Found " + propertyOwners.size() + " property owners for dropdown");
+            if (propertyOwners.size() > 0) {
+                System.out.println("🔍 [Create Customer] First property owner: " + propertyOwners.get(0).getName() + " (" + propertyOwners.get(0).getEmail() + ")");
+            }
             model.addAttribute("propertyOwners", propertyOwners);
 
             // Template compatibility
