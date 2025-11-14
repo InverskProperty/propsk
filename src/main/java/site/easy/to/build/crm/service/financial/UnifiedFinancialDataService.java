@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.service.financial;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,54 @@ public class UnifiedFinancialDataService {
 
     @Autowired
     private site.easy.to.build.crm.repository.UnifiedTransactionRepository unifiedTransactionRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * Resolve customer ID to the actual owner ID for querying transactions.
+     * If customer is a DELEGATED_USER or MANAGER, returns their manages_owner_id.
+     * Otherwise, returns the customer ID itself.
+     *
+     * @param customerId The customer ID
+     * @return The owner ID to use for querying transactions
+     */
+    private Long resolveOwnerIdForCustomer(Long customerId) {
+        try {
+            System.out.println("🔍 [UnifiedFinancialDataService] Resolving owner ID for Customer: " + customerId);
+
+            // Check if this customer is a delegated user or manager
+            String sql = "SELECT customer_type, manages_owner_id FROM customers WHERE customer_id = ?";
+            List<Map<String, Object>> result = jdbcTemplate.queryForList(sql, customerId);
+
+            if (result.isEmpty()) {
+                System.out.println("❌ [UnifiedFinancialDataService] Customer not found: " + customerId);
+                return customerId; // Return as-is if not found
+            }
+
+            Map<String, Object> customerData = result.get(0);
+            String customerType = (String) customerData.get("customer_type");
+            Object managesOwnerIdObj = customerData.get("manages_owner_id");
+
+            System.out.println("📊 [UnifiedFinancialDataService] Customer type: " + customerType + ", manages_owner_id: " + managesOwnerIdObj);
+
+            // If delegated user or manager with an assigned owner, return that owner's ID
+            if (("DELEGATED_USER".equals(customerType) || "MANAGER".equals(customerType)) && managesOwnerIdObj != null) {
+                Long managesOwnerId = ((Number) managesOwnerIdObj).longValue();
+                System.out.println("✅ [UnifiedFinancialDataService] Delegated user/manager - using owner ID: " + managesOwnerId);
+                return managesOwnerId;
+            }
+
+            // Otherwise, return the customer ID itself
+            System.out.println("✅ [UnifiedFinancialDataService] Regular owner - using customer ID: " + customerId);
+            return customerId;
+
+        } catch (Exception e) {
+            System.err.println("❌ [UnifiedFinancialDataService] Error resolving owner ID for customer " + customerId + ": " + e.getMessage());
+            e.printStackTrace();
+            return customerId; // Return as-is on error
+        }
+    }
 
     /**
      * Get combined financial transactions for a property (last 2 years)
@@ -230,12 +279,15 @@ public class UnifiedFinancialDataService {
         Map<String, BigDecimal> categoryTotals = new LinkedHashMap<>();
 
         try {
+            // Resolve delegated user to owner ID
+            Long ownerId = resolveOwnerIdForCustomer(customerId);
+
             // Query all customer transactions at once using optimized query
             System.out.println("📊 Step 1: Querying unified_transactions for OUTGOING transactions...");
             log.info("📊 Step 1: Querying unified_transactions for OUTGOING transactions...");
             List<UnifiedTransaction> allTransactions =
                 unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
-                    customerId,
+                    ownerId,
                     startDate,
                     endDate,
                     UnifiedTransaction.FlowDirection.OUTGOING
@@ -385,12 +437,15 @@ public class UnifiedFinancialDataService {
         List<Map<String, Object>> monthlyData = new ArrayList<>();
 
         try {
+            // Resolve delegated user to owner ID
+            Long ownerId = resolveOwnerIdForCustomer(customerId);
+
             // Query all customer transactions at once
             System.out.println("📊 Step 1: Querying unified_transactions for ALL transactions...");
             log.info("📊 Step 1: Querying unified_transactions for ALL transactions...");
             List<UnifiedTransaction> allTransactions =
                 unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(
-                    customerId,
+                    ownerId,
                     startDate,
                     endDate
                 );
@@ -616,9 +671,12 @@ public class UnifiedFinancialDataService {
         Map<String, Object> result = new LinkedHashMap<>();
 
         try {
+            // Resolve delegated user to owner ID
+            Long ownerId = resolveOwnerIdForCustomer(customerId);
+
             // Get ALL transactions for this customer
             List<UnifiedTransaction> allTransactions =
-                unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(customerId, startDate, endDate);
+                unifiedTransactionRepository.findByCustomerOwnedPropertiesAndDateRange(ownerId, startDate, endDate);
 
             System.out.println("📋 Found " + allTransactions.size() + " total transactions");
 
