@@ -1512,6 +1512,15 @@ public class PropertyOwnerController {
                 return ResponseEntity.status(503).body(Map.of("error", "Service account not configured"));
             }
 
+            // SECURITY: Block access to internal folders (employee-only)
+            if (folderType != null && folderType.toLowerCase().startsWith("internal")) {
+                System.err.println("⛔ Customer attempted to access internal folder: " + folderType);
+                return ResponseEntity.status(403).body(Map.of(
+                    "error", "Access denied",
+                    "message", "Internal folders are restricted to employees only."
+                ));
+            }
+
             // Special handling for property-documents - user needs to select a specific property folder first
             if ("property-documents".equalsIgnoreCase(folderType)) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -1699,6 +1708,15 @@ public class PropertyOwnerController {
 
             if (!serviceAccountAvailable()) {
                 return ResponseEntity.status(503).body(Map.of("error", "Service account not configured"));
+            }
+
+            // SECURITY: Block access to internal folders (employee-only)
+            if (subfolderName != null && subfolderName.toLowerCase().startsWith("internal")) {
+                System.err.println("⛔ Customer attempted to access internal subfolder: " + subfolderName);
+                return ResponseEntity.status(403).body(Map.of(
+                    "error", "Access denied",
+                    "message", "Internal folders are restricted to employees only."
+                ));
             }
 
             List<Map<String, Object>> uploadedFiles = new ArrayList<>();

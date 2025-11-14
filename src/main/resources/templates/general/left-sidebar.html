@@ -257,7 +257,13 @@
                             </ul>
                         </li>
                         <li>
-                            <a href="javascript:void(0)" class="has-arrow">Google Drive</a>
+                            <a th:href="${home + 'employee/files'}">
+                                <i class="fas fa-folder-open"></i>
+                                <span class="nav-text">Documents</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="javascript:void(0)" class="has-arrow">Google Drive (Legacy)</a>
                             <ul aria-expanded="false" class="collapse">
                                 <li><a th:href="${home + 'employee/drive/list-files'}">files && Folders</a></li>
                                 <li><a th:href="${home + 'employee/drive/create-file'}">Create file</a></li>

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <title>Document Management - Employee Portal</title>
+    <link rel="stylesheet" th:href="@{/css/library/bootstrap.min.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/library/custom.min.css}">
+    <style>
+        .folder-card {
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid #dee2e6;
+            margin-bottom: 10px;
+        }
+        .folder-card:hover {
+            background-color: #f8f9fa;
+            border-color: #0d6efd;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .file-card {
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            transition: all 0.2s;
+        }
+        .file-card:hover {
+            background-color: #f8f9fa;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .breadcrumb-nav {
+            background-color: #fff;
+            padding: 10px 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .internal-folder-badge {
+            background-color: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+        }
+        .customer-folder-badge {
+            background-color: #0d6efd;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+        }
+        .file-preview-area {
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            min-height: 400px;
+            background-color: #f8f9fa;
+        }
+        .spinner-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+
+            <!-- Page Header -->
+            <div class="row page-titles">
+                <div class="col-md-5 align-self-center">
+                    <h3 class="text-primary">
+                        <i class="fas fa-folder-open"></i> Document Management
+                    </h3>
+                </div>
+                <div class="col-md-7 align-self-center text-right">
+                    <button class="btn btn-info" onclick="uploadFiles()" id="uploadBtn" disabled>
+                        <i class="fas fa-upload"></i> Upload Files
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshCurrentView()">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Service Account Error -->
+            <div th:if="${!serviceAccountAvailable}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Service Account Not Configured</strong><br>
+                        The Google Drive service account is not configured. Please contact your administrator.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div th:if="${serviceAccountAvailable}" class="row">
+
+                <!-- Left Column: Folder Navigation -->
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-sitemap"></i> Folders</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="list-group list-group-flush">
+                                <!-- Customer Documents -->
+                                <a class="list-group-item list-group-item-action" onclick="loadCustomerFolders()">
+                                    <i class="fas fa-users"></i> Customer Documents
+                                    <span class="customer-folder-badge">SHARED</span>
+                                </a>
+
+                                <!-- Internal Documents -->
+                                <a class="list-group-item list-group-item-action" onclick="loadInternalFolders()">
+                                    <i class="fas fa-lock"></i> Internal Documents
+                                    <span class="internal-folder-badge">PRIVATE</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Breadcrumb Navigation -->
+                    <div class="breadcrumb-nav mt-3" id="breadcrumbNav" style="display: none;">
+                        <small class="text-muted">Current Location:</small>
+                        <div id="breadcrumbContent"></div>
+                    </div>
+                </div>
+
+                <!-- Middle Column: File/Folder List -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0" id="folderTitle">Select a folder to view contents</h5>
+                        </div>
+                        <div class="card-body" id="fileListContainer">
+                            <div class="text-center py-5">
+                                <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">Click on a folder in the navigation to browse files</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: File Preview/Details -->
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-info-circle"></i> Details</h5>
+                        </div>
+                        <div class="card-body file-preview-area" id="filePreview">
+                            <p class="text-muted text-center mt-5">
+                                <i class="fas fa-file fa-3x mb-3 d-block"></i>
+                                Select a file to view details
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
+
+<script>
+// Global state
+let currentContext = {
+    type: null,        // 'customer', 'property', 'internal'
+    customerId: null,
+    customerEmail: null,
+    propertyId: null,
+    subfolder: null,
+    internalFolder: null
+};
+
+// ===================================================================
+// Navigation Functions
+// ===================================================================
+
+function loadCustomerFolders() {
+    console.log('📁 Loading customer folders...');
+    showLoading();
+
+    fetch('/employee/files/browse/customers')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentContext = {type: 'customer-list', ...clearContext()};
+                updateBreadcrumb(['Customer Documents']);
+                displayCustomerFolders(data.folders);
+                document.getElementById('uploadBtn').disabled = true;
+            } else {
+                showError(data.error || 'Failed to load customer folders');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error loading customer folders: ' + error.message);
+        });
+}
+
+function loadCustomerProperties(customerId, customerEmail) {
+    console.log('📁 Loading properties for customer:', customerId);
+    showLoading();
+
+    fetch(`/employee/files/browse/customer/${customerId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentContext = {type: 'customer', customerId, customerEmail, ...clearContext()};
+                updateBreadcrumb(['Customer Documents', customerEmail]);
+                displayPropertyFolders(data.properties);
+                document.getElementById('uploadBtn').disabled = true;
+            } else {
+                showError(data.error || 'Failed to load properties');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error loading properties: ' + error.message);
+        });
+}
+
+function loadPropertySubfolders(propertyId, propertyName) {
+    console.log('📁 Loading subfolders for property:', propertyId);
+    showLoading();
+
+    fetch(`/employee/files/browse/property/${propertyId}/subfolders`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentContext = {...currentContext, type: 'property', propertyId};
+                updateBreadcrumb([
+                    'Customer Documents',
+                    currentContext.customerEmail || 'Customer',
+                    propertyName
+                ]);
+                displaySubfolders(data.subfolders, propertyId);
+                document.getElementById('uploadBtn').disabled = true;
+            } else {
+                showError(data.error || 'Failed to load subfolders');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error loading subfolders: ' + error.message);
+        });
+}
+
+function loadPropertySubfolderFiles(propertyId, subfolder) {
+    console.log('📁 Loading files in property', propertyId, '/', subfolder);
+    showLoading();
+
+    fetch(`/employee/files/browse/property/${propertyId}/subfolder/${subfolder}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentContext = {...currentContext, type: 'property-subfolder', propertyId, subfolder};
+                updateBreadcrumb([
+                    'Customer Documents',
+                    currentContext.customerEmail || 'Customer',
+                    'Property',
+                    subfolder
+                ]);
+                displayFiles(data.files);
+                document.getElementById('uploadBtn').disabled = false; // Enable upload
+            } else {
+                showError(data.error || 'Failed to load files');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error loading files: ' + error.message);
+        });
+}
+
+function loadInternalFolders() {
+    console.log('📁 Loading internal folders...');
+    showLoading();
+
+    fetch('/employee/files/browse/internal')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentContext = {type: 'internal-list', ...clearContext()};
+                updateBreadcrumb(['Internal Documents']);
+                displayInternalFolders(data.folders);
+                document.getElementById('uploadBtn').disabled = true;
+            } else {
+                showError(data.error || 'Failed to load internal folders');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error loading internal folders: ' + error.message);
+        });
+}
+
+function loadInternalFiles(subfolderName) {
+    console.log('📁 Loading internal files in:', subfolderName);
+    showLoading();
+
+    fetch(`/employee/files/browse/internal/${subfolderName}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentContext = {type: 'internal', internalFolder: subfolderName, ...clearContext()};
+                updateBreadcrumb(['Internal Documents', subfolderName]);
+                displayFiles(data.files);
+                document.getElementById('uploadBtn').disabled = false; // Enable upload
+            } else {
+                showError(data.error || 'Failed to load files');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error loading files: ' + error.message);
+        });
+}
+
+// ===================================================================
+// Display Functions
+// ===================================================================
+
+function displayCustomerFolders(folders) {
+    const container = document.getElementById('fileListContainer');
+    document.getElementById('folderTitle').textContent = `Customer Folders (${folders.length})`;
+
+    if (folders.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No customer folders found</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    folders.forEach(folder => {
+        html += `
+            <div class="folder-card p-3" onclick="loadCustomerProperties('${folder.id.replace('Customer-', '')}', '${folder.customerEmail}')">
+                <i class="fas fa-user fa-2x text-primary mb-2"></i>
+                <h6 class="mb-1">${folder.customerEmail}</h6>
+                <small class="text-muted">Modified: ${folder.modified || 'Unknown'}</small>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function displayPropertyFolders(properties) {
+    const container = document.getElementById('fileListContainer');
+    document.getElementById('folderTitle').textContent = `Properties (${properties.length})`;
+
+    if (properties.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-home fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No properties found for this customer</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    properties.forEach(property => {
+        html += `
+            <div class="folder-card p-3" onclick="loadPropertySubfolders(${property.propertyId}, '${property.name.replace(/'/g, "\\'")}')">
+                <i class="fas fa-home fa-2x text-success mb-2"></i>
+                <h6 class="mb-1">${property.name}</h6>
+                <small class="text-muted">${property.subfolders.length} subfolders</small>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function displaySubfolders(subfolders, propertyId) {
+    const container = document.getElementById('fileListContainer');
+    document.getElementById('folderTitle').textContent = `Document Categories (${subfolders.length})`;
+
+    let html = '';
+    subfolders.forEach(subfolder => {
+        html += `
+            <div class="folder-card p-3" onclick="loadPropertySubfolderFiles(${propertyId}, '${subfolder}')">
+                <i class="fas fa-folder fa-2x text-warning mb-2"></i>
+                <h6 class="mb-1">${subfolder}</h6>
+                <small class="text-muted">Click to view files</small>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function displayInternalFolders(folders) {
+    const container = document.getElementById('fileListContainer');
+    document.getElementById('folderTitle').textContent = `Internal Folders (${folders.length})`;
+
+    let html = '';
+    folders.forEach(folder => {
+        html += `
+            <div class="folder-card p-3" onclick="loadInternalFiles('${folder.name}')">
+                <i class="fas fa-lock fa-2x text-danger mb-2"></i>
+                <h6 class="mb-1">${folder.name}</h6>
+                <small class="text-muted">Employee Only</small>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+function displayFiles(files) {
+    const container = document.getElementById('fileListContainer');
+    document.getElementById('folderTitle').textContent = `Files (${files.length})`;
+
+    if (files.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-file fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No files in this folder</p>
+                <button class="btn btn-primary btn-sm mt-2" onclick="uploadFiles()">
+                    <i class="fas fa-upload"></i> Upload Files
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    files.forEach(file => {
+        const icon = getFileIcon(file.name);
+        html += `
+            <div class="file-card" onclick="showFileDetails('${file.id}', '${file.name.replace(/'/g, "\\'")}', '${file.size}', '${file.modified}')">
+                <div class="row align-items-center">
+                    <div class="col-2 text-center">
+                        <i class="${icon} fa-2x"></i>
+                    </div>
+                    <div class="col-7">
+                        <h6 class="mb-0">${file.name}</h6>
+                        <small class="text-muted">${file.size || 'Unknown size'} • ${file.modified || 'Unknown date'}</small>
+                    </div>
+                    <div class="col-3 text-right">
+                        <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); viewFile('${file.id}')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); downloadFile('${file.id}')">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+// ===================================================================
+// Upload Function
+// ===================================================================
+
+function uploadFiles() {
+    if (!currentContext.type || (currentContext.type !== 'property-subfolder' && currentContext.type !== 'internal')) {
+        alert('Please select a folder first');
+        return;
+    }
+
+    // Create file input
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.multiple = true;
+    fileInput.accept = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt';
+
+    fileInput.onchange = function(event) {
+        const files = event.target.files;
+        if (files.length === 0) return;
+
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files', files[i]);
+        }
+
+        // Show uploading message
+        const container = document.getElementById('fileListContainer');
+        const originalContent = container.innerHTML;
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <h5 class="mt-3">Uploading ${files.length} file(s)...</h5>
+                <p class="text-muted">Please wait while your files are uploaded to Google Drive.</p>
+            </div>
+        `;
+
+        // Determine upload URL
+        let uploadUrl;
+        if (currentContext.type === 'property-subfolder') {
+            uploadUrl = `/employee/files/upload/property/${currentContext.propertyId}/subfolder/${currentContext.subfolder}`;
+        } else if (currentContext.type === 'internal') {
+            uploadUrl = `/employee/files/upload/internal/${currentContext.internalFolder}`;
+        }
+
+        const csrfToken = $("meta[name='_csrf']").attr("content");
+        const csrfHeader = $("meta[name='_csrf_header']").attr("content");
+
+        fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                [csrfHeader]: csrfToken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Upload complete! ${data.uploadedCount} of ${data.totalCount} files uploaded successfully.`);
+                refreshCurrentView();
+            } else {
+                container.innerHTML = originalContent;
+                alert('Upload failed: ' + (data.error || data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            container.innerHTML = originalContent;
+            console.error('Error uploading files:', error);
+            alert('Error uploading files: ' + error.message);
+        });
+    };
+
+    fileInput.click();
+}
+
+// ===================================================================
+// File Actions
+// ===================================================================
+
+function showFileDetails(fileId, fileName, fileSize, modified) {
+    const preview = document.getElementById('filePreview');
+    preview.innerHTML = `
+        <h6 class="mb-3">${fileName}</h6>
+        <hr>
+        <p><strong>Size:</strong> ${fileSize || 'Unknown'}</p>
+        <p><strong>Modified:</strong> ${modified || 'Unknown'}</p>
+        <hr>
+        <div class="d-grid gap-2">
+            <button class="btn btn-primary btn-sm" onclick="viewFile('${fileId}')">
+                <i class="fas fa-eye"></i> View
+            </button>
+            <button class="btn btn-success btn-sm" onclick="downloadFile('${fileId}')">
+                <i class="fas fa-download"></i> Download
+            </button>
+        </div>
+    `;
+}
+
+function viewFile(fileId) {
+    fetch(`/employee/files/view/${fileId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.open(data.viewUrl, '_blank');
+            } else {
+                alert('Error: ' + (data.error || 'Failed to get view URL'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error viewing file: ' + error.message);
+        });
+}
+
+function downloadFile(fileId) {
+    fetch(`/employee/files/download/${fileId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = data.directDownloadUrl;
+            } else {
+                alert('Error: ' + (data.error || 'Failed to get download URL'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error downloading file: ' + error.message);
+        });
+}
+
+// ===================================================================
+// Utility Functions
+// ===================================================================
+
+function refreshCurrentView() {
+    if (currentContext.type === 'property-subfolder') {
+        loadPropertySubfolderFiles(currentContext.propertyId, currentContext.subfolder);
+    } else if (currentContext.type === 'internal') {
+        loadInternalFiles(currentContext.internalFolder);
+    } else if (currentContext.type === 'customer-list') {
+        loadCustomerFolders();
+    } else if (currentContext.type === 'internal-list') {
+        loadInternalFolders();
+    }
+}
+
+function updateBreadcrumb(path) {
+    const nav = document.getElementById('breadcrumbNav');
+    const content = document.getElementById('breadcrumbContent');
+
+    nav.style.display = 'block';
+    content.innerHTML = path.map(p => `<span class="badge badge-secondary mr-1">${p}</span>`).join(' / ');
+}
+
+function clearContext() {
+    return {
+        customerId: null,
+        customerEmail: null,
+        propertyId: null,
+        subfolder: null,
+        internalFolder: null
+    };
+}
+
+function showLoading() {
+    const container = document.getElementById('fileListContainer');
+    container.innerHTML = `
+        <div class="spinner-container">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    `;
+}
+
+function showError(message) {
+    const container = document.getElementById('fileListContainer');
+    container.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle"></i> ${message}
+        </div>
+    `;
+}
+
+function getFileIcon(fileName) {
+    const ext = fileName.split('.').pop().toLowerCase();
+    switch (ext) {
+        case 'pdf': return 'fas fa-file-pdf text-danger';
+        case 'doc':
+        case 'docx': return 'fas fa-file-word text-primary';
+        case 'xls':
+        case 'xlsx': return 'fas fa-file-excel text-success';
+        case 'jpg':
+        case 'jpeg':
+        case 'png': return 'fas fa-file-image text-info';
+        default: return 'fas fa-file text-secondary';
+    }
+}
+</script>
+
+</body>
+</html>

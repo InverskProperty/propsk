@@ -37,6 +37,13 @@ public class SharedDriveFileService {
     private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
     private static final String SHARED_DRIVE_DOCUMENTS_FOLDER = "Property-Documents";
 
+    // Internal folders (employee-only)
+    private static final String INTERNAL_FOLDER = "Internal";
+    private static final List<String> INTERNAL_SUBFOLDERS = Arrays.asList(
+        "Contractors", "Legal", "Finance", "HR",
+        "Property-Research", "Marketing", "Templates"
+    );
+
     /**
      * List files in a specific folder for a customer
      */
@@ -467,5 +474,417 @@ public class SharedDriveFileService {
         Date date = new Date(dateTime.getValue());
         return java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd")
             .format(date.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate());
+    }
+
+    // ===================================================================
+    // EMPLOYEE-FACING METHODS (for employee document management)
+    // ===================================================================
+
+    /**
+     * List all customer folders for employee navigation
+     */
+    public List<Map<String, Object>> listAllCustomerFolders() throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Drive driveService = createDriveService();
+        String documentsFolderId = getDocumentsFolderId(driveService);
+
+        // Find all customer folders
+        String query = String.format(
+            "parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder' and name contains 'Customer-'",
+            documentsFolderId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .setFields("files(id, name, createdTime, modifiedTime)")
+            .execute();
+
+        List<Map<String, Object>> customerFolders = new ArrayList<>();
+        for (File folder : result.getFiles()) {
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("id", folder.getId());
+            folderInfo.put("name", folder.getName());
+            folderInfo.put("type", "folder");
+            folderInfo.put("created", formatDate(folder.getCreatedTime()));
+            folderInfo.put("modified", formatDate(folder.getModifiedTime()));
+
+            // Extract customer email from folder name
+            String email = folder.getName().replace("Customer-", "");
+            folderInfo.put("customerEmail", email);
+
+            customerFolders.add(folderInfo);
+        }
+
+        System.out.println("📁 [Employee] Found " + customerFolders.size() + " customer folders");
+        return customerFolders;
+    }
+
+    /**
+     * List property folders for a specific customer (for employee view)
+     */
+    public List<Map<String, Object>> listCustomerPropertyFolders(Long customerId) throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        // Get customer properties
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+
+        Drive driveService = createDriveService();
+        List<Map<String, Object>> propertyFolders = new ArrayList<>();
+
+        for (Property property : properties) {
+            String propertyFolderName = generatePropertyFolderName(property);
+
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("id", property.getId());
+            folderInfo.put("name", propertyFolderName);
+            folderInfo.put("type", "folder");
+            folderInfo.put("propertyId", property.getId());
+            folderInfo.put("subfolders", Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Tenancy", "Maintenance"));
+
+            propertyFolders.add(folderInfo);
+        }
+
+        System.out.println("📁 [Employee] Found " + propertyFolders.size() + " properties for customer " + customerId);
+        return propertyFolders;
+    }
+
+    /**
+     * List files in a property subfolder (for employees)
+     */
+    public List<Map<String, Object>> listPropertySubfolderFilesForEmployee(Long propertyId, String subfolderName)
+            throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Drive driveService = createDriveService();
+
+        // Find the property folder using property service
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyId);
+        if (properties.isEmpty()) {
+            System.out.println("❌ Property not found: " + propertyId);
+            return new ArrayList<>();
+        }
+
+        Property property = properties.get(0);
+        String propertyFolderName = generatePropertyFolderName(property);
+
+        // Find property folder in Drive
+        String documentsFolderId = getDocumentsFolderId(driveService);
+        String propertyFolderId = findFolderByNameRecursive(driveService, documentsFolderId, propertyFolderName);
+
+        if (propertyFolderId == null) {
+            System.out.println("❌ Property folder not found in Drive: " + propertyFolderName);
+            return new ArrayList<>();
+        }
+
+        // Find subfolder
+        String subfolderQuery = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            subfolderName, propertyFolderId
+        );
+
+        FileList subfolderResult = driveService.files().list()
+            .setQ(subfolderQuery)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        if (subfolderResult.getFiles().isEmpty()) {
+            System.out.println("📁 [Employee] Subfolder '" + subfolderName + "' doesn't exist yet in property " + propertyFolderName);
+            return new ArrayList<>();
+        }
+
+        String subfolderId = subfolderResult.getFiles().get(0).getId();
+        return listFilesInFolder(driveService, subfolderId);
+    }
+
+    /**
+     * Upload file to property subfolder (for employees)
+     */
+    public Map<String, Object> uploadToPropertySubfolder(Long propertyId, String subfolderName, MultipartFile file)
+            throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Drive driveService = createDriveService();
+
+        // Get property
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyId);
+        if (properties.isEmpty()) {
+            throw new IllegalArgumentException("Property not found: " + propertyId);
+        }
+
+        Property property = properties.get(0);
+        String propertyFolderName = generatePropertyFolderName(property);
+
+        // Find or create property folder structure
+        String documentsFolderId = getDocumentsFolderId(driveService);
+        String propertyFolderId = findFolderByNameRecursive(driveService, documentsFolderId, propertyFolderName);
+
+        if (propertyFolderId == null) {
+            System.out.println("📁 Property folder not found, creating: " + propertyFolderName);
+            // This property doesn't have a folder yet - would need customer folder first
+            throw new IllegalStateException("Property folder structure not initialized. Customer must access portal first.");
+        }
+
+        // Get or create subfolder
+        String subfolderId = getOrCreateSubfolder(driveService, propertyFolderId, subfolderName);
+
+        // Upload the file
+        File fileMetadata = new File();
+        fileMetadata.setName(file.getOriginalFilename());
+        fileMetadata.setParents(Collections.singletonList(subfolderId));
+
+        com.google.api.client.http.InputStreamContent mediaContent =
+            new com.google.api.client.http.InputStreamContent(
+                file.getContentType(),
+                file.getInputStream()
+            );
+
+        File uploadedFile = driveService.files()
+            .create(fileMetadata, mediaContent)
+            .setSupportsAllDrives(true)
+            .execute();
+
+        System.out.println("✅ [Employee] File uploaded: " + uploadedFile.getName() + " to " + propertyFolderName + "/" + subfolderName);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", uploadedFile.getId());
+        result.put("name", uploadedFile.getName());
+        result.put("size", formatFileSize(file.getSize()));
+        result.put("uploadedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+        return result;
+    }
+
+    /**
+     * List internal folders (employee-only)
+     */
+    public List<Map<String, Object>> listInternalFolders() throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Drive driveService = createDriveService();
+        String internalFolderId = getOrCreateInternalFolder(driveService);
+
+        List<Map<String, Object>> folders = new ArrayList<>();
+
+        for (String subfolderName : INTERNAL_SUBFOLDERS) {
+            // Check if subfolder exists
+            String query = String.format(
+                "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+                subfolderName, internalFolderId
+            );
+
+            FileList result = driveService.files().list()
+                .setQ(query)
+                .setSupportsAllDrives(true)
+                .setIncludeItemsFromAllDrives(true)
+                .execute();
+
+            String subfolderId = null;
+            if (!result.getFiles().isEmpty()) {
+                subfolderId = result.getFiles().get(0).getId();
+            }
+
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("name", subfolderName);
+            folderInfo.put("type", "folder");
+            folderInfo.put("id", subfolderId);
+            folderInfo.put("exists", subfolderId != null);
+
+            folders.add(folderInfo);
+        }
+
+        System.out.println("📁 [Employee] Listed " + INTERNAL_SUBFOLDERS.size() + " internal folders");
+        return folders;
+    }
+
+    /**
+     * List files in an internal folder
+     */
+    public List<Map<String, Object>> listInternalFiles(String subfolderName) throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        if (!INTERNAL_SUBFOLDERS.contains(subfolderName)) {
+            throw new IllegalArgumentException("Invalid internal folder: " + subfolderName);
+        }
+
+        Drive driveService = createDriveService();
+        String internalFolderId = getOrCreateInternalFolder(driveService);
+        String subfolderId = getOrCreateSubfolder(driveService, internalFolderId, subfolderName);
+
+        return listFilesInFolder(driveService, subfolderId);
+    }
+
+    /**
+     * Upload file to internal folder (employee-only)
+     */
+    public Map<String, Object> uploadToInternalFolder(String subfolderName, MultipartFile file)
+            throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        if (!INTERNAL_SUBFOLDERS.contains(subfolderName)) {
+            throw new IllegalArgumentException("Invalid internal folder: " + subfolderName);
+        }
+
+        Drive driveService = createDriveService();
+        String internalFolderId = getOrCreateInternalFolder(driveService);
+        String subfolderId = getOrCreateSubfolder(driveService, internalFolderId, subfolderName);
+
+        // Upload the file
+        File fileMetadata = new File();
+        fileMetadata.setName(file.getOriginalFilename());
+        fileMetadata.setParents(Collections.singletonList(subfolderId));
+
+        com.google.api.client.http.InputStreamContent mediaContent =
+            new com.google.api.client.http.InputStreamContent(
+                file.getContentType(),
+                file.getInputStream()
+            );
+
+        File uploadedFile = driveService.files()
+            .create(fileMetadata, mediaContent)
+            .setSupportsAllDrives(true)
+            .execute();
+
+        System.out.println("✅ [Employee] File uploaded to Internal/" + subfolderName + ": " + uploadedFile.getName());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", uploadedFile.getId());
+        result.put("name", uploadedFile.getName());
+        result.put("size", formatFileSize(file.getSize()));
+        result.put("uploadedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+        return result;
+    }
+
+    /**
+     * Get or create the Internal folder at the root of documents
+     */
+    private String getOrCreateInternalFolder(Drive driveService) throws IOException {
+        String documentsFolderId = getDocumentsFolderId(driveService);
+
+        // Search for existing Internal folder
+        String query = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            INTERNAL_FOLDER, documentsFolderId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        if (!result.getFiles().isEmpty()) {
+            return result.getFiles().get(0).getId();
+        }
+
+        // Create Internal folder
+        File folderMetadata = new File();
+        folderMetadata.setName(INTERNAL_FOLDER);
+        folderMetadata.setMimeType("application/vnd.google-apps.folder");
+        folderMetadata.setParents(Collections.singletonList(documentsFolderId));
+
+        File folder = driveService.files()
+            .create(folderMetadata)
+            .setSupportsAllDrives(true)
+            .setFields("id, name")
+            .execute();
+
+        System.out.println("📁 Created Internal folder: " + folder.getId());
+        return folder.getId();
+    }
+
+    /**
+     * Get or create a subfolder within a parent folder
+     */
+    private String getOrCreateSubfolder(Drive driveService, String parentFolderId, String subfolderName) throws IOException {
+        // Search for existing subfolder
+        String query = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            subfolderName, parentFolderId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        if (!result.getFiles().isEmpty()) {
+            return result.getFiles().get(0).getId();
+        }
+
+        // Create subfolder
+        File folderMetadata = new File();
+        folderMetadata.setName(subfolderName);
+        folderMetadata.setMimeType("application/vnd.google-apps.folder");
+        folderMetadata.setParents(Collections.singletonList(parentFolderId));
+
+        File folder = driveService.files()
+            .create(folderMetadata)
+            .setSupportsAllDrives(true)
+            .setFields("id, name")
+            .execute();
+
+        System.out.println("📁 Created subfolder: " + subfolderName + " (" + folder.getId() + ")");
+        return folder.getId();
+    }
+
+    /**
+     * Find a folder by name recursively searching from a parent
+     */
+    private String findFolderByNameRecursive(Drive driveService, String parentId, String folderName) throws IOException {
+        String query = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            folderName, parentId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        if (!result.getFiles().isEmpty()) {
+            return result.getFiles().get(0).getId();
+        }
+
+        // Search in subfolders
+        String subfoldersQuery = String.format(
+            "parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            parentId
+        );
+
+        FileList subfolders = driveService.files().list()
+            .setQ(subfoldersQuery)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        for (File subfolder : subfolders.getFiles()) {
+            String foundId = findFolderByNameRecursive(driveService, subfolder.getId(), folderName);
+            if (foundId != null) {
+                return foundId;
+            }
+        }
+
+        return null;
     }
 }

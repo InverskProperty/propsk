@@ -219,6 +219,9 @@ public class SecurityConfig {
                         // PROPERTY OWNER ACCESS FIX: Allow property owners to access admin property pages
                         .requestMatchers("/employee/property/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER", "OIDC_USER")
 
+                        // EMPLOYEE FILES: Document management for employees
+                        .requestMatchers("/employee/files/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "OIDC_USER")
+
                         // Employee and Manager routes (general - comes AFTER specific)
                         .requestMatchers("/employee/**").hasAnyAuthority("ROLE_MANAGER", "ROLE_EMPLOYEE", "OIDC_USER")
 
