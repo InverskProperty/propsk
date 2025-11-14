@@ -245,31 +245,41 @@
                     <div th:if="${filesByCategory.get(category).size() > 0}" class="file-grid">
                         <div th:each="file : ${filesByCategory.get(category)}" class="file-card">
                             <div class="file-icon mb-2">
-                                <img th:if="${file.mimeType.contains('document')}" th:src="@{/images/google-docs.png}" alt="Document" style="width: 48px;">
-                                <img th:if="${file.mimeType.contains('presentation')}" th:src="@{/images/slides.png}" alt="Presentation" style="width: 48px;">
-                                <img th:if="${file.mimeType.contains('spreadsheet')}" th:src="@{/images/sheets.png}" alt="Spreadsheet" style="width: 48px;">
-                                <i th:unless="${file.mimeType.contains('document') or file.mimeType.contains('presentation') or file.mimeType.contains('spreadsheet')}" 
+                                <img th:if="${file.mimeType != null and file.mimeType.contains('document')}" th:src="@{/images/google-docs.png}" alt="Document" style="width: 48px;">
+                                <img th:if="${file.mimeType != null and file.mimeType.contains('presentation')}" th:src="@{/images/slides.png}" alt="Presentation" style="width: 48px;">
+                                <img th:if="${file.mimeType != null and file.mimeType.contains('spreadsheet')}" th:src="@{/images/sheets.png}" alt="Spreadsheet" style="width: 48px;">
+                                <img th:if="${file.mimeType != null and file.mimeType.contains('pdf')}" th:src="@{/images/pdf-icon.png}" alt="PDF" style="width: 48px;">
+                                <i th:unless="${file.mimeType != null and (file.mimeType.contains('document') or file.mimeType.contains('presentation') or file.mimeType.contains('spreadsheet') or file.mimeType.contains('pdf'))}"
                                    class="fas fa-file fa-3x text-muted"></i>
                             </div>
                             <h6 class="file-name">
-                                <a th:href="${file.webViewLink}" th:text="${file.name}" target="_blank">File Name</a>
+                                <a th:if="${file.webViewLink != null}" th:href="${file.webViewLink}" th:text="${file.name}" target="_blank">File Name</a>
+                                <span th:unless="${file.webViewLink != null}" th:text="${file.name}">File Name</span>
                             </h6>
-                            <small class="text-muted" th:text="${file.createdTime}">Created Date</small>
-                            <div class="file-actions mt-2">
-                                <button class="btn btn-sm btn-outline-primary" onclick="shareFile('${file.id}')">
+                            <small class="text-muted" th:if="${file.createdTime != null}" th:text="${file.createdTime}">Created Date</small>
+                            <div class="file-actions mt-2" th:if="${!isServiceAccount}">
+                                <button class="btn btn-sm btn-outline-primary" th:onclick="'shareFile(\'' + ${file.id} + '\')'">
                                     <i class="fas fa-share"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteFile('${file.id}')">
+                                <button class="btn btn-sm btn-outline-danger" th:onclick="'deleteFile(\'' + ${file.id} + '\')'">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
+                            <div class="file-actions mt-2" th:if="${isServiceAccount}">
+                                <a th:if="${file.webViewLink != null}" th:href="${file.webViewLink}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-external-link-alt"></i> View
+                                </a>
+                            </div>
                         </div>
                     </div>
-                    
+
                     <div th:if="${filesByCategory.get(category).size() == 0}" class="empty-category">
                         <i class="fas fa-folder-open fa-3x mb-3"></i>
                         <p>No files in this category yet</p>
-                        <button class="btn btn-primary btn-sm" onclick="uploadToCategory('${category}')">
+                        <p class="text-muted" th:if="${isServiceAccount}">
+                            <small>Upload files using the new Documents page or customer portal</small>
+                        </p>
+                        <button th:unless="${isServiceAccount}" class="btn btn-primary btn-sm" th:onclick="'uploadToCategory(\'' + ${category} + '\')'">
                             <i class="fas fa-upload"></i> Upload File
                         </button>
                     </div>

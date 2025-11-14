@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Arrays;
 
 @Controller
 @RequestMapping("/employee/drive")
@@ -45,6 +46,7 @@ public class GoogleDriveController {
     private final GoogleDriveFileService googleDriveFileService;
     private final CustomerPropertyAssignmentService assignmentService;
     private final GoogleServiceAccountService googleServiceAccountService;
+    private final site.easy.to.build.crm.service.drive.SharedDriveFileService sharedDriveFileService;
 
     @Autowired
     public GoogleDriveController(GoogleDriveApiService googleDriveApiService,
@@ -54,7 +56,8 @@ public class GoogleDriveController {
                                CustomerDriveOrganizationService customerDriveOrganizationService,
                                GoogleDriveFileService googleDriveFileService,
                                CustomerPropertyAssignmentService assignmentService,
-                               GoogleServiceAccountService googleServiceAccountService) {
+                               GoogleServiceAccountService googleServiceAccountService,
+                               site.easy.to.build.crm.service.drive.SharedDriveFileService sharedDriveFileService) {
         this.googleDriveApiService = googleDriveApiService;
         this.authenticationUtils = authenticationUtils;
         this.propertyService = propertyService;
@@ -63,6 +66,7 @@ public class GoogleDriveController {
         this.googleDriveFileService = googleDriveFileService;
         this.assignmentService = assignmentService;
         this.googleServiceAccountService = googleServiceAccountService;
+        this.sharedDriveFileService = sharedDriveFileService;
     }
 
     @GetMapping("/list-files")
@@ -228,26 +232,43 @@ public class GoogleDriveController {
      * Property-specific file management using service account (for non-OAuth users)
      */
     private String handlePropertyFilesWithServiceAccount(Property property, Model model) throws IOException, GeneralSecurityException {
-        // Get property files from database (stored Google Drive file records)
-        List<site.easy.to.build.crm.entity.GoogleDriveFile> entityFiles = googleDriveFileService.getFilesByProperty(property.getId());
+        System.out.println("📁 [Legacy Drive] Loading property files with SharedDriveFileService for: " + property.getPropertyName());
 
-        // Convert entity files to API model format for consistency with template
-        List<GoogleDriveFile> files = new ArrayList<>();
+        // Use SharedDriveFileService to get organized file structure
         Map<String, List<GoogleDriveFile>> filesByCategory = new HashMap<>();
+        Map<String, String> subfolderMap = new HashMap<>();
+        List<GoogleDriveFile> allFiles = new ArrayList<>();
 
-        for (site.easy.to.build.crm.entity.GoogleDriveFile entityFile : entityFiles) {
-            // Convert entity to API model
-            GoogleDriveFile apiFile = new GoogleDriveFile();
-            apiFile.setId(entityFile.getDriveFileId());
-            apiFile.setName(entityFile.getFileName());
-            // Note: Entity doesn't have direct web links - these would need service account calls to get
-            apiFile.setMimeType(entityFile.getFileType()); // Use fileType as mimeType fallback
+        // Get files from each standard subfolder using SharedDriveFileService
+        List<String> subfolders = Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Tenancy", "Maintenance", "Invoices", "Letters", "Misc");
 
-            files.add(apiFile);
+        for (String subfolder : subfolders) {
+            try {
+                List<Map<String, Object>> subfolderFiles = sharedDriveFileService.listPropertySubfolderFilesForEmployee(
+                    property.getId(), subfolder
+                );
 
-            // Organize by category
-            String category = entityFile.getFileCategory() != null ? entityFile.getFileCategory() : "General";
-            filesByCategory.computeIfAbsent(category, k -> new ArrayList<>()).add(apiFile);
+                // Convert to GoogleDriveFile format for template compatibility
+                List<GoogleDriveFile> categoryFiles = new ArrayList<>();
+                for (Map<String, Object> fileMap : subfolderFiles) {
+                    GoogleDriveFile apiFile = new GoogleDriveFile();
+                    apiFile.setId((String) fileMap.get("id"));
+                    apiFile.setName((String) fileMap.get("name"));
+                    apiFile.setMimeType((String) fileMap.get("mimeType"));
+                    apiFile.setWebViewLink((String) fileMap.get("webViewLink"));
+                    apiFile.setCreatedTime((String) fileMap.get("createdTime"));
+
+                    categoryFiles.add(apiFile);
+                    allFiles.add(apiFile);
+                }
+
+                filesByCategory.put(subfolder, categoryFiles);
+                System.out.println("📁 [Legacy Drive] " + subfolder + ": " + categoryFiles.size() + " files");
+
+            } catch (Exception e) {
+                System.err.println("❌ Error loading " + subfolder + " files: " + e.getMessage());
+                filesByCategory.put(subfolder, new ArrayList<>());
+            }
         }
 
         // Load customers safely
@@ -257,20 +278,21 @@ public class GoogleDriveController {
         try {
             propertyOwners = loadPropertyCustomersSafely(property.getId(), AssignmentType.OWNER);
             tenants = loadPropertyCustomersSafely(property.getId(), AssignmentType.TENANT);
+            System.out.println("📁 [Legacy Drive] Found " + propertyOwners.size() + " owners, " + tenants.size() + " tenants");
         } catch (Exception e) {
             System.err.println("Error loading customers for property " + property.getId() + ": " + e.getMessage());
         }
 
         model.addAttribute("property", property);
-        model.addAttribute("files", files);
+        model.addAttribute("files", allFiles);
         model.addAttribute("filesByCategory", filesByCategory);
+        model.addAttribute("subfolderMap", subfolderMap);
         model.addAttribute("propertyOwners", propertyOwners);
         model.addAttribute("tenants", tenants);
         model.addAttribute("pageTitle", "Files for " + property.getPropertyName());
         model.addAttribute("breadcrumb", property.getPropertyName());
         model.addAttribute("isPropertyView", true);
         model.addAttribute("isServiceAccount", true); // Flag to indicate service account mode
-        model.addAttribute("message", "Viewing files via service account - limited functionality");
 
         return "google-drive/property-files";
     }
