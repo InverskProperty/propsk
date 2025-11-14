@@ -1009,9 +1009,9 @@ public class GoogleSheetsServiceAccountService {
         // Get properties - handle both property owners and delegated users
         List<Property> properties;
         if (propertyOwner.getCustomerType() == CustomerType.DELEGATED_USER) {
-            // For delegated users, get properties they have access to via customer_property_assignments
-            System.out.println("📊 Delegated user detected - loading assigned properties for customer: " + propertyOwner.getCustomerId());
-            properties = propertyService.findPropertiesByCustomerAssignments(propertyOwner.getCustomerId());
+            // For delegated users, get properties they have access to via manages_owner_id
+            System.out.println("📊 Delegated user detected - loading accessible properties for customer: " + propertyOwner.getCustomerId());
+            properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
         } else {
             // For property owners, get their owned properties
             System.out.println("📊 Property owner detected - loading owned properties for customer: " + propertyOwner.getCustomerId());

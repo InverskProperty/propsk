@@ -321,7 +321,7 @@ public class GoogleSheetsStatementService {
         data.setPortfolioName("PROPERTY PORTFOLIO"); // Set a default portfolio name
         
         // Get properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
         data.setProperties(properties);
         
         // Build rental data for each property
@@ -437,7 +437,7 @@ public class GoogleSheetsStatementService {
         data.setToDate(toDate);
         
         // Get all properties for portfolio view
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
         
         // Build summary data for each property
         List<PropertySummary> summaries = new ArrayList<>();
@@ -1631,7 +1631,7 @@ public class GoogleSheetsStatementService {
      */
     private boolean isPortfolioStatement(Customer propertyOwner) {
         // Get properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
 
         // If owner has multiple properties or properties in different buildings, treat as portfolio
         if (properties.size() > 5) {

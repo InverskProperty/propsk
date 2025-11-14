@@ -433,7 +433,7 @@ public class CustomerDriveOrganizationService {
     private List<Property> getCustomerProperties(Customer customer) {
         try {
             // Use the same method as PropertyOwnerController for consistency
-            return propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            return propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
         } catch (Exception e) {
             System.err.println("⚠️ Error getting customer properties: " + e.getMessage());
             return new ArrayList<>();

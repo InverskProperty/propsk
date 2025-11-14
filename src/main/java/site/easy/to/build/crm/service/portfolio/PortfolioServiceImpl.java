@@ -1272,7 +1272,7 @@ public class PortfolioServiceImpl implements PortfolioService {
                             List<Property> portfolioProperties = getPropertiesForPortfolio(portfolioId);
                             if (portfolioProperties != null && !portfolioProperties.isEmpty()) {
                                 // Get properties the delegated user has access to
-                                List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customerId);
+                                List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
                                 if (userProperties != null && !userProperties.isEmpty()) {
                                     // Check if there's any overlap
                                     Set<Long> portfolioPropertyIds = portfolioProperties.stream()

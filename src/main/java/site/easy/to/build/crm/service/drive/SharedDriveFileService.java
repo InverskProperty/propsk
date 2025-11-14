@@ -73,7 +73,7 @@ public class SharedDriveFileService {
         }
 
         // Get customer's actual properties
-        List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+        List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
         System.out.println("📁 Found " + customerProperties.size() + " properties for customer " + customer.getCustomerId());
 
         List<Map<String, Object>> propertyFolders = new ArrayList<>();

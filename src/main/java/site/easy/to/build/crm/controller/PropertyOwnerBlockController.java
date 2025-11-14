@@ -750,7 +750,7 @@ public class PropertyOwnerBlockController {
 
             // For delegated users, filter to only show properties they have access to
             if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
                 Set<Long> userPropertyIds = userProperties.stream()
                     .map(Property::getId)
                     .collect(Collectors.toSet());
@@ -807,7 +807,7 @@ public class PropertyOwnerBlockController {
             } else if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
                 // Check if delegated user has access to any properties in the portfolio
                 List<Property> portfolioProps = portfolioService.getPropertiesForPortfolio(portfolioId);
-                List<Property> userProps = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                List<Property> userProps = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
                 Set<Long> userPropIds = userProps.stream().map(Property::getId).collect(Collectors.toSet());
 
                 hasAccess = portfolioProps.stream().anyMatch(p -> userPropIds.contains(p.getId()));
@@ -876,8 +876,8 @@ public class PropertyOwnerBlockController {
 
             // Get unassigned properties that customer has access to
             List<Property> allUserProperties = customer.getCustomerType() == CustomerType.PROPERTY_OWNER
-                ? propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId())
-                : propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                ? propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId())
+                : propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
             List<Property> unassignedProperties = new ArrayList<>();
             for (Property property : allUserProperties) {
@@ -939,7 +939,7 @@ public class PropertyOwnerBlockController {
 
             // For delegated users, filter to only properties they have access to
             if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
                 Set<Long> userPropertyIds = userProperties.stream()
                     .map(Property::getId)
                     .collect(Collectors.toSet());
@@ -1046,7 +1046,7 @@ public class PropertyOwnerBlockController {
             debug.put("name", customer.getFullName());
 
             // Get all properties for this customer
-            List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             debug.put("totalUserProperties", userProperties.size());
             debug.put("userPropertyIds", userProperties.stream().map(Property::getId).limit(10).collect(Collectors.toList()));
 

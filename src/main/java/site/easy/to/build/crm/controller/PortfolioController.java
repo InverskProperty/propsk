@@ -2380,31 +2380,16 @@ public class PortfolioController {
                 try {
                     Customer currentCustomer = getCurrentCustomerFromAuth(authentication);
                     if (currentCustomer != null && currentCustomer.getCustomerType() == CustomerType.DELEGATED_USER) {
-                        // Delegated user - find their associated property owner via property assignments
-                        List<Property> delegatedProperties = propertyService.findPropertiesByCustomerAssignments(currentCustomer.getCustomerId());
+                        // Delegated user - find their associated property owner via manages_owner_id
+                        Customer managesOwner = currentCustomer.getManagesOwner();
 
-                        if (!delegatedProperties.isEmpty()) {
-                            // Get the property owner from the first property
-                            Property firstProperty = delegatedProperties.get(0);
-                            Long ownerId = firstProperty.getPropertyOwnerId();
-
-                            if (ownerId != null) {
-                                Customer associatedOwner = customerService.findByCustomerId(ownerId);
-                                if (associatedOwner != null) {
-                                    model.addAttribute("propertyOwners", Arrays.asList(associatedOwner));
-                                    model.addAttribute("currentCustomer", currentCustomer);
-                                    model.addAttribute("isDelegatedUser", true);
-                                    System.out.println("✅ Added associated property owner for delegated user: " + associatedOwner.getName());
-                                } else {
-                                    System.out.println("❌ Could not find property owner customer with ID: " + ownerId);
-                                    model.addAttribute("propertyOwners", new ArrayList<>());
-                                }
-                            } else {
-                                System.out.println("❌ First property has no property_owner_id");
-                                model.addAttribute("propertyOwners", new ArrayList<>());
-                            }
+                        if (managesOwner != null) {
+                            model.addAttribute("propertyOwners", Arrays.asList(managesOwner));
+                            model.addAttribute("currentCustomer", currentCustomer);
+                            model.addAttribute("isDelegatedUser", true);
+                            System.out.println("✅ Added managed property owner for delegated user: " + managesOwner.getName());
                         } else {
-                            System.out.println("❌ Delegated user has no property assignments");
+                            System.out.println("❌ Delegated user has no manages_owner_id set");
                             model.addAttribute("propertyOwners", new ArrayList<>());
                         }
                     } else {
@@ -2578,7 +2563,7 @@ public class PortfolioController {
             // Delegated users can edit portfolios if they have property assignments for properties in the portfolio
             List<Property> portfolioProperties = portfolioService.getPropertiesForPortfolio(portfolioId);
             if (!portfolioProperties.isEmpty()) {
-                List<Property> userProperties = propertyService.findPropertiesByCustomerAssignments(authUser.getId().longValue());
+                List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(authUser.getId().longValue());
 
                 // Check if user has any properties assigned that are also in this portfolio
                 boolean hasPropertyInPortfolio = portfolioProperties.stream()
@@ -3346,7 +3331,7 @@ public class PortfolioController {
                         // Delegated user check
                         else if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
                             // Get properties assigned to this delegated user
-                            List<Property> delegatedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+                            List<Property> delegatedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
                             // Check if any of these properties belong to the portfolio's owner
                             boolean hasOwnerProperties = delegatedProperties.stream()

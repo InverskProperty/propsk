@@ -604,7 +604,7 @@ public class PropertyOwnerController {
             System.out.println("✅ Customer found: " + customer.getCustomerId());
 
             // Get all properties for this owner
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             System.out.println("✅ Found " + properties.size() + " properties");
 
             // Get all letting instructions for this owner
@@ -721,7 +721,7 @@ public class PropertyOwnerController {
             }
 
             System.out.println("✅ Customer found: " + customer.getCustomerId());
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             System.out.println("✅ Found " + properties.size() + " properties");
 
             // Filter properties if requested
@@ -781,7 +781,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
 
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             
             // Calculate occupancy for ALL properties first - FIXED: Use CustomerService instead of empty TenantService
             List<Property> allOccupiedProperties = properties.stream()
@@ -850,7 +850,7 @@ public class PropertyOwnerController {
             }
 
             // Verify ownership by checking if property belongs to this customer
-            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> ownedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             boolean ownsProperty = ownedProperties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
 
@@ -1022,7 +1022,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
 
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
             // ===== NEW: Get tenant assignments with property and date information =====
             List<CustomerPropertyAssignment> tenantAssignments;
@@ -1141,7 +1141,7 @@ public class PropertyOwnerController {
             }
 
             // Verify customer has access to this property
-            List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             boolean hasAccess = customerProperties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
 
@@ -1234,7 +1234,7 @@ public class PropertyOwnerController {
             }
 
             // Verify property ownership
-            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> ownedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             boolean ownsProperty = ownedProperties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
 
@@ -1328,7 +1328,7 @@ public class PropertyOwnerController {
             }
             
             // Get property owner's properties for statement generation
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             model.addAttribute("properties", properties);
             model.addAttribute("propertyOwners", Arrays.asList(customer)); // Only show this property owner
             model.addAttribute("isOwnStatements", true);
@@ -1374,7 +1374,7 @@ public class PropertyOwnerController {
             model.addAttribute("pageTitle", "Document Files");
 
             // Get customer's properties for file organization
-            List<Property> properties = propertyService.getPropertiesByOwner(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             model.addAttribute("properties", properties);
 
             // Check if service account is available for shared drive access
@@ -1773,7 +1773,7 @@ public class PropertyOwnerController {
                 return "redirect:/customer-login?error=not_found";
             }
             
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             
             model.addAttribute("customer", customer);
             model.addAttribute("properties", properties);
@@ -1947,7 +1947,7 @@ public class PropertyOwnerController {
             System.out.println("✅ Customer name: " + customer.getFirstName() + " " + customer.getLastName());
 
             // CRITICAL CHECK: Verify this customer has property assignments
-            List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             System.out.println("✅ Customer properties count: " + customerProperties.size());
 
             if (customerProperties.isEmpty()) {
@@ -2091,7 +2091,7 @@ public class PropertyOwnerController {
                 totalCommission.multiply(BigDecimal.valueOf(100)).divide(totalRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
             
             // 🏠 Get basic property information for context
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
             // 📁 Get portfolios for selection dropdown
             List<Portfolio> portfolios;
@@ -2348,7 +2348,7 @@ public class PropertyOwnerController {
         
         try {
             // Get all tickets related to this property owner's properties
-            List<Property> ownerProperties = propertyService.findPropertiesByCustomerAssignments(customerId);
+            List<Property> ownerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
             List<Long> propertyIds = ownerProperties.stream().map(Property::getId).collect(Collectors.toList());
             
             // Get maintenance and emergency tickets for owner's properties
@@ -2565,7 +2565,7 @@ public class PropertyOwnerController {
             }
 
             // Get all customer properties
-            List<Property> allProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> allProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
             // Filter properties by portfolio if specified
             List<Property> filteredProperties = allProperties;
@@ -3190,7 +3190,7 @@ public class PropertyOwnerController {
             }
             
             // Verify property ownership
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             boolean ownsProperty = properties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
                 
@@ -3255,7 +3255,7 @@ public class PropertyOwnerController {
             
             System.out.println("✅ Loading maintenance for customer: " + customer.getCustomerId());
             
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             List<Ticket> allTickets = new ArrayList<>();
             
             // Filter properties if specific property requested
@@ -3331,7 +3331,7 @@ public class PropertyOwnerController {
             }
             
             // Verify ownership - check if ticket belongs to a property owned by this customer
-            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> ownedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             boolean ownsTicket = false;
             
             if (ticket.getProperty() != null) {
@@ -3380,7 +3380,7 @@ public class PropertyOwnerController {
             }
             
             // Verify property ownership
-            List<Property> ownedProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> ownedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             Property property = ownedProperties.stream()
                 .filter(p -> p.getId().equals(propertyId))
                 .findFirst()
@@ -3739,7 +3739,7 @@ public class PropertyOwnerController {
             }
             
             // Verify property ownership
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             boolean ownsProperty = properties.stream()
                 .anyMatch(p -> p.getId().equals(propertyId));
                 
@@ -3954,7 +3954,7 @@ public class PropertyOwnerController {
         }
 
         // Get customer's properties for the sidebar
-        List<Property> customerProperties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+        List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
         // Generate period example based on current preference
         String periodExample = generatePeriodExample(customer.getBillingPeriodStartDay());
@@ -4082,7 +4082,7 @@ public class PropertyOwnerController {
             report.append("   Name: ").append(customer.getName()).append("\n\n");
 
             // Check properties
-            List<Property> properties = propertyService.findPropertiesByCustomerAssignments(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             report.append("🏠 Properties Assigned to Customer: ").append(properties.size()).append("\n");
             if (properties.isEmpty()) {
                 report.append("   ⚠️ CRITICAL: No properties found!\n");

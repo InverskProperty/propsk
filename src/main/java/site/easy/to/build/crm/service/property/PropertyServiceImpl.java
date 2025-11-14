@@ -443,7 +443,7 @@ public class PropertyServiceImpl implements PropertyService {
             if (("DELEGATED_USER".equals(customerType) || "MANAGER".equals(customerType)) && managesOwnerIdObj != null) {
                 Long managesOwnerId = ((Number) managesOwnerIdObj).longValue();
                 System.out.println("✅ [PropertyService] Delegated user/manager - returning properties for owner ID: " + managesOwnerId);
-                return findPropertiesByCustomerAssignments(managesOwnerId);
+                return findPropertiesOwnedByCustomer(managesOwnerId);
             }
 
             // Otherwise, return properties owned by this customer

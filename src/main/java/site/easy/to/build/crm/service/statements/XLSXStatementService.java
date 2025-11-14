@@ -935,8 +935,8 @@ public class XLSXStatementService {
         data.setToDate(toDate);
         data.setPortfolioName("PROPERTY PORTFOLIO");
 
-        // Get properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        // Get properties for this owner (handles both property owners and delegated users)
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
         data.setProperties(properties);
 
         // Build rental data for each property
@@ -1633,7 +1633,8 @@ public class XLSXStatementService {
         data.setFromDate(fromDate);
         data.setToDate(toDate);
 
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        // Get properties (handles both property owners and delegated users)
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
 
         List<PropertySummary> summaries = new ArrayList<>();
         for (Property property : properties) {

@@ -110,7 +110,7 @@ public class BodenHouseStatementTemplateService {
         data.period = formatPeriod(fromDate, toDate);
 
         // Get all properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
 
         // TEMPORARY: If no properties found, generate sample data for testing
         if (properties.isEmpty()) {
@@ -155,7 +155,7 @@ public class BodenHouseStatementTemplateService {
         data.includedDataSources = includedDataSources;
 
         // Get all properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
 
         // Group properties by building/location (like your spreadsheet)
         Map<String, List<Property>> propertiesByBuilding = properties.stream()
@@ -1256,7 +1256,7 @@ public class BodenHouseStatementTemplateService {
      * Update all tenant balances for statement period
      */
     public void updateTenantBalancesForPeriod(Customer propertyOwner, LocalDate fromDate, LocalDate toDate) {
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
 
         for (Property property : properties) {
             // Update balances for each property
@@ -1508,7 +1508,7 @@ public class BodenHouseStatementTemplateService {
         values.add(headers);
 
         // Get all properties for this owner
-        List<Property> properties = propertyService.getPropertiesByOwner(propertyOwner.getCustomerId());
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
 
         // Collect all transactions for all properties
         List<TransactionLedgerEntry> allEntries = new ArrayList<>();
