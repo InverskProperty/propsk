@@ -258,10 +258,10 @@
                             </h6>
                             <small class="text-muted" th:if="${file.createdTime != null}" th:text="${file.createdTime}">Created Date</small>
                             <div class="file-actions mt-2" th:if="${!isServiceAccount}">
-                                <button class="btn btn-sm btn-outline-primary" th:onclick="'shareFile(\'' + ${file.id} + '\')'">
+                                <button class="btn btn-sm btn-outline-primary share-file-btn" th:data-file-id="${file.id}">
                                     <i class="fas fa-share"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-danger" th:onclick="'deleteFile(\'' + ${file.id} + '\')'">
+                                <button class="btn btn-sm btn-outline-danger delete-file-btn" th:data-file-id="${file.id}">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -279,7 +279,7 @@
                         <p class="text-muted" th:if="${isServiceAccount}">
                             <small>Upload files using the new Documents page or customer portal</small>
                         </p>
-                        <button th:unless="${isServiceAccount}" class="btn btn-primary btn-sm" th:onclick="'uploadToCategory(\'' + ${category} + '\')'">
+                        <button th:unless="${isServiceAccount}" class="btn btn-primary btn-sm upload-to-category-btn" th:data-category="${category}">
                             <i class="fas fa-upload"></i> Upload File
                         </button>
                     </div>
@@ -489,6 +489,27 @@ function syncPayPropFiles() {
             alert('Error syncing files');
         });
 }
+
+// Event delegation for file action buttons
+document.addEventListener('click', function(e) {
+    // Share file button
+    if (e.target.closest('.share-file-btn')) {
+        const fileId = e.target.closest('.share-file-btn').getAttribute('data-file-id');
+        shareFile(fileId);
+    }
+
+    // Delete file button
+    if (e.target.closest('.delete-file-btn')) {
+        const fileId = e.target.closest('.delete-file-btn').getAttribute('data-file-id');
+        deleteFile(fileId);
+    }
+
+    // Upload to category button
+    if (e.target.closest('.upload-to-category-btn')) {
+        const category = e.target.closest('.upload-to-category-btn').getAttribute('data-category');
+        uploadToCategory(category);
+    }
+});
 
 function shareFile(fileId) {
     // Implement file sharing
