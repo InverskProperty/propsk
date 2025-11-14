@@ -12,7 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -28,9 +31,15 @@ public class SharedDriveFileService {
     private String serviceAccountKey;
 
     private final PropertyService propertyService;
+    private final CustomerService customerService;
+    private final CustomerPropertyAssignmentService assignmentService;
 
-    public SharedDriveFileService(PropertyService propertyService) {
+    public SharedDriveFileService(PropertyService propertyService,
+                                  CustomerService customerService,
+                                  CustomerPropertyAssignmentService assignmentService) {
         this.propertyService = propertyService;
+        this.customerService = customerService;
+        this.assignmentService = assignmentService;
     }
 
     // Shared Drive ID for CRM property documents
@@ -490,61 +499,77 @@ public class SharedDriveFileService {
             throw new IllegalStateException("Service account not configured");
         }
 
+        // CRITICAL FIX: Query database for all customers instead of searching Drive
+        // This matches customer-side behavior where folders are created on-demand
+        List<Customer> allCustomers = customerService.findAll();
+
         Drive driveService = createDriveService();
-        String documentsFolderId = getDocumentsFolderId(driveService);
-
-        // Find all customer folders
-        String query = String.format(
-            "parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder' and name contains 'Customer-'",
-            documentsFolderId
-        );
-
-        FileList result = driveService.files().list()
-            .setQ(query)
-            .setSupportsAllDrives(true)
-            .setIncludeItemsFromAllDrives(true)
-            .setFields("files(id, name, createdTime, modifiedTime)")
-            .execute();
-
         List<Map<String, Object>> customerFolders = new ArrayList<>();
-        for (File folder : result.getFiles()) {
-            Map<String, Object> folderInfo = new HashMap<>();
-            folderInfo.put("id", folder.getId());
-            folderInfo.put("name", folder.getName());
-            folderInfo.put("type", "folder");
-            folderInfo.put("created", formatDate(folder.getCreatedTime()));
-            folderInfo.put("modified", formatDate(folder.getModifiedTime()));
 
-            // Extract customer email from folder name
-            String email = folder.getName().replace("Customer-", "");
-            folderInfo.put("customerEmail", email);
+        for (Customer customer : allCustomers) {
+            // Only include customers with email (property owners/tenants)
+            if (customer.getEmail() == null || customer.getEmail().trim().isEmpty()) {
+                continue;
+            }
+
+            // Get or create customer folder (like customer side does)
+            String customerFolderId = findCustomerMainFolder(driveService, customer);
+            if (customerFolderId == null) {
+                // Auto-create folder if it doesn't exist (matches customer-side behavior)
+                customerFolderId = getOrCreateCustomerMainFolder(driveService, customer);
+            }
+
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("id", customer.getCustomerId());  // Database customer ID
+            folderInfo.put("folderId", customerFolderId);    // Drive folder ID
+            folderInfo.put("name", "Customer-" + customer.getEmail());
+            folderInfo.put("customerEmail", customer.getEmail());
+            folderInfo.put("type", "folder");
 
             customerFolders.add(folderInfo);
         }
 
-        System.out.println("📁 [Employee] Found " + customerFolders.size() + " customer folders");
+        System.out.println("📁 [Employee] Found " + customerFolders.size() + " customers with folders");
         return customerFolders;
     }
 
     /**
      * List property folders for a specific customer (for employee view)
+     * CRITICAL FIX: Now creates folders on-demand like customer-side does
      */
     public List<Map<String, Object>> listCustomerPropertyFolders(Long customerId) throws IOException, GeneralSecurityException {
         if (!hasServiceAccount()) {
             throw new IllegalStateException("Service account not configured");
         }
 
-        // Get customer properties
-        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+        // Get customer context (CRITICAL: needed for folder creation)
+        Customer customer = customerService.findByCustomerId(customerId);
+        if (customer == null) {
+            System.out.println("❌ Customer not found: " + customerId);
+            return new ArrayList<>();
+        }
 
         Drive driveService = createDriveService();
+
+        // CRITICAL FIX: Ensure customer folder exists (like customer side does)
+        String customerFolderId = findCustomerMainFolder(driveService, customer);
+        if (customerFolderId == null) {
+            customerFolderId = getOrCreateCustomerMainFolder(driveService, customer);
+        }
+
+        // Get customer properties
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId);
         List<Map<String, Object>> propertyFolders = new ArrayList<>();
 
         for (Property property : properties) {
             String propertyFolderName = generatePropertyFolderName(property);
 
+            // CRITICAL FIX: Create property folder if missing (like customer side does)
+            String propertyFolderId = getOrCreatePropertyFolder(driveService, customerFolderId, propertyFolderName);
+
             Map<String, Object> folderInfo = new HashMap<>();
             folderInfo.put("id", property.getId());
+            folderInfo.put("folderId", propertyFolderId);  // Include Drive folder ID
             folderInfo.put("name", propertyFolderName);
             folderInfo.put("type", "folder");
             folderInfo.put("propertyId", property.getId());
@@ -559,6 +584,7 @@ public class SharedDriveFileService {
 
     /**
      * List files in a property subfolder (for employees)
+     * CRITICAL FIX: Now uses customer context and creates folders on-demand
      */
     public List<Map<String, Object>> listPropertySubfolderFilesForEmployee(Long propertyId, String subfolderName)
             throws IOException, GeneralSecurityException {
@@ -568,46 +594,42 @@ public class SharedDriveFileService {
 
         Drive driveService = createDriveService();
 
-        // Find the property folder using property service
+        // Get property
         Property property = propertyService.findById(propertyId);
         if (property == null) {
             System.out.println("❌ Property not found: " + propertyId);
             return new ArrayList<>();
         }
+
+        // CRITICAL FIX: Get customer context (need to know which customer folder to search in)
+        List<Customer> propertyOwners = assignmentService.getCustomersForProperty(propertyId, AssignmentType.OWNER);
+        if (propertyOwners.isEmpty()) {
+            System.out.println("❌ No property owner found for property: " + propertyId);
+            return new ArrayList<>();
+        }
+
+        Customer customer = propertyOwners.get(0); // Use first owner
         String propertyFolderName = generatePropertyFolderName(property);
 
-        // Find property folder in Drive
-        String documentsFolderId = getDocumentsFolderId(driveService);
-        String propertyFolderId = findFolderByNameRecursive(driveService, documentsFolderId, propertyFolderName);
-
-        if (propertyFolderId == null) {
-            System.out.println("❌ Property folder not found in Drive: " + propertyFolderName);
-            return new ArrayList<>();
+        // CRITICAL FIX: Use customer context to navigate folder hierarchy (like customer side)
+        String customerFolderId = findCustomerMainFolder(driveService, customer);
+        if (customerFolderId == null) {
+            customerFolderId = getOrCreateCustomerMainFolder(driveService, customer);
         }
 
-        // Find subfolder
-        String subfolderQuery = String.format(
-            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
-            subfolderName, propertyFolderId
-        );
+        // Get or create property folder
+        String propertyFolderId = getOrCreatePropertyFolder(driveService, customerFolderId, propertyFolderName);
 
-        FileList subfolderResult = driveService.files().list()
-            .setQ(subfolderQuery)
-            .setSupportsAllDrives(true)
-            .setIncludeItemsFromAllDrives(true)
-            .execute();
+        // Get or create subfolder
+        String subfolderId = getOrCreateSubfolderInProperty(driveService, propertyFolderId, subfolderName);
 
-        if (subfolderResult.getFiles().isEmpty()) {
-            System.out.println("📁 [Employee] Subfolder '" + subfolderName + "' doesn't exist yet in property " + propertyFolderName);
-            return new ArrayList<>();
-        }
-
-        String subfolderId = subfolderResult.getFiles().get(0).getId();
+        // List files in the subfolder
         return listFilesInFolder(driveService, subfolderId);
     }
 
     /**
      * Upload file to property subfolder (for employees)
+     * CRITICAL FIX: Now uses customer context and creates folders on-demand
      */
     public Map<String, Object> uploadToPropertySubfolder(Long propertyId, String subfolderName, MultipartFile file)
             throws IOException, GeneralSecurityException {
@@ -622,20 +644,27 @@ public class SharedDriveFileService {
         if (property == null) {
             throw new IllegalArgumentException("Property not found: " + propertyId);
         }
-        String propertyFolderName = generatePropertyFolderName(property);
 
-        // Find or create property folder structure
-        String documentsFolderId = getDocumentsFolderId(driveService);
-        String propertyFolderId = findFolderByNameRecursive(driveService, documentsFolderId, propertyFolderName);
-
-        if (propertyFolderId == null) {
-            System.out.println("📁 Property folder not found, creating: " + propertyFolderName);
-            // This property doesn't have a folder yet - would need customer folder first
-            throw new IllegalStateException("Property folder structure not initialized. Customer must access portal first.");
+        // CRITICAL FIX: Get customer context (matches listPropertySubfolderFilesForEmployee)
+        List<Customer> propertyOwners = assignmentService.getCustomersForProperty(propertyId, AssignmentType.OWNER);
+        if (propertyOwners.isEmpty()) {
+            throw new IllegalStateException("No property owner found for property: " + propertyId);
         }
 
+        Customer customer = propertyOwners.get(0); // Use first owner
+        String propertyFolderName = generatePropertyFolderName(property);
+
+        // CRITICAL FIX: Use customer context to navigate folder hierarchy (like customer side)
+        String customerFolderId = findCustomerMainFolder(driveService, customer);
+        if (customerFolderId == null) {
+            customerFolderId = getOrCreateCustomerMainFolder(driveService, customer);
+        }
+
+        // Get or create property folder
+        String propertyFolderId = getOrCreatePropertyFolder(driveService, customerFolderId, propertyFolderName);
+
         // Get or create subfolder
-        String subfolderId = getOrCreateSubfolder(driveService, propertyFolderId, subfolderName);
+        String subfolderId = getOrCreateSubfolderInProperty(driveService, propertyFolderId, subfolderName);
 
         // Upload the file
         File fileMetadata = new File();
