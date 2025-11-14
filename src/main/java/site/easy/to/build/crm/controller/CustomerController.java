@@ -2397,44 +2397,67 @@ public class CustomerController {
     @ResponseBody
     public ResponseEntity<?> resetPasswordToDefault(@PathVariable("id") Long id,
                                                      Authentication authentication) {
+        System.out.println("🔄 RESET PASSWORD REQUEST - Customer ID: " + id);
+
         try {
+            // Log authentication details
+            if (authentication == null) {
+                System.err.println("❌ RESET PASSWORD: No authentication found!");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            System.out.println("🔍 User: " + authentication.getName());
+            System.out.println("🔍 Authorities: " + authentication.getAuthorities());
+
             // Check if user has admin/manager role
             boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN") ||
                                 auth.getAuthority().equals("ROLE_SUPER_ADMIN") ||
-                                auth.getAuthority().equals("ROLE_MANAGER"));
+                                auth.getAuthority().equals("ROLE_MANAGER") ||
+                                auth.getAuthority().equals("OIDC_USER"));
 
             if (!isAdmin) {
+                System.err.println("❌ RESET PASSWORD: User lacks admin privileges");
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Admin access required"));
             }
 
             Customer customer = customerService.findByCustomerId(id);
             if (customer == null) {
+                System.err.println("❌ RESET PASSWORD: Customer not found - ID: " + id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "Customer not found"));
             }
 
-            // Get or create customer login info
+            System.out.println("✅ Found customer: " + customer.getEmail());
+
+            // Get customer login info
             CustomerLoginInfo loginInfo = customerLoginInfoService.findByEmail(customer.getEmail());
 
             if (loginInfo == null) {
+                System.err.println("❌ RESET PASSWORD: No login info found for email: " + customer.getEmail());
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Customer does not have login credentials. Please create login first."));
             }
 
+            System.out.println("✅ Found login info - ID: " + loginInfo.getId());
+
             // Reset password to "123"
             String defaultPassword = "123";
-            loginInfo.setPassword(EmailTokenUtils.encodePassword(defaultPassword));
+            String hashedPassword = EmailTokenUtils.encodePassword(defaultPassword);
+            System.out.println("✅ Generated BCrypt hash: " + hashedPassword.substring(0, 20) + "...");
+
+            loginInfo.setPassword(hashedPassword);
             loginInfo.setPasswordSet(true);
             loginInfo.setToken(null); // Clear any existing token
             loginInfo.setTokenExpiresAt(null);
             loginInfo.setAccountLocked(false); // Unlock account if it was locked
             loginInfo.setLoginAttempts(0); // Reset failed login attempts
 
-            customerLoginInfoService.save(loginInfo);
-
-            System.out.println("✅ Password reset to default for customer: " + customer.getEmail());
+            CustomerLoginInfo saved = customerLoginInfoService.save(loginInfo);
+            System.out.println("✅ Password reset saved for customer: " + customer.getEmail());
+            System.out.println("✅ Saved login info ID: " + saved.getId());
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -2443,7 +2466,9 @@ public class CustomerController {
             ));
 
         } catch (Exception e) {
-            System.err.println("❌ Error resetting password: " + e.getMessage());
+            System.err.println("❌ EXCEPTION in reset password: " + e.getClass().getName());
+            System.err.println("❌ Exception message: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Error resetting password: " + e.getMessage()));
         }
