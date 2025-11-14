@@ -383,12 +383,14 @@ public class SharedDriveFileService {
     private String generatePropertyFolderName(Property property) {
         String propertyName = property.getPropertyName();
         if (propertyName != null && !propertyName.trim().isEmpty()) {
-            return propertyName;
+            // CRITICAL: Sanitize the same way as CustomerDriveOrganizationService
+            // to ensure folder names match between customer and employee sides
+            return propertyName.replaceAll("[^a-zA-Z0-9\\s-]", "").trim();
         }
 
         String address = property.getAddressLine1();
         if (address != null && !address.trim().isEmpty()) {
-            return address;
+            return address.replaceAll("[^a-zA-Z0-9\\s-]", "").trim();
         }
 
         return "Property-" + property.getId();
