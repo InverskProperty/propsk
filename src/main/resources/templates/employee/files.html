@@ -39,6 +39,15 @@
             border-radius: 5px;
             margin-bottom: 15px;
         }
+        .breadcrumb-nav a {
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .breadcrumb-nav a:hover {
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
         .internal-folder-badge {
             background-color: #dc3545;
             color: white;
@@ -567,7 +576,42 @@ function updateBreadcrumb(path) {
     const content = document.getElementById('breadcrumbContent');
 
     nav.style.display = 'block';
-    content.innerHTML = path.map(p => `<span class="badge badge-secondary mr-1">${p}</span>`).join(' / ');
+
+    // Make breadcrumbs clickable for navigation
+    const crumbs = path.map((p, index) => {
+        if (index === path.length - 1) {
+            // Current location - not clickable
+            return `<span class="badge badge-primary mr-1">${p}</span>`;
+        } else {
+            // Previous locations - clickable
+            return `<a href="#" class="badge badge-secondary mr-1" onclick="navigateToBreadcrumb(${index}); return false;">${p}</a>`;
+        }
+    }).join(' <i class="fas fa-angle-right text-muted"></i> ');
+
+    content.innerHTML = crumbs;
+
+    // Store path for navigation
+    window.breadcrumbPath = path;
+}
+
+function navigateToBreadcrumb(index) {
+    const path = window.breadcrumbPath;
+    if (!path || index >= path.length) return;
+
+    const level = path[index];
+
+    // Navigate based on breadcrumb level
+    if (level === 'Property Documents') {
+        loadAllProperties();
+    } else if (level === 'Internal Documents') {
+        loadInternalFolders();
+    } else if (currentContext.type === 'property-subfolder' && index === 1) {
+        // Going back to property from subfolder
+        loadPropertySubfolders(currentContext.propertyId, currentContext.propertyName);
+    } else if (currentContext.type === 'internal' && index === 1) {
+        // Going back to internal folders list
+        loadInternalFolders();
+    }
 }
 
 function clearContext() {
