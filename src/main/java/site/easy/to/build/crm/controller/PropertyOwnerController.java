@@ -1421,8 +1421,8 @@ public class PropertyOwnerController {
             try {
                 switch (folderType.toLowerCase()) {
                     case "property-documents":
-                        // Show property-specific folders from Google Drive
-                        folders = sharedDriveFileService.listPropertyFolders(customer);
+                        // Show property-specific folders from Google Drive (NEW: property-centric)
+                        folders = sharedDriveFileService.listCustomerPropertyFolders(customer.getCustomerId());
                         break;
 
                     case "tenant-documents":
@@ -1456,12 +1456,13 @@ public class PropertyOwnerController {
     }
 
     /**
-     * Create customer folder structure if it doesn't exist
+     * DEPRECATED: Folder initialization no longer needed
+     * Folders are now created on-demand when browsing (property-centric structure)
      */
     @PostMapping("/property-owner/files/initialize")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> initializeFolderStructure(Authentication authentication) {
-        System.out.println("📁 Initializing folder structure for property owner");
+        System.out.println("📁 [DEPRECATED] Initialize endpoint called - folders now created on-demand");
 
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -1469,31 +1470,23 @@ public class PropertyOwnerController {
                 return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
             }
 
-            // Check if service account is available for shared drive
-            if (serviceAccountAvailable()) {
-                System.out.println("📁 Creating shared drive folder structure");
-                customerDriveOrganizationService.createCustomerFolderStructureInSharedDrive(customer);
-                return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Folder structure created in shared drive",
-                    "approach", "shared-drive"
-                ));
-            } else {
-                return ResponseEntity.ok(Map.of(
-                    "success", false,
-                    "message", "Service account not available. Please contact support for folder setup.",
-                    "approach", "none"
-                ));
-            }
+            // Folders are now created automatically when browsing properties
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Folder structure is created automatically when you browse properties",
+                "approach", "on-demand"
+            ));
 
         } catch (Exception e) {
-            System.err.println("❌ Error initializing folder structure: " + e.getMessage());
-            return ResponseEntity.status(500).body(Map.of("error", "Error initializing folders: " + e.getMessage()));
+            System.err.println("❌ Error in initialize endpoint: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("error", "Error: " + e.getMessage()));
         }
     }
 
     /**
      * Upload files to a specific folder
+     * DEPRECATED: Use property-specific upload endpoint instead
+     * @see #uploadPropertySubfolderFiles
      */
     @PostMapping("/property-owner/files/upload/{folderType}")
     @ResponseBody
@@ -1670,9 +1663,10 @@ public class PropertyOwnerController {
                 return ResponseEntity.status(503).body(Map.of("error", "Service account not configured"));
             }
 
-            // Use SharedDriveFileService to list files in the property subfolder
-            String folderPath = "property-" + propertyId + "/" + subfolderName;
-            List<Map<String, Object>> files = sharedDriveFileService.listFiles(customer, folderPath);
+            // Use SharedDriveFileService with new property-centric structure
+            List<Map<String, Object>> files = sharedDriveFileService.listPropertySubfolderFiles(
+                propertyId, subfolderName
+            );
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -1722,8 +1716,6 @@ public class PropertyOwnerController {
             List<Map<String, Object>> uploadedFiles = new ArrayList<>();
             List<String> errors = new ArrayList<>();
 
-            String folderPath = "property-" + propertyId + "/" + subfolderName;
-
             for (MultipartFile file : files) {
                 try {
                     if (file.isEmpty()) {
@@ -1731,7 +1723,10 @@ public class PropertyOwnerController {
                         continue;
                     }
 
-                    Map<String, Object> uploadResult = sharedDriveFileService.uploadFile(customer, folderPath, file);
+                    // Use new property-centric upload method
+                    Map<String, Object> uploadResult = sharedDriveFileService.uploadToPropertySubfolder(
+                        propertyId, subfolderName, file
+                    );
                     uploadedFiles.add(uploadResult);
                     System.out.println("✅ Uploaded to property " + propertyId + "/" + subfolderName + ": " + file.getOriginalFilename());
 
