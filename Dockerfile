@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y maven
 
 # Copy pom.xml and download dependencies
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+# Try to download dependencies with retries, but don't fail the build if Maven Central has issues
+RUN mvn dependency:go-offline -B || echo "Dependency download had issues, will retry during build"
 
 # Copy source code and build
 COPY src ./src
