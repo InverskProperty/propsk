@@ -569,13 +569,11 @@ public class SharedDriveFileService {
         Drive driveService = createDriveService();
 
         // Find the property folder using property service
-        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyId);
-        if (properties.isEmpty()) {
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
             System.out.println("❌ Property not found: " + propertyId);
             return new ArrayList<>();
         }
-
-        Property property = properties.get(0);
         String propertyFolderName = generatePropertyFolderName(property);
 
         // Find property folder in Drive
@@ -620,12 +618,10 @@ public class SharedDriveFileService {
         Drive driveService = createDriveService();
 
         // Get property
-        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyId);
-        if (properties.isEmpty()) {
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
             throw new IllegalArgumentException("Property not found: " + propertyId);
         }
-
-        Property property = properties.get(0);
         String propertyFolderName = generatePropertyFolderName(property);
 
         // Find or create property folder structure
