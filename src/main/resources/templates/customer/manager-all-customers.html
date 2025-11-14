@@ -280,6 +280,14 @@
                                                         onclick="showEmailModal(this.dataset.customerId, this.dataset.customerName, this.dataset.customerEmail)">
                                                     <i class="fa fa-envelope"></i>
                                                 </button>
+                                                <button type="button" class="btn btn-sm btn-warning m-r-5" title="Reset Password"
+                                                        th:if="${customer.customerLoginInfo != null}"
+                                                        th:data-customer-id="${customer.customerId}"
+                                                        th:data-customer-name="${customer.name}"
+                                                        th:data-customer-email="${customer.email}"
+                                                        onclick="resetCustomerPassword(this)">
+                                                    <i class="fa fa-key"></i> Reset
+                                                </button>
                                                 <button type="button" class="btn btn-sm btn-success" title="Create Login"
                                                         th:if="${customer.customerLoginInfo == null}"
                                                         th:data-customer-id="${customer.customerId}"
@@ -428,8 +436,82 @@ function showEmailModal(customerId, customerName, customerEmail) {
 function createLogin(customerId, customerName) {
     document.getElementById('loginCustomerName').textContent = customerName;
     document.getElementById('loginForm').action = '/employee/customer/' + customerId + '/create-login';
-    
+
     $('#loginModal').modal('show');
+}
+
+function resetCustomerPassword(button) {
+    const customerId = $(button).data('customer-id');
+    const customerName = $(button).data('customer-name');
+    const customerEmail = $(button).data('customer-email');
+
+    const confirmMsg = `Are you sure you want to reset the password for ${customerName} (${customerEmail})?\n\nThe password will be reset to: 123\n\nYou will need to inform the customer of their new password.`;
+
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    // Disable the button during request
+    $(button).prop('disabled', true);
+    const originalHtml = $(button).html();
+    $(button).html('<i class="fa fa-spinner fa-spin"></i> Resetting...');
+
+    // Get CSRF token
+    const token = $("meta[name='_csrf']").attr("content");
+    const header = $("meta[name='_csrf_header']").attr("content");
+
+    $.ajax({
+        url: home + 'employee/customer/' + customerId + '/reset-password',
+        type: 'POST',
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader(header, token);
+        },
+        success: function(response) {
+            $.toast({
+                heading: 'Password Reset Successful',
+                text: `Password for ${customerEmail} has been reset to: 123\n\nPlease inform the customer of their new password.`,
+                position: 'top-right',
+                loaderBg: '#28a745',
+                icon: 'success',
+                hideAfter: 5000,
+                stack: 6
+            });
+
+            // Show alert with password
+            alert(`✅ Password Reset Successful\n\nEmail: ${customerEmail}\nNew Password: 123\n\nPlease inform the customer to log in with this password and change it immediately.`);
+
+            // Re-enable button
+            $(button).prop('disabled', false);
+            $(button).html(originalHtml);
+        },
+        error: function(xhr, status, error) {
+            let errorMsg = 'Failed to reset password. Please try again.';
+
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            } else if (xhr.status === 403) {
+                errorMsg = 'You do not have permission to reset passwords.';
+            } else if (xhr.status === 404) {
+                errorMsg = 'Customer not found.';
+            }
+
+            $.toast({
+                heading: 'Error',
+                text: errorMsg,
+                position: 'top-right',
+                loaderBg: '#dc3545',
+                icon: 'error',
+                hideAfter: 5000,
+                stack: 6
+            });
+
+            alert(`❌ Error: ${errorMsg}`);
+
+            // Re-enable button
+            $(button).prop('disabled', false);
+            $(button).html(originalHtml);
+        }
+    });
 }
 </script>
 </body>
