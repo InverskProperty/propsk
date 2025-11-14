@@ -2419,11 +2419,8 @@ public class CustomerController {
             CustomerLoginInfo loginInfo = customerLoginInfoService.findByEmail(customer.getEmail());
 
             if (loginInfo == null) {
-                // Create new login info
-                loginInfo = new CustomerLoginInfo();
-                loginInfo.setUsername(customer.getEmail());
-                loginInfo.setCustomer(customer);
-                loginInfo.setCreatedAt(LocalDateTime.now());
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Customer does not have login credentials. Please create login first."));
             }
 
             // Reset password to "123"
@@ -2432,6 +2429,8 @@ public class CustomerController {
             loginInfo.setPasswordSet(true);
             loginInfo.setToken(null); // Clear any existing token
             loginInfo.setTokenExpiresAt(null);
+            loginInfo.setAccountLocked(false); // Unlock account if it was locked
+            loginInfo.setLoginAttempts(0); // Reset failed login attempts
 
             customerLoginInfoService.save(loginInfo);
 
