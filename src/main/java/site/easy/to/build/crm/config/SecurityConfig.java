@@ -75,16 +75,14 @@ public class SecurityConfig {
         );
         
         // CRITICAL FIX: Only match specific customer routes - NO wildcards that could catch /portfolio/**
-        // IMPORTANT: Use AntPathRequestMatcher to match both URL pattern AND HTTP method
         http.securityMatcher(
-                new AntPathRequestMatcher("/customer-login", "GET"),
-                new AntPathRequestMatcher("/customer-login", "POST"),
-                new AntPathRequestMatcher("/customer-login/**"),
-                new AntPathRequestMatcher("/customer-logout"),
-                new AntPathRequestMatcher("/set-password/**"),
-                new AntPathRequestMatcher("/property-owner/**"),
-                new AntPathRequestMatcher("/tenant/**"),
-                new AntPathRequestMatcher("/contractor/**")
+                "/customer-login",
+                "/customer-login/**",
+                "/customer-logout",
+                "/set-password/**",
+                "/property-owner/**",
+                "/tenant/**",
+                "/contractor/**"
                 // REMOVED: Any patterns that might interfere with /portfolio/**
             )
             .authorizeHttpRequests((authorize) -> authorize
