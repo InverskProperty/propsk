@@ -57,69 +57,37 @@ public class EmployeeFilesController {
     }
 
     /**
-     * Browse all customer folders
+     * Browse all properties (NEW PROPERTY-CENTRIC APPROACH)
      */
-    @GetMapping("/browse/customers")
+    @GetMapping("/browse/properties")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> browseCustomerFolders(Authentication authentication) {
-        System.out.println("📁 [Employee Files] Browsing customer folders");
+    public ResponseEntity<Map<String, Object>> browseAllProperties(Authentication authentication) {
+        System.out.println("📁 [Employee Files] Browsing all property folders");
 
         try {
             ensureEmployeeAccess(authentication);
 
-            List<Map<String, Object>> customerFolders = sharedDriveFileService.listAllCustomerFolders();
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("folders", customerFolders);
-            response.put("folderCount", customerFolders.size());
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            System.err.println("❌ Error browsing customer folders: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.status(500).body(Map.of(
-                "success", false,
-                "error", "Error loading customer folders: " + e.getMessage()
-            ));
-        }
-    }
-
-    /**
-     * Browse specific customer's properties
-     */
-    @GetMapping("/browse/customer/{customerId}")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> browseCustomerProperties(@PathVariable Long customerId,
-                                                                        Authentication authentication) {
-        System.out.println("📁 [Employee Files] Browsing properties for customer: " + customerId);
-
-        try {
-            ensureEmployeeAccess(authentication);
-
-            List<Map<String, Object>> propertyFolders = sharedDriveFileService.listCustomerPropertyFolders(customerId);
+            List<Map<String, Object>> propertyFolders = sharedDriveFileService.listAllPropertyFolders();
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("properties", propertyFolders);
             response.put("propertyCount", propertyFolders.size());
-            response.put("customerId", customerId);
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            System.err.println("❌ Error browsing customer properties: " + e.getMessage());
+            System.err.println("❌ Error browsing properties: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of(
                 "success", false,
-                "error", "Error loading customer properties: " + e.getMessage()
+                "error", "Error loading properties: " + e.getMessage()
             ));
         }
     }
 
     /**
-     * Browse property subfolders (EICR, EPC, etc.)
+     * Browse property subfolders (EICR, EPC, Insurance, etc.)
      */
     @GetMapping("/browse/property/{propertyId}/subfolders")
     @ResponseBody
@@ -131,7 +99,7 @@ public class EmployeeFilesController {
             ensureEmployeeAccess(authentication);
 
             // Return standard property subfolders
-            List<String> subfolders = Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Tenancy", "Maintenance");
+            List<String> subfolders = Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Maintenance");
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -150,7 +118,7 @@ public class EmployeeFilesController {
     }
 
     /**
-     * List files in property subfolder
+     * List files in property subfolder (NEW: Uses property-centric structure)
      */
     @GetMapping("/browse/property/{propertyId}/subfolder/{subfolderName}")
     @ResponseBody
@@ -162,7 +130,7 @@ public class EmployeeFilesController {
         try {
             ensureEmployeeAccess(authentication);
 
-            List<Map<String, Object>> files = sharedDriveFileService.listPropertySubfolderFilesForEmployee(
+            List<Map<String, Object>> files = sharedDriveFileService.listPropertySubfolderFiles(
                 propertyId, subfolderName
             );
 

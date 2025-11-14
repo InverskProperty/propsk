@@ -914,4 +914,169 @@ public class SharedDriveFileService {
 
         return null;
     }
+
+    // ===================================================================
+    // NEW PROPERTY-CENTRIC METHODS (No customer folders)
+    // ===================================================================
+
+    /**
+     * Get or create property folder directly under Property-Documents
+     * NO customer folder layer!
+     */
+    private String getOrCreatePropertyFolderDirect(Drive driveService, String propertyFolderName) throws IOException {
+        String documentsFolderId = getDocumentsFolderId(driveService);
+
+        // Search for existing property folder
+        String query = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            propertyFolderName, documentsFolderId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .execute();
+
+        if (!result.getFiles().isEmpty()) {
+            return result.getFiles().get(0).getId();
+        }
+
+        // Create property folder if it doesn't exist
+        return createFolderInParent(driveService, propertyFolderName, documentsFolderId);
+    }
+
+    /**
+     * List all properties with folders (for both employees and property owners)
+     */
+    public List<Map<String, Object>> listAllPropertyFolders() throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        List<Property> allProperties = propertyService.findAll();
+        Drive driveService = createDriveService();
+        List<Map<String, Object>> propertyFolders = new ArrayList<>();
+
+        for (Property property : allProperties) {
+            String propertyFolderName = generatePropertyFolderName(property);
+            String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("id", property.getId());
+            folderInfo.put("folderId", propertyFolderId);
+            folderInfo.put("name", propertyFolderName);
+            folderInfo.put("propertyName", property.getPropertyName());
+            folderInfo.put("type", "folder");
+
+            propertyFolders.add(folderInfo);
+        }
+
+        System.out.println("📁 Listed " + propertyFolders.size() + " property folders");
+        return propertyFolders;
+    }
+
+    /**
+     * List properties accessible to a customer (for property owners)
+     */
+    public List<Map<String, Object>> listCustomerPropertyFolders(Long customerId) throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+        Drive driveService = createDriveService();
+        List<Map<String, Object>> propertyFolders = new ArrayList<>();
+
+        for (Property property : customerProperties) {
+            String propertyFolderName = generatePropertyFolderName(property);
+            String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("id", property.getId());
+            folderInfo.put("folderId", propertyFolderId);
+            folderInfo.put("name", propertyFolderName);
+            folderInfo.put("propertyName", property.getPropertyName());
+            folderInfo.put("type", "folder");
+            folderInfo.put("subfolders", Arrays.asList("EICR", "EPC", "Insurance", "Statements", "Maintenance"));
+
+            propertyFolders.add(folderInfo);
+        }
+
+        System.out.println("📁 Customer " + customerId + " has access to " + propertyFolders.size() + " properties");
+        return propertyFolders;
+    }
+
+    /**
+     * List files in a property subfolder (property documents like EICR, EPC)
+     */
+    public List<Map<String, Object>> listPropertySubfolderFiles(Long propertyId, String subfolderName)
+            throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
+            System.out.println("❌ Property not found: " + propertyId);
+            return new ArrayList<>();
+        }
+
+        Drive driveService = createDriveService();
+        String propertyFolderName = generatePropertyFolderName(property);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+
+        // Get or create subfolder (EICR, EPC, etc.)
+        String subfolderId = getOrCreateSubfolderInProperty(driveService, propertyFolderId, subfolderName);
+
+        return listFilesInFolder(driveService, subfolderId);
+    }
+
+    /**
+     * Upload file to property subfolder
+     */
+    public Map<String, Object> uploadToPropertySubfolder(Long propertyId, String subfolderName, MultipartFile file)
+            throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
+            throw new IllegalArgumentException("Property not found: " + propertyId);
+        }
+
+        Drive driveService = createDriveService();
+        String propertyFolderName = generatePropertyFolderName(property);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+
+        // Get or create subfolder
+        String subfolderId = getOrCreateSubfolderInProperty(driveService, propertyFolderId, subfolderName);
+
+        // Upload the file
+        File fileMetadata = new File();
+        fileMetadata.setName(file.getOriginalFilename());
+        fileMetadata.setParents(Collections.singletonList(subfolderId));
+
+        com.google.api.client.http.InputStreamContent mediaContent =
+            new com.google.api.client.http.InputStreamContent(
+                file.getContentType(),
+                file.getInputStream()
+            );
+
+        File uploadedFile = driveService.files()
+            .create(fileMetadata, mediaContent)
+            .setSupportsAllDrives(true)
+            .execute();
+
+        System.out.println("✅ File uploaded: " + uploadedFile.getName() + " to " + propertyFolderName + "/" + subfolderName);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", uploadedFile.getId());
+        result.put("name", uploadedFile.getName());
+        result.put("size", formatFileSize(file.getSize()));
+        result.put("uploadedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+        return result;
+    }
 }

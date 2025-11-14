@@ -118,10 +118,10 @@
                         </div>
                         <div class="card-body p-0">
                             <div class="list-group list-group-flush">
-                                <!-- Customer Documents -->
-                                <a class="list-group-item list-group-item-action" onclick="loadCustomerFolders()">
-                                    <i class="fas fa-users"></i> Customer Documents
-                                    <span class="customer-folder-badge">SHARED</span>
+                                <!-- Property Documents -->
+                                <a class="list-group-item list-group-item-action" onclick="loadAllProperties()">
+                                    <i class="fas fa-building"></i> Property Documents
+                                    <span class="customer-folder-badge">ALL PROPERTIES</span>
                                 </a>
 
                                 <!-- Internal Documents -->
@@ -184,10 +184,9 @@
 <script>
 // Global state
 let currentContext = {
-    type: null,        // 'customer', 'property', 'internal'
-    customerId: null,
-    customerEmail: null,
+    type: null,        // 'property-list', 'property', 'property-subfolder', 'internal-list', 'internal'
     propertyId: null,
+    propertyName: null,
     subfolder: null,
     internalFolder: null
 };
@@ -196,38 +195,16 @@ let currentContext = {
 // Navigation Functions
 // ===================================================================
 
-function loadCustomerFolders() {
-    console.log('📁 Loading customer folders...');
+function loadAllProperties() {
+    console.log('📁 Loading all properties...');
     showLoading();
 
-    fetch('/employee/files/browse/customers')
+    fetch('/employee/files/browse/properties')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                currentContext = {type: 'customer-list', ...clearContext()};
-                updateBreadcrumb(['Customer Documents']);
-                displayCustomerFolders(data.folders);
-                document.getElementById('uploadBtn').disabled = true;
-            } else {
-                showError(data.error || 'Failed to load customer folders');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showError('Error loading customer folders: ' + error.message);
-        });
-}
-
-function loadCustomerProperties(customerId, customerEmail) {
-    console.log('📁 Loading properties for customer:', customerId);
-    showLoading();
-
-    fetch(`/employee/files/browse/customer/${customerId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                currentContext = {type: 'customer', customerId, customerEmail, ...clearContext()};
-                updateBreadcrumb(['Customer Documents', customerEmail]);
+                currentContext = {type: 'property-list', ...clearContext()};
+                updateBreadcrumb(['Property Documents']);
                 displayPropertyFolders(data.properties);
                 document.getElementById('uploadBtn').disabled = true;
             } else {
@@ -244,26 +221,13 @@ function loadPropertySubfolders(propertyId, propertyName) {
     console.log('📁 Loading subfolders for property:', propertyId);
     showLoading();
 
-    fetch(`/employee/files/browse/property/${propertyId}/subfolders`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                currentContext = {...currentContext, type: 'property', propertyId};
-                updateBreadcrumb([
-                    'Customer Documents',
-                    currentContext.customerEmail || 'Customer',
-                    propertyName
-                ]);
-                displaySubfolders(data.subfolders, propertyId);
-                document.getElementById('uploadBtn').disabled = true;
-            } else {
-                showError(data.error || 'Failed to load subfolders');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showError('Error loading subfolders: ' + error.message);
-        });
+    // Hardcoded subfolders (EICR, EPC, Insurance, Statements, Maintenance)
+    const subfolders = ['EICR', 'EPC', 'Insurance', 'Statements', 'Maintenance'];
+
+    currentContext = {type: 'property', propertyId, propertyName, ...clearContext()};
+    updateBreadcrumb(['Property Documents', propertyName]);
+    displaySubfolders(subfolders, propertyId, propertyName);
+    document.getElementById('uploadBtn').disabled = true;
 }
 
 function loadPropertySubfolderFiles(propertyId, subfolder) {
@@ -276,9 +240,8 @@ function loadPropertySubfolderFiles(propertyId, subfolder) {
             if (data.success) {
                 currentContext = {...currentContext, type: 'property-subfolder', propertyId, subfolder};
                 updateBreadcrumb([
-                    'Customer Documents',
-                    currentContext.customerEmail || 'Customer',
-                    'Property',
+                    'Property Documents',
+                    currentContext.propertyName || 'Property',
                     subfolder
                 ]);
                 displayFiles(data.files);
@@ -341,34 +304,6 @@ function loadInternalFiles(subfolderName) {
 // Display Functions
 // ===================================================================
 
-function displayCustomerFolders(folders) {
-    const container = document.getElementById('fileListContainer');
-    document.getElementById('folderTitle').textContent = `Customer Folders (${folders.length})`;
-
-    if (folders.length === 0) {
-        container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No customer folders found</p>
-            </div>
-        `;
-        return;
-    }
-
-    let html = '';
-    folders.forEach(folder => {
-        html += `
-            <div class="folder-card p-3" onclick="loadCustomerProperties(${folder.id}, '${folder.customerEmail}')">
-                <i class="fas fa-user fa-2x text-primary mb-2"></i>
-                <h6 class="mb-1">${folder.customerEmail}</h6>
-                <small class="text-muted">Customer ID: ${folder.id}</small>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
 function displayPropertyFolders(properties) {
     const container = document.getElementById('fileListContainer');
     document.getElementById('folderTitle').textContent = `Properties (${properties.length})`;
@@ -377,7 +312,7 @@ function displayPropertyFolders(properties) {
         container.innerHTML = `
             <div class="text-center py-5">
                 <i class="fas fa-home fa-3x text-muted mb-3"></i>
-                <p class="text-muted">No properties found for this customer</p>
+                <p class="text-muted">No properties found</p>
             </div>
         `;
         return;
@@ -385,11 +320,12 @@ function displayPropertyFolders(properties) {
 
     let html = '';
     properties.forEach(property => {
+        const propertyName = property.propertyName || property.name;
         html += `
-            <div class="folder-card p-3" onclick="loadPropertySubfolders(${property.propertyId}, '${property.name.replace(/'/g, "\\'")}')">
+            <div class="folder-card p-3" onclick="loadPropertySubfolders(${property.id}, '${propertyName.replace(/'/g, "\\'")}')">
                 <i class="fas fa-home fa-2x text-success mb-2"></i>
-                <h6 class="mb-1">${property.name}</h6>
-                <small class="text-muted">${property.subfolders.length} subfolders</small>
+                <h6 class="mb-1">${propertyName}</h6>
+                <small class="text-muted">Property ID: ${property.id}</small>
             </div>
         `;
     });
@@ -397,9 +333,9 @@ function displayPropertyFolders(properties) {
     container.innerHTML = html;
 }
 
-function displaySubfolders(subfolders, propertyId) {
+function displaySubfolders(subfolders, propertyId, propertyName) {
     const container = document.getElementById('fileListContainer');
-    document.getElementById('folderTitle').textContent = `Document Categories (${subfolders.length})`;
+    document.getElementById('folderTitle').textContent = `${propertyName} - Document Categories`;
 
     let html = '';
     subfolders.forEach(subfolder => {
@@ -617,8 +553,10 @@ function refreshCurrentView() {
         loadPropertySubfolderFiles(currentContext.propertyId, currentContext.subfolder);
     } else if (currentContext.type === 'internal') {
         loadInternalFiles(currentContext.internalFolder);
-    } else if (currentContext.type === 'customer-list') {
-        loadCustomerFolders();
+    } else if (currentContext.type === 'property-list') {
+        loadAllProperties();
+    } else if (currentContext.type === 'property') {
+        loadPropertySubfolders(currentContext.propertyId, currentContext.propertyName);
     } else if (currentContext.type === 'internal-list') {
         loadInternalFolders();
     }
@@ -634,9 +572,8 @@ function updateBreadcrumb(path) {
 
 function clearContext() {
     return {
-        customerId: null,
-        customerEmail: null,
         propertyId: null,
+        propertyName: null,
         subfolder: null,
         internalFolder: null
     };
