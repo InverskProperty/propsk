@@ -358,10 +358,10 @@ function displayCustomerFolders(folders) {
     let html = '';
     folders.forEach(folder => {
         html += `
-            <div class="folder-card p-3" onclick="loadCustomerProperties('${folder.id.replace('Customer-', '')}', '${folder.customerEmail}')">
+            <div class="folder-card p-3" onclick="loadCustomerProperties(${folder.id}, '${folder.customerEmail}')">
                 <i class="fas fa-user fa-2x text-primary mb-2"></i>
                 <h6 class="mb-1">${folder.customerEmail}</h6>
-                <small class="text-muted">Modified: ${folder.modified || 'Unknown'}</small>
+                <small class="text-muted">Customer ID: ${folder.id}</small>
             </div>
         `;
     });
