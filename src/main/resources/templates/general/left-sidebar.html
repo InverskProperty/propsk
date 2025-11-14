@@ -510,11 +510,27 @@
 <!-- NEW: JavaScript for maintenance notifications and PayProp actions -->
 <script>
 // Load maintenance statistics and update notification badges
-$(document).ready(function() {
-    loadMaintenanceNotifications();
-});
+// Wait for jQuery to be loaded
+if (typeof jQuery !== 'undefined') {
+    $(document).ready(function() {
+        loadMaintenanceNotifications();
+    });
+} else {
+    // jQuery not loaded yet, defer execution
+    window.addEventListener('DOMContentLoaded', function() {
+        if (typeof jQuery !== 'undefined') {
+            loadMaintenanceNotifications();
+        }
+    });
+}
 
 function loadMaintenanceNotifications() {
+    // Check if jQuery is available
+    if (typeof jQuery === 'undefined') {
+        console.warn('jQuery not loaded, skipping maintenance notifications');
+        return;
+    }
+
     // Load emergency maintenance count for notification badge
     $.ajax({
         url: '/employee/api/maintenance-stats',
@@ -532,6 +548,10 @@ function loadMaintenanceNotifications() {
 
 // PayProp integration functions
 function syncAllPortfolios() {
+    if (typeof jQuery === 'undefined') {
+        alert('Page not fully loaded. Please wait and try again.');
+        return;
+    }
     if (confirm('Are you sure you want to sync all portfolios with PayProp? This may take a few minutes.')) {
         $.ajax({
             url: '/portfolio/sync-all',
@@ -551,6 +571,10 @@ function syncAllPortfolios() {
 }
 
 function pullPayPropTags() {
+    if (typeof jQuery === 'undefined') {
+        alert('Page not fully loaded. Please wait and try again.');
+        return;
+    }
     if (confirm('Are you sure you want to pull all tags from PayProp? This will import any new portfolios.')) {
         $.ajax({
             url: '/portfolio/actions/pull-payprop-tags',
