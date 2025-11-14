@@ -71,9 +71,9 @@
                     <div class="card">
                         <div class="card-body">
                             <h4 class="card-title">Update Customer</h4>
-                            <form th:object="${customer}" th:action="@{/employee/customer/update-customer}" method="post">
+                            <form th:object="${customer}" th:action="@{/employee/customer/{id}/edit(id=${customer.customerId})}" method="post">
                                 <input type="hidden" name="customerId" th:field="*{customerId}">
-                                <input type="hidden" name="profileId" th:value="${customerLoginInfo.id}">
+                                <input type="hidden" name="profileId" th:value="${customerLoginInfo != null ? customerLoginInfo.id : ''}">
                                 <label class="m-t-20" for="name">name:</label>
                                 <div class="input-group">
                                     <input type="text" id="name" th:field="*{name}" class="form-control">
