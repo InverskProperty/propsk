@@ -94,6 +94,7 @@
                                             <th>Country</th>
                                             <th>Show Full Details</th>
                                             <th th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">Edit Role</th>
+                                            <th th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">Reset Password</th>
                                             <th th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">Delete</th>
                                         </tr>
                                     </thead>
@@ -124,6 +125,15 @@
                                                                 data-customer-type=${customer.customerType != null ? customer.customerType.name() : 'REGULAR_CUSTOMER'},
                                                                 data-manages-owner-id=${customer.managesOwnerId}">
                                                     <i class="fas fa-user-edit"></i> Edit Role
+                                                </button>
+                                            </td>
+                                            <td th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
+                                                <button type="button" class="btn btn-sm btn-warning"
+                                                        onclick="resetCustomerPassword(this)"
+                                                        th:attr="data-customer-id=${customer.customerId},
+                                                                data-customer-name=${customer.name},
+                                                                data-customer-email=${customer.email}">
+                                                    <i class="fas fa-key"></i> Reset
                                                 </button>
                                             </td>
                                             <td th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}">
@@ -380,6 +390,68 @@
             }
         });
     });
+
+    // Reset customer password to default (123)
+    function resetCustomerPassword(button) {
+        const customerId = $(button).data('customer-id');
+        const customerName = $(button).data('customer-name');
+        const customerEmail = $(button).data('customer-email');
+
+        // Confirm action
+        if (!confirm(`Are you sure you want to reset the password for ${customerName} (${customerEmail})?\n\nThe password will be reset to: 123\n\nThe customer should change this password after logging in.`)) {
+            return;
+        }
+
+        console.log('🔄 Resetting password for customer:', customerId);
+
+        // Get CSRF token
+        const token = $('meta[name="_csrf"]').attr('content');
+        const header = $('meta[name="_csrf_header"]').attr('content');
+
+        // Submit via AJAX
+        $.ajax({
+            url: home + 'employee/customer/' + customerId + '/reset-password',
+            type: 'POST',
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(header, token);
+            },
+            success: function(response) {
+                console.log('✅ Password reset successfully:', response);
+
+                // Show success message with the password
+                $.toast({
+                    heading: 'Password Reset Successful',
+                    text: `Password for ${customerEmail} has been reset to: 123\n\nPlease share this with the customer securely.`,
+                    position: 'top-right',
+                    loaderBg: '#28a745',
+                    icon: 'success',
+                    hideAfter: 8000
+                });
+
+                // Also show an alert with the password so they can copy it
+                alert(`✅ Password Reset Successful\n\nEmail: ${customerEmail}\nNew Password: 123\n\nPlease share this password with the customer securely.\nThey should change it after their first login.`);
+            },
+            error: function(xhr, status, error) {
+                console.error('❌ Error resetting password:', error);
+
+                let errorMessage = 'Failed to reset password';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMessage = xhr.responseJSON.error;
+                } else if (xhr.responseText) {
+                    errorMessage = xhr.responseText;
+                }
+
+                $.toast({
+                    heading: 'Error',
+                    text: errorMessage,
+                    position: 'top-right',
+                    loaderBg: '#ff6849',
+                    icon: 'error',
+                    hideAfter: 5000
+                });
+            }
+        });
+    }
 </script>
 </body>
 </html>
