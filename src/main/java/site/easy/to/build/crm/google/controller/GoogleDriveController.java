@@ -244,7 +244,7 @@ public class GoogleDriveController {
 
         for (String subfolder : subfolders) {
             try {
-                List<Map<String, Object>> subfolderFiles = sharedDriveFileService.listPropertySubfolderFilesForEmployee(
+                List<Map<String, Object>> subfolderFiles = sharedDriveFileService.listPropertySubfolderFiles(
                     property.getId(), subfolder
                 );
 
