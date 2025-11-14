@@ -1680,7 +1680,7 @@ public class CustomerController {
                             // Create new login info
                             CustomerLoginInfo loginInfo = new CustomerLoginInfo();
                             loginInfo.setUsername(email);
-                            loginInfo.setPassword(temporaryPassword); // Service will hash it
+                            loginInfo.setPassword(EmailTokenUtils.encodePassword(temporaryPassword)); // BCrypt hash
                             loginInfo.setPasswordSet(true);
                             loginInfo.setAccountLocked(false);
                             loginInfo.setLoginAttempts(0);
