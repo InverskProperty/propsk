@@ -208,6 +208,308 @@
                 </div>
             </div>
 
+            <!-- NEW: Comprehensive Financial Metrics (Last 12 Months) -->
+            <div class="row" th:if="${analytics}">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-gradient-info">
+                            <h4 class="card-title text-white mb-0">
+                                <i class="fas fa-chart-bar"></i> Comprehensive Financial Analysis (Last 12 Months)
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <!-- Rent Due -->
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="card border-left-primary shadow-sm h-100">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                        Rent Due
+                                                    </div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        £<span th:text="${#numbers.formatDecimal(analytics.rentDue ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>
+                                                    </div>
+                                                    <small class="text-muted">Expected from leases</small>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-file-invoice-dollar fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Rent Received -->
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="card border-left-success shadow-sm h-100">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                        Rent Received
+                                                    </div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        £<span th:text="${#numbers.formatDecimal(analytics.rentReceived ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>
+                                                    </div>
+                                                    <small class="text-muted">Actual payments</small>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-money-bill-wave fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Total Expenses -->
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="card border-left-warning shadow-sm h-100">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                        Expenses
+                                                    </div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        £<span th:text="${#numbers.formatDecimal(analytics.totalExpenses ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>
+                                                    </div>
+                                                    <small class="text-muted">Property costs</small>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-tools fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Commission -->
+                                <div class="col-md-3 col-sm-6">
+                                    <div class="card border-left-info shadow-sm h-100">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                                        Commission
+                                                    </div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                        £<span th:text="${#numbers.formatDecimal(analytics.totalCommission ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>
+                                                    </div>
+                                                    <small class="text-muted">Management fees</small>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Net Income Row -->
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <div class="card bg-gradient-success text-white shadow h-100">
+                                        <div class="card-body">
+                                            <div class="row align-items-center">
+                                                <div class="col">
+                                                    <h4 class="text-white mb-1">
+                                                        <i class="fas fa-piggy-bank"></i> Net Income (After All Costs)
+                                                    </h4>
+                                                    <h2 class="mb-0 font-weight-bold">
+                                                        £<span th:text="${#numbers.formatDecimal(analytics.netIncome ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>
+                                                    </h2>
+                                                    <small class="text-white-50">= Rent Received - Expenses - Commission</small>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-wallet fa-3x" style="opacity: 0.3;"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NEW: Arrears & Valuation Metrics -->
+            <div class="row" th:if="${analytics}">
+                <!-- Arrears Tracking -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header" th:classappend="${analytics.totalArrears > 0} ? 'bg-danger text-white' : 'bg-success text-white'">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-exclamation-triangle"></i> Arrears Tracking
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center">
+                                <h1 class="display-4" th:classappend="${analytics.totalArrears > 0} ? 'text-danger' : 'text-success'">
+                                    £<span th:text="${#numbers.formatDecimal(analytics.totalArrears ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>
+                                </h1>
+                                <p class="text-muted mb-3">Total Outstanding Arrears (Cumulative)</p>
+
+                                <div th:if="${analytics.totalArrears > 0}" class="alert alert-danger">
+                                    <i class="fas fa-info-circle"></i> Action required: Outstanding rent arrears detected
+                                </div>
+                                <div th:unless="${analytics.totalArrears > 0}" class="alert alert-success">
+                                    <i class="fas fa-check-circle"></i> All rent payments up to date
+                                </div>
+
+                                <div class="row mt-3">
+                                    <div class="col-6">
+                                        <small class="text-muted">Due</small>
+                                        <h5>£<span th:text="${#numbers.formatDecimal(analytics.rentDue ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span></h5>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Received</small>
+                                        <h5>£<span th:text="${#numbers.formatDecimal(analytics.rentReceived ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span></h5>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Portfolio Valuation -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-gradient-primary text-white">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-home"></i> Portfolio Valuation
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-borderless mb-0">
+                                <tr>
+                                    <td><strong>Total Purchase Price:</strong></td>
+                                    <td class="text-right">
+                                        £<span th:text="${#numbers.formatDecimal(analytics.totalPurchasePrice ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Current Estimated Value:</strong></td>
+                                    <td class="text-right">
+                                        £<span th:text="${#numbers.formatDecimal(analytics.totalCurrentValue ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span>
+                                    </td>
+                                </tr>
+                                <tr class="border-top">
+                                    <td><strong>Capital Gain:</strong></td>
+                                    <td class="text-right">
+                                        <span th:classappend="${analytics.totalCapitalGain >= 0} ? 'text-success' : 'text-danger'">
+                                            £<span th:text="${#numbers.formatDecimal(analytics.totalCapitalGain ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span>
+                                            (<span th:text="${#numbers.formatDecimal(analytics.capitalGainPercentage ?: 0, 0, 'COMMA', 1, 'POINT')}">0</span>%)
+                                        </span>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div th:if="${analytics.totalCurrentValue > 0}" class="mt-3">
+                                <div class="progress" style="height: 25px;">
+                                    <div class="progress-bar bg-success" role="progressbar"
+                                         th:style="'width: ' + ${(analytics.totalPurchasePrice / analytics.totalCurrentValue) * 100} + '%'">
+                                        Purchase
+                                    </div>
+                                    <div class="progress-bar bg-info" role="progressbar"
+                                         th:style="'width: ' + ${(analytics.totalCapitalGain / analytics.totalCurrentValue) * 100} + '%'">
+                                        Gain
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NEW: Yield & Vacancy Metrics -->
+            <div class="row" th:if="${analytics}">
+                <!-- Yield Calculations -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-gradient-success text-white">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-chart-line"></i> Investment Returns
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-6 text-center">
+                                    <div class="metric-box">
+                                        <h6 class="text-muted">Gross Yield</h6>
+                                        <h2 class="text-success mb-0">
+                                            <span th:text="${#numbers.formatDecimal(analytics.grossYield ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>%
+                                        </h2>
+                                        <small class="text-muted">Annual Rent / Value</small>
+                                    </div>
+                                </div>
+                                <div class="col-6 text-center">
+                                    <div class="metric-box">
+                                        <h6 class="text-muted">Net Yield</h6>
+                                        <h2 class="text-primary mb-0">
+                                            <span th:text="${#numbers.formatDecimal(analytics.netYield ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>%
+                                        </h2>
+                                        <small class="text-muted">After all costs</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 p-3 bg-light rounded">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>Gross Yield:</strong> Total rent income as % of property value<br>
+                                    <strong>Net Yield:</strong> Profit after expenses & commission as % of property value
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vacancy Tracking -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-gradient-warning text-white">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-door-open"></i> Vacancy Analysis
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <h6 class="text-muted">Current Vacancies</h6>
+                                    <h2 class="text-warning mb-0" th:text="${analytics.currentVacancies ?: 0}">0</h2>
+                                    <small class="text-muted">properties</small>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Avg Days Vacant</h6>
+                                    <h2 class="text-info mb-0">
+                                        <span th:text="${#numbers.formatDecimal(analytics.averageDaysVacant ?: 0, 0, 'COMMA', 0, 'POINT')}">0</span>
+                                    </h2>
+                                    <small class="text-muted">days per property</small>
+                                </div>
+                            </div>
+
+                            <div class="mt-3" th:if="${analytics.currentVacancies > 0}">
+                                <div class="alert alert-warning mb-0">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <strong th:text="${analytics.currentVacancies}">0</strong>
+                                    <span th:text="${analytics.currentVacancies == 1} ? 'property' : 'properties'">properties</span>
+                                    currently vacant
+                                </div>
+                            </div>
+                            <div class="mt-3" th:unless="${analytics.currentVacancies > 0}">
+                                <div class="alert alert-success mb-0">
+                                    <i class="fas fa-check-circle"></i> Portfolio fully occupied
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Hierarchical Blocks & Properties View -->
             <div class="row">
                 <div class="col-12">
