@@ -613,48 +613,76 @@ public class PortfolioServiceImpl implements PortfolioService {
         int totalTenants = 0;
         int syncedProperties = 0;
 
-        // Calculate date range for last month of actual data
+        // Calculate date range for last 12 months (comprehensive financial analysis)
         LocalDate endDate = calculationDate;
-        LocalDate startDate = calculationDate.minusMonths(1);
+        LocalDate startDate = calculationDate.minusYears(1);
+
+        // Initialize comprehensive financial metrics
+        BigDecimal totalRentDue = BigDecimal.ZERO;
+        BigDecimal totalRentReceived = BigDecimal.ZERO;
+        BigDecimal totalExpenses = BigDecimal.ZERO;
+        BigDecimal totalCommission = BigDecimal.ZERO;
+        BigDecimal totalPurchasePrice = BigDecimal.ZERO;
+        BigDecimal totalCurrentValue = BigDecimal.ZERO;
+        int totalVacantDays = 0;
 
         for (Property property : properties) {
             if (property.isActive()) {
                 // Check occupancy using customer_property_assignments table
                 Customer currentTenant = propertyService.getCurrentTenant(property.getId());
-                if (currentTenant != null) {
+                boolean isOccupied = (currentTenant != null);
+
+                if (isOccupied) {
                     occupiedCount++;
                     totalTenants++;
-
-                    // Get ACTUAL rent received from UnifiedFinancialDataService
-                    if (unifiedFinancialDataService != null) {
-                        try {
-                            List<StatementTransactionDto> transactions = unifiedFinancialDataService
-                                .getPropertyTransactions(property, startDate, endDate);
-
-                            BigDecimal rentReceived = transactions.stream()
-                                .filter(StatementTransactionDto::isRentPayment)
-                                .map(StatementTransactionDto::getAmount)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-                            actualIncome = actualIncome.add(rentReceived);
-                        } catch (Exception e) {
-                            System.err.println("Error getting actual rent for property " + property.getId() + ": " + e.getMessage());
-                            // Fallback to monthly payment field
-                            actualIncome = actualIncome.add(property.getMonthlyPayment() != null ?
-                                property.getMonthlyPayment() : BigDecimal.ZERO);
-                        }
-                    } else {
-                        // Fallback if service not available
-                        actualIncome = actualIncome.add(property.getMonthlyPayment() != null ?
-                            property.getMonthlyPayment() : BigDecimal.ZERO);
-                    }
                 } else {
                     vacantCount++;
+                }
+
+                // === COMPREHENSIVE FINANCIAL METRICS (Last 12 months) ===
+                if (unifiedFinancialDataService != null) {
+                    try {
+                        // Get property financial summary with full calculations
+                        Map<String, Object> propSummary = unifiedFinancialDataService
+                            .getPropertyFinancialSummary(property, startDate, endDate);
+
+                        // Rent Due & Received
+                        BigDecimal propRentDue = (BigDecimal) propSummary.getOrDefault("rentDue", BigDecimal.ZERO);
+                        BigDecimal propRentReceived = (BigDecimal) propSummary.getOrDefault("rentReceived", BigDecimal.ZERO);
+                        BigDecimal propExpenses = (BigDecimal) propSummary.getOrDefault("totalExpenses", BigDecimal.ZERO);
+                        BigDecimal propCommission = (BigDecimal) propSummary.getOrDefault("totalCommissions", BigDecimal.ZERO);
+
+                        totalRentDue = totalRentDue.add(propRentDue);
+                        totalRentReceived = totalRentReceived.add(propRentReceived);
+                        totalExpenses = totalExpenses.add(propExpenses);
+                        totalCommission = totalCommission.add(propCommission);
+
+                        // For monthly income (backward compatibility)
+                        if (isOccupied) {
+                            actualIncome = actualIncome.add(propRentReceived);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("Error calculating financials for property " + property.getId() + ": " + e.getMessage());
+                    }
                 }
 
                 // Calculate total rent potential (expected rent from all properties)
                 if (property.getMonthlyPayment() != null) {
                     totalRent = totalRent.add(property.getMonthlyPayment());
+                }
+
+                // === VALUATION METRICS ===
+                if (property.getPurchasePrice() != null) {
+                    totalPurchasePrice = totalPurchasePrice.add(property.getPurchasePrice());
+                }
+                if (property.getEstimatedCurrentValue() != null) {
+                    totalCurrentValue = totalCurrentValue.add(property.getEstimatedCurrentValue());
+                }
+
+                // === VACANT PERIOD TRACKING ===
+                if (!isOccupied) {
+                    // TODO: Calculate actual vacant days from letting_instructions or customer_property_assignments history
+                    // For now, placeholder - would need to query vacancy start date
                 }
 
                 // PayProp sync status (only check if PayProp is enabled)
@@ -698,9 +726,95 @@ public class PortfolioServiceImpl implements PortfolioService {
             analytics.setTargetOccupancyRate(portfolio.getTargetOccupancyRate());
             analytics.setOccupancyVariance(analytics.getOccupancyRate().subtract(portfolio.getTargetOccupancyRate()));
         }
-        
+
+        // === SET NEW COMPREHENSIVE FINANCIAL METRICS ===
+        analytics.setRentDue(totalRentDue);
+        analytics.setRentReceived(totalRentReceived);
+        analytics.setTotalExpenses(totalExpenses);
+        analytics.setTotalCommission(totalCommission);
+
+        // Net Income = Rent Received - Expenses - Commission
+        BigDecimal netIncome = totalRentReceived.subtract(totalExpenses).subtract(totalCommission);
+        analytics.setNetIncome(netIncome);
+
+        // === CUMULATIVE ARREARS (All time to calculationDate) ===
+        BigDecimal cumulativeArrears = BigDecimal.ZERO;
+        try {
+            for (Property property : properties) {
+                if (property.isActive() && unifiedFinancialDataService != null) {
+                    // Get cumulative arrears up to calculation date
+                    LocalDate startOfTime = LocalDate.of(2000, 1, 1);
+                    Map<String, Object> propSummary = unifiedFinancialDataService
+                        .getPropertyFinancialSummary(property, startOfTime, endDate);
+
+                    BigDecimal propArrears = (BigDecimal) propSummary.getOrDefault("rentArrears", BigDecimal.ZERO);
+                    cumulativeArrears = cumulativeArrears.add(propArrears);
+                }
+            }
+            analytics.setTotalArrears(cumulativeArrears);
+        } catch (Exception e) {
+            System.err.println("Error calculating cumulative arrears: " + e.getMessage());
+            analytics.setTotalArrears(BigDecimal.ZERO);
+        }
+
+        // === VALUATION METRICS ===
+        analytics.setTotalPurchasePrice(totalPurchasePrice);
+        analytics.setTotalCurrentValue(totalCurrentValue);
+
+        // Capital Gain
+        BigDecimal capitalGain = totalCurrentValue.subtract(totalPurchasePrice);
+        analytics.setTotalCapitalGain(capitalGain);
+
+        // Capital Gain Percentage
+        if (totalPurchasePrice.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal capitalGainPercentage = capitalGain
+                .divide(totalPurchasePrice, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+            analytics.setCapitalGainPercentage(capitalGainPercentage);
+        } else {
+            analytics.setCapitalGainPercentage(BigDecimal.ZERO);
+        }
+
+        // === YIELD CALCULATIONS ===
+        // Gross Yield = (Annual Rent / Portfolio Value) × 100
+        if (totalCurrentValue.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal annualRent = totalRentReceived; // Already 12 months
+            BigDecimal grossYield = annualRent
+                .divide(totalCurrentValue, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+            analytics.setGrossYield(grossYield);
+
+            // Net Yield = (Annual Net Income / Portfolio Value) × 100
+            BigDecimal netYield = netIncome
+                .divide(totalCurrentValue, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+            analytics.setNetYield(netYield);
+        } else {
+            analytics.setGrossYield(BigDecimal.ZERO);
+            analytics.setNetYield(BigDecimal.ZERO);
+        }
+
+        // === VACANT PERIOD TRACKING ===
+        analytics.setCurrentVacancies(vacantCount);
+        analytics.setTotalVacantDays(totalVacantDays); // TODO: Calculate from actual vacancy data
+
+        if (vacantCount > 0) {
+            // Average days vacant per vacant property
+            BigDecimal avgDaysVacant = BigDecimal.valueOf(totalVacantDays)
+                .divide(BigDecimal.valueOf(vacantCount), 1, RoundingMode.HALF_UP);
+            analytics.setAverageDaysVacant(avgDaysVacant);
+        } else {
+            analytics.setAverageDaysVacant(BigDecimal.ZERO);
+        }
+
         analytics.setLastSyncCheck(LocalDateTime.now());
-        
+
+        System.out.println("📊 Portfolio Analytics Complete:");
+        System.out.println("   Rent Due: £" + totalRentDue + ", Rent Received: £" + totalRentReceived);
+        System.out.println("   Expenses: £" + totalExpenses + ", Commission: £" + totalCommission);
+        System.out.println("   Net Income: £" + netIncome + ", Arrears: £" + cumulativeArrears);
+        System.out.println("   Portfolio Value: £" + totalCurrentValue + ", Gross Yield: " + analytics.getGrossYield() + "%");
+
         return analyticsRepository.save(analytics);
     }
 
