@@ -341,33 +341,35 @@ function loadBlockFinancials() {
 function displayFinancialSummary(data) {
     // API returns data with propertySummaries array
     const properties = data.propertySummaries || [];
+    // Extract totals from nested totals object
+    const totals = data.totals || {};
 
     let html = `
         <div class="row mb-3">
             <div class="col-md-3 col-sm-6 mb-2">
                 <div class="text-center p-3 bg-light rounded">
                     <h6 class="text-muted mb-1">Total Rent Due</h6>
-                    <h4 class="text-primary mb-0">£${formatCurrency(data.totalRentDue || 0)}</h4>
+                    <h4 class="text-primary mb-0">£${formatCurrency(totals.totalRentDue || 0)}</h4>
                 </div>
             </div>
             <div class="col-md-3 col-sm-6 mb-2">
                 <div class="text-center p-3 bg-light rounded">
                     <h6 class="text-muted mb-1">Total Received</h6>
-                    <h4 class="text-success mb-0">£${formatCurrency(data.totalRentReceived || 0)}</h4>
+                    <h4 class="text-success mb-0">£${formatCurrency(totals.totalRent || 0)}</h4>
                 </div>
             </div>
             <div class="col-md-3 col-sm-6 mb-2">
                 <div class="text-center p-3 bg-light rounded">
                     <h6 class="text-muted mb-1">Arrears</h6>
-                    <h4 class="text-${(data.totalRentArrears || 0) > 0 ? 'danger' : 'success'} mb-0">
-                        £${formatCurrency(data.totalRentArrears || 0)}
+                    <h4 class="text-${(totals.totalArrears || 0) > 0 ? 'danger' : 'success'} mb-0">
+                        £${formatCurrency(totals.totalArrears || 0)}
                     </h4>
                 </div>
             </div>
             <div class="col-md-3 col-sm-6 mb-2">
                 <div class="text-center p-3 bg-light rounded">
                     <h6 class="text-muted mb-1">Net Owner Income</h6>
-                    <h4 class="text-info mb-0">£${formatCurrency(data.totalNetOwnerIncome || 0)}</h4>
+                    <h4 class="text-info mb-0">£${formatCurrency(totals.netToOwner || 0)}</h4>
                 </div>
             </div>
         </div>
@@ -376,13 +378,13 @@ function displayFinancialSummary(data) {
             <div class="col-md-6 mb-2">
                 <div class="text-center p-2 bg-light rounded">
                     <small class="text-muted">Total Expenses</small>
-                    <h5 class="text-warning mb-0">£${formatCurrency(data.totalExpenses || 0)}</h5>
+                    <h5 class="text-warning mb-0">£${formatCurrency(totals.totalExpenses || 0)}</h5>
                 </div>
             </div>
             <div class="col-md-6 mb-2">
                 <div class="text-center p-2 bg-light rounded">
                     <small class="text-muted">Total Commissions</small>
-                    <h5 class="text-secondary mb-0">£${formatCurrency(data.totalCommissions || 0)}</h5>
+                    <h5 class="text-secondary mb-0">£${formatCurrency(totals.totalCommission || 0)}</h5>
                 </div>
             </div>
         </div>
