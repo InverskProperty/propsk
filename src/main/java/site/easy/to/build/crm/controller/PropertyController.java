@@ -524,63 +524,106 @@ public class PropertyController {
         
         System.out.println("✅ Property found: " + property.getPropertyName());
 
-        // FIXED: Handle OAuth users properly
+        // FIXED: Handle OAuth users and customer logins properly
         User loggedInUser = null;
         int userId = -1;
         boolean isOAuthUser = false;
-        
+        boolean isCustomerLogin = false;
+
         try {
-            // Check if this is an OAuth user
-            if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
-                isOAuthUser = true;
-                OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-                
-                if (oAuthUser != null && oAuthUser.getUserId() != null) {
-                    // Use the linked user_id from oauth_users table
-                    userId = oAuthUser.getUserId();
-                    loggedInUser = userService.findById(oAuthUser.getUserId().longValue());
-                }
-                
-                // If no linked user found, create a temporary user object for compatibility
-                if (loggedInUser == null) {
+            System.out.println("🔐 Checking authentication principal type: " +
+                             (authentication != null && authentication.getPrincipal() != null ?
+                              authentication.getPrincipal().getClass().getName() : "null"));
+
+            // Check if this is a customer login (from customer portal)
+            if (authentication != null && authentication.getPrincipal() != null) {
+                String principalClass = authentication.getPrincipal().getClass().getName();
+
+                // Customer login check
+                if (principalClass.contains("CustomerUserDetails") ||
+                    authentication.getName().contains("customer_")) {
+                    isCustomerLogin = true;
+                    System.out.println("   Detected customer login");
+
+                    // Create a temporary user for customer access
                     loggedInUser = new User();
-                    loggedInUser.setId(54); // FIXED: Use Integer instead of Long
-                    loggedInUser.setUsername(authentication.getName());
+                    loggedInUser.setId(54); // Use management user ID as fallback
+                    loggedInUser.setUsername("Customer Portal User");
                     loggedInUser.setEmail(authentication.getName());
-                    // Set a role for OAuth users - FIXED: Use List instead of Set
                     List<Role> roles = new ArrayList<>();
-                    Role oauthRole = new Role();
-                    oauthRole.setName("ROLE_OIDC_USER");
-                    roles.add(oauthRole);
+                    Role customerRole = new Role();
+                    customerRole.setName("ROLE_OWNER");
+                    roles.add(customerRole);
                     loggedInUser.setRoles(roles);
-                    userId = 54; // Use management user ID as fallback
+                    userId = 54;
                 }
-            } else {
-                // Regular authentication
-                userId = authenticationUtils.getLoggedInUserId(authentication);
-                if (userId > 0) {
-                    loggedInUser = userService.findById(Long.valueOf(userId));
+                // Check if this is an OAuth user
+                else if (authentication.getPrincipal() instanceof org.springframework.security.oauth2.core.user.OAuth2User) {
+                    isOAuthUser = true;
+                    System.out.println("   Detected OAuth user");
+                    OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+
+                    if (oAuthUser != null && oAuthUser.getUserId() != null) {
+                        // Use the linked user_id from oauth_users table
+                        userId = oAuthUser.getUserId();
+                        loggedInUser = userService.findById(oAuthUser.getUserId().longValue());
+                    }
+
+                    // If no linked user found, create a temporary user object for compatibility
+                    if (loggedInUser == null) {
+                        loggedInUser = new User();
+                        loggedInUser.setId(54);
+                        loggedInUser.setUsername(authentication.getName());
+                        loggedInUser.setEmail(authentication.getName());
+                        List<Role> roles = new ArrayList<>();
+                        Role oauthRole = new Role();
+                        oauthRole.setName("ROLE_OIDC_USER");
+                        roles.add(oauthRole);
+                        loggedInUser.setRoles(roles);
+                        userId = 54;
+                    }
+                } else {
+                    // Regular employee authentication
+                    System.out.println("   Detected regular employee user");
+                    userId = authenticationUtils.getLoggedInUserId(authentication);
+                    if (userId > 0) {
+                        loggedInUser = userService.findById(Long.valueOf(userId));
+                    }
                 }
             }
-            
-            // If still no user found and not OAuth, this is an error
-            if (loggedInUser == null && !isOAuthUser) {
-                model.addAttribute("error", "User not found");
-                return "error/500";
+
+            // If still no user found, create fallback
+            if (loggedInUser == null) {
+                System.out.println("   No user found, creating fallback user");
+                loggedInUser = new User();
+                loggedInUser.setId(54);
+                loggedInUser.setUsername("Portal User");
+                userId = 54;
+                List<Role> roles = new ArrayList<>();
+                Role defaultRole = new Role();
+                defaultRole.setName("ROLE_OWNER");
+                roles.add(defaultRole);
+                loggedInUser.setRoles(roles);
             }
-            
+
         } catch (Exception e) {
-            System.err.println("Error getting user information: " + e.getMessage());
+            System.err.println("❌ Error getting user information: " + e.getMessage());
+            e.printStackTrace();
             // Continue with a default user to avoid breaking the page
             if (loggedInUser == null) {
                 loggedInUser = new User();
-                loggedInUser.setId(54); // FIXED: Use Integer instead of Long
+                loggedInUser.setId(54);
                 userId = 54;
+                List<Role> roles = new ArrayList<>();
+                Role defaultRole = new Role();
+                defaultRole.setName("ROLE_OWNER");
+                roles.add(defaultRole);
+                loggedInUser.setRoles(roles);
             }
         }
 
-        // Check if user is inactive (only for non-OAuth users with proper User records)
-        if (!isOAuthUser && loggedInUser != null && loggedInUser.getId() != null && loggedInUser.getId() > 0) {
+        // Check if user is inactive (only for non-OAuth, non-customer users with proper User records)
+        if (!isOAuthUser && !isCustomerLogin && loggedInUser != null && loggedInUser.getId() != null && loggedInUser.getId() > 0) {
             try {
                 if (loggedInUser.isInactiveUser()) {
                     return "error/account-inactive";
