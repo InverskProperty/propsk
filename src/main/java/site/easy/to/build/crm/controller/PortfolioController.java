@@ -1548,14 +1548,9 @@ public class PortfolioController {
             
             // Get properties with tenant information
             System.out.println("🔍 Loading properties for portfolio " + id);
-            List<Property> allProperties = portfolioService.getPropertiesForPortfolio(id);
+            List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
 
-            // Filter out block properties (virtual properties used for block management)
-            List<Property> properties = allProperties.stream()
-                .filter(p -> !"BLOCK".equals(p.getPropertyType()))
-                .collect(Collectors.toList());
-
-            System.out.println("✅ Found " + allProperties.size() + " total properties, " + properties.size() + " actual leasable properties (excluded " + (allProperties.size() - properties.size()) + " block properties)");
+            System.out.println("✅ Found " + properties.size() + " properties in portfolio");
 
             // Calculate analytics (only for actual leasable properties) - with error handling
             PortfolioAnalytics analytics = null;

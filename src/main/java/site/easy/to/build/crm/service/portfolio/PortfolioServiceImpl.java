@@ -599,14 +599,9 @@ public class PortfolioServiceImpl implements PortfolioService {
             .orElse(new PortfolioAnalytics(portfolioId, calculationDate));
         
         // 🔧 CRITICAL FIX: Use junction table instead of direct FK
-        List<Property> allProperties = getPropertiesForPortfolio(portfolioId);
+        List<Property> properties = getPropertiesForPortfolio(portfolioId);
 
-        // Filter out block properties (virtual properties used for block management, not leasable units)
-        List<Property> properties = allProperties.stream()
-            .filter(p -> !"BLOCK".equals(p.getPropertyType()))
-            .collect(Collectors.toList());
-
-        System.out.println("📊 Calculating analytics for portfolio " + portfolioId + " with " + properties.size() + " leasable properties (excluded " + (allProperties.size() - properties.size()) + " block properties)");
+        System.out.println("📊 Calculating analytics for portfolio " + portfolioId + " with " + properties.size() + " properties");
         
         // Property counts
         analytics.setTotalProperties(properties.size());
@@ -624,11 +619,11 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         for (Property property : properties) {
             if (property.isActive()) {
-                // Check occupancy using your existing tenant service
-                List<Tenant> activeTenantsForProperty = tenantService.findActiveTenantsForProperty(property.getId());
-                if (!activeTenantsForProperty.isEmpty()) {
+                // Check occupancy using customer_property_assignments table
+                Customer currentTenant = propertyService.getCurrentTenant(property.getId());
+                if (currentTenant != null) {
                     occupiedCount++;
-                    totalTenants += activeTenantsForProperty.size();
+                    totalTenants++;
 
                     // Get ACTUAL rent received from UnifiedFinancialDataService
                     if (unifiedFinancialDataService != null) {

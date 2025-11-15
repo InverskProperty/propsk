@@ -36,15 +36,65 @@ public class PortfolioAnalytics {
     // Financial Metrics
     @Column(name = "total_monthly_rent", precision = 12, scale = 2)
     private BigDecimal totalMonthlyRent = BigDecimal.ZERO;
-    
+
     @Column(name = "actual_monthly_income", precision = 12, scale = 2)
     private BigDecimal actualMonthlyIncome = BigDecimal.ZERO;
-    
+
     @Column(name = "lost_monthly_income", precision = 12, scale = 2)
     private BigDecimal lostMonthlyIncome = BigDecimal.ZERO;
-    
+
     @Column(name = "occupancy_rate", precision = 5, scale = 2)
     private BigDecimal occupancyRate = BigDecimal.ZERO;
+
+    // NEW: Comprehensive Financial Metrics (Last 12 months or custom range)
+    @Column(name = "rent_due", precision = 12, scale = 2)
+    private BigDecimal rentDue = BigDecimal.ZERO;
+
+    @Column(name = "rent_received", precision = 12, scale = 2)
+    private BigDecimal rentReceived = BigDecimal.ZERO;
+
+    @Column(name = "total_expenses", precision = 12, scale = 2)
+    private BigDecimal totalExpenses = BigDecimal.ZERO;
+
+    @Column(name = "total_commission", precision = 12, scale = 2)
+    private BigDecimal totalCommission = BigDecimal.ZERO;
+
+    @Column(name = "net_income", precision = 12, scale = 2)
+    private BigDecimal netIncome = BigDecimal.ZERO;
+
+    // Cumulative Arrears (all time to date)
+    @Column(name = "total_arrears", precision = 12, scale = 2)
+    private BigDecimal totalArrears = BigDecimal.ZERO;
+
+    // Valuation Metrics
+    @Column(name = "total_purchase_price", precision = 14, scale = 2)
+    private BigDecimal totalPurchasePrice = BigDecimal.ZERO;
+
+    @Column(name = "total_current_value", precision = 14, scale = 2)
+    private BigDecimal totalCurrentValue = BigDecimal.ZERO;
+
+    @Column(name = "total_capital_gain", precision = 14, scale = 2)
+    private BigDecimal totalCapitalGain = BigDecimal.ZERO;
+
+    @Column(name = "capital_gain_percentage", precision = 5, scale = 2)
+    private BigDecimal capitalGainPercentage = BigDecimal.ZERO;
+
+    // Yield Calculations
+    @Column(name = "gross_yield", precision = 5, scale = 2)
+    private BigDecimal grossYield = BigDecimal.ZERO;
+
+    @Column(name = "net_yield", precision = 5, scale = 2)
+    private BigDecimal netYield = BigDecimal.ZERO;
+
+    // Vacant Period Tracking
+    @Column(name = "average_days_vacant", precision = 6, scale = 1)
+    private BigDecimal averageDaysVacant = BigDecimal.ZERO;
+
+    @Column(name = "current_vacancies")
+    private Integer currentVacancies = 0;
+
+    @Column(name = "total_vacant_days")
+    private Integer totalVacantDays = 0;
     
     // Performance vs Targets
     @Column(name = "target_monthly_income", precision = 12, scale = 2)
@@ -197,7 +247,53 @@ public class PortfolioAnalytics {
     
     public Portfolio getPortfolio() { return portfolio; }
     public void setPortfolio(Portfolio portfolio) { this.portfolio = portfolio; }
-    
+
+    // NEW GETTERS AND SETTERS
+    public BigDecimal getRentDue() { return rentDue; }
+    public void setRentDue(BigDecimal rentDue) { this.rentDue = rentDue; }
+
+    public BigDecimal getRentReceived() { return rentReceived; }
+    public void setRentReceived(BigDecimal rentReceived) { this.rentReceived = rentReceived; }
+
+    public BigDecimal getTotalExpenses() { return totalExpenses; }
+    public void setTotalExpenses(BigDecimal totalExpenses) { this.totalExpenses = totalExpenses; }
+
+    public BigDecimal getTotalCommission() { return totalCommission; }
+    public void setTotalCommission(BigDecimal totalCommission) { this.totalCommission = totalCommission; }
+
+    public BigDecimal getNetIncome() { return netIncome; }
+    public void setNetIncome(BigDecimal netIncome) { this.netIncome = netIncome; }
+
+    public BigDecimal getTotalArrears() { return totalArrears; }
+    public void setTotalArrears(BigDecimal totalArrears) { this.totalArrears = totalArrears; }
+
+    public BigDecimal getTotalPurchasePrice() { return totalPurchasePrice; }
+    public void setTotalPurchasePrice(BigDecimal totalPurchasePrice) { this.totalPurchasePrice = totalPurchasePrice; }
+
+    public BigDecimal getTotalCurrentValue() { return totalCurrentValue; }
+    public void setTotalCurrentValue(BigDecimal totalCurrentValue) { this.totalCurrentValue = totalCurrentValue; }
+
+    public BigDecimal getTotalCapitalGain() { return totalCapitalGain; }
+    public void setTotalCapitalGain(BigDecimal totalCapitalGain) { this.totalCapitalGain = totalCapitalGain; }
+
+    public BigDecimal getCapitalGainPercentage() { return capitalGainPercentage; }
+    public void setCapitalGainPercentage(BigDecimal capitalGainPercentage) { this.capitalGainPercentage = capitalGainPercentage; }
+
+    public BigDecimal getGrossYield() { return grossYield; }
+    public void setGrossYield(BigDecimal grossYield) { this.grossYield = grossYield; }
+
+    public BigDecimal getNetYield() { return netYield; }
+    public void setNetYield(BigDecimal netYield) { this.netYield = netYield; }
+
+    public BigDecimal getAverageDaysVacant() { return averageDaysVacant; }
+    public void setAverageDaysVacant(BigDecimal averageDaysVacant) { this.averageDaysVacant = averageDaysVacant; }
+
+    public Integer getCurrentVacancies() { return currentVacancies; }
+    public void setCurrentVacancies(Integer currentVacancies) { this.currentVacancies = currentVacancies; }
+
+    public Integer getTotalVacantDays() { return totalVacantDays; }
+    public void setTotalVacantDays(Integer totalVacantDays) { this.totalVacantDays = totalVacantDays; }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
