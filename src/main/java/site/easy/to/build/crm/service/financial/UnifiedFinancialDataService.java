@@ -164,28 +164,63 @@ public class UnifiedFinancialDataService {
     public Map<String, Object> getPropertyFinancialSummary(Property property) {
         LocalDate twoYearsAgo = LocalDate.now().minusYears(2);
         LocalDate today = LocalDate.now();
+        return getPropertyFinancialSummary(property, twoYearsAgo, today);
+    }
 
-        List<StatementTransactionDto> transactions = getPropertyTransactions(property, twoYearsAgo, today);
+    /**
+     * Get financial summary for a property (custom date range)
+     *
+     * Uses:
+     * - Rent DUE: Calculated from local invoices
+     * - Rent RECEIVED: Actual incoming transactions from historical + PayProp
+     * - Expenses: Actual expenses from historical + PayProp
+     * - Commissions: CALCULATED from rent received × property.commission_percentage
+     */
+    public Map<String, Object> getPropertyFinancialSummary(Property property, LocalDate fromDate, LocalDate toDate) {
+        List<StatementTransactionDto> transactions = getPropertyTransactions(property, fromDate, toDate);
 
         Map<String, Object> summary = new HashMap<>();
 
-        // RENT DUE (calculated from invoices/leases) - with error handling
+        // RENT DUE (calculated from invoices/leases for the date range)
         BigDecimal rentDue = BigDecimal.ZERO;
         try {
-            rentDue = rentCalculationService.calculateTotalRentDue(property.getId(), twoYearsAgo, today);
+            rentDue = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
         } catch (Exception e) {
             log.warn("Error calculating rent due for property {}: {}", property.getId(), e.getMessage());
             // Continue with rentDue = 0
         }
 
-        // RENT RECEIVED (actual incoming payments)
+        // RENT RECEIVED (actual incoming payments in the date range)
         BigDecimal rentReceived = transactions.stream()
             .filter(StatementTransactionDto::isRentPayment)
             .map(StatementTransactionDto::getAmount)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // RENT ARREARS (difference between due and received)
-        BigDecimal rentArrears = rentDue.subtract(rentReceived);
+        // RENT ARREARS - CUMULATIVE up to endDate (start of time to toDate)
+        // This gives a true snapshot of arrears as of the end date
+        BigDecimal rentArrearsCumulativeDue = BigDecimal.ZERO;
+        BigDecimal rentArrearsCumulativeReceived = BigDecimal.ZERO;
+
+        try {
+            // Calculate all rent due from beginning of time up to toDate
+            LocalDate startOfTime = LocalDate.of(2000, 1, 1); // Far enough back to catch all leases
+            rentArrearsCumulativeDue = rentCalculationService.calculateTotalRentDue(property.getId(), startOfTime, toDate);
+
+            // Get all rent payments from beginning of time up to toDate
+            List<StatementTransactionDto> cumulativeTransactions = getPropertyTransactions(property, startOfTime, toDate);
+            rentArrearsCumulativeReceived = cumulativeTransactions.stream()
+                .filter(StatementTransactionDto::isRentPayment)
+                .map(StatementTransactionDto::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            log.debug("Cumulative arrears for property {} up to {}: Due £{}, Received £{}",
+                property.getId(), toDate, rentArrearsCumulativeDue, rentArrearsCumulativeReceived);
+        } catch (Exception e) {
+            log.warn("Error calculating cumulative rent arrears for property {}: {}", property.getId(), e.getMessage());
+            // Continue with 0 values
+        }
+
+        BigDecimal rentArrears = rentArrearsCumulativeDue.subtract(rentArrearsCumulativeReceived);
 
         // EXPENSES (actual outgoing)
         BigDecimal totalExpenses = transactions.stream()
@@ -223,8 +258,8 @@ public class UnifiedFinancialDataService {
 
         summary.put("recentTransactions", recentTransactions);
         summary.put("dateRange", Map.of(
-            "from", twoYearsAgo.toString(),
-            "to", today.toString()
+            "from", fromDate.toString(),
+            "to", toDate.toString()
         ));
 
         return summary;

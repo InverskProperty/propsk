@@ -2004,10 +2004,11 @@ public class PropertyOwnerController {
 
             try {
                 System.out.println("💰 Calculating unified financial summary for all properties...");
+                System.out.println("📅 Date range: " + twoYearsAgo + " to " + today);
 
                 for (Property property : customerProperties) {
-                    // Get unified financial summary for this property
-                    Map<String, Object> propSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+                    // Get unified financial summary for this property WITH DATE RANGE
+                    Map<String, Object> propSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property, twoYearsAgo, today);
 
                     // Extract totals
                     BigDecimal propRentReceived = (BigDecimal) propSummary.getOrDefault("rentReceived", BigDecimal.ZERO);
@@ -2614,10 +2615,11 @@ public class PropertyOwnerController {
 
             try {
                 System.out.println("💰 Calculating UNIFIED financial summary for " + filteredProperties.size() + " filtered properties...");
+                System.out.println("📅 Date range: " + filterStartDate + " to " + filterEndDate);
 
                 for (Property property : filteredProperties) {
-                    // Get unified financial summary for this property
-                    Map<String, Object> propSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+                    // Get unified financial summary for this property WITH DATE RANGE
+                    Map<String, Object> propSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property, filterStartDate, filterEndDate);
 
                     // Extract totals
                     BigDecimal propRentReceived = (BigDecimal) propSummary.getOrDefault("rentReceived", BigDecimal.ZERO);
