@@ -311,20 +311,20 @@
                             <!-- Net Income Row -->
                             <div class="row mt-3">
                                 <div class="col-md-12">
-                                    <div class="card bg-gradient-success text-white shadow h-100">
+                                    <div class="card shadow h-100" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white;">
                                         <div class="card-body">
                                             <div class="row align-items-center">
                                                 <div class="col">
-                                                    <h4 class="text-white mb-1">
+                                                    <h4 class="mb-1" style="color: white;">
                                                         <i class="fas fa-piggy-bank"></i> Net Income (After All Costs)
                                                     </h4>
-                                                    <h2 class="mb-0 font-weight-bold">
+                                                    <h2 class="mb-0 font-weight-bold" style="color: white;">
                                                         £<span th:text="${#numbers.formatDecimal(analytics.netIncome ?: 0, 0, 'COMMA', 2, 'POINT')}">0.00</span>
                                                     </h2>
-                                                    <small class="text-white-50">= Rent Received - Expenses - Commission</small>
+                                                    <small style="color: rgba(255, 255, 255, 0.85);">= Rent Received - Expenses - Commission</small>
                                                 </div>
                                                 <div class="col-auto">
-                                                    <i class="fas fa-wallet fa-3x" style="opacity: 0.3;"></i>
+                                                    <i class="fas fa-wallet fa-3x" style="opacity: 0.3; color: white;"></i>
                                                 </div>
                                             </div>
                                         </div>
