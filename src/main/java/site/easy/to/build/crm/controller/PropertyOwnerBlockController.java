@@ -936,6 +936,7 @@ public class PropertyOwnerBlockController {
 
             Block block = blockOpt.get();
             List<Property> blockProperties = propertyBlockAssignmentRepository.findPropertiesByBlockIdOrdered(id);
+            log.info("🏠 Found {} properties in block {} before filtering", blockProperties.size(), id);
 
             // For delegated users, filter to only properties they have access to
             if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
@@ -947,7 +948,10 @@ public class PropertyOwnerBlockController {
                 blockProperties = blockProperties.stream()
                     .filter(p -> userPropertyIds.contains(p.getId()))
                     .collect(Collectors.toList());
+                log.info("🏠 After delegated user filtering: {} properties accessible", blockProperties.size());
             }
+
+            log.info("🏠 Processing financials for {} properties in block {}", blockProperties.size(), id);
 
             // Aggregate financial data across all properties in the block
             BigDecimal totalRentDue = BigDecimal.ZERO;
@@ -961,7 +965,11 @@ public class PropertyOwnerBlockController {
             List<Map<String, Object>> propertyFinancials = new ArrayList<>();
 
             for (Property property : blockProperties) {
+                log.info("💰 Getting financials for property {} (ID: {})", property.getPropertyName(), property.getId());
                 Map<String, Object> propertySummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
+
+                log.info("📊 Property {} summary keys: {}", property.getId(), propertySummary.keySet());
+                log.info("📊 Property {} rent received: {}", property.getId(), propertySummary.get("rentReceived"));
 
                 // Extract and sum financial metrics
                 BigDecimal rentDue = (BigDecimal) propertySummary.getOrDefault("rentDue", BigDecimal.ZERO);
@@ -971,6 +979,9 @@ public class PropertyOwnerBlockController {
                 BigDecimal commissions = (BigDecimal) propertySummary.getOrDefault("totalCommissions", BigDecimal.ZERO);
                 BigDecimal netIncome = (BigDecimal) propertySummary.getOrDefault("netOwnerIncome", BigDecimal.ZERO);
                 int txCount = (Integer) propertySummary.getOrDefault("transactionCount", 0);
+
+                log.info("💵 Property {}: rentDue={}, rentReceived={}, arrears={}, expenses={}, commissions={}, netIncome={}, txCount={}",
+                    property.getId(), rentDue, rentReceived, rentArrears, expenses, commissions, netIncome, txCount);
 
                 totalRentDue = totalRentDue.add(rentDue);
                 totalRentReceived = totalRentReceived.add(rentReceived);
