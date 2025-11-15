@@ -18,6 +18,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -47,6 +48,7 @@ import site.easy.to.build.crm.service.payprop.PayPropPortfolioSyncService;
 import site.easy.to.build.crm.service.payprop.PayPropTagDTO;
 import site.easy.to.build.crm.service.portfolio.PortfolioAssignmentService;
 import site.easy.to.build.crm.service.payprop.SyncResult;
+import site.easy.to.build.crm.service.LettingInstructionService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.util.AuthorizationUtil;
 import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
@@ -110,6 +112,9 @@ public class PortfolioController {
 
     @Autowired(required = false)
     private PayPropApiClient payPropApiClient;
+
+    @Autowired(required = false)
+    private LettingInstructionService lettingInstructionService;
 
     @Autowired
     private PropertyPortfolioAssignmentRepository propertyPortfolioAssignmentRepository;
@@ -1534,35 +1539,55 @@ public class PortfolioController {
     }
 
     @GetMapping("/{id}")
-    public String showPortfolioDetails(@PathVariable Long id, Model model, Authentication authentication) {
+    public String showPortfolioDetails(@PathVariable Long id,
+                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+                                      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+                                      Model model,
+                                      Authentication authentication) {
         try {
             // Check access permissions
             if (!portfolioService.canUserAccessPortfolio(id, authentication)) {
                 return "redirect:/access-denied";
             }
-            
+
             Portfolio portfolio = portfolioService.findById(id);
             if (portfolio == null) {
                 return "error/not-found";
             }
-            
+
+            // Set default date range if not provided (last 12 months)
+            LocalDate calculationDate = LocalDate.now();
+            if (endDate == null) {
+                endDate = calculationDate;
+            }
+            if (startDate == null) {
+                startDate = endDate.minusYears(1); // Default to 12 months
+            }
+
+            System.out.println("📅 Date range for analytics: " + startDate + " to " + endDate);
+
             // Get properties with tenant information
             System.out.println("🔍 Loading properties for portfolio " + id);
             List<Property> properties = portfolioService.getPropertiesForPortfolio(id);
 
             System.out.println("✅ Found " + properties.size() + " properties in portfolio");
 
-            // Calculate analytics (only for actual leasable properties) - with error handling
+            // Calculate analytics with custom date range - with error handling
             PortfolioAnalytics analytics = null;
             try {
-                analytics = portfolioService.calculatePortfolioAnalytics(id, LocalDate.now());
+                // Use new method with custom date range
+                analytics = portfolioService.calculatePortfolioAnalyticsWithDateRange(id, startDate, endDate);
             } catch (Exception e) {
                 System.err.println("❌ Error calculating portfolio analytics: " + e.getMessage());
                 e.printStackTrace();
                 // Create empty analytics to prevent page crash
-                analytics = new PortfolioAnalytics(id, LocalDate.now());
+                analytics = new PortfolioAnalytics(id, endDate);
                 analytics.setTotalProperties(properties.size());
             }
+
+            // Add date range to model for template display
+            model.addAttribute("startDate", startDate);
+            model.addAttribute("endDate", endDate);
 
             // Create simple portfolio statistics (for backwards compatibility)
             Map<String, Object> stats = new HashMap<>();
@@ -1611,12 +1636,47 @@ public class PortfolioController {
             boolean canEdit = canUserEditPortfolio(id, authentication);
             boolean canManageProperties = canEdit || AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
 
+            // ===== LETTINGS INSTRUCTIONS / PIPELINE =====
+            List<Map<String, Object>> activeInstructions = new ArrayList<>();
+            if (lettingInstructionService != null) {
+                try {
+                    // Get active instructions for all properties in portfolio
+                    for (Property property : properties) {
+                        Optional<LettingInstruction> activeInstruction =
+                            lettingInstructionService.getActiveInstructionForProperty(property.getId());
+
+                        if (activeInstruction.isPresent()) {
+                            LettingInstruction instruction = activeInstruction.get();
+                            Map<String, Object> instructionData = new HashMap<>();
+                            instructionData.put("propertyId", property.getId());
+                            instructionData.put("propertyName", property.getPropertyName());
+                            instructionData.put("propertyAddress", property.getFullAddress());
+                            instructionData.put("instruction", instruction);
+                            instructionData.put("status", instruction.getStatus());
+                            instructionData.put("statusDisplay", instruction.getStatus().getDisplayName());
+                            instructionData.put("statusBadgeClass", instruction.getStatus().getBadgeClass());
+                            instructionData.put("targetRent", instruction.getTargetRent());
+                            instructionData.put("numberOfEnquiries", instruction.getNumberOfEnquiries());
+                            instructionData.put("numberOfViewings", instruction.getNumberOfViewings());
+                            instructionData.put("advertisingStartDate", instruction.getAdvertisingStartDate());
+                            instructionData.put("daysAdvertising", instruction.getDaysAdvertising());
+                            activeInstructions.add(instructionData);
+                        }
+                    }
+                    System.out.println("📋 Found " + activeInstructions.size() + " active instructions in portfolio");
+                } catch (Exception e) {
+                    System.err.println("⚠️ Error fetching letting instructions: " + e.getMessage());
+                }
+            }
+
             // Add all attributes
             model.addAttribute("portfolio", portfolio);
             model.addAttribute("properties", properties); // ← FIXED: Template expects "properties"
             model.addAttribute("propertiesWithTenants", propertiesWithTenants);
             model.addAttribute("stats", stats);
             model.addAttribute("analytics", analytics);
+            model.addAttribute("activeInstructions", activeInstructions);
+            model.addAttribute("hasActiveInstructions", !activeInstructions.isEmpty());
             model.addAttribute("pageTitle", "Portfolio: " + portfolio.getName());
             model.addAttribute("canEdit", canEdit);
             model.addAttribute("canManageProperties", canManageProperties);

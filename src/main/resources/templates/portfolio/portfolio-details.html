@@ -94,6 +94,66 @@
                 </div>
             </div>
 
+            <!-- NEW: Date Range Filter -->
+            <div class="row" th:if="${analytics}">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="dateFilterForm" class="row align-items-end">
+                                <div class="col-md-3">
+                                    <label for="startDate" class="form-label">
+                                        <i class="fas fa-calendar-alt"></i> Start Date
+                                    </label>
+                                    <input type="date"
+                                           class="form-control"
+                                           id="startDate"
+                                           name="startDate"
+                                           th:value="${startDate}" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="endDate" class="form-label">
+                                        <i class="fas fa-calendar-check"></i> End Date
+                                    </label>
+                                    <input type="date"
+                                           class="form-control"
+                                           id="endDate"
+                                           name="endDate"
+                                           th:value="${endDate}" />
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="setDateRange('last12months')">
+                                            Last 12 Months
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="setDateRange('ytd')">
+                                            Year to Date
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="setDateRange('alltime')">
+                                            All Time
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="fas fa-filter"></i> Apply Filter
+                                    </button>
+                                </div>
+                            </form>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle"></i>
+                                    Analyzing data from
+                                    <strong th:text="${startDate ?: 'last 12 months'}">last 12 months</strong>
+                                    to
+                                    <strong th:text="${endDate ?: 'today'}">today</strong>
+                                    (Arrears are always cumulative to end date)
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Portfolio Analytics -->
             <div class="row" th:if="${analytics}">
                 <div class="col-md-3">
@@ -510,6 +570,78 @@
                 </div>
             </div>
 
+            <!-- Active Lettings Instructions -->
+            <div class="row" th:if="${hasActiveInstructions}">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-gradient-info text-white">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-clipboard-list"></i> Active Letting Instructions
+                                <span class="badge badge-light ml-2" style="color: #333;" th:text="${activeInstructions.size()}">0</span>
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Status</th>
+                                            <th class="text-center">Target Rent</th>
+                                            <th class="text-center">Enquiries</th>
+                                            <th class="text-center">Viewings</th>
+                                            <th class="text-center">Days Active</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="item : ${activeInstructions}">
+                                            <td>
+                                                <strong th:text="${item.propertyName}">Property Name</strong><br>
+                                                <small class="text-muted" th:text="${item.propertyAddress}">Address</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge"
+                                                      th:classappend="${item.statusBadgeClass}"
+                                                      th:text="${item.statusDisplay}">
+                                                    Status
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <strong>£<span th:text="${#numbers.formatDecimal(item.targetRent ?: 0, 1, 2)}">0</span></strong>
+                                            </td>
+                                            <td class="text-center">
+                                                <span th:if="${item.numberOfEnquiries != null && item.numberOfEnquiries > 0}"
+                                                      class="badge badge-primary"
+                                                      th:text="${item.numberOfEnquiries}">0</span>
+                                                <span th:unless="${item.numberOfEnquiries != null && item.numberOfEnquiries > 0}"
+                                                      class="text-muted">-</span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span th:if="${item.numberOfViewings != null && item.numberOfViewings > 0}"
+                                                      class="badge badge-info"
+                                                      th:text="${item.numberOfViewings}">0</span>
+                                                <span th:unless="${item.numberOfViewings != null && item.numberOfViewings > 0}"
+                                                      class="text-muted">-</span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span th:if="${item.daysAdvertising != null}"
+                                                      th:text="${item.daysAdvertising} + ' days'">0 days</span>
+                                                <span th:unless="${item.daysAdvertising != null}"
+                                                      class="text-muted">-</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2 text-muted small">
+                                <i class="fas fa-info-circle"></i>
+                                Properties currently in the letting process (advertising, viewings, or under offer)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Hierarchical Blocks & Properties View -->
             <div class="row">
                 <div class="col-12">
@@ -871,6 +1003,51 @@ function syncWithPayProp() {
         });
     }
 }
+
+// NEW: Date Range Filter Functions
+function setDateRange(range) {
+    const today = new Date();
+    let startDate, endDate;
+
+    endDate = today.toISOString().split('T')[0]; // Today
+
+    switch(range) {
+        case 'last12months':
+            const last12Months = new Date(today);
+            last12Months.setFullYear(today.getFullYear() - 1);
+            startDate = last12Months.toISOString().split('T')[0];
+            break;
+        case 'ytd':
+            startDate = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+            break;
+        case 'alltime':
+            startDate = '2000-01-01'; // Far back enough to capture all data
+            break;
+    }
+
+    document.getElementById('startDate').value = startDate;
+    document.getElementById('endDate').value = endDate;
+}
+
+// Handle date filter form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const dateFilterForm = document.getElementById('dateFilterForm');
+    if (dateFilterForm) {
+        dateFilterForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            // Reload page with date parameters
+            const currentUrl = new URL(window.location.href);
+            if (startDate) currentUrl.searchParams.set('startDate', startDate);
+            if (endDate) currentUrl.searchParams.set('endDate', endDate);
+
+            window.location.href = currentUrl.toString();
+        });
+    }
+});
 
 function recalculateAnalytics() {
     if (confirm('Recalculate analytics for this portfolio?')) {

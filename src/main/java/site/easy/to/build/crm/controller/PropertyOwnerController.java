@@ -41,6 +41,7 @@ import site.easy.to.build.crm.service.property.PropertyOwnerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.property.TenantService;
 import site.easy.to.build.crm.service.ticket.TicketService;
+import site.easy.to.build.crm.service.LettingInstructionService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 // Portfolio imports - NEW
@@ -116,6 +117,10 @@ public class PropertyOwnerController {
     // Customer Drive Organization Service for file management
     @Autowired
     private CustomerDriveOrganizationService customerDriveOrganizationService;
+
+    // Letting Instruction Service for pipeline/instruction display
+    @Autowired
+    private LettingInstructionService lettingInstructionService;
 
     @Autowired
     private SharedDriveFileService sharedDriveFileService;
@@ -948,6 +953,20 @@ public class PropertyOwnerController {
             model.addAttribute("isOccupied", isOccupied);
             model.addAttribute("currentTenant", currentTenant);
             model.addAttribute("tenancyStartDate", tenancyStartDate);
+
+            // ===== LETTING INSTRUCTIONS / PIPELINE =====
+            // Get all instructions for this property (history)
+            List<LettingInstruction> allInstructions = lettingInstructionService.getPropertyLettingHistory(propertyId);
+
+            // Get active instruction (if any)
+            Optional<LettingInstruction> activeInstruction = lettingInstructionService.getActiveInstructionForProperty(propertyId);
+
+            System.out.println("📋 Letting Instructions - Total: " + allInstructions.size() +
+                             ", Active: " + (activeInstruction.isPresent() ? "Yes" : "No"));
+
+            model.addAttribute("allInstructions", allInstructions);
+            model.addAttribute("activeInstruction", activeInstruction.orElse(null));
+            model.addAttribute("hasActiveInstruction", activeInstruction.isPresent());
 
             return "property-owner/property-details";
 

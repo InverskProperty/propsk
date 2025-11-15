@@ -165,6 +165,7 @@ public interface PortfolioService {
     
     // Analytics and reporting
     PortfolioAnalytics calculatePortfolioAnalytics(Long portfolioId, LocalDate calculationDate);
+    PortfolioAnalytics calculatePortfolioAnalyticsWithDateRange(Long portfolioId, LocalDate startDate, LocalDate endDate);
     List<PortfolioAnalytics> getPortfolioAnalyticsHistory(Long portfolioId, LocalDate startDate, LocalDate endDate);
     PortfolioAnalytics getLatestPortfolioAnalytics(Long portfolioId);
     

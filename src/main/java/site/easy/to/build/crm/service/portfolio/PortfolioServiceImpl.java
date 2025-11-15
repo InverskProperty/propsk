@@ -585,37 +585,50 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     /**
      * CRITICAL FIX: Update this method to use junction table instead of direct FK
+     * This method uses default date range of last 12 months
      */
     @Override
     public PortfolioAnalytics calculatePortfolioAnalytics(Long portfolioId, LocalDate calculationDate) {
+        // Use default 12-month date range
+        LocalDate endDate = calculationDate;
+        LocalDate startDate = calculationDate.minusYears(1);
+        return calculatePortfolioAnalyticsWithDateRange(portfolioId, startDate, endDate);
+    }
+
+    /**
+     * Calculate portfolio analytics with custom date range
+     * @param portfolioId The portfolio ID
+     * @param startDate Start date for financial calculations (rent, expenses, etc.)
+     * @param endDate End date for calculations (also used for arrears cutoff)
+     * @return PortfolioAnalytics with calculated metrics
+     */
+    @Override
+    public PortfolioAnalytics calculatePortfolioAnalyticsWithDateRange(Long portfolioId, LocalDate startDate, LocalDate endDate) {
         Portfolio portfolio = findById(portfolioId);
         if (portfolio == null) {
             return null;
         }
-        
-        // Get or create analytics record
+
+        // Get or create analytics record (using endDate as calculation date)
         PortfolioAnalytics analytics = analyticsRepository
-            .findByPortfolioIdAndCalculationDate(portfolioId, calculationDate)
-            .orElse(new PortfolioAnalytics(portfolioId, calculationDate));
-        
+            .findByPortfolioIdAndCalculationDate(portfolioId, endDate)
+            .orElse(new PortfolioAnalytics(portfolioId, endDate));
+
         // 🔧 CRITICAL FIX: Use junction table instead of direct FK
         List<Property> properties = getPropertiesForPortfolio(portfolioId);
 
         System.out.println("📊 Calculating analytics for portfolio " + portfolioId + " with " + properties.size() + " properties");
-        
+        System.out.println("📅 Date range: " + startDate + " to " + endDate);
+
         // Property counts
         analytics.setTotalProperties(properties.size());
-        
+
         int occupiedCount = 0;
         int vacantCount = 0;
         BigDecimal totalRent = BigDecimal.ZERO;
         BigDecimal actualIncome = BigDecimal.ZERO;
         int totalTenants = 0;
         int syncedProperties = 0;
-
-        // Calculate date range for last 12 months (comprehensive financial analysis)
-        LocalDate endDate = calculationDate;
-        LocalDate startDate = calculationDate.minusYears(1);
 
         // Initialize comprehensive financial metrics
         BigDecimal totalRentDue = BigDecimal.ZERO;

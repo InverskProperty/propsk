@@ -275,6 +275,68 @@
                             </div>
                         </div>
 
+                        <!-- NEW: Lettings Pipeline / Instruction Status -->
+                        <div class="card mt-3" th:if="${hasActiveInstruction}">
+                            <div class="card-header">
+                                <h5><i class="fas fa-clipboard-list"></i> Letting Status</h5>
+                            </div>
+                            <div class="card-body">
+                                <div th:if="${activeInstruction != null}">
+                                    <!-- Status Badge -->
+                                    <div class="mb-3 text-center">
+                                        <span class="badge"
+                                              th:classappend="${activeInstruction.status.badgeClass}"
+                                              style="font-size: 14px; padding: 8px 12px;"
+                                              th:text="${activeInstruction.status.displayName}">
+                                            Status
+                                        </span>
+                                    </div>
+
+                                    <!-- Instruction Details -->
+                                    <div class="mb-3">
+                                        <table class="table table-sm table-borderless mb-0">
+                                            <tr th:if="${activeInstruction.targetRent != null}">
+                                                <td class="text-muted"><i class="fas fa-pound-sign"></i> Target Rent:</td>
+                                                <td class="text-end"><strong>£<span th:text="${#numbers.formatDecimal(activeInstruction.targetRent, 1, 2)}">0</span></strong></td>
+                                            </tr>
+                                            <tr th:if="${activeInstruction.numberOfEnquiries != null && activeInstruction.numberOfEnquiries > 0}">
+                                                <td class="text-muted"><i class="fas fa-envelope"></i> Enquiries:</td>
+                                                <td class="text-end"><strong th:text="${activeInstruction.numberOfEnquiries}">0</strong></td>
+                                            </tr>
+                                            <tr th:if="${activeInstruction.numberOfViewings != null && activeInstruction.numberOfViewings > 0}">
+                                                <td class="text-muted"><i class="fas fa-eye"></i> Viewings:</td>
+                                                <td class="text-end"><strong th:text="${activeInstruction.numberOfViewings}">0</strong></td>
+                                            </tr>
+                                            <tr th:if="${activeInstruction.advertisingStartDate != null}">
+                                                <td class="text-muted"><i class="fas fa-calendar"></i> Advertising Since:</td>
+                                                <td class="text-end">
+                                                    <small th:text="${#temporals.format(activeInstruction.advertisingStartDate, 'dd MMM yyyy')}">Date</small>
+                                                </td>
+                                            </tr>
+                                            <tr th:if="${activeInstruction.expectedVacancyDate != null}">
+                                                <td class="text-muted"><i class="fas fa-calendar-alt"></i> Available From:</td>
+                                                <td class="text-end">
+                                                    <small th:text="${#temporals.format(activeInstruction.expectedVacancyDate, 'dd MMM yyyy')}">Date</small>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+
+                                    <!-- Progress Indicator -->
+                                    <div class="mb-2" th:if="${activeInstruction.status.name() == 'ADVERTISING'}">
+                                        <small class="text-muted">Days Advertising:</small>
+                                        <h5 class="mb-0" th:text="${activeInstruction.daysAdvertising} + ' days'">0 days</h5>
+                                    </div>
+
+                                    <!-- Marketing Notes -->
+                                    <div class="mt-3" th:if="${activeInstruction.marketingNotes != null && !activeInstruction.marketingNotes.isEmpty()}">
+                                        <small class="text-muted"><i class="fas fa-sticky-note"></i> Notes:</small>
+                                        <p class="small mb-0" th:text="${activeInstruction.marketingNotes}">Marketing notes</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- NEW: Current Tenant Information -->
                         <div class="card mt-3" th:if="${currentTenant != null}">
                             <div class="card-header">
