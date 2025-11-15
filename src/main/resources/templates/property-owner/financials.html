@@ -642,7 +642,7 @@
                                             <th>Status</th>
                                             <th>Monthly Rent</th>
                                             <th>Valuation</th>
-                                            <th>ROI</th>
+                                            <th>Projected ROI</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
@@ -679,7 +679,7 @@
                                             <td>
                                                 <div th:if="${propertyData.hasValuationData}">
                                                     <strong th:text="${propertyData.annualRentalYield ?: '0'} + '%'" class="text-success">0%</strong>
-                                                    <br><small class="text-success">Rental yield</small>
+                                                    <br><small class="text-success">Projected yield</small>
                                                     <br><small th:text="${propertyData.estimatedCapitalGainPercentage ?: '0'} + '%'"
                                                               th:class="${propertyData.estimatedCapitalGain != null and propertyData.estimatedCapitalGain.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'">0%</small>
                                                     <small class="text-muted"> capital</small>

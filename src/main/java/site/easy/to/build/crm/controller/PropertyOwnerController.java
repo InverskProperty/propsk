@@ -2753,22 +2753,24 @@ public class PropertyOwnerController {
             enhanced.put("monthlyRent", property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO);
             enhanced.put("valuation", property.getEstimatedCurrentValue() != null ? property.getEstimatedCurrentValue() : BigDecimal.ZERO);
 
-            // Calculate ROI if valuation exists
+            // Calculate Projected ROI if valuation exists
             BigDecimal valuation = (BigDecimal) enhanced.get("valuation");
-            BigDecimal totalRent = (BigDecimal) enhanced.get("totalRent");
+            BigDecimal monthlyRent = (BigDecimal) enhanced.get("monthlyRent");
 
             // Valuation data availability check
             boolean hasValuationData = valuation.compareTo(BigDecimal.ZERO) > 0;
             enhanced.put("hasValuationData", hasValuationData);
 
-            if (hasValuationData && totalRent.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal roi = totalRent.multiply(BigDecimal.valueOf(100)).divide(valuation, 2, RoundingMode.HALF_UP);
-                enhanced.put("roi", roi.toString() + "%");
+            if (hasValuationData && monthlyRent.compareTo(BigDecimal.ZERO) > 0) {
+                // Projected ROI = (12 × monthly rent / valuation) × 100
+                BigDecimal annualRent = monthlyRent.multiply(BigDecimal.valueOf(12));
+                BigDecimal projectedRoi = annualRent.multiply(BigDecimal.valueOf(100)).divide(valuation, 2, RoundingMode.HALF_UP);
+                enhanced.put("roi", projectedRoi.toString() + "%");
 
                 // Add valuation-related fields
                 enhanced.put("estimatedCurrentValue", valuation);
                 enhanced.put("totalAcquisitionCost", property.getTotalAcquisitionCost() != null ? property.getTotalAcquisitionCost() : BigDecimal.ZERO);
-                enhanced.put("annualRentalYield", roi);
+                enhanced.put("annualRentalYield", projectedRoi);
 
                 // Calculate capital gain if we have acquisition cost
                 BigDecimal acquisitionCost = (BigDecimal) enhanced.get("totalAcquisitionCost");
