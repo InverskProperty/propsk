@@ -369,8 +369,8 @@
                                                 <tr th:if="${property.estimatedCapitalGain != null}">
                                                     <td><strong>Capital Gain:</strong></td>
                                                     <td>
-                                                        <span th:class="${property.estimatedCapitalGain.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'"
-                                                              th:text="'£' + ${property.estimatedCapitalGain}">£0</span>
+                                                        <span th:class="${property.estimatedCapitalGain != null && property.estimatedCapitalGain.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'"
+                                                              th:text="'£' + ${property.estimatedCapitalGain ?: 0}">£0</span>
                                                         <span th:if="${property.estimatedCapitalGainPercentage != null}"
                                                               th:text="'(' + ${property.estimatedCapitalGainPercentage} + '%)'">
                                                             (0%)
