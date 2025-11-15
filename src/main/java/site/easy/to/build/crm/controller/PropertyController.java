@@ -636,17 +636,75 @@ public class PropertyController {
 
         // Check authorization - role-based access
         boolean hasAccess = false;
-        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") || 
+
+        // Managers and OIDC users have full access
+        if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER") ||
             AuthorizationUtil.hasRole(authentication, "ROLE_OIDC_USER")) {
             hasAccess = true;
-        } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") && 
+            System.out.println("✅ Access granted: Manager/OIDC role");
+        }
+        // Customer login - check if customer owns this property
+        else if (isCustomerLogin) {
+            try {
+                // Try to get customer ID from authentication
+                String authName = authentication.getName();
+                System.out.println("🔍 Checking customer ownership for: " + authName);
+
+                // Customer authentication names are typically in format "customer_{id}" or email
+                Long customerId = null;
+                if (authName.startsWith("customer_")) {
+                    customerId = Long.parseLong(authName.replace("customer_", ""));
+                } else {
+                    // Try to find customer by email
+                    Customer customer = customerService.findByEmail(authName);
+                    if (customer != null) {
+                        customerId = customer.getCustomerId();
+                    }
+                }
+
+                if (customerId != null) {
+                    System.out.println("   Customer ID: " + customerId);
+
+                    // Check if this customer owns the property via property_owner_id
+                    if (property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(customerId)) {
+                        hasAccess = true;
+                        System.out.println("✅ Access granted: Customer owns property via property_owner_id");
+                    }
+
+                    // Also check via customer_property_assignments table
+                    if (!hasAccess) {
+                        List<CustomerPropertyAssignment> assignments = assignmentRepository
+                            .findByPropertyIdAndAssignmentType(property.getId(), AssignmentType.OWNER);
+
+                        for (CustomerPropertyAssignment assignment : assignments) {
+                            if (assignment.getCustomer() != null &&
+                                assignment.getCustomer().getCustomerId() != null &&
+                                assignment.getCustomer().getCustomerId().equals(customerId)) {
+                                hasAccess = true;
+                                System.out.println("✅ Access granted: Customer owns property via assignment");
+                                break;
+                            }
+                        }
+                    }
+                }
+
+            } catch (Exception e) {
+                System.err.println("⚠️ Error checking customer ownership: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+        // Regular employee user - check property owner ID or created by
+        else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") &&
                    property.getPropertyOwnerId() != null && property.getPropertyOwnerId().equals(Long.valueOf(userId))) {
             hasAccess = true;
+            System.out.println("✅ Access granted: Employee owner match");
         } else if (property.getCreatedBy() != null && property.getCreatedBy().equals((long) userId)) {
             hasAccess = true;
+            System.out.println("✅ Access granted: Employee created property");
         }
-        
+
         if (!hasAccess) {
+            System.out.println("❌ Access denied - no ownership found");
             return "redirect:/access-denied";
         }
 
