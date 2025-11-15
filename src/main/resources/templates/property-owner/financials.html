@@ -1360,11 +1360,25 @@ function filterFinancials() {
 }
 
 function updateDashboardData(data) {
-    // Update financial metrics
+    // Update financial metric cards
     updateMetricCard('.income-card h3', data.totalRent, '£');
     updateMetricCard('.expense-card h3', data.totalCommission, '£');
     updateMetricCard('.profit-card h3', data.totalNetToOwner, '£');
-    updateMetricCard('.occupancy-card h3', data.totalTransactions, '');
+
+    // Update arrears card (4th card)
+    const arrearsCards = document.querySelectorAll('.financial-card');
+    if (arrearsCards.length >= 4) {
+        const arrearsH3 = arrearsCards[3].querySelector('h3');
+        if (arrearsH3) {
+            arrearsH3.textContent = '£' + ((data.totalArrears || 0).toFixed(2));
+        }
+    }
+
+    // Update commission rate
+    const commissionRateSpan = document.querySelector('.expense-card small span');
+    if (commissionRateSpan) {
+        commissionRateSpan.textContent = (data.commissionRate || 0).toFixed(2);
+    }
 
     // Update property breakdown table
     updatePropertyBreakdownTable(data.enhancedProperties);

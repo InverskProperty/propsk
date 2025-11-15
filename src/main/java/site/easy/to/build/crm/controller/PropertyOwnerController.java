@@ -2606,6 +2606,7 @@ public class PropertyOwnerController {
             BigDecimal totalRent = BigDecimal.ZERO;
             BigDecimal totalCommission = BigDecimal.ZERO;
             BigDecimal totalNetToOwner = BigDecimal.ZERO;
+            BigDecimal totalArrears = BigDecimal.ZERO;
             Long totalTransactions = 0L;
 
             // Map to hold property-level financial data
@@ -2622,12 +2623,14 @@ public class PropertyOwnerController {
                     BigDecimal propRentReceived = (BigDecimal) propSummary.getOrDefault("rentReceived", BigDecimal.ZERO);
                     BigDecimal propCommissions = (BigDecimal) propSummary.getOrDefault("totalCommissions", BigDecimal.ZERO);
                     BigDecimal propNetIncome = (BigDecimal) propSummary.getOrDefault("netOwnerIncome", BigDecimal.ZERO);
+                    BigDecimal propArrears = (BigDecimal) propSummary.getOrDefault("rentArrears", BigDecimal.ZERO);
                     Integer propTxCount = (Integer) propSummary.getOrDefault("transactionCount", 0);
 
                     // Aggregate to totals
                     totalRent = totalRent.add(propRentReceived);
                     totalCommission = totalCommission.add(propCommissions);
                     totalNetToOwner = totalNetToOwner.add(propNetIncome);
+                    totalArrears = totalArrears.add(propArrears);
                     totalTransactions += propTxCount;
 
                     // Store property-level data for breakdown table
@@ -2677,6 +2680,7 @@ public class PropertyOwnerController {
             result.put("totalRent", totalRent);
             result.put("totalCommission", totalCommission);
             result.put("totalNetToOwner", totalNetToOwner);
+            result.put("totalArrears", totalArrears);
             result.put("totalTransactions", totalTransactions);
             result.put("commissionRate", commissionRate);
             result.put("propertyBreakdown", propertyBreakdown);
