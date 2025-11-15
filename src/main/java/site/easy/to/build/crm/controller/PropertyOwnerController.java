@@ -2565,11 +2565,12 @@ public class PropertyOwnerController {
     @Transactional
     public Map<String, Object> getFilteredFinancials(
             @RequestParam(required = false) Long portfolioId,
-            @RequestParam(required = false) String dataSource,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             Authentication authentication) {
 
-        System.out.println("🔍 Filtering financials - Portfolio: " + portfolioId + ", Data Source: " + dataSource);
-        System.out.println("ℹ️  NOTE: dataSource filter is deprecated - now using UNIFIED financial data (Historical + PayProp)");
+        System.out.println("🔍 Filtering financials - Portfolio: " + portfolioId + ", Date range: " + startDate + " to " + endDate);
+        System.out.println("ℹ️  Using UNIFIED financial data (Historical + PayProp combined)");
 
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -2598,8 +2599,9 @@ public class PropertyOwnerController {
             }
 
             // Calculate unified financial summary for filtered properties
-            LocalDate twoYearsAgo = LocalDate.now().minusYears(2);
-            LocalDate today = LocalDate.now();
+            // Use provided dates or default to wide range
+            LocalDate filterStartDate = (startDate != null) ? startDate : LocalDate.of(2020, 1, 1);
+            LocalDate filterEndDate = (endDate != null) ? endDate : LocalDate.now();
 
             BigDecimal totalRent = BigDecimal.ZERO;
             BigDecimal totalCommission = BigDecimal.ZERO;

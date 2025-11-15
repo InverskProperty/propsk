@@ -118,8 +118,8 @@
                                 </div>
                                 <div class="col-md-2">
                                     <label class="form-label mb-1">&nbsp;</label>
-                                    <button class="btn btn-primary w-100" onclick="applyDateRange()">
-                                        <i class="fas fa-filter"></i> Apply
+                                    <button class="btn btn-primary w-100" onclick="filterFinancials()">
+                                        <i class="fas fa-filter"></i> Apply Filters
                                     </button>
                                 </div>
                                 <div class="col-md-4">
@@ -151,7 +151,7 @@
 
                             <!-- ✨ PHASE 1: Portfolio & Data Source Filters -->
                             <div class="row mt-3">
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <label for="portfolioSelect" class="form-label mb-1">
                                         <i class="fas fa-folder text-primary"></i> <strong>Portfolio Filter</strong>
                                     </label>
@@ -161,21 +161,11 @@
                                                 th:value="${portfolio.id}"
                                                 th:text="${portfolio.name}">Portfolio Name</option>
                                     </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label for="dataSourceSelect" class="form-label mb-1">
-                                        <i class="fas fa-database text-primary"></i> <strong>Data Source</strong>
-                                    </label>
-                                    <select class="form-control" id="dataSourceSelect" onchange="filterFinancials()">
-                                        <option value="">All Data (Unified)</option>
-                                        <option value="HISTORICAL">Historical Only</option>
-                                        <option value="PAYPROP">PayProp Only</option>
-                                    </select>
                                     <small class="text-muted">
-                                        <i class="fas fa-info-circle"></i> Default combines both sources
+                                        <i class="fas fa-info-circle"></i> Filter by property portfolio
                                     </small>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-8">
                                     <label class="form-label mb-1">
                                         <i class="fas fa-filter text-info"></i> <strong>Active Filters</strong>
                                     </label>
@@ -1341,7 +1331,8 @@ function calculateROI() {
 // Portfolio and Data Source Filtering Functions
 function filterFinancials() {
     const portfolioId = document.getElementById('portfolioSelect').value;
-    const dataSource = document.getElementById('dataSourceSelect').value;
+    const startDate = document.getElementById('startDate')?.value;
+    const endDate = document.getElementById('endDate')?.value;
 
     // Show loading state
     showLoadingState();
@@ -1349,14 +1340,15 @@ function filterFinancials() {
     // Build filter parameters
     const params = new URLSearchParams();
     if (portfolioId) params.append('portfolioId', portfolioId);
-    if (dataSource) params.append('dataSource', dataSource);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
 
     // Make AJAX request to filtered endpoint
     fetch(`/property-owner/financials/filter?${params.toString()}`)
         .then(response => response.json())
         .then(data => {
             updateDashboardData(data);
-            updateFilterDisplay(portfolioId, dataSource);
+            updateFilterDisplay(portfolioId, startDate, endDate);
         })
         .catch(error => {
             console.error('Error filtering data:', error);
@@ -1376,6 +1368,9 @@ function updateDashboardData(data) {
 
     // Update property breakdown table
     updatePropertyBreakdownTable(data.enhancedProperties);
+
+    // Update Property Performance table
+    updatePropertyPerformanceTable(data.enhancedProperties);
 
     // Update totals in recent transactions footer
     updateTransactionTotals(data);
@@ -1458,6 +1453,100 @@ function getPerformanceColor(rating) {
     }
 }
 
+function updatePropertyPerformanceTable(enhancedProperties) {
+    // Find the Property Performance table tbody
+    // Look for the specific table by finding its unique structure
+    const allTables = document.querySelectorAll('table');
+    let performanceTable = null;
+
+    allTables.forEach(table => {
+        const headers = table.querySelectorAll('th');
+        const headerTexts = Array.from(headers).map(h => h.textContent.trim());
+        // Property Performance table has: Property, Status, Monthly Rent, Valuation, Projected ROI, Actions
+        if (headerTexts.includes('Projected ROI') && headerTexts.includes('Valuation')) {
+            performanceTable = table.querySelector('tbody');
+        }
+    });
+
+    if (!performanceTable) {
+        console.warn('Property Performance table not found');
+        return;
+    }
+
+    // Clear existing rows except template rows
+    performanceTable.querySelectorAll('tr').forEach(row => {
+        if (!row.hasAttribute('th:each')) {
+            row.remove();
+        }
+    });
+
+    if (!enhancedProperties || enhancedProperties.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = `
+            <td colspan="6" class="text-center text-muted">
+                <i class="fas fa-exclamation-triangle"></i> No properties match the selected filters
+            </td>
+        `;
+        performanceTable.appendChild(emptyRow);
+        return;
+    }
+
+    // Add filtered properties
+    enhancedProperties.forEach(prop => {
+        const row = document.createElement('tr');
+        const property = prop.property || prop;
+        const isOccupied = prop.isOccupied || false;
+        const hasValuation = prop.hasValuationData || false;
+
+        row.innerHTML = `
+            <td>
+                <strong>${property.addressLine1 || property.propertyName || 'Unnamed Property'}</strong><br>
+                <small class="text-muted">${(property.city || 'Unknown City') + ', ' + (property.postcode || 'Unknown Postcode')}</small>
+            </td>
+            <td>
+                <span class="badge badge-${isOccupied ? 'success' : 'warning'}">
+                    <i class="fas fa-home"></i> ${isOccupied ? 'Occupied' : 'Vacant'}
+                </span>
+            </td>
+            <td>
+                <strong>£${property.monthlyPayment || 0}</strong>
+                <br><small class="text-muted">per month</small>
+            </td>
+            <td>
+                ${hasValuation ? `
+                    <strong class="text-primary">£${prop.estimatedCurrentValue || 0}</strong>
+                    <br><small class="text-muted">Current value</small>
+                    <br><small class="text-muted">Bought: £${prop.totalAcquisitionCost || 0}</small>
+                ` : `
+                    <span class="text-muted">No data</span>
+                    <br><small class="text-muted">Add valuation</small>
+                `}
+            </td>
+            <td>
+                ${hasValuation ? `
+                    <strong class="text-success">${prop.annualRentalYield || 0}%</strong>
+                    <br><small class="text-success">Projected yield</small>
+                    <br><small class="text-${(prop.estimatedCapitalGain || 0) >= 0 ? 'success' : 'danger'}">${prop.estimatedCapitalGainPercentage || 0}%</small>
+                    <small class="text-muted"> capital</small>
+                ` : `
+                    <span class="text-muted">-</span>
+                `}
+            </td>
+            <td>
+                <div class="btn-group-vertical btn-group-sm">
+                    <a href="/property-owner/property/${property.id}" class="btn btn-outline-primary btn-sm mb-1">
+                        <i class="fas fa-eye"></i> View
+                    </a>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="openValuationModal(${property.id})">
+                        <i class="fas fa-chart-line"></i> Edit Valuation
+                    </button>
+                </div>
+            </td>
+        `;
+        performanceTable.appendChild(row);
+    });
+}
+
 function updateTransactionTotals(data) {
     // Update totals in the footer
     const footerCells = document.querySelectorAll('tfoot td');
@@ -1469,20 +1558,18 @@ function updateTransactionTotals(data) {
     }
 }
 
-function updateFilterDisplay(portfolioId, dataSource) {
+function updateFilterDisplay(portfolioId, startDate, endDate) {
     const filterBadge = document.getElementById('currentFilters');
     const noFilters = document.getElementById('noFilters');
     const portfolioSelect = document.getElementById('portfolioSelect');
-    const dataSourceSelect = document.getElementById('dataSourceSelect');
 
     const filters = [];
     if (portfolioId) {
         const portfolioName = portfolioSelect.options[portfolioSelect.selectedIndex].text;
         filters.push(`Portfolio: ${portfolioName}`);
     }
-    if (dataSource) {
-        const dataSourceName = dataSourceSelect.options[dataSourceSelect.selectedIndex].text;
-        filters.push(`Source: ${dataSourceName}`);
+    if (startDate && endDate) {
+        filters.push(`Date: ${startDate} to ${endDate}`);
     }
 
     if (filters.length > 0) {
