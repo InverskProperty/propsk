@@ -1637,6 +1637,98 @@ public class PropertyOwnerController {
     }
 
     /**
+     * Proxy file view through application (NEW - for inline viewing without Google auth)
+     */
+    @GetMapping("/property-owner/files/proxy/view/{fileId}")
+    public void proxyFileView(@PathVariable String fileId,
+                              HttpServletResponse response,
+                              Authentication authentication) {
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                response.sendError(401, "Authentication required");
+                return;
+            }
+
+            System.out.println("👁️ [Property Owner Files] Proxying file view: " + fileId);
+
+            // Get file metadata
+            Map<String, Object> metadata = sharedDriveFileService.getFileMetadata(fileId);
+            String fileName = (String) metadata.get("name");
+            String mimeType = (String) metadata.get("mimeType");
+            Long fileSize = (Long) metadata.get("size");
+
+            // Set response headers for inline viewing
+            response.setContentType(mimeType != null ? mimeType : "application/octet-stream");
+            response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
+            if (fileSize != null) {
+                response.setContentLengthLong(fileSize);
+            }
+
+            // Stream file content directly to response using service account
+            sharedDriveFileService.downloadFileContent(fileId, response.getOutputStream());
+            response.getOutputStream().flush();
+
+            System.out.println("✅ [Property Owner Files] Successfully proxied view for: " + fileName);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error proxying file view: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                response.sendError(500, "Error viewing file: " + e.getMessage());
+            } catch (java.io.IOException ioException) {
+                // Already committed, can't send error
+            }
+        }
+    }
+
+    /**
+     * Proxy file download through application (NEW - bypasses Google authentication)
+     */
+    @GetMapping("/property-owner/files/proxy/download/{fileId}")
+    public void proxyFileDownload(@PathVariable String fileId,
+                                  HttpServletResponse response,
+                                  Authentication authentication) {
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                response.sendError(401, "Authentication required");
+                return;
+            }
+
+            System.out.println("📥 [Property Owner Files] Proxying file download: " + fileId);
+
+            // Get file metadata for proper HTTP headers
+            Map<String, Object> metadata = sharedDriveFileService.getFileMetadata(fileId);
+            String fileName = (String) metadata.get("name");
+            String mimeType = (String) metadata.get("mimeType");
+            Long fileSize = (Long) metadata.get("size");
+
+            // Set response headers
+            response.setContentType(mimeType != null ? mimeType : "application/octet-stream");
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+            if (fileSize != null) {
+                response.setContentLengthLong(fileSize);
+            }
+
+            // Stream file content directly to response using service account
+            sharedDriveFileService.downloadFileContent(fileId, response.getOutputStream());
+            response.getOutputStream().flush();
+
+            System.out.println("✅ [Property Owner Files] Successfully proxied file: " + fileName);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error proxying file download: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                response.sendError(500, "Error downloading file: " + e.getMessage());
+            } catch (java.io.IOException ioException) {
+                // Already committed, can't send error
+            }
+        }
+    }
+
+    /**
      * Browse property subfolders (EICR, EPC, Insurance, etc.)
      */
     @GetMapping("/property-owner/files/browse/property/{propertyId}/subfolders")

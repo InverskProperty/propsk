@@ -451,40 +451,14 @@
 
         function downloadFile(fileId) {
             console.log('Downloading file:', fileId);
-
-            fetch(`/property-owner/files/download/${fileId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Open direct download link
-                        window.open(data.directDownloadUrl, '_blank');
-                    } else {
-                        alert('Error getting download URL: ' + (data.error || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error downloading file:', error);
-                    alert('Error downloading file: ' + error.message);
-                });
+            // NEW: Use proxy endpoint to download files without Google authentication
+            window.location.href = `/property-owner/files/proxy/download/${fileId}`;
         }
 
         function viewFile(fileId) {
             console.log('Viewing file:', fileId);
-
-            fetch(`/property-owner/files/view/${fileId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Open view link in new tab
-                        window.open(data.viewUrl, '_blank');
-                    } else {
-                        alert('Error getting view URL: ' + (data.error || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    console.error('Error viewing file:', error);
-                    alert('Error viewing file: ' + error.message);
-                });
+            // NEW: Use proxy endpoint to view files without Google authentication
+            window.open(`/property-owner/files/proxy/view/${fileId}`, '_blank');
         }
 
         function uploadFiles() {
