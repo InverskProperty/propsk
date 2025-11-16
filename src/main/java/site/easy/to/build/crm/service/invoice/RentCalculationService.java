@@ -313,32 +313,27 @@ public class RentCalculationService {
                     effectiveEnd = tenancyEnd;
                 }
 
-                // Only charge if the billing period overlaps with query period
-                if (!effectiveEnd.isBefore(fromDate)) {
-                    // Calculate days to charge
-                    LocalDate chargeStart = currentPaymentDate.isBefore(fromDate) ? fromDate : currentPaymentDate;
-                    LocalDate chargeEnd = effectiveEnd.isAfter(toDate) ? toDate : effectiveEnd;
+                // RENT IN ADVANCE: Only charge if payment date has passed (is on or before toDate)
+                // Don't prorate based on query period - only prorate if tenancy ends mid-cycle
+                if (!currentPaymentDate.isAfter(toDate)) {
+                    BigDecimal paymentDue;
 
-                    if (!chargeStart.isAfter(chargeEnd)) {
-                        long daysInCharge = ChronoUnit.DAYS.between(chargeStart, chargeEnd) + 1;
-                        long daysInFullCycle = ChronoUnit.DAYS.between(currentPaymentDate, billingPeriodEnd) + 1;
-
-                        BigDecimal paymentDue;
-
-                        // If charging for the full billing cycle, charge full rent
-                        if (daysInCharge >= 30 || (daysInCharge == daysInFullCycle && !effectiveEnd.isBefore(billingPeriodEnd))) {
-                            paymentDue = monthlyRent;
-                            log.debug("Payment {} - Full month: £{} ({} days)", currentPaymentDate, paymentDue, daysInCharge);
-                        } else {
-                            // Prorate based on days
-                            paymentDue = monthlyRent
-                                .multiply(BigDecimal.valueOf(daysInCharge))
-                                .divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
-                            log.debug("Payment {} - Prorated: £{} ({} days / 30)", currentPaymentDate, paymentDue, daysInCharge);
-                        }
-
-                        totalDue = totalDue.add(paymentDue);
+                    // Check if tenancy ends before the full billing cycle completes
+                    if (tenancyEnd != null && tenancyEnd.isBefore(billingPeriodEnd)) {
+                        // PRORATE: Tenancy ends mid-cycle
+                        long daysInCharge = ChronoUnit.DAYS.between(currentPaymentDate, effectiveEnd) + 1;
+                        paymentDue = monthlyRent
+                            .multiply(BigDecimal.valueOf(daysInCharge))
+                            .divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
+                        log.debug("Payment {} - Prorated (lease ends {}): £{} ({} days / 30)",
+                            currentPaymentDate, tenancyEnd, paymentDue, daysInCharge);
+                    } else {
+                        // FULL MONTH: Payment date has arrived, charge full month
+                        paymentDue = monthlyRent;
+                        log.debug("Payment {} - Full month: £{}", currentPaymentDate, paymentDue);
                     }
+
+                    totalDue = totalDue.add(paymentDue);
                 }
             }
 
