@@ -252,6 +252,9 @@ public class RentCalculationService {
     /**
      * Calculate total rent due for a property over a date range
      * Handles multiple leases if property had tenant turnover
+     *
+     * IMPROVED: Calculates rent per BILLING PERIOD (payment cycle) not per calendar month
+     * This correctly handles partial months when tenancy ends mid-cycle
      */
     public BigDecimal calculateTotalRentDue(Long propertyId, LocalDate fromDate, LocalDate toDate) {
         List<Invoice> leases = invoiceRepository.findByPropertyIdAndDateRange(propertyId, fromDate, toDate);
@@ -259,30 +262,150 @@ public class RentCalculationService {
         BigDecimal totalDue = BigDecimal.ZERO;
 
         for (Invoice lease : leases) {
-            // Calculate rent for each month in the period
-            LocalDate currentMonth = fromDate;
+            BigDecimal leaseDue = calculateRentDueForLease(lease, fromDate, toDate);
+            totalDue = totalDue.add(leaseDue);
 
-            while (!currentMonth.isAfter(toDate)) {
-                YearMonth ym = YearMonth.from(currentMonth);
-                LocalDate monthStart = ym.atDay(1);
-                LocalDate monthEnd = ym.atEndOfMonth();
-
-                // Constrain to overall period
-                if (monthStart.isBefore(fromDate)) monthStart = fromDate;
-                if (monthEnd.isAfter(toDate)) monthEnd = toDate;
-
-                BigDecimal monthlyDue = calculateRentDueForPeriod(lease, monthStart, monthEnd);
-                totalDue = totalDue.add(monthlyDue);
-
-                log.debug("Lease {} - Month {}: £{}", lease.getId(), currentMonth.getMonth(), monthlyDue);
-
-                currentMonth = currentMonth.plusMonths(1);
-            }
+            log.debug("Lease {} total due: £{}", lease.getId(), leaseDue);
         }
 
         log.info("Total rent due for property {} ({} to {}): £{}",
             propertyId, fromDate, toDate, totalDue);
 
         return totalDue;
+    }
+
+    /**
+     * Calculate rent due for a single lease over a date range
+     * Uses billing cycles (payment date to payment date) rather than calendar months
+     */
+    private BigDecimal calculateRentDueForLease(Invoice lease, LocalDate fromDate, LocalDate toDate) {
+        LocalDate tenancyStart = lease.getStartDate();
+        LocalDate tenancyEnd = lease.getEndDate();
+        BigDecimal monthlyRent = lease.getAmount();
+        Integer paymentDay = lease.getPaymentDay();
+
+        if (tenancyStart == null || monthlyRent == null) {
+            return BigDecimal.ZERO;
+        }
+
+        // Check if tenancy overlaps with the query period
+        if (!isTenancyActiveDuringPeriod(tenancyStart, tenancyEnd, fromDate, toDate)) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalDue = BigDecimal.ZERO;
+        int dueDay = (paymentDay != null && paymentDay > 0) ? paymentDay : tenancyStart.getDayOfMonth();
+
+        // Start from the first payment date on or after fromDate
+        LocalDate currentPaymentDate = findFirstPaymentDate(tenancyStart, dueDay, fromDate);
+
+        // Iterate through each payment date within the period
+        while (!currentPaymentDate.isAfter(toDate)) {
+            // Check if this payment is within the tenancy period
+            if (!currentPaymentDate.isBefore(tenancyStart)) {
+                // Calculate the billing period this payment covers (payment date to day before next payment)
+                LocalDate nextPaymentDate = getNextPaymentDate(currentPaymentDate, dueDay);
+                LocalDate billingPeriodEnd = nextPaymentDate.minusDays(1);
+
+                // If tenancy ends before billing period end, prorate
+                LocalDate effectiveEnd = billingPeriodEnd;
+                if (tenancyEnd != null && tenancyEnd.isBefore(effectiveEnd)) {
+                    effectiveEnd = tenancyEnd;
+                }
+
+                // Only charge if the billing period overlaps with query period
+                if (!effectiveEnd.isBefore(fromDate)) {
+                    // Calculate days to charge
+                    LocalDate chargeStart = currentPaymentDate.isBefore(fromDate) ? fromDate : currentPaymentDate;
+                    LocalDate chargeEnd = effectiveEnd.isAfter(toDate) ? toDate : effectiveEnd;
+
+                    if (!chargeStart.isAfter(chargeEnd)) {
+                        long daysInCharge = ChronoUnit.DAYS.between(chargeStart, chargeEnd) + 1;
+                        long daysInFullCycle = ChronoUnit.DAYS.between(currentPaymentDate, billingPeriodEnd) + 1;
+
+                        BigDecimal paymentDue;
+
+                        // If charging for the full billing cycle, charge full rent
+                        if (daysInCharge >= 30 || (daysInCharge == daysInFullCycle && !effectiveEnd.isBefore(billingPeriodEnd))) {
+                            paymentDue = monthlyRent;
+                            log.debug("Payment {} - Full month: £{} ({} days)", currentPaymentDate, paymentDue, daysInCharge);
+                        } else {
+                            // Prorate based on days
+                            paymentDue = monthlyRent
+                                .multiply(BigDecimal.valueOf(daysInCharge))
+                                .divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
+                            log.debug("Payment {} - Prorated: £{} ({} days / 30)", currentPaymentDate, paymentDue, daysInCharge);
+                        }
+
+                        totalDue = totalDue.add(paymentDue);
+                    }
+                }
+            }
+
+            // Move to next payment date
+            currentPaymentDate = getNextPaymentDate(currentPaymentDate, dueDay);
+
+            // Safety check: if we've passed the tenancy end or query end, stop
+            if (tenancyEnd != null && currentPaymentDate.isAfter(tenancyEnd)) {
+                break;
+            }
+            if (currentPaymentDate.isAfter(toDate.plusMonths(1))) {
+                break;
+            }
+        }
+
+        return totalDue;
+    }
+
+    /**
+     * Find the first payment date on or after the given start date
+     */
+    private LocalDate findFirstPaymentDate(LocalDate tenancyStart, int paymentDay, LocalDate fromDate) {
+        LocalDate searchDate = fromDate.isBefore(tenancyStart) ? tenancyStart : fromDate;
+
+        // Try current month
+        LocalDate paymentDate = getPaymentDateInMonth(searchDate.getYear(), searchDate.getMonthValue(), paymentDay);
+
+        if (paymentDate.isBefore(searchDate)) {
+            // Payment day already passed this month, use next month
+            paymentDate = getPaymentDateInMonth(
+                searchDate.plusMonths(1).getYear(),
+                searchDate.plusMonths(1).getMonthValue(),
+                paymentDay
+            );
+        }
+
+        // But cannot be before tenancy start
+        if (paymentDate.isBefore(tenancyStart)) {
+            // Use tenancy start date as first payment
+            return tenancyStart;
+        }
+
+        return paymentDate;
+    }
+
+    /**
+     * Get the payment date for a specific month
+     */
+    private LocalDate getPaymentDateInMonth(int year, int month, int dayOfMonth) {
+        try {
+            return LocalDate.of(year, month, dayOfMonth);
+        } catch (Exception e) {
+            // Invalid day (e.g., 31st in February), use last day of month
+            YearMonth ym = YearMonth.of(year, month);
+            return ym.atEndOfMonth();
+        }
+    }
+
+    /**
+     * Get the next payment date after the given date
+     */
+    private LocalDate getNextPaymentDate(LocalDate currentDate, int paymentDay) {
+        YearMonth nextMonth = YearMonth.from(currentDate).plusMonths(1);
+        try {
+            return nextMonth.atDay(paymentDay);
+        } catch (Exception e) {
+            return nextMonth.atEndOfMonth();
+        }
     }
 }

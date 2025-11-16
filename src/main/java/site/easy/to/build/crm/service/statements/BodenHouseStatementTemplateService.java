@@ -59,6 +59,9 @@ public class BodenHouseStatementTemplateService {
     private PayPropTransactionService payPropTransactionService;
 
     @Autowired
+    private site.easy.to.build.crm.service.invoice.RentCalculationService rentCalculationService;
+
+    @Autowired
     private StatementTransactionConverter transactionConverter;
 
     @Autowired
@@ -204,10 +207,17 @@ public class BodenHouseStatementTemplateService {
         unit.tenancyDates = tenant != null && tenant.getMoveInDate() != null ?
             tenant.getMoveInDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
 
-        // Enhanced rent information with PayProp data
-        enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
-        if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
-            unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
+        // Calculate rent due using RentCalculationService for accurate partial month handling
+        try {
+            unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not calculate rent due for property " + property.getId() +
+                             ", falling back to monthly payment: " + e.getMessage());
+            // Fallback to PayProp invoice data or monthly payment
+            enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
+            if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
+                unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
+            }
         }
         if (unit.rentDueDate == null) {
             unit.rentDueDate = extractRentDueDay(property);
@@ -252,10 +262,17 @@ public class BodenHouseStatementTemplateService {
         unit.tenancyDates = tenant != null && tenant.getMoveInDate() != null ?
             tenant.getMoveInDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
 
-        // Enhanced rent information with PayProp data
-        enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
-        if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
-            unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
+        // Calculate rent due using RentCalculationService for accurate partial month handling
+        try {
+            unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not calculate rent due for property " + property.getId() +
+                             ", falling back to monthly payment: " + e.getMessage());
+            // Fallback to PayProp invoice data or monthly payment
+            enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
+            if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
+                unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
+            }
         }
         if (unit.rentDueDate == null) {
             unit.rentDueDate = extractRentDueDay(property);
