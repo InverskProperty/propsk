@@ -165,10 +165,57 @@ public class SharedDriveFileService {
     }
 
     /**
-     * Get direct download link for a file
+     * Get direct download link for a file (OLD - requires user Google auth)
+     * @deprecated Use downloadFileContent() instead to proxy through app
      */
+    @Deprecated
     public String getDirectDownloadUrl(String fileId) {
         return "https://drive.google.com/uc?export=download&id=" + fileId;
+    }
+
+    /**
+     * Download file content using service account (for proxying to users)
+     * This allows users to download files without Google authentication
+     */
+    public java.io.OutputStream downloadFileContent(String fileId, java.io.OutputStream outputStream)
+            throws IOException, GeneralSecurityException {
+
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Drive driveService = createDriveService();
+
+        // Download the file content
+        driveService.files().get(fileId)
+            .setSupportsAllDrives(true)
+            .executeMediaAndDownloadTo(outputStream);
+
+        return outputStream;
+    }
+
+    /**
+     * Get file metadata (name, size, mimeType) for download headers
+     */
+    public Map<String, Object> getFileMetadata(String fileId) throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Drive driveService = createDriveService();
+        File file = driveService.files().get(fileId)
+            .setSupportsAllDrives(true)
+            .setFields("name, size, mimeType, createdTime, modifiedTime")
+            .execute();
+
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("name", file.getName());
+        metadata.put("size", file.getSize());
+        metadata.put("mimeType", file.getMimeType());
+        metadata.put("createdTime", file.getCreatedTime());
+        metadata.put("modifiedTime", file.getModifiedTime());
+
+        return metadata;
     }
 
     // Helper methods

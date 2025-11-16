@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,10 +16,12 @@ import site.easy.to.build.crm.entity.GoogleDriveFile;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
+import site.easy.to.build.crm.service.drive.SharedDriveFileService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsStatementService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
+import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +32,7 @@ public class CustomerFilesController {
 
     private final CustomerService customerService;
     private final CustomerDriveOrganizationService customerDriveOrganizationService;
+    private final SharedDriveFileService sharedDriveFileService;
     private final PayPropSyncOrchestrator payPropSyncOrchestrator;
     private final GoogleSheetsStatementService googleSheetsStatementService;
     private final AuthenticationUtils authenticationUtils;
@@ -36,11 +40,13 @@ public class CustomerFilesController {
     @Autowired
     public CustomerFilesController(CustomerService customerService,
                                  CustomerDriveOrganizationService customerDriveOrganizationService,
+                                 SharedDriveFileService sharedDriveFileService,
                                  @Autowired(required = false) PayPropSyncOrchestrator payPropSyncOrchestrator,
                                  GoogleSheetsStatementService googleSheetsStatementService,
                                  AuthenticationUtils authenticationUtils) {
         this.customerService = customerService;
         this.customerDriveOrganizationService = customerDriveOrganizationService;
+        this.sharedDriveFileService = sharedDriveFileService;
         this.payPropSyncOrchestrator = payPropSyncOrchestrator;
         this.googleSheetsStatementService = googleSheetsStatementService;
         this.authenticationUtils = authenticationUtils;
@@ -380,5 +386,89 @@ public class CustomerFilesController {
         // Implementation depends on your customer authentication system
         // This would extract the customer from customer login authentication
         return null;
+    }
+
+    /**
+     * Proxy file view through application (NEW - for inline viewing without Google auth)
+     */
+    @GetMapping("/proxy/view/{fileId}")
+    public void proxyFileView(@PathVariable String fileId,
+                              HttpServletResponse response,
+                              Authentication authentication) {
+        try {
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+
+            System.out.println("👁️ [Customer Files] Proxying file view: " + fileId);
+
+            // Get file metadata
+            Map<String, Object> metadata = sharedDriveFileService.getFileMetadata(fileId);
+            String fileName = (String) metadata.get("name");
+            String mimeType = (String) metadata.get("mimeType");
+            Long fileSize = (Long) metadata.get("size");
+
+            // Set response headers for inline viewing
+            response.setContentType(mimeType != null ? mimeType : "application/octet-stream");
+            response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
+            if (fileSize != null) {
+                response.setContentLengthLong(fileSize);
+            }
+
+            // Stream file content directly to response using service account
+            sharedDriveFileService.downloadFileContent(fileId, response.getOutputStream());
+            response.getOutputStream().flush();
+
+            System.out.println("✅ [Customer Files] Successfully proxied view for: " + fileName);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error proxying file view: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                response.sendError(500, "Error viewing file: " + e.getMessage());
+            } catch (IOException ioException) {
+                // Already committed, can't send error
+            }
+        }
+    }
+
+    /**
+     * Proxy file download through application (NEW - bypasses Google authentication)
+     */
+    @GetMapping("/proxy/download/{fileId}")
+    public void proxyFileDownload(@PathVariable String fileId,
+                                  HttpServletResponse response,
+                                  Authentication authentication) {
+        try {
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+
+            System.out.println("📥 [Customer Files] Proxying file download: " + fileId);
+
+            // Get file metadata for proper HTTP headers
+            Map<String, Object> metadata = sharedDriveFileService.getFileMetadata(fileId);
+            String fileName = (String) metadata.get("name");
+            String mimeType = (String) metadata.get("mimeType");
+            Long fileSize = (Long) metadata.get("size");
+
+            // Set response headers
+            response.setContentType(mimeType != null ? mimeType : "application/octet-stream");
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+            if (fileSize != null) {
+                response.setContentLengthLong(fileSize);
+            }
+
+            // Stream file content directly to response using service account
+            sharedDriveFileService.downloadFileContent(fileId, response.getOutputStream());
+            response.getOutputStream().flush();
+
+            System.out.println("✅ [Customer Files] Successfully proxied file: " + fileName);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error proxying file download: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                response.sendError(500, "Error downloading file: " + e.getMessage());
+            } catch (IOException ioException) {
+                // Already committed, can't send error
+            }
+        }
     }
 }

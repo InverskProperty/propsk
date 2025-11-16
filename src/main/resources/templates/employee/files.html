@@ -522,35 +522,13 @@ function showFileDetails(fileId, fileName, fileSize, modified) {
 }
 
 function viewFile(fileId) {
-    fetch(`/employee/files/view/${fileId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.open(data.viewUrl, '_blank');
-            } else {
-                alert('Error: ' + (data.error || 'Failed to get view URL'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error viewing file: ' + error.message);
-        });
+    // NEW: Use proxy endpoint to view files without Google authentication
+    window.open(`/employee/files/proxy/view/${fileId}`, '_blank');
 }
 
 function downloadFile(fileId) {
-    fetch(`/employee/files/download/${fileId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.location.href = data.directDownloadUrl;
-            } else {
-                alert('Error: ' + (data.error || 'Failed to get download URL'));
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error downloading file: ' + error.message);
-        });
+    // NEW: Use proxy endpoint to download files without Google authentication
+    window.location.href = `/employee/files/proxy/download/${fileId}`;
 }
 
 // ===================================================================

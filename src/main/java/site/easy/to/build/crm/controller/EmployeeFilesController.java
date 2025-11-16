@@ -1,5 +1,6 @@
 package site.easy.to.build.crm.controller;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -389,6 +390,92 @@ public class EmployeeFilesController {
                 "success", false,
                 "error", "Error getting view URL: " + e.getMessage()
             ));
+        }
+    }
+
+    /**
+     * Proxy file download through application (NEW - bypasses Google authentication)
+     * Users can download files without being signed into Google
+     */
+    @GetMapping("/proxy/download/{fileId}")
+    public void proxyFileDownload(@PathVariable String fileId,
+                                  HttpServletResponse response,
+                                  Authentication authentication) {
+        try {
+            ensureEmployeeAccess(authentication);
+
+            System.out.println("📥 [Employee Files] Proxying file download: " + fileId);
+
+            // Get file metadata for proper HTTP headers
+            Map<String, Object> metadata = sharedDriveFileService.getFileMetadata(fileId);
+            String fileName = (String) metadata.get("name");
+            String mimeType = (String) metadata.get("mimeType");
+            Long fileSize = (Long) metadata.get("size");
+
+            // Set response headers
+            response.setContentType(mimeType != null ? mimeType : "application/octet-stream");
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+            if (fileSize != null) {
+                response.setContentLengthLong(fileSize);
+            }
+
+            // Stream file content directly to response using service account
+            sharedDriveFileService.downloadFileContent(fileId, response.getOutputStream());
+            response.getOutputStream().flush();
+
+            System.out.println("✅ [Employee Files] Successfully proxied file: " + fileName);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error proxying file download: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                response.sendError(500, "Error downloading file: " + e.getMessage());
+            } catch (IOException ioException) {
+                // Already committed, can't send error
+            }
+        }
+    }
+
+    /**
+     * Proxy file view through application (NEW - for inline viewing)
+     * Opens files in browser without Google authentication
+     */
+    @GetMapping("/proxy/view/{fileId}")
+    public void proxyFileView(@PathVariable String fileId,
+                              HttpServletResponse response,
+                              Authentication authentication) {
+        try {
+            ensureEmployeeAccess(authentication);
+
+            System.out.println("👁️ [Employee Files] Proxying file view: " + fileId);
+
+            // Get file metadata
+            Map<String, Object> metadata = sharedDriveFileService.getFileMetadata(fileId);
+            String fileName = (String) metadata.get("name");
+            String mimeType = (String) metadata.get("mimeType");
+            Long fileSize = (Long) metadata.get("size");
+
+            // Set response headers for inline viewing
+            response.setContentType(mimeType != null ? mimeType : "application/octet-stream");
+            response.setHeader("Content-Disposition", "inline; filename=\"" + fileName + "\"");
+            if (fileSize != null) {
+                response.setContentLengthLong(fileSize);
+            }
+
+            // Stream file content directly to response
+            sharedDriveFileService.downloadFileContent(fileId, response.getOutputStream());
+            response.getOutputStream().flush();
+
+            System.out.println("✅ [Employee Files] Successfully proxied view for: " + fileName);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error proxying file view: " + e.getMessage());
+            e.printStackTrace();
+            try {
+                response.sendError(500, "Error viewing file: " + e.getMessage());
+            } catch (IOException ioException) {
+                // Already committed, can't send error
+            }
         }
     }
 

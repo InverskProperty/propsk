@@ -269,8 +269,8 @@
         
         function viewFile(button) {
             const fileId = button.getAttribute('data-file-id');
-            // Open Google Drive file in new tab
-            window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank');
+            // NEW: Use proxy endpoint to view files without Google authentication
+            window.open(`/customer/files/proxy/view/${fileId}`, '_blank');
         }
         
         function deleteFile(button) {
