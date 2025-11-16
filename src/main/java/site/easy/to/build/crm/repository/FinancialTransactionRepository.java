@@ -507,7 +507,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "JOIN portfolios po ON c.customer_id = po.property_owner_id " +
            "JOIN property_portfolio_assignments ppa ON po.id = ppa.portfolio_id " +
            "JOIN properties pr ON ppa.property_id = pr.id " +
-           "JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "JOIN v_unified_property_summary fs ON pr.id = fs.property_id " +
            "WHERE c.customer_id = :customerId AND ppa.is_active = 1",
            nativeQuery = true)
     Object[] getPropertyOwnerFinancialSummary(@Param("customerId") Long customerId);
@@ -566,7 +566,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "JOIN portfolios po ON c.customer_id = po.property_owner_id " +
            "JOIN property_portfolio_assignments ppa ON po.id = ppa.portfolio_id " +
            "JOIN properties pr ON ppa.property_id = pr.id " +
-           "LEFT JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "LEFT JOIN v_unified_property_summary fs ON pr.id = fs.property_id " +
            "WHERE c.customer_id = :customerId AND ppa.is_active = 1 " +
            "ORDER BY pr.property_name",
            nativeQuery = true)
@@ -582,7 +582,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "SUM(CASE WHEN fs.transaction_count IS NOT NULL THEN fs.transaction_count ELSE 0 END) " +
            "FROM property_portfolio_assignments ppa " +
            "JOIN properties pr ON ppa.property_id = pr.id " +
-           "JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "JOIN v_unified_property_summary fs ON pr.id = fs.property_id " +
            "WHERE ppa.portfolio_id = :portfolioId AND ppa.is_active = 1",
            nativeQuery = true)
     Object[] getPortfolioFinancialSummary(@Param("portfolioId") Long portfolioId);
@@ -595,7 +595,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "COALESCE(fs.total_net_to_owner, 0), COALESCE(fs.transaction_count, 0) " +
            "FROM property_portfolio_assignments ppa " +
            "JOIN properties pr ON ppa.property_id = pr.id " +
-           "LEFT JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "LEFT JOIN v_unified_property_summary fs ON pr.id = fs.property_id " +
            "WHERE ppa.portfolio_id = :portfolioId AND ppa.is_active = 1 " +
            "ORDER BY pr.property_name",
            nativeQuery = true)
@@ -612,7 +612,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "SUM(CASE WHEN fs.transaction_count IS NOT NULL THEN fs.transaction_count ELSE 0 END) " +
            "FROM customer_property_assignments cpa " +
            "JOIN properties pr ON cpa.property_id = pr.id " +
-           "JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "JOIN v_unified_property_summary fs ON pr.id = fs.property_id " +
            "WHERE cpa.customer_id = :customerId AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE())",
            nativeQuery = true)
     Object[] getPropertyOwnerFinancialSummaryDirect(@Param("customerId") Long customerId);
@@ -626,7 +626,7 @@ public interface FinancialTransactionRepository extends JpaRepository<FinancialT
            "COALESCE(fs.total_net_to_owner, 0), COALESCE(fs.transaction_count, 0) " +
            "FROM customer_property_assignments cpa " +
            "JOIN properties pr ON cpa.property_id = pr.id " +
-           "LEFT JOIN financial_summary_by_property fs ON pr.payprop_id = fs.property_id " +
+           "LEFT JOIN v_unified_property_summary fs ON pr.id = fs.property_id " +
            "WHERE cpa.customer_id = :customerId AND (cpa.end_date IS NULL OR cpa.end_date > CURDATE()) " +
            "ORDER BY pr.property_name",
            nativeQuery = true)
