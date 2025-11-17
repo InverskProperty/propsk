@@ -119,42 +119,6 @@ public class EmployeeFilesController {
     }
 
     /**
-     * List files in property subfolder (NEW: Uses property-centric structure)
-     */
-    @GetMapping("/browse/property/{propertyId}/subfolder/{subfolderName}")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> listPropertySubfolderFiles(@PathVariable Long propertyId,
-                                                                          @PathVariable String subfolderName,
-                                                                          Authentication authentication) {
-        System.out.println("📁 [Employee Files] Listing files in property " + propertyId + "/" + subfolderName);
-
-        try {
-            ensureEmployeeAccess(authentication);
-
-            List<Map<String, Object>> files = sharedDriveFileService.listPropertySubfolderFiles(
-                propertyId, subfolderName
-            );
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("files", files);
-            response.put("fileCount", files.size());
-            response.put("propertyId", propertyId);
-            response.put("subfolder", subfolderName);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            System.err.println("❌ Error listing property subfolder files: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.status(500).body(Map.of(
-                "success", false,
-                "error", "Error loading files: " + e.getMessage()
-            ));
-        }
-    }
-
-    /**
      * Browse internal folders (employee-only)
      */
     @GetMapping("/browse/internal")
@@ -334,6 +298,225 @@ public class EmployeeFilesController {
                 "success", false,
                 "error", "Error uploading files: " + e.getMessage()
             ));
+        }
+    }
+
+    /**
+     * List property-level document subfolders (EICR, EPC, Insurance, Misc)
+     */
+    @GetMapping("/property/{propertyId}/subfolders")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> listPropertySubfolders(@PathVariable Long propertyId,
+                                                                      Authentication authentication) {
+        System.out.println("📂 [Employee Files] Listing property-level subfolders for property: " + propertyId);
+
+        try {
+            ensureEmployeeAccess(authentication);
+
+            List<Map<String, Object>> subfolders = sharedDriveFileService.listPropertySubfolders(propertyId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("subfolders", subfolders);
+            response.put("count", subfolders.size());
+            response.put("propertyId", propertyId);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [Employee] Error listing property subfolders: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error listing property subfolders: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * List all tenants/leases for a property
+     */
+    @GetMapping("/property/{propertyId}/tenants")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> listPropertyTenants(@PathVariable Long propertyId,
+                                                                   Authentication authentication) {
+        System.out.println("📋 [Employee Files] Listing tenants for property: " + propertyId);
+
+        try {
+            ensureEmployeeAccess(authentication);
+
+            List<Map<String, Object>> tenants = sharedDriveFileService.listTenantsForProperty(propertyId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("tenants", tenants);
+            response.put("count", tenants.size());
+            response.put("propertyId", propertyId);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [Employee] Error listing tenants: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error listing tenants: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * List files in a property-level document subfolder
+     */
+    @GetMapping("/property/{propertyId}/subfolder/{subfolderName}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> listPropertySubfolderFiles(@PathVariable Long propertyId,
+                                                                          @PathVariable String subfolderName,
+                                                                          Authentication authentication) {
+        System.out.println("📄 [Employee Files] Listing files - Property: " + propertyId + ", Subfolder: " + subfolderName);
+
+        try {
+            ensureEmployeeAccess(authentication);
+
+            List<Map<String, Object>> files = sharedDriveFileService.listPropertySubfolderFiles(propertyId, subfolderName);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("files", files);
+            response.put("count", files.size());
+            response.put("propertyId", propertyId);
+            response.put("subfolderName", subfolderName);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [Employee] Error listing property subfolder files: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error listing files: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Upload files to a property-level document subfolder
+     */
+    @PostMapping("/property/{propertyId}/subfolder/{subfolderName}/upload")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadToPropertySubfolderNew(@PathVariable Long propertyId,
+                                                                            @PathVariable String subfolderName,
+                                                                            @RequestParam("files") MultipartFile[] files,
+                                                                            Authentication authentication) {
+        System.out.println("⬆️  [Employee Files] Uploading to property subfolder - Property: " + propertyId + ", Subfolder: " + subfolderName);
+
+        try {
+            ensureEmployeeAccess(authentication);
+
+            List<Map<String, Object>> uploadedFiles = new ArrayList<>();
+            List<String> failedFiles = new ArrayList<>();
+
+            for (MultipartFile file : files) {
+                try {
+                    if (!file.isEmpty()) {
+                        Map<String, Object> result = sharedDriveFileService.uploadToPropertySubfolder(propertyId, subfolderName, file);
+                        uploadedFiles.add(result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ [Employee] Failed to upload file: " + file.getOriginalFilename() + " - " + e.getMessage());
+                    failedFiles.add(file.getOriginalFilename());
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("uploadedFiles", uploadedFiles);
+            response.put("successCount", uploadedFiles.size());
+            response.put("failedCount", failedFiles.size());
+            response.put("failedFiles", failedFiles);
+
+            if (!failedFiles.isEmpty()) {
+                response.put("message", uploadedFiles.size() + " of " + files.length + " files uploaded successfully");
+            } else {
+                response.put("message", "All files uploaded successfully");
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [Employee] Error uploading to property subfolder: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error uploading files: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * List files in a tenant's document subfolder
+     */
+    @GetMapping("/property/{propertyId}/tenant/{leaseId}/subfolder/{subfolderName}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> listTenantSubfolderFiles(@PathVariable Long propertyId,
+                                                                        @PathVariable Long leaseId,
+                                                                        @PathVariable String subfolderName,
+                                                                        Authentication authentication) {
+        System.out.println("📂 [Employee Files] Listing files - Property: " + propertyId + ", Lease: " + leaseId + ", Subfolder: " + subfolderName);
+
+        try {
+            ensureEmployeeAccess(authentication);
+
+            List<Map<String, Object>> files = sharedDriveFileService.listTenantSubfolderFiles(propertyId, leaseId, subfolderName);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("files", files);
+            response.put("count", files.size());
+            response.put("propertyId", propertyId);
+            response.put("leaseId", leaseId);
+            response.put("subfolderName", subfolderName);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [Employee] Error listing tenant subfolder files: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error listing files: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Upload files to a tenant's document subfolder
+     */
+    @PostMapping("/property/{propertyId}/tenant/{leaseId}/subfolder/{subfolderName}/upload")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadToTenantSubfolder(@PathVariable Long propertyId,
+                                                                       @PathVariable Long leaseId,
+                                                                       @PathVariable String subfolderName,
+                                                                       @RequestParam("files") MultipartFile[] files,
+                                                                       Authentication authentication) {
+        System.out.println("⬆️  [Employee Files] Uploading to tenant subfolder - Property: " + propertyId + ", Lease: " + leaseId + ", Subfolder: " + subfolderName);
+
+        try {
+            ensureEmployeeAccess(authentication);
+
+            List<Map<String, Object>> uploadedFiles = new ArrayList<>();
+            List<String> failedFiles = new ArrayList<>();
+
+            for (MultipartFile file : files) {
+                try {
+                    if (!file.isEmpty()) {
+                        Map<String, Object> result = sharedDriveFileService.uploadToTenantSubfolder(propertyId, leaseId, subfolderName, file);
+                        uploadedFiles.add(result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ [Employee] Failed to upload file: " + file.getOriginalFilename() + " - " + e.getMessage());
+                    failedFiles.add(file.getOriginalFilename());
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("uploadedFiles", uploadedFiles);
+            response.put("successCount", uploadedFiles.size());
+            response.put("failedCount", failedFiles.size());
+            response.put("failedFiles", failedFiles);
+
+            if (!failedFiles.isEmpty()) {
+                response.put("message", uploadedFiles.size() + " of " + files.length + " files uploaded successfully");
+            } else {
+                response.put("message", "All files uploaded successfully");
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [Employee] Error uploading to tenant subfolder: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error uploading files: " + e.getMessage()));
         }
     }
 

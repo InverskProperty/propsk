@@ -52,6 +52,14 @@ public class SharedDriveFileService {
     private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
     private static final String SHARED_DRIVE_DOCUMENTS_FOLDER = "Property-Documents";
 
+    // Property-level document folders (directly under property folder)
+    private static final List<String> PROPERTY_DOCUMENT_SUBFOLDERS = Arrays.asList(
+        "EICR",
+        "EPC",
+        "Insurance",
+        "Miscellaneous"
+    );
+
     // Tenant/Lease document subfolders (within each tenant folder)
     private static final List<String> TENANT_DOCUMENT_SUBFOLDERS = Arrays.asList(
         "Contracts",
@@ -910,36 +918,14 @@ public class SharedDriveFileService {
         return propertyFolders;
     }
 
-    /**
-     * List files in a property subfolder (property documents like EICR, EPC)
-     */
-    public List<Map<String, Object>> listPropertySubfolderFiles(Long propertyId, String subfolderName)
-            throws IOException, GeneralSecurityException {
-        if (!hasServiceAccount()) {
-            throw new IllegalStateException("Service account not configured");
-        }
-
-        Property property = propertyService.findById(propertyId);
-        if (property == null) {
-            System.out.println("❌ Property not found: " + propertyId);
-            return new ArrayList<>();
-        }
-
-        Drive driveService = createDriveService();
-        String propertyFolderName = generatePropertyFolderName(property);
-        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
-
-        // Get or create subfolder (EICR, EPC, etc.)
-        String subfolderId = getOrCreateSubfolderInProperty(driveService, propertyFolderId, subfolderName);
-
-        return listFilesInFolder(driveService, subfolderId);
-    }
+    // ===================================================================
+    // PROPERTY & TENANT FILE MANAGEMENT (HYBRID STRUCTURE)
+    // ===================================================================
 
     /**
-     * Upload file to property subfolder
+     * List property-level document subfolders
      */
-    public Map<String, Object> uploadToPropertySubfolder(Long propertyId, String subfolderName, MultipartFile file)
-            throws IOException, GeneralSecurityException {
+    public List<Map<String, Object>> listPropertySubfolders(Long propertyId) throws IOException, GeneralSecurityException {
         if (!hasServiceAccount()) {
             throw new IllegalStateException("Service account not configured");
         }
@@ -953,26 +939,110 @@ public class SharedDriveFileService {
         String propertyFolderName = generatePropertyFolderName(property);
         String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
 
-        // Get or create subfolder
-        String subfolderId = getOrCreateSubfolderInProperty(driveService, propertyFolderId, subfolderName);
+        List<Map<String, Object>> subfolders = new ArrayList<>();
 
-        // Upload the file
+        for (String subfolderName : PROPERTY_DOCUMENT_SUBFOLDERS) {
+            String subfolderId = getOrCreateSubfolder(driveService, propertyFolderId, subfolderName);
+
+            Map<String, Object> folderInfo = new HashMap<>();
+            folderInfo.put("name", subfolderName);
+            folderInfo.put("folderId", subfolderId);
+            folderInfo.put("type", "property-subfolder");
+            folderInfo.put("description", getPropertySubfolderDescription(subfolderName));
+
+            subfolders.add(folderInfo);
+        }
+
+        System.out.println("📁 Found " + subfolders.size() + " property-level subfolders for " + property.getPropertyName());
+        return subfolders;
+    }
+
+    /**
+     * Get description for property-level subfolder
+     */
+    private String getPropertySubfolderDescription(String subfolderName) {
+        switch (subfolderName) {
+            case "EICR": return "Electrical Installation Condition Reports";
+            case "EPC": return "Energy Performance Certificates";
+            case "Insurance": return "Insurance documents and policies";
+            case "Miscellaneous": return "Other property-related documents";
+            default: return "Property documents";
+        }
+    }
+
+    /**
+     * List files in a property-level document subfolder
+     */
+    public List<Map<String, Object>> listPropertySubfolderFiles(Long propertyId, String subfolderName)
+            throws IOException, GeneralSecurityException {
+
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        if (!PROPERTY_DOCUMENT_SUBFOLDERS.contains(subfolderName)) {
+            throw new IllegalArgumentException("Invalid property subfolder: " + subfolderName +
+                ". Must be one of: " + PROPERTY_DOCUMENT_SUBFOLDERS);
+        }
+
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
+            throw new IllegalArgumentException("Property not found: " + propertyId);
+        }
+
+        Drive driveService = createDriveService();
+
+        // Navigate: Property → Subfolder
+        String propertyFolderName = generatePropertyFolderName(property);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+        String subfolderId = getOrCreateSubfolder(driveService, propertyFolderId, subfolderName);
+
+        return listFilesInFolder(driveService, subfolderId);
+    }
+
+    /**
+     * Upload file to property-level document subfolder
+     */
+    public Map<String, Object> uploadToPropertySubfolder(Long propertyId, String subfolderName, MultipartFile file)
+            throws IOException, GeneralSecurityException {
+
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        if (!PROPERTY_DOCUMENT_SUBFOLDERS.contains(subfolderName)) {
+            throw new IllegalArgumentException("Invalid property subfolder: " + subfolderName);
+        }
+
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
+            throw new IllegalArgumentException("Property not found: " + propertyId);
+        }
+
+        Drive driveService = createDriveService();
+
+        // Navigate: Property → Subfolder
+        String propertyFolderName = generatePropertyFolderName(property);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+        String subfolderId = getOrCreateSubfolder(driveService, propertyFolderId, subfolderName);
+
+        // Upload file
         File fileMetadata = new File();
         fileMetadata.setName(file.getOriginalFilename());
         fileMetadata.setParents(Collections.singletonList(subfolderId));
 
-        com.google.api.client.http.InputStreamContent mediaContent =
-            new com.google.api.client.http.InputStreamContent(
-                file.getContentType(),
-                file.getInputStream()
-            );
+        InputStreamContent mediaContent = new InputStreamContent(
+            file.getContentType(),
+            file.getInputStream()
+        );
 
         File uploadedFile = driveService.files()
             .create(fileMetadata, mediaContent)
             .setSupportsAllDrives(true)
             .execute();
 
-        System.out.println("✅ File uploaded: " + uploadedFile.getName() + " to " + propertyFolderName + "/" + subfolderName);
+        System.out.println("✅ File uploaded: " + uploadedFile.getName() +
+            " to " + propertyFolderName + "/" + subfolderName);
 
         Map<String, Object> result = new HashMap<>();
         result.put("id", uploadedFile.getId());
@@ -982,10 +1052,6 @@ public class SharedDriveFileService {
 
         return result;
     }
-
-    // ===================================================================
-    // TENANT/LEASE-CENTRIC FILE MANAGEMENT (NEW STRUCTURE)
-    // ===================================================================
 
     /**
      * Generate tenant folder name from Invoice (lease)

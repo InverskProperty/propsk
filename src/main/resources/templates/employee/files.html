@@ -191,14 +191,78 @@
 <script th:src="@{/js/library/custom.min.js}"></script>
 
 <script>
+// Navigation state
+let navigationStack = [];
+let currentLevel = 'root'; // root, property, property-subfolder, tenants, tenant, tenant-subfolder, internal
+
 // Global state
 let currentContext = {
     type: null,        // 'property-list', 'property', 'property-subfolder', 'internal-list', 'internal'
     propertyId: null,
     propertyName: null,
+    leaseId: null,
+    tenantName: null,
     subfolder: null,
     internalFolder: null
 };
+
+// Navigation helpers
+function updateBreadcrumbNav(items) {
+    // Update modal breadcrumb if it exists
+    const breadcrumbList = document.getElementById('breadcrumbList');
+    if (breadcrumbList) {
+        breadcrumbList.innerHTML = '';
+
+        items.forEach((item, index) => {
+            const li = document.createElement('li');
+            li.className = 'breadcrumb-item';
+
+            if (index === items.length - 1) {
+                li.className += ' active';
+                li.setAttribute('aria-current', 'page');
+                li.textContent = item.text;
+            } else {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.textContent = item.text;
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    item.action();
+                };
+                li.appendChild(link);
+            }
+
+            breadcrumbList.appendChild(li);
+        });
+
+        // Show/hide back button
+        const backButton = document.getElementById('backButton');
+        if (backButton) {
+            if (navigationStack.length > 0) {
+                backButton.style.display = 'inline-block';
+            } else {
+                backButton.style.display = 'none';
+            }
+        }
+    }
+}
+
+function pushNavigation(state) {
+    navigationStack.push(state);
+    console.log('Navigation stack:', navigationStack);
+}
+
+function navigateBack() {
+    if (navigationStack.length === 0) return;
+
+    const previousState = navigationStack.pop();
+    console.log('Navigating back to:', previousState);
+
+    // Execute the previous state's action
+    if (previousState.action) {
+        previousState.action();
+    }
+}
 
 // ===================================================================
 // Navigation Functions
@@ -227,16 +291,195 @@ function loadAllProperties() {
 }
 
 function loadPropertySubfolders(propertyId, propertyName) {
-    console.log('📁 Loading subfolders for property:', propertyId);
+    console.log('📁 Loading hybrid view for property:', propertyId);
     showLoading();
 
-    // Hardcoded subfolders (EICR, EPC, Insurance, Statements, Maintenance)
-    const subfolders = ['EICR', 'EPC', 'Insurance', 'Statements', 'Maintenance'];
+    // Save previous state for back navigation
+    pushNavigation({
+        level: currentLevel,
+        action: () => loadAllProperties()
+    });
 
     currentContext = {type: 'property', propertyId, propertyName, ...clearContext()};
+    currentLevel = 'property';
     updateBreadcrumb(['Property Documents', propertyName]);
-    displaySubfolders(subfolders, propertyId, propertyName);
+
+    // Load hybrid view: both property folders and tenants
+    Promise.all([
+        fetch(`/employee/files/property/${propertyId}/subfolders`).then(r => r.json()),
+        fetch(`/employee/files/property/${propertyId}/tenants`).then(r => r.json())
+    ])
+    .then(([subfoldersData, tenantsData]) => {
+        displayPropertyHybridView(subfoldersData.subfolders || [], tenantsData.tenants || []);
+        document.getElementById('uploadBtn').disabled = true;
+    })
+    .catch(error => {
+        console.error('Error loading property view:', error);
+        showError('Error loading property view: ' + error.message);
+    });
+}
+
+function displayPropertyHybridView(propertySubfolders, tenants) {
+    const container = document.getElementById('contentArea');
+    let html = '';
+
+    // Property-level document folders
+    if (propertySubfolders.length > 0) {
+        html += '<h5 class="mb-3"><i class="fas fa-folder text-warning"></i> Property Documents</h5>';
+        html += '<div class="row mb-4">';
+
+        propertySubfolders.forEach(folder => {
+            html += `
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="fas fa-folder text-warning me-2"></i>${folder.name}</h6>
+                            <p class="card-text small text-muted">${folder.description}</p>
+                            <button class="btn btn-sm btn-primary" onclick="loadPropertySubfolderFiles(${currentContext.propertyId}, '${folder.name}')">
+                                Browse <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+    }
+
+    // Tenant folders
+    if (tenants.length > 0) {
+        html += '<h5 class="mb-3"><i class="fas fa-users text-primary"></i> Tenant Documents</h5>';
+        html += '<div class="row">';
+
+        tenants.forEach(tenant => {
+            const statusBadge = tenant.isActive ?
+                '<span class="badge bg-success">Active</span>' :
+                '<span class="badge bg-secondary">Inactive</span>';
+
+            const dateRange = tenant.endDate ?
+                `${tenant.startDate} to ${tenant.endDate}` :
+                `${tenant.startDate} to Present`;
+
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="fas fa-user text-primary me-2"></i>${tenant.tenantName} ${statusBadge}
+                            </h6>
+                            <p class="card-text small text-muted">${dateRange}</p>
+                            <button class="btn btn-sm btn-primary" onclick="openTenant(${tenant.leaseId}, '${tenant.tenantName}')">
+                                Browse <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+    }
+
+    // Empty state
+    if (propertySubfolders.length === 0 && tenants.length === 0) {
+        html = `
+            <div class="text-center py-5">
+                <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
+                <h5>No documents or tenants found</h5>
+                <p class="text-muted">This property has no documents or tenant leases yet.</p>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+function openTenant(leaseId, tenantName) {
+    console.log('Opening tenant:', leaseId, tenantName);
+
+    // Save previous state
+    pushNavigation({
+        level: currentLevel,
+        action: () => loadPropertySubfolders(currentContext.propertyId, currentContext.propertyName)
+    });
+
+    currentContext = {...currentContext, leaseId, tenantName, type: 'tenant'};
+    currentLevel = 'tenant';
+    updateBreadcrumb(['Property Documents', currentContext.propertyName, tenantName]);
+
+    // Display tenant document subfolders
+    displayTenantSubfolders();
+}
+
+function displayTenantSubfolders() {
+    const container = document.getElementById('contentArea');
+    const subfolders = [
+        {name: 'Contracts', description: 'Tenancy agreements and contracts'},
+        {name: 'Inspections', description: 'Property inspection reports'},
+        {name: 'Inventories', description: 'Inventory documents and check-in/out reports'},
+        {name: 'Miscellaneous', description: 'Other tenant-related documents'},
+        {name: 'Right-to-Rent', description: 'Right to rent checks and documentation'}
+    ];
+
+    let html = '<h5 class="mb-3"><i class="fas fa-folder text-warning"></i> Document Categories</h5>';
+    html += '<div class="row">';
+
+    subfolders.forEach(subfolder => {
+        html += `
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title"><i class="fas fa-folder text-warning me-2"></i>${subfolder.name}</h6>
+                        <p class="card-text small text-muted">${subfolder.description}</p>
+                        <button class="btn btn-sm btn-primary" onclick="loadTenantSubfolderFiles(${currentContext.propertyId}, ${currentContext.leaseId}, '${subfolder.name}')">
+                            Browse <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
     document.getElementById('uploadBtn').disabled = true;
+}
+
+function loadTenantSubfolderFiles(propertyId, leaseId, subfolderName) {
+    console.log('📁 Loading tenant files:', propertyId, leaseId, subfolderName);
+    showLoading();
+
+    // Save previous state
+    pushNavigation({
+        level: currentLevel,
+        action: () => displayTenantSubfolders()
+    });
+
+    fetch(`/employee/files/property/${propertyId}/tenant/${leaseId}/subfolder/${subfolderName}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.files) {
+                currentContext = {...currentContext, type: 'tenant-subfolder', subfolder: subfolderName};
+                currentLevel = 'tenant-subfolder';
+                updateBreadcrumb([
+                    'Property Documents',
+                    currentContext.propertyName,
+                    currentContext.tenantName,
+                    subfolderName
+                ]);
+                displayFiles(data.files);
+                document.getElementById('uploadBtn').disabled = false; // Enable upload
+            } else if (data.error) {
+                showError(data.error);
+            } else {
+                showError('Failed to load files');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error loading files: ' + error.message);
+        });
 }
 
 function loadPropertySubfolderFiles(propertyId, subfolder) {
