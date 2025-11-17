@@ -130,28 +130,73 @@ public class GoogleGmailController {
     }
 
     @PostMapping("/send")
-    public String sendEmail(Authentication authentication, @RequestParam("allFiles") String files,
-                            @ModelAttribute("emailForm") @Valid GmailEmailInfo emailForm,
-                            BindingResult bindingResult) {
-        OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-        if (bindingResult.hasErrors()) {
-            return "gmail/email-form";
-        }
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            List<Attachment> allFiles = objectMapper.readValue(files, new TypeReference<List<Attachment>>(){});
-            googleGmailApiService.sendEmail(oAuthUser, emailForm.getRecipient(), emailForm.getSubject(), emailForm.getBody(), new ArrayList<>(),allFiles);
-            googleGmailApiService.removeDraft(oAuthUser,emailForm.getDraftId());
+    public String sendEmail(Authentication authentication,
+                            @RequestParam(value = "recipient", required = false) String recipient,
+                            @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
+                            @RequestParam("subject") String subject,
+                            @RequestParam("message") String message,
+                            RedirectAttributes redirectAttributes) {
 
-        }catch (SocketTimeoutException e) {
-            bindingResult.rejectValue("failedErrorMessage", "error.failedErrorMessage","There are might be a network connection error, please check your connection and try again!");
-            return "gmail/email-form";
+        try {
+            OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+
+            // Collect all recipient emails
+            List<String> recipientEmails = new ArrayList<>();
+
+            // Add manually entered emails
+            if (recipient != null && !recipient.trim().isEmpty()) {
+                String[] emails = recipient.split(",");
+                for (String email : emails) {
+                    email = email.trim();
+                    if (!email.isEmpty() && email.contains("@")) {
+                        recipientEmails.add(email);
+                    }
+                }
+            }
+
+            // Add selected customer emails
+            if (selectedIds != null && !selectedIds.isEmpty()) {
+                for (Integer customerId : selectedIds) {
+                    Customer customer = customerService.findByCustomerId(customerId.longValue());
+                    if (customer != null && customer.getEmail() != null && !customer.getEmail().trim().isEmpty()) {
+                        recipientEmails.add(customer.getEmail());
+                    }
+                }
+            }
+
+            // Validate we have at least one recipient
+            if (recipientEmails.isEmpty()) {
+                redirectAttributes.addFlashAttribute("errorMessage",
+                    "Please enter at least one email address or select customers.");
+                return "redirect:/employee/gmail/send";
+            }
+
+            // Send email to each recipient
+            int successCount = 0;
+            for (String email : recipientEmails) {
+                try {
+                    googleGmailApiService.sendEmail(oAuthUser, email, subject, message, new ArrayList<>(), new ArrayList<>());
+                    successCount++;
+                } catch (Exception e) {
+                    System.err.println("Failed to send email to " + email + ": " + e.getMessage());
+                }
+            }
+
+            if (successCount > 0) {
+                redirectAttributes.addFlashAttribute("successMessage",
+                    String.format("Successfully sent %d out of %d emails.", successCount, recipientEmails.size()));
+                return "redirect:/employee/gmail/emails/sent?success=true";
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage",
+                    "Failed to send emails. Please check your Gmail API access and try again.");
+                return "redirect:/employee/gmail/send";
+            }
+
         } catch (Exception e) {
-            ObjectError emailFailingError = new ObjectError("failedErrorMessage", "The email hasn't been sent, please try again!");
-            bindingResult.addError(emailFailingError);
-            return "gmail/email-form";
+            redirectAttributes.addFlashAttribute("errorMessage",
+                "Error sending email: " + e.getMessage());
+            return "redirect:/employee/gmail/send";
         }
-        return "redirect:/employee/gmail/emails/sent?success=true";
     }
 
     @PostMapping("/draft/ajax")

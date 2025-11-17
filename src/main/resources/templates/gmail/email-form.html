@@ -27,29 +27,52 @@
                             <strong>Gmail Setup Required:</strong> <span th:text="${gmailError}">Error message</span>
                         </div>
 
-                        <!-- Recipients Summary -->
-                        <div class="card border-info mb-4">
-                            <div class="card-header bg-info text-white">
-                                <h5 class="mb-0">
-                                    Email Recipients: <span th:text="${customerType ?: 'Customers'}">Customers</span>
-                                </h5>
-                            </div>
-                            <div class="card-body">
-                                <p class="card-text">
-                                    <strong th:text="${customers != null ? customers.size() : 0}">0</strong> 
-                                    <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span> 
-                                    will receive this email.
-                                </p>
-                            </div>
-                        </div>
+                        <!-- Email Form - Gmail Style Compose -->
+                        <form method="post" th:action="@{/employee/gmail/send}" th:if="${gmailError == null or gmailError == ''}">
 
-                        <!-- Email Form - Fixed action URL -->
-                        <form method="post" th:if="${gmailError == null or gmailError == ''}">
-                            
+                            <!-- Recipient Field -->
+                            <div class="mb-3">
+                                <label for="recipient" class="form-label">To *</label>
+                                <input type="text" class="form-control" id="recipient" name="recipient"
+                                       placeholder="Enter email addresses (comma separated)" maxlength="500">
+                                <div class="form-text">
+                                    You can enter email addresses manually or select customers below
+                                </div>
+                            </div>
+
+                            <!-- Customer Selection Section -->
+                            <div class="card border-info mb-4" th:if="${customers != null and customers.size() > 0}">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-users"></i> Or Select from Customers
+                                        <span class="badge bg-light text-dark ms-2" th:text="${customers.size()}">0</span>
+                                    </h6>
+                                </div>
+                                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleSelectAll()">
+                                        <label class="form-check-label fw-bold" for="selectAll">
+                                            Select All Customers
+                                        </label>
+                                    </div>
+                                    <hr>
+                                    <div th:each="customer : ${customers}" class="form-check">
+                                        <input class="form-check-input customer-checkbox" type="checkbox"
+                                               th:id="'customer_' + ${customer.customerId}"
+                                               name="selectedIds"
+                                               th:value="${customer.customerId}">
+                                        <label class="form-check-label" th:for="'customer_' + ${customer.customerId}">
+                                            <span th:text="${customer.name}">Customer Name</span>
+                                            <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Subject Field -->
                             <div class="mb-3">
                                 <label for="subject" class="form-label">Email Subject *</label>
-                                <input type="text" class="form-control" id="subject" name="subject" 
+                                <input type="text" class="form-control" id="subject" name="subject"
                                        placeholder="Enter email subject" required maxlength="200">
                             </div>
 
@@ -60,29 +83,6 @@
                                           placeholder="Enter your email message here..." required maxlength="5000"></textarea>
                                 <div class="form-text">
                                     Available placeholders: {{customer_name}}, {{customer_email}}, {{customer_phone}}, {{customer_address}}
-                                </div>
-                            </div>
-
-                            <!-- Email Options -->
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="emailAll" name="emailAll" checked>
-                                        <label class="form-check-label" for="emailAll">
-                                            Email all <span th:text="${customers != null ? customers.size() : 0}">0</span> 
-                                            <span th:text="${customerType != null ? customerType.toLowerCase() : 'customers'}">customers</span>
-                                        </label>
-                                    </div>
-                                </div>
-                                
-                                <!-- Active tenants filter -->
-                                <div class="col-md-6" th:if="${customerType == 'Tenants'}">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="activeOnly" name="activeOnly">
-                                        <label class="form-check-label" for="activeOnly">
-                                            Active tenants only
-                                        </label>
-                                    </div>
                                 </div>
                             </div>
 
@@ -136,11 +136,20 @@
     <script src="https://kit.fontawesome.com/a076d05399.js"></script>
     
     <script th:inline="javascript">
+        // Toggle select all checkboxes
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.customer-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // Get server-side variables
             var customerCount = /*[[${customers != null ? customers.size() : 0}]]*/ 0;
             var customerType = /*[[${customerType != null ? customerType.toLowerCase() : 'customers'}]]*/ 'customers';
-            
+
             // Real-time email preview
             function updatePreview() {
                 const subject = document.getElementById('subject').value;
