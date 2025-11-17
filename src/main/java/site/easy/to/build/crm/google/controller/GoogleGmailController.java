@@ -19,6 +19,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.google.model.gmail.Attachment;
 import site.easy.to.build.crm.google.model.gmail.*;
@@ -26,6 +27,7 @@ import site.easy.to.build.crm.google.model.gmail.EmailPage;
 import site.easy.to.build.crm.google.service.gmail.GmailEmailService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailApiService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailLabelService;
+import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.google.GoogleServiceAccountService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 import site.easy.to.build.crm.google.util.PageTokenManager;
@@ -41,19 +43,19 @@ import java.util.*;
 public class GoogleGmailController {
     private final AuthenticationUtils authenticationUtils;
     private final GmailEmailService gmailEmailService;
-
     private final GoogleGmailApiService googleGmailApiService;
-
     private final GoogleGmailLabelService googleGmailLabelService;
     private final GoogleServiceAccountService googleServiceAccountService;
+    private final CustomerService customerService;
 
     @Autowired
-    public GoogleGmailController(AuthenticationUtils authenticationUtils, GmailEmailService gmailEmailService, GoogleGmailApiService googleGmailApiService, GoogleGmailLabelService googleGmailLabelService, GoogleServiceAccountService googleServiceAccountService) {
+    public GoogleGmailController(AuthenticationUtils authenticationUtils, GmailEmailService gmailEmailService, GoogleGmailApiService googleGmailApiService, GoogleGmailLabelService googleGmailLabelService, GoogleServiceAccountService googleServiceAccountService, CustomerService customerService) {
         this.authenticationUtils = authenticationUtils;
         this.gmailEmailService = gmailEmailService;
         this.googleGmailApiService = googleGmailApiService;
         this.googleGmailLabelService = googleGmailLabelService;
         this.googleServiceAccountService = googleServiceAccountService;
+        this.customerService = customerService;
     }
 
     @GetMapping("/send")
@@ -91,6 +93,20 @@ public class GoogleGmailController {
             model.addAttribute("code",code);
             return "gmail/error";
         }
+
+        // Load all customers for selection
+        try {
+            List<Customer> allCustomers = customerService.findAll();
+            model.addAttribute("customers", allCustomers);
+            model.addAttribute("customerType", "All Customers");
+            model.addAttribute("pageTitle", "Compose Email");
+            model.addAttribute("backUrl", "/employee/gmail/emails");
+        } catch (Exception e) {
+            System.err.println("⚠️ Error loading customers: " + e.getMessage());
+            // Continue without customer list - allow manual recipient entry
+            model.addAttribute("customers", new ArrayList<Customer>());
+        }
+
         model.addAttribute("emailForm", new GmailEmailInfo());
         return "gmail/email-form";
     }
