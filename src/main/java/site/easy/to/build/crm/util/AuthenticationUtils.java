@@ -69,6 +69,9 @@ public class AuthenticationUtils {
                 System.out.println("   OAuth user email: " + oAuthUser.getEmail());
                 System.out.println("   OAuth user has access token: " + (oAuthUser.getAccessToken() != null));
                 System.out.println("   OAuth user has refresh token: " + (oAuthUser.getRefreshToken() != null));
+                System.out.println("   ⭐ OAuth user granted scopes: " + oAuthUser.getGrantedScopes());
+                System.out.println("   ⭐ Has gmail.send scope: " + oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send"));
+                System.out.println("   ⭐ Has gmail.modify scope: " + oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.modify"));
             }
 
             return oAuthUser;

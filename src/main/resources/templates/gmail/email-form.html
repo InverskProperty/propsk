@@ -29,6 +29,7 @@
 
                         <!-- Email Form - Gmail Style Compose -->
                         <form method="post" th:action="@{/employee/gmail/send}" th:if="${gmailError == null or gmailError == ''}">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
 
                             <!-- Recipient Field -->
                             <div class="mb-3">

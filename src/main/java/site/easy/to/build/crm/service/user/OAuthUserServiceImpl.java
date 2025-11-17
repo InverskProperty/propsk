@@ -239,14 +239,30 @@ public class OAuthUserServiceImpl implements OAuthUserService{
 
     @Override
     public void save(OAuthUser oAuthUser, User user) {
+        System.out.println("💾 Saving OAuthUser with User...");
+        System.out.println("   OAuthUser ID: " + oAuthUser.getId());
+        System.out.println("   OAuthUser email: " + oAuthUser.getEmail());
+        System.out.println("   ⭐ Scopes BEFORE save: " + oAuthUser.getGrantedScopes());
+
         oAuthUser.setUser(user);
         user.setOauthUser(oAuthUser);
-        oAuthUserRepository.save(oAuthUser);
+        OAuthUser saved = oAuthUserRepository.save(oAuthUser);
+
+        System.out.println("   ⭐ Scopes AFTER save: " + saved.getGrantedScopes());
+        System.out.println("✅ OAuthUser saved successfully");
     }
 
     @Override
     public void save(OAuthUser oAuthUser) {
-        oAuthUserRepository.save(oAuthUser);
+        System.out.println("💾 Saving OAuthUser...");
+        System.out.println("   OAuthUser ID: " + oAuthUser.getId());
+        System.out.println("   OAuthUser email: " + oAuthUser.getEmail());
+        System.out.println("   ⭐ Scopes BEFORE save: " + oAuthUser.getGrantedScopes());
+
+        OAuthUser saved = oAuthUserRepository.save(oAuthUser);
+
+        System.out.println("   ⭐ Scopes AFTER save: " + saved.getGrantedScopes());
+        System.out.println("✅ OAuthUser saved successfully");
     }
 
     @Override
