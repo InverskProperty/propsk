@@ -10,7 +10,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.entity.*;
+import site.easy.to.build.crm.repository.BlockRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.email.EmailService;
@@ -40,18 +42,22 @@ public class CustomerController {
     private final AuthenticationUtils authenticationUtils;
     private final EmailService emailService;
     private final CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
-    
+    private final BlockRepository blockRepository;
+    private final PropertyRepository propertyRepository;
+
     @Autowired(required = false)
     private LocalToPayPropSyncService localToPayPropSyncService;
 
 
     @Autowired
-    public CustomerController(CustomerService customerService, UserService userService, 
+    public CustomerController(CustomerService customerService, UserService userService,
                             PropertyService propertyService,
                             CustomerLoginInfoService customerLoginInfoService,
-                            AuthenticationUtils authenticationUtils, 
+                            AuthenticationUtils authenticationUtils,
                             EmailService emailService,
-                            CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository) {
+                            CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository,
+                            BlockRepository blockRepository,
+                            PropertyRepository propertyRepository) {
         this.customerService = customerService;
         this.userService = userService;
         this.propertyService = propertyService;
@@ -59,6 +65,8 @@ public class CustomerController {
         this.authenticationUtils = authenticationUtils;
         this.emailService = emailService;
         this.customerPropertyAssignmentRepository = customerPropertyAssignmentRepository;
+        this.blockRepository = blockRepository;
+        this.propertyRepository = propertyRepository;
     }
 
     // ===== MAIN CUSTOMER DASHBOARD =====
@@ -537,25 +545,29 @@ public class CustomerController {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
             User user = userService.findById(userId);
-            
+
             List<Customer> propertyOwners = customerService.findPropertyOwners();
-            
+
             // Get all properties for the dropdown
             List<Property> properties = propertyService.findAll();
-            
+
             // Get all property owners for the owner filter dropdown
             List<Customer> allPropertyOwners = customerService.findPropertyOwners();
-            
+
+            // Get all blocks for the dropdown
+            List<Block> blocks = blockRepository.findAll();
+
             model.addAttribute("customers", propertyOwners);
             model.addAttribute("properties", properties);
             model.addAttribute("propertyOwners", allPropertyOwners);
+            model.addAttribute("blocks", blocks);
             model.addAttribute("customerType", "Property Owners");
             model.addAttribute("user", user);
             model.addAttribute("pageTitle", "Email Property Owners");
             model.addAttribute("backUrl", "/employee/customer/property-owners");
-            
+
             return "customer/email-form";
-            
+
         } catch (Exception e) {
             model.addAttribute("error", "Error loading email form: " + e.getMessage());
             return "error/500";
@@ -571,6 +583,7 @@ public class CustomerController {
                                         @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
                                         @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
                                         @RequestParam(value = "propertyId", required = false) Long propertyId,
+                                        @RequestParam(value = "blockId", required = false) Long blockId,
                                         @RequestParam(value = "ownerId", required = false) Integer ownerId,
                                         @RequestParam(value = "includePropertyInfo", defaultValue = "false") boolean includePropertyInfo,
                                         Authentication authentication,
@@ -589,21 +602,61 @@ public class CustomerController {
             if (emailAll || selectedIds == null || selectedIds.isEmpty()) {
                 // Start with all property owners
                 propertyOwners = customerService.findPropertyOwners();
-                
+
+                // Apply block filter if specified
+                if (blockId != null) {
+                    List<Property> blockProperties = propertyRepository.findByBlockId(blockId);
+                    List<Long> propertyIds = blockProperties.stream()
+                        .map(Property::getId)
+                        .collect(Collectors.toList());
+
+                    if (propertyIds.isEmpty()) {
+                        redirectAttributes.addFlashAttribute("warningMessage",
+                            "No properties found in the selected block.");
+                        return "redirect:/employee/customer/property-owners";
+                    }
+
+                    List<Long> ownerCustomerIds = new ArrayList<>();
+                    for (Long propId : propertyIds) {
+                        List<CustomerPropertyAssignment> assignments =
+                            customerPropertyAssignmentRepository.findByPropertyId(propId);
+
+                        ownerCustomerIds.addAll(assignments.stream()
+                            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
+                            .map(assignment -> assignment.getCustomer().getCustomerId())
+                            .collect(Collectors.toList()));
+                    }
+
+                    propertyOwners = propertyOwners.stream()
+                        .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
+                        .distinct()
+                        .collect(Collectors.toList());
+
+                    try {
+                        Block block = blockRepository.findById(blockId).orElse(null);
+                        if (block != null) {
+                            filterDescription += "for block: " + block.getName();
+                        } else {
+                            filterDescription += "for block ID: " + blockId;
+                        }
+                    } catch (Exception e) {
+                        filterDescription += "for block ID: " + blockId;
+                    }
+                }
                 // Apply property filter if specified
-                if (propertyId != null) {
-                    List<CustomerPropertyAssignment> propertyAssignments = 
+                else if (propertyId != null) {
+                    List<CustomerPropertyAssignment> propertyAssignments =
                         customerPropertyAssignmentRepository.findByPropertyId(propertyId);
-                    
+
                     List<Long> ownerCustomerIds = propertyAssignments.stream()
                         .filter(assignment -> assignment.getAssignmentType() == AssignmentType.OWNER)
                         .map(assignment -> assignment.getCustomer().getCustomerId())
                         .collect(Collectors.toList());
-                    
+
                     propertyOwners = propertyOwners.stream()
                         .filter(owner -> ownerCustomerIds.contains(owner.getCustomerId()))
                         .collect(Collectors.toList());
-                    
+
                     try {
                         Property property = propertyService.findById(propertyId);
                         if (property != null) {
@@ -819,21 +872,25 @@ public class CustomerController {
         try {
             Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
             User user = userService.findById(userId);
-            
+
             List<Customer> tenants = customerService.findTenants();
-            
+
             // Get all properties for the dropdown
             List<Property> properties = propertyService.findAll();
-            
+
+            // Get all blocks for the dropdown
+            List<Block> blocks = blockRepository.findAll();
+
             model.addAttribute("customers", tenants);
             model.addAttribute("properties", properties);
+            model.addAttribute("blocks", blocks);
             model.addAttribute("customerType", "Tenants"); // Changed to plural
             model.addAttribute("user", user);
             model.addAttribute("pageTitle", "Email Tenants");
             model.addAttribute("backUrl", "/employee/customer/tenants");
-            
+
             return "customer/email-form";
-            
+
         } catch (Exception e) {
             model.addAttribute("error", "Error loading email form: " + e.getMessage());
             return "error/500";
@@ -850,6 +907,7 @@ public class CustomerController {
                                     @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
                                     @RequestParam(value = "activeOnly", defaultValue = "false") boolean activeOnly,
                                     @RequestParam(value = "propertyId", required = false) Long propertyId,
+                                    @RequestParam(value = "blockId", required = false) Long blockId,
                                     Authentication authentication,
                                     RedirectAttributes redirectAttributes) {
         
@@ -861,10 +919,42 @@ public class CustomerController {
         
         try {
             List<Customer> tenants;
-            
+
             if (emailAll || selectedIds == null || selectedIds.isEmpty()) {
                 // Get tenants based on filters
-                if (propertyId != null) {
+                if (blockId != null) {
+                    // Email tenants for all properties in a specific block
+                    List<Property> blockProperties = propertyRepository.findByBlockId(blockId);
+                    List<Long> propertyIds = blockProperties.stream()
+                        .map(Property::getId)
+                        .collect(Collectors.toList());
+
+                    if (propertyIds.isEmpty()) {
+                        redirectAttributes.addFlashAttribute("warningMessage",
+                            "No properties found in the selected block.");
+                        return "redirect:/employee/customer/tenants";
+                    }
+
+                    java.time.LocalDate today = java.time.LocalDate.now();
+                    List<Long> tenantCustomerIds = new ArrayList<>();
+
+                    for (Long propId : propertyIds) {
+                        List<CustomerPropertyAssignment> assignments =
+                            customerPropertyAssignmentRepository.findByPropertyId(propId);
+
+                        tenantCustomerIds.addAll(assignments.stream()
+                            .filter(assignment -> assignment.getAssignmentType() == AssignmentType.TENANT)
+                            .filter(assignment -> assignment.getEndDate() == null || assignment.getEndDate().isAfter(today))
+                            .map(assignment -> assignment.getCustomer().getCustomerId())
+                            .collect(Collectors.toList()));
+                    }
+
+                    tenants = customerService.findTenants().stream()
+                        .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
+                        .distinct()
+                        .collect(Collectors.toList());
+
+                } else if (propertyId != null) {
                     // Email tenants for specific property using junction table
                     // ONLY include active tenants (end_date is NULL or in the future)
                     List<CustomerPropertyAssignment> propertyAssignments =
@@ -881,7 +971,7 @@ public class CustomerController {
                     tenants = customerService.findTenants().stream()
                         .filter(tenant -> tenantCustomerIds.contains(tenant.getCustomerId()))
                         .collect(Collectors.toList());
-                        
+
                 } else if (activeOnly) {
                     // Email only active tenants (those with active property assignments)
                     // ONLY include tenants where end_date is NULL or in the future
@@ -917,20 +1007,22 @@ public class CustomerController {
                 .collect(Collectors.toList());
                 
             if (validCustomers.isEmpty()) {
-                String filterDesc = propertyId != null ? "for this property" : 
+                String filterDesc = blockId != null ? "in this block" :
+                                   propertyId != null ? "for this property" :
                                    activeOnly ? "with active tenancies" : "";
-                redirectAttributes.addFlashAttribute("warningMessage", 
+                redirectAttributes.addFlashAttribute("warningMessage",
                     "No tenants " + filterDesc + " with valid email addresses found.");
                 return "redirect:/employee/customer/tenants" + (propertyId != null ? "?propertyId=" + propertyId : "");
             }
-            
+
             int emailsSent = emailService.sendBulkEmail(validCustomers, subject, message, authentication);
-            
+
             if (emailsSent > 0) {
-                String filterDesc = propertyId != null ? " for property ID " + propertyId : 
+                String filterDesc = blockId != null ? " in block ID " + blockId :
+                                   propertyId != null ? " for property ID " + propertyId :
                                    activeOnly ? " with active tenancies" : "";
-                redirectAttributes.addFlashAttribute("successMessage", 
-                    String.format("Successfully sent email to %d out of %d tenants%s.", 
+                redirectAttributes.addFlashAttribute("successMessage",
+                    String.format("Successfully sent email to %d out of %d tenants%s.",
                         emailsSent, validCustomers.size(), filterDesc));
             } else {
                 redirectAttributes.addFlashAttribute("errorMessage", 

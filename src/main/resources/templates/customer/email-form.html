@@ -44,14 +44,29 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="row">
+                                            <!-- Block Filter - Only for Property Owners and Tenants -->
+                                            <div class="col-md-6" th:if="${(customerType == 'Property Owners' or customerType == 'Tenants') and blocks != null}">
+                                                <div class="mb-3">
+                                                    <label for="blockFilter" class="form-label">Filter by Block</label>
+                                                    <select class="form-select" id="blockFilter" name="blockId" onchange="updateRecipientCount()">
+                                                        <option value="">All Blocks</option>
+                                                        <option th:each="block : ${blocks}"
+                                                                th:value="${block.id}"
+                                                                th:text="${block.name + (block.addressLine1 != null ? ' - ' + block.addressLine1 : '')}">
+                                                            Block Name - Address
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
                                             <!-- Property Filter - Only for Property Owners and Tenants -->
                                             <div class="col-md-6" th:if="${customerType == 'Property Owners' or customerType == 'Tenants'}">
                                                 <div class="mb-3">
                                                     <label for="propertyFilter" class="form-label">Filter by Property</label>
                                                     <select class="form-select" id="propertyFilter" name="propertyId" onchange="updateRecipientCount()">
                                                         <option value="">All Properties</option>
-                                                        <option th:each="property : ${properties}" 
-                                                                th:value="${property.id}" 
+                                                        <option th:each="property : ${properties}"
+                                                                th:value="${property.id}"
                                                                 th:text="${property.propertyName + ' - ' + property.fullAddress}">
                                                             Property Name - Address
                                                         </option>
