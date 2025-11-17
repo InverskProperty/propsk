@@ -274,6 +274,55 @@ public class GoogleGmailApiServiceImpl implements GoogleGmailApiService {
 
         return buildEmailInfo(message,accessToken);
     }
+
+    /**
+     * Fetches email metadata only (no body, no attachments) to reduce memory usage
+     * Used for email list pages to prevent OutOfMemoryError
+     */
+    private GmailEmailInfo fetchEmailMetadata(HttpRequestFactory httpRequestFactory, String emailId, String accessToken) throws IOException {
+        // Use format=metadata to get only headers without body/attachments
+        Map<String, String> params = new HashMap<>();
+        params.put("format", "metadata");
+        params.put("metadataHeaders", "From,To,Subject,Date");
+
+        GenericUrl emailUrl = GoogleApiHelper.buildGenericUrl(GMAIL_API_BASE_URL + "/messages/" + emailId, params);
+        JsonObject jsonResponse = executeRequest(httpRequestFactory, emailUrl);
+
+        GmailApiMessage message = GsonUtil.fromJson(jsonResponse, GmailApiMessage.class);
+
+        return buildEmailMetadata(message);
+    }
+
+    /**
+     * Builds lightweight email info without body and attachments
+     */
+    private GmailEmailInfo buildEmailMetadata(GmailApiMessage message) {
+        GmailEmailInfo emailInfo = new GmailEmailInfo();
+        emailInfo.setId(message.getId());
+        emailInfo.setHeaders(message.getPayload().getHeaders());
+        emailInfo.setThreadId(message.getThreadId());
+        emailInfo.setLabelIds(message.getLabelIds());
+        emailInfo.setInternalDate(message.getInternalDate());
+        emailInfo.setSnippet(message.getSnippet());
+        emailInfo.setSubject(message.getHeaderValue("subject"));
+
+        String[] toParts = message.extractEmailParts(message.getHeaderValue("to"));
+        emailInfo.setRecipient(toParts[0]);
+        emailInfo.setRecipientName(toParts[1]);
+
+        String[] fromParts = message.extractEmailParts(message.getHeaderValue("from"));
+        emailInfo.setSender(fromParts[0]);
+        emailInfo.setSenderName(fromParts[1]);
+
+        // Don't load attachments for list view - just set empty list
+        emailInfo.setAttachments(new ArrayList<>());
+
+        // Don't load body for list view - use snippet instead
+        emailInfo.setBody("");
+        emailInfo.setRead(!message.getLabelIds().contains("UNREAD"));
+
+        return emailInfo;
+    }
     private Map<String, String> buildEmailListQueryParameters(int maxResults, String pageToken, String label, String labelId) {
         Map<String, String> queryParameters = new HashMap<>();
         queryParameters.put("maxResults", Integer.toString(maxResults));
@@ -303,10 +352,13 @@ public class GoogleGmailApiServiceImpl implements GoogleGmailApiService {
         if(emails==null) {
             return new EmailPage();
         }
+
+        // 🔧 MEMORY FIX: Use metadata format to avoid loading full email bodies and attachments
+        // This prevents OutOfMemoryError when paginating through emails
         List<GmailEmailInfo> emailsInformation = emails.stream()
                 .map(email -> {
                     try {
-                        return (email.getThreadId() != null) ? fetchEmailInfo(httpRequestFactory, email.getId(), accessToken) : getDraft(oAuthUser,email.getId());
+                        return (email.getThreadId() != null) ? fetchEmailMetadata(httpRequestFactory, email.getId(), accessToken) : getDraft(oAuthUser,email.getId());
                     } catch (IOException | GeneralSecurityException e) {
                         throw new RuntimeException(e);
                     }
