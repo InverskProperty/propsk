@@ -75,6 +75,7 @@
                             <div class="col-xlg-10 col-lg-9 col-md-8 bg-light border-left">
                                 <div class="card-body">
                                     <form id="email-form" th:action="@{/employee/gmail/send}" th:object="${emailForm}" method="post">
+                                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
                                         <input type="hidden" id="allFiles" name="allFiles">
                                         <input type="hidden" id="draftId" name="draftId" th:field="*{draftId}">
                                         <input type="hidden" id="id" name="id" th:field="*{id}">
