@@ -137,8 +137,22 @@ public class GoogleGmailController {
                             @RequestParam("message") String message,
                             RedirectAttributes redirectAttributes) {
 
+        System.out.println("📧 Gmail compose send request received");
+        System.out.println("   Recipient field: " + recipient);
+        System.out.println("   Selected IDs: " + selectedIds);
+        System.out.println("   Subject: " + subject);
+
         try {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
+
+            if (oAuthUser == null) {
+                System.err.println("❌ OAuthUser is null!");
+                redirectAttributes.addFlashAttribute("errorMessage",
+                    "Could not retrieve OAuth user. Please try logging in again.");
+                return "redirect:/employee/gmail/send";
+            }
+
+            System.out.println("✅ OAuthUser retrieved: " + oAuthUser.getEmail());
 
             // Collect all recipient emails
             List<String> recipientEmails = new ArrayList<>();
@@ -173,14 +187,21 @@ public class GoogleGmailController {
 
             // Send email to each recipient
             int successCount = 0;
+            System.out.println("📤 Attempting to send to " + recipientEmails.size() + " recipient(s)");
+
             for (String email : recipientEmails) {
                 try {
+                    System.out.println("   Sending to: " + email);
                     googleGmailApiService.sendEmail(oAuthUser, email, subject, message, new ArrayList<>(), new ArrayList<>());
                     successCount++;
+                    System.out.println("   ✅ Sent successfully to: " + email);
                 } catch (Exception e) {
-                    System.err.println("Failed to send email to " + email + ": " + e.getMessage());
+                    System.err.println("   ❌ Failed to send email to " + email + ": " + e.getMessage());
+                    e.printStackTrace();
                 }
             }
+
+            System.out.println("📊 Email send complete: " + successCount + "/" + recipientEmails.size() + " successful");
 
             if (successCount > 0) {
                 redirectAttributes.addFlashAttribute("successMessage",
@@ -193,6 +214,11 @@ public class GoogleGmailController {
             }
 
         } catch (Exception e) {
+            System.err.println("❌ FATAL ERROR in Gmail compose send:");
+            System.err.println("   Error type: " + e.getClass().getName());
+            System.err.println("   Error message: " + e.getMessage());
+            e.printStackTrace();
+
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Error sending email: " + e.getMessage());
             return "redirect:/employee/gmail/send";
