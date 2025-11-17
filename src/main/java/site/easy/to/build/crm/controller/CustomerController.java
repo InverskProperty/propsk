@@ -2135,6 +2135,92 @@ public class CustomerController {
         }
     }
 
+    @GetMapping("/manager/all-customers/email")
+    public String emailAllCustomersForm(Model model, Authentication authentication) {
+        try {
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User user = userService.findById(userId);
+
+            // Check if user is manager
+            if(!AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
+                return "error/access-denied";
+            }
+
+            List<Customer> allCustomers = customerService.findAll();
+            List<Block> blocks = blockRepository.findAll();
+            List<Property> properties = propertyService.findAll();
+
+            model.addAttribute("customers", allCustomers);
+            model.addAttribute("blocks", blocks);
+            model.addAttribute("properties", properties);
+            model.addAttribute("customerType", "All Customers");
+            model.addAttribute("user", user);
+            model.addAttribute("pageTitle", "Email All Customers");
+            model.addAttribute("backUrl", "/employee/customer/manager/all-customers");
+
+            return "customer/email-form";
+
+        } catch (Exception e) {
+            model.addAttribute("error", "Error loading email form: " + e.getMessage());
+            return "error/500";
+        }
+    }
+
+    @PostMapping("/manager/all-customers/email")
+    public String sendEmailToAllCustomers(@RequestParam("subject") String subject,
+                                        @RequestParam("message") String message,
+                                        @RequestParam(value = "selectedIds", required = false) List<Integer> selectedIds,
+                                        @RequestParam(value = "emailAll", defaultValue = "false") boolean emailAll,
+                                        Authentication authentication,
+                                        RedirectAttributes redirectAttributes) {
+
+        if (!emailService.isGmailApiAvailable(authentication)) {
+            redirectAttributes.addFlashAttribute("errorMessage",
+                "Gmail API access required. Please ensure you're logged in with Google and have granted Gmail permissions.");
+            return "redirect:/employee/customer/manager/all-customers/email";
+        }
+
+        try {
+            List<Customer> customers;
+
+            if (emailAll || selectedIds == null || selectedIds.isEmpty()) {
+                customers = customerService.findAll();
+            } else {
+                customers = selectedIds.stream()
+                    .map(id -> customerService.findByCustomerId(id.longValue()))
+                    .filter(customer -> customer != null)
+                    .collect(Collectors.toList());
+            }
+
+            // Filter out customers with invalid email addresses
+            List<Customer> validCustomers = customers.stream()
+                .filter(customer -> emailService.isValidEmail(customer.getEmail()))
+                .collect(Collectors.toList());
+
+            if (validCustomers.isEmpty()) {
+                redirectAttributes.addFlashAttribute("warningMessage",
+                    "No customers with valid email addresses found.");
+                return "redirect:/employee/customer/manager/all-customers";
+            }
+
+            int emailsSent = emailService.sendBulkEmail(validCustomers, subject, message, authentication);
+
+            if (emailsSent > 0) {
+                redirectAttributes.addFlashAttribute("successMessage",
+                    String.format("Successfully sent email to %d out of %d customers.", emailsSent, validCustomers.size()));
+            } else {
+                redirectAttributes.addFlashAttribute("errorMessage",
+                    "Failed to send emails. Please check your Gmail API access and try again.");
+            }
+
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage",
+                "Error sending bulk email: " + e.getMessage());
+        }
+
+        return "redirect:/employee/customer/manager/all-customers";
+    }
+
     @GetMapping("/manager/all-customers")
     public String showAllCustomersManager(@RequestParam(value = "search", required = false) String search,
                                         @RequestParam(value = "type", required = false) String typeFilter,
