@@ -255,18 +255,28 @@ public class OAuthUserServiceImpl implements OAuthUserService{
     }
 
     /**
-     * FIXED: Handle null refresh tokens properly
+     * FIXED: Handle null refresh tokens properly and update granted scopes
      * Google doesn't always provide refresh tokens, especially for returning users
      */
     public void updateOAuthUserTokens(OAuthUser oAuthUser, OAuth2AccessToken oAuth2AccessToken, OAuth2RefreshToken oAuth2RefreshToken) {
         System.out.println("🔄 Updating OAuth user tokens...");
-        
+
         // Always set access token fields
         oAuthUser.setAccessToken(oAuth2AccessToken.getTokenValue());
         oAuthUser.setAccessTokenIssuedAt(oAuth2AccessToken.getIssuedAt());
         oAuthUser.setAccessTokenExpiration(oAuth2AccessToken.getExpiresAt());
-        
+
         System.out.println("✅ Access token updated - expires at: " + oAuth2AccessToken.getExpiresAt());
+
+        // CRITICAL FIX: Update granted scopes from the access token
+        if (oAuth2AccessToken.getScopes() != null && !oAuth2AccessToken.getScopes().isEmpty()) {
+            System.out.println("🔄 Updating granted scopes from OAuth2AccessToken...");
+            oAuthUser.getGrantedScopes().clear();
+            oAuthUser.getGrantedScopes().addAll(oAuth2AccessToken.getScopes());
+            System.out.println("✅ Granted scopes updated: " + oAuthUser.getGrantedScopes());
+        } else {
+            System.out.println("⚠️ No scopes found in OAuth2AccessToken");
+        }
 
         // Handle refresh token - Google doesn't always provide one
         if(oAuth2RefreshToken != null) {
@@ -279,7 +289,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
             System.out.println("⚠️ No refresh token provided by Google");
             System.out.println("   This is normal for returning users - Google only provides refresh tokens on first authorization");
             System.out.println("   Existing refresh token will be preserved if available");
-            
+
             // Don't overwrite existing refresh token with null
             // Only set to null if there was no existing refresh token
             if (oAuthUser.getRefreshToken() == null) {
@@ -291,7 +301,7 @@ public class OAuthUserServiceImpl implements OAuthUserService{
                 System.out.println("   Preserving existing refresh token");
             }
         }
-        
+
         System.out.println("🔄 OAuth token update complete");
     }
 }

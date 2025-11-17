@@ -259,7 +259,17 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
 
                 loggedOAuthUser = new OAuthUser();
                 loggedOAuthUser.setEmail(email);
-                loggedOAuthUser.getGrantedScopes().addAll(List.of("openid", "email", "profile"));
+                // Initial scopes - will be replaced by actual scopes from OAuth2AccessToken in updateOAuthUserTokens
+                loggedOAuthUser.getGrantedScopes().addAll(List.of(
+                    "openid",
+                    "email",
+                    "profile",
+                    "https://www.googleapis.com/auth/gmail.send",
+                    "https://www.googleapis.com/auth/gmail.modify",
+                    "https://www.googleapis.com/auth/drive",
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/calendar"
+                ));
                 oAuthUserService.updateOAuthUserTokens(loggedOAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
             } else {
                 System.out.println("♻️ Using existing user: " + user.getId() + " - " + user.getEmail());
@@ -293,7 +303,17 @@ public class OAuthLoginSuccessHandler extends SimpleUrlAuthenticationSuccessHand
                     System.out.println("🔧 Creating new OAuth user for existing user");
                     loggedOAuthUser = new OAuthUser();
                     loggedOAuthUser.setEmail(email);
-                    loggedOAuthUser.getGrantedScopes().addAll(List.of("openid", "email", "profile"));
+                    // Initial scopes - will be replaced by actual scopes from OAuth2AccessToken in updateOAuthUserTokens
+                    loggedOAuthUser.getGrantedScopes().addAll(List.of(
+                        "openid",
+                        "email",
+                        "profile",
+                        "https://www.googleapis.com/auth/gmail.send",
+                        "https://www.googleapis.com/auth/gmail.modify",
+                        "https://www.googleapis.com/auth/drive",
+                        "https://www.googleapis.com/auth/spreadsheets",
+                        "https://www.googleapis.com/auth/calendar"
+                    ));
                     oAuthUserService.updateOAuthUserTokens(loggedOAuthUser, oAuth2AccessToken, oAuth2RefreshToken);
                 }
             }
