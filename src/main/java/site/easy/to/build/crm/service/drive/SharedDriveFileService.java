@@ -2,6 +2,7 @@ package site.easy.to.build.crm.service.drive;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.InputStreamContent;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
@@ -13,9 +14,11 @@ import org.springframework.web.multipart.MultipartFile;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.AssignmentType;
+import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
+import site.easy.to.build.crm.repository.InvoiceRepository;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -33,18 +36,30 @@ public class SharedDriveFileService {
     private final PropertyService propertyService;
     private final CustomerService customerService;
     private final CustomerPropertyAssignmentService assignmentService;
+    private final InvoiceRepository invoiceRepository;
 
     public SharedDriveFileService(PropertyService propertyService,
                                   CustomerService customerService,
-                                  CustomerPropertyAssignmentService assignmentService) {
+                                  CustomerPropertyAssignmentService assignmentService,
+                                  InvoiceRepository invoiceRepository) {
         this.propertyService = propertyService;
         this.customerService = customerService;
         this.assignmentService = assignmentService;
+        this.invoiceRepository = invoiceRepository;
     }
 
     // Shared Drive ID for CRM property documents
     private static final String SHARED_DRIVE_ID = "0ADaFlidiFrFDUk9PVA";
     private static final String SHARED_DRIVE_DOCUMENTS_FOLDER = "Property-Documents";
+
+    // Tenant/Lease document subfolders (within each tenant folder)
+    private static final List<String> TENANT_DOCUMENT_SUBFOLDERS = Arrays.asList(
+        "Contracts",
+        "Inspections",
+        "Inventories",
+        "Miscellaneous",
+        "Right-to-Rent"
+    );
 
     // Internal folders (employee-only)
     private static final String INTERNAL_FOLDER = "Internal";
@@ -958,6 +973,219 @@ public class SharedDriveFileService {
             .execute();
 
         System.out.println("✅ File uploaded: " + uploadedFile.getName() + " to " + propertyFolderName + "/" + subfolderName);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", uploadedFile.getId());
+        result.put("name", uploadedFile.getName());
+        result.put("size", formatFileSize(file.getSize()));
+        result.put("uploadedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+
+        return result;
+    }
+
+    // ===================================================================
+    // TENANT/LEASE-CENTRIC FILE MANAGEMENT (NEW STRUCTURE)
+    // ===================================================================
+
+    /**
+     * Generate tenant folder name from Invoice (lease)
+     * Format: "Tenant Name - Start Date to End Date" or "Tenant Name - Start Date to Present"
+     */
+    private String generateTenantFolderName(Invoice invoice) {
+        Customer tenant = invoice.getCustomer();
+        String tenantName = tenant.getFirstName() + " " + tenant.getLastName();
+
+        String startDate = invoice.getStartDate() != null ?
+            invoice.getStartDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "Unknown";
+
+        String endDate = invoice.getEndDate() != null ?
+            invoice.getEndDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "Present";
+
+        return tenantName + " - " + startDate + " to " + endDate;
+    }
+
+    /**
+     * List all tenants/leases for a property
+     */
+    public List<Map<String, Object>> listTenantsForProperty(Long propertyId) throws IOException, GeneralSecurityException {
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        Property property = propertyService.findById(propertyId);
+        if (property == null) {
+            throw new IllegalArgumentException("Property not found: " + propertyId);
+        }
+
+        // Get all invoices (leases) for this property
+        List<Invoice> leases = invoiceRepository.findByProperty(property);
+
+        Drive driveService = createDriveService();
+        String propertyFolderName = generatePropertyFolderName(property);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+
+        List<Map<String, Object>> tenants = new ArrayList<>();
+
+        for (Invoice lease : leases) {
+            String tenantFolderName = generateTenantFolderName(lease);
+            String tenantFolderId = getOrCreateTenantFolder(driveService, propertyFolderId, tenantFolderName);
+
+            Map<String, Object> tenantInfo = new HashMap<>();
+            tenantInfo.put("leaseId", lease.getId());
+            tenantInfo.put("folderId", tenantFolderId);
+            tenantInfo.put("name", tenantFolderName);
+            tenantInfo.put("tenantName", lease.getCustomer().getFirstName() + " " + lease.getCustomer().getLastName());
+            tenantInfo.put("startDate", lease.getStartDate());
+            tenantInfo.put("endDate", lease.getEndDate());
+            tenantInfo.put("isActive", lease.isCurrentlyActive());
+            tenantInfo.put("type", "tenant-folder");
+            tenantInfo.put("subfolders", TENANT_DOCUMENT_SUBFOLDERS);
+
+            tenants.add(tenantInfo);
+        }
+
+        System.out.println("📁 Found " + tenants.size() + " tenants for property " + property.getPropertyName());
+        return tenants;
+    }
+
+    /**
+     * Get or create tenant folder within property folder
+     */
+    private String getOrCreateTenantFolder(Drive driveService, String propertyFolderId, String tenantFolderName)
+            throws IOException {
+
+        // Search for existing tenant folder
+        String query = String.format(
+            "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
+            tenantFolderName.replace("'", "\\'"),
+            propertyFolderId
+        );
+
+        FileList result = driveService.files().list()
+            .setQ(query)
+            .setSupportsAllDrives(true)
+            .setIncludeItemsFromAllDrives(true)
+            .setFields("files(id, name)")
+            .execute();
+
+        if (!result.getFiles().isEmpty()) {
+            String folderId = result.getFiles().get(0).getId();
+            System.out.println("📁 Found existing tenant folder: " + tenantFolderName + " (ID: " + folderId + ")");
+
+            // Ensure all document subfolders exist
+            ensureTenantDocumentSubfolders(driveService, folderId);
+
+            return folderId;
+        }
+
+        // Create new tenant folder
+        File folderMetadata = new File();
+        folderMetadata.setName(tenantFolderName);
+        folderMetadata.setMimeType("application/vnd.google-apps.folder");
+        folderMetadata.setParents(Collections.singletonList(propertyFolderId));
+
+        File folder = driveService.files().create(folderMetadata)
+            .setSupportsAllDrives(true)
+            .setFields("id")
+            .execute();
+
+        System.out.println("✅ Created tenant folder: " + tenantFolderName + " (ID: " + folder.getId() + ")");
+
+        // Create document subfolders
+        ensureTenantDocumentSubfolders(driveService, folder.getId());
+
+        return folder.getId();
+    }
+
+    /**
+     * Ensure all tenant document subfolders exist
+     */
+    private void ensureTenantDocumentSubfolders(Drive driveService, String tenantFolderId) throws IOException {
+        for (String subfolderName : TENANT_DOCUMENT_SUBFOLDERS) {
+            getOrCreateSubfolder(driveService, tenantFolderId, subfolderName);
+        }
+    }
+
+    /**
+     * List files in a tenant's document subfolder
+     */
+    public List<Map<String, Object>> listTenantSubfolderFiles(Long propertyId, Long leaseId, String subfolderName)
+            throws IOException, GeneralSecurityException {
+
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        if (!TENANT_DOCUMENT_SUBFOLDERS.contains(subfolderName)) {
+            throw new IllegalArgumentException("Invalid subfolder: " + subfolderName +
+                ". Must be one of: " + TENANT_DOCUMENT_SUBFOLDERS);
+        }
+
+        Property property = propertyService.findById(propertyId);
+        Invoice lease = invoiceRepository.findById(leaseId)
+            .orElseThrow(() -> new IllegalArgumentException("Lease not found: " + leaseId));
+
+        Drive driveService = createDriveService();
+
+        // Navigate: Property → Tenant → Subfolder
+        String propertyFolderName = generatePropertyFolderName(property);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+
+        String tenantFolderName = generateTenantFolderName(lease);
+        String tenantFolderId = getOrCreateTenantFolder(driveService, propertyFolderId, tenantFolderName);
+
+        String subfolderId = getOrCreateSubfolder(driveService, tenantFolderId, subfolderName);
+
+        return listFilesInFolder(driveService, subfolderId);
+    }
+
+    /**
+     * Upload file to tenant's document subfolder
+     */
+    public Map<String, Object> uploadToTenantSubfolder(Long propertyId, Long leaseId, String subfolderName,
+                                                       MultipartFile file)
+            throws IOException, GeneralSecurityException {
+
+        if (!hasServiceAccount()) {
+            throw new IllegalStateException("Service account not configured");
+        }
+
+        if (!TENANT_DOCUMENT_SUBFOLDERS.contains(subfolderName)) {
+            throw new IllegalArgumentException("Invalid subfolder: " + subfolderName);
+        }
+
+        Property property = propertyService.findById(propertyId);
+        Invoice lease = invoiceRepository.findById(leaseId)
+            .orElseThrow(() -> new IllegalArgumentException("Lease not found: " + leaseId));
+
+        Drive driveService = createDriveService();
+
+        // Navigate: Property → Tenant → Subfolder
+        String propertyFolderName = generatePropertyFolderName(property);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+
+        String tenantFolderName = generateTenantFolderName(lease);
+        String tenantFolderId = getOrCreateTenantFolder(driveService, propertyFolderId, tenantFolderName);
+
+        String subfolderId = getOrCreateSubfolder(driveService, tenantFolderId, subfolderName);
+
+        // Upload file
+        File fileMetadata = new File();
+        fileMetadata.setName(file.getOriginalFilename());
+        fileMetadata.setParents(Collections.singletonList(subfolderId));
+
+        InputStreamContent mediaContent = new InputStreamContent(
+            file.getContentType(),
+            file.getInputStream()
+        );
+
+        File uploadedFile = driveService.files()
+            .create(fileMetadata, mediaContent)
+            .setSupportsAllDrives(true)
+            .execute();
+
+        System.out.println("✅ File uploaded: " + uploadedFile.getName() +
+            " to " + propertyFolderName + "/" + tenantFolderName + "/" + subfolderName);
 
         Map<String, Object> result = new HashMap<>();
         result.put("id", uploadedFile.getId());
