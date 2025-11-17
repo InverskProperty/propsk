@@ -432,7 +432,10 @@ public class ContractController {
 
         if (isGoogleUser && googleGmailApiService != null) {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-            if (oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_GMAIL)) {
+            // Check for either gmail.send OR gmail.modify (which includes send capabilities)
+            boolean hasGmailAccess = oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send") ||
+                                     oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_GMAIL);
+            if (hasGmailAccess) {
                 try {
                     processEmailSettingsChanges(changes, userId, oAuthUser, customer);
                 } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {

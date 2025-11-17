@@ -165,14 +165,22 @@ public class EmailServiceImpl implements EmailService {
                 // Regular user login - Gmail API not available
                 return false;
             }
-            
+
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             if (oAuthUser == null) {
                 return false;
             }
-            
-            return oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_GMAIL);
-            
+
+            // Check for either gmail.send OR gmail.modify (which includes send capabilities)
+            boolean hasGmailAccess = oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send") ||
+                                     oAuthUser.getGrantedScopes().contains(GoogleAccessService.SCOPE_GMAIL);
+
+            logger.debug("Gmail API availability check for user: {}", oAuthUser.getEmail());
+            logger.debug("  Granted scopes: {}", oAuthUser.getGrantedScopes());
+            logger.debug("  Has Gmail access: {}", hasGmailAccess);
+
+            return hasGmailAccess;
+
         } catch (Exception e) {
             logger.error("Error checking Gmail API availability", e);
             return false;
