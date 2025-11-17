@@ -1871,6 +1871,174 @@ public class PropertyOwnerController {
     }
 
     /**
+     * List all tenants/leases for a property
+     */
+    @GetMapping("/property-owner/files/property/{propertyId}/tenants")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> listPropertyTenants(
+            @PathVariable Long propertyId,
+            Authentication authentication) {
+
+        System.out.println("📋 Listing tenants for property: " + propertyId);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
+            }
+
+            if (!serviceAccountAvailable()) {
+                return ResponseEntity.status(503).body(Map.of("error", "Google Drive service account not configured"));
+            }
+
+            // Check property access
+            List<Property> accessibleProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+            boolean hasAccess = accessibleProperties.stream()
+                    .anyMatch(p -> p.getId().equals(propertyId));
+
+            if (!hasAccess) {
+                return ResponseEntity.status(403).body(Map.of("error", "Access denied to this property"));
+            }
+
+            List<Map<String, Object>> tenants = sharedDriveFileService.listTenantsForProperty(propertyId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("tenants", tenants);
+            response.put("count", tenants.size());
+            response.put("propertyId", propertyId);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error listing tenants: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error listing tenants: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * List files in a tenant's document subfolder
+     */
+    @GetMapping("/property-owner/files/property/{propertyId}/tenant/{leaseId}/subfolder/{subfolderName}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> listTenantSubfolderFiles(
+            @PathVariable Long propertyId,
+            @PathVariable Long leaseId,
+            @PathVariable String subfolderName,
+            Authentication authentication) {
+
+        System.out.println("📂 Listing files - Property: " + propertyId + ", Lease: " + leaseId + ", Subfolder: " + subfolderName);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
+            }
+
+            if (!serviceAccountAvailable()) {
+                return ResponseEntity.status(503).body(Map.of("error", "Google Drive service account not configured"));
+            }
+
+            // Check property access
+            List<Property> accessibleProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+            boolean hasAccess = accessibleProperties.stream()
+                    .anyMatch(p -> p.getId().equals(propertyId));
+
+            if (!hasAccess) {
+                return ResponseEntity.status(403).body(Map.of("error", "Access denied to this property"));
+            }
+
+            List<Map<String, Object>> files = sharedDriveFileService.listTenantSubfolderFiles(
+                    propertyId, leaseId, subfolderName);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("files", files);
+            response.put("count", files.size());
+            response.put("propertyId", propertyId);
+            response.put("leaseId", leaseId);
+            response.put("subfolderName", subfolderName);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error listing tenant subfolder files: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error listing files: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Upload files to a tenant's document subfolder
+     */
+    @PostMapping("/property-owner/files/property/{propertyId}/tenant/{leaseId}/subfolder/{subfolderName}/upload")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadToTenantSubfolder(
+            @PathVariable Long propertyId,
+            @PathVariable Long leaseId,
+            @PathVariable String subfolderName,
+            @RequestParam("files") MultipartFile[] files,
+            Authentication authentication) {
+
+        System.out.println("⬆️  Uploading to tenant subfolder - Property: " + propertyId +
+                         ", Lease: " + leaseId + ", Subfolder: " + subfolderName);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
+            }
+
+            if (!serviceAccountAvailable()) {
+                return ResponseEntity.status(503).body(Map.of("error", "Google Drive service account not configured"));
+            }
+
+            // Check property access
+            List<Property> accessibleProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+            boolean hasAccess = accessibleProperties.stream()
+                    .anyMatch(p -> p.getId().equals(propertyId));
+
+            if (!hasAccess) {
+                return ResponseEntity.status(403).body(Map.of("error", "Access denied to this property"));
+            }
+
+            List<Map<String, Object>> uploadedFiles = new ArrayList<>();
+            List<String> failedFiles = new ArrayList<>();
+
+            for (MultipartFile file : files) {
+                try {
+                    if (!file.isEmpty()) {
+                        Map<String, Object> result = sharedDriveFileService.uploadToTenantSubfolder(
+                                propertyId, leaseId, subfolderName, file);
+                        uploadedFiles.add(result);
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ Failed to upload file: " + file.getOriginalFilename() + " - " + e.getMessage());
+                    failedFiles.add(file.getOriginalFilename());
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("uploadedFiles", uploadedFiles);
+            response.put("successCount", uploadedFiles.size());
+            response.put("failedCount", failedFiles.size());
+            response.put("failedFiles", failedFiles);
+
+            if (!failedFiles.isEmpty()) {
+                response.put("message", uploadedFiles.size() + " of " + files.length + " files uploaded successfully");
+            } else {
+                response.put("message", "All files uploaded successfully");
+            }
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error uploading to tenant subfolder: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("error", "Error uploading files: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Check if service account is available for shared drive operations
      */
     private boolean serviceAccountAvailable() {

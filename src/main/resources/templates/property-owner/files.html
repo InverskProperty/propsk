@@ -190,6 +190,8 @@
         let currentFolders = [];
         let currentPropertyId = null;
         let currentPropertyName = null;
+        let currentLeaseId = null;
+        let currentTenantName = null;
         let currentSubfolder = null;
 
         function browseFolder(folderType) {
@@ -332,48 +334,125 @@
             // Update breadcrumb and current context
             currentPropertyId = propertyId;
             currentPropertyName = propertyName;
+            currentLeaseId = null;
+            currentTenantName = null;
+            currentSubfolder = null;
 
             // Update modal title and breadcrumb
             document.getElementById('fileBrowserModalLabel').textContent = 'Browse ' + propertyName;
             document.getElementById('currentFolder').textContent = propertyName;
 
-            // Show upload button for property subfolders
+            // Hide upload button until we're in a specific tenant subfolder
             const uploadButton = document.querySelector('.modal-footer .btn-success');
-            uploadButton.style.display = 'inline-block';
+            uploadButton.style.display = 'none';
 
-            // Load property subfolders
-            loadPropertySubfolders(propertyId, propertyName);
+            // Load tenants for this property
+            loadPropertyTenants(propertyId, propertyName);
         }
 
-        function loadPropertySubfolders(propertyId, propertyName) {
+        function loadPropertyTenants(propertyId, propertyName) {
             const container = document.getElementById('fileListContainer');
             container.innerHTML = `
                 <div class="text-center">
                     <div class="spinner-border" role="status" aria-hidden="true"></div>
-                    <p>Loading property subfolders...</p>
+                    <p>Loading tenants...</p>
                 </div>
             `;
 
-            fetch(`/property-owner/files/browse/property/${propertyId}/subfolders`)
+            fetch(`/property-owner/files/property/${propertyId}/tenants`)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-                        currentFolders = data.folders || [];
-                        currentFiles = data.files || [];
-                        displayPropertySubfolders(data);
+                    if (data.tenants) {
+                        displayPropertyTenants(data.tenants);
+                    } else if (data.error) {
+                        showError(data.error);
                     } else {
-                        showError(data.error || 'Failed to load property subfolders');
+                        showError('Failed to load tenants');
                     }
                 })
                 .catch(error => {
-                    console.error('Error loading property subfolders:', error);
-                    showError('Error loading property subfolders: ' + error.message);
+                    console.error('Error loading tenants:', error);
+                    showError('Error loading tenants: ' + error.message);
                 });
         }
 
-        function displayPropertySubfolders(data) {
+        function displayPropertyTenants(tenants) {
             const container = document.getElementById('fileListContainer');
-            const subfolders = ['EICR', 'EPC', 'Insurance', 'Statements', 'Tenancy', 'Maintenance'];
+
+            if (!tenants || tenants.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5>No tenants found</h5>
+                        <p class="text-muted">No leases have been created for this property yet.</p>
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Note:</strong> Tenant folders are created automatically when you create invoices/leases for this property.
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '<h6><i class="fas fa-users text-primary"></i> Tenants & Leases</h6>';
+            html += '<div class="list-group mb-3">';
+
+            tenants.forEach(tenant => {
+                const statusBadge = tenant.isActive ?
+                    '<span class="badge bg-success">Active</span>' :
+                    '<span class="badge bg-secondary">Inactive</span>';
+
+                const dateRange = tenant.endDate ?
+                    `${tenant.startDate} to ${tenant.endDate}` :
+                    `${tenant.startDate} to Present`;
+
+                html += `
+                    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-user text-primary me-2"></i>
+                            <strong>${tenant.tenantName}</strong> ${statusBadge}
+                            <div class="small text-muted">${dateRange}</div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="openTenant('${tenant.leaseId}', '${tenant.tenantName}')">
+                            Open
+                        </button>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function openTenant(leaseId, tenantName) {
+            console.log('Opening tenant:', leaseId, tenantName);
+
+            // Update context
+            currentLeaseId = leaseId;
+            currentTenantName = tenantName;
+            currentSubfolder = null;
+
+            // Update modal title
+            document.getElementById('fileBrowserModalLabel').textContent = `${currentPropertyName} - ${tenantName}`;
+            document.getElementById('currentFolder').textContent = `${currentPropertyName} - ${tenantName}`;
+
+            // Hide upload button until specific subfolder is selected
+            const uploadButton = document.querySelector('.modal-footer .btn-success');
+            uploadButton.style.display = 'none';
+
+            // Display document type subfolders
+            displayTenantSubfolders();
+        }
+
+        function displayTenantSubfolders() {
+            const container = document.getElementById('fileListContainer');
+            const subfolders = [
+                {name: 'Contracts', description: 'Tenancy agreements and contracts'},
+                {name: 'Inspections', description: 'Property inspection reports'},
+                {name: 'Inventories', description: 'Inventory documents and check-in/out reports'},
+                {name: 'Miscellaneous', description: 'Other tenant-related documents'},
+                {name: 'Right-to-Rent', description: 'Right to rent checks and documentation'}
+            ];
 
             let html = '<h6><i class="fas fa-folder text-warning"></i> Document Categories</h6>';
             html += '<div class="list-group mb-3">';
@@ -383,10 +462,10 @@
                     <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                         <div>
                             <i class="fas fa-folder text-warning me-2"></i>
-                            <strong>${subfolder}</strong>
-                            <div class="small text-muted">${getSubfolderDescription(subfolder)}</div>
+                            <strong>${subfolder.name}</strong>
+                            <div class="small text-muted">${subfolder.description}</div>
                         </div>
-                        <button class="btn btn-sm btn-outline-primary" onclick="openPropertySubfolder('${currentPropertyId}', '${subfolder}')">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openTenantSubfolder('${subfolder.name}')">
                             Browse
                         </button>
                     </div>
@@ -397,34 +476,26 @@
             container.innerHTML = html;
         }
 
-        function getSubfolderDescription(subfolder) {
-            const descriptions = {
-                'EICR': 'Electrical Installation Condition Reports',
-                'EPC': 'Energy Performance Certificates',
-                'Insurance': 'Insurance documents and policies',
-                'Statements': 'Property statements and financial reports',
-                'Tenancy': 'Tenancy agreements and tenant documents',
-                'Maintenance': 'Maintenance records and work orders'
-            };
-            return descriptions[subfolder] || 'Property documents';
-        }
-
-        function openPropertySubfolder(propertyId, subfolderName) {
-            console.log('Opening property subfolder:', propertyId, subfolderName);
+        function openTenantSubfolder(subfolderName) {
+            console.log('Opening tenant subfolder:', subfolderName);
 
             // Update context for uploads
-            currentFolderType = 'property-subfolder';
+            currentFolderType = 'tenant-subfolder';
             currentSubfolder = subfolderName;
 
             // Update modal title
-            document.getElementById('fileBrowserModalLabel').textContent = `${currentPropertyName} - ${subfolderName}`;
-            document.getElementById('currentFolder').textContent = `${currentPropertyName} - ${subfolderName}`;
+            document.getElementById('fileBrowserModalLabel').textContent = `${currentTenantName} - ${subfolderName}`;
+            document.getElementById('currentFolder').textContent = `${currentTenantName} - ${subfolderName}`;
+
+            // Show upload button for tenant subfolders
+            const uploadButton = document.querySelector('.modal-footer .btn-success');
+            uploadButton.style.display = 'inline-block';
 
             // Load files in this subfolder
-            loadPropertySubfolderFiles(propertyId, subfolderName);
+            loadTenantSubfolderFiles(currentPropertyId, currentLeaseId, subfolderName);
         }
 
-        function loadPropertySubfolderFiles(propertyId, subfolderName) {
+        function loadTenantSubfolderFiles(propertyId, leaseId, subfolderName) {
             const container = document.getElementById('fileListContainer');
             container.innerHTML = `
                 <div class="text-center">
@@ -433,14 +504,16 @@
                 </div>
             `;
 
-            fetch(`/property-owner/files/browse/property/${propertyId}/subfolder/${subfolderName}`)
+            fetch(`/property-owner/files/property/${propertyId}/tenant/${leaseId}/subfolder/${subfolderName}`)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
+                    if (data.files) {
                         currentFiles = data.files || [];
-                        displayFiles(data);
+                        displayFiles({files: data.files});
+                    } else if (data.error) {
+                        showError(data.error);
                     } else {
-                        showError(data.error || 'Failed to load subfolder files');
+                        showError('Failed to load subfolder files');
                     }
                 })
                 .catch(error => {
@@ -462,9 +535,9 @@
         }
 
         function uploadFiles() {
-            // Check if this is property-documents folder type
-            if (currentFolderType === 'property-documents') {
-                alert('Please select a specific property folder first.\n\nYou cannot upload directly to Property Documents. Please:\n1. Click "Open" on a property folder\n2. Choose a subfolder (EICR, EPC, Insurance, etc.)\n3. Upload your files there');
+            // Check if we're in the right context for uploads
+            if (currentFolderType !== 'tenant-subfolder' || !currentPropertyId || !currentLeaseId || !currentSubfolder) {
+                alert('Please navigate to a specific tenant document folder first.\n\nTo upload files:\n1. Click "Open" on a property\n2. Select a tenant\n3. Choose a document category (Contracts, Inspections, etc.)\n4. Upload your files');
                 return;
             }
 
@@ -494,13 +567,8 @@
                     </div>
                 `;
 
-                // Determine upload URL based on context
-                let uploadUrl;
-                if (currentFolderType === 'property-subfolder' && currentPropertyId && currentSubfolder) {
-                    uploadUrl = `/property-owner/files/upload/property/${currentPropertyId}/subfolder/${currentSubfolder}`;
-                } else {
-                    uploadUrl = `/property-owner/files/upload/${currentFolderType}`;
-                }
+                // Upload URL for tenant subfolder
+                const uploadUrl = `/property-owner/files/property/${currentPropertyId}/tenant/${currentLeaseId}/subfolder/${currentSubfolder}/upload`;
 
                 fetch(uploadUrl, {
                     method: 'POST',
@@ -508,17 +576,21 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
-                        alert(`Upload complete! ${data.uploadedCount} of ${data.totalCount} files uploaded successfully.`);
-                        // Reload the appropriate file list
-                        if (currentFolderType === 'property-subfolder') {
-                            loadPropertySubfolderFiles(currentPropertyId, currentSubfolder);
+                    if (data.successCount !== undefined) {
+                        const totalFiles = data.successCount + data.failedCount;
+                        if (data.failedCount > 0) {
+                            alert(`Upload partially complete!\n${data.successCount} of ${totalFiles} files uploaded successfully.\nFailed files: ${data.failedFiles.join(', ')}`);
                         } else {
-                            loadFiles(currentFolderType);
+                            alert(`Upload complete! All ${data.successCount} files uploaded successfully.`);
                         }
+                        // Reload the file list
+                        loadTenantSubfolderFiles(currentPropertyId, currentLeaseId, currentSubfolder);
+                    } else if (data.error) {
+                        container.innerHTML = originalContent;
+                        alert('Upload failed: ' + data.error);
                     } else {
                         container.innerHTML = originalContent;
-                        alert('Upload failed: ' + (data.error || data.message || 'Unknown error'));
+                        alert('Upload failed: Unknown error');
                     }
                 })
                 .catch(error => {
