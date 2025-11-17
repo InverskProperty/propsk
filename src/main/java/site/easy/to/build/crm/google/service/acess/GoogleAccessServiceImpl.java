@@ -122,8 +122,17 @@ public class GoogleAccessServiceImpl implements GoogleAccessService {
         oAuthUserService.refreshAccessTokenIfNeeded(oAuthUser);
 
         Set<String> actualGrantedScopes = extractActualGrantedScopes(tokenResponse);
+
+        System.out.println("🔍 DEBUG: Grant Access flow - extracting scopes");
+        System.out.println("   User email: " + oAuthUser.getEmail());
+        System.out.println("   Scopes from Google: " + actualGrantedScopes);
+        System.out.println("   Has gmail.send: " + actualGrantedScopes.contains("https://www.googleapis.com/auth/gmail.send"));
+        System.out.println("   Has gmail.modify: " + actualGrantedScopes.contains("https://www.googleapis.com/auth/gmail.modify"));
+
         oAuthUser.setGrantedScopes(actualGrantedScopes);
         oAuthUserService.save(oAuthUser, user);
+
+        System.out.println("✅ Scopes saved to database for user: " + oAuthUser.getEmail());
         if (actualGrantedScopes.contains(SCOPE_DRIVE)) {
             try {
                 googleDriveApiService.findOrCreateTemplateFolder(oAuthUser, "Templates");

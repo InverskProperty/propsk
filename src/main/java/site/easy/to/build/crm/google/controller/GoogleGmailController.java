@@ -70,7 +70,17 @@ public class GoogleGmailController {
         }
 
         OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-        if(!oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send")){
+        // Check for either gmail.send OR gmail.modify (which includes send capabilities)
+        boolean hasGmailAccess = oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send") ||
+                                 oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.modify");
+
+        System.out.println("🔍 DEBUG: Checking Gmail access for user: " + oAuthUser.getEmail());
+        System.out.println("   Granted scopes: " + oAuthUser.getGrantedScopes());
+        System.out.println("   Has gmail.send: " + oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.send"));
+        System.out.println("   Has gmail.modify: " + oAuthUser.getGrantedScopes().contains("https://www.googleapis.com/auth/gmail.modify"));
+        System.out.println("   Has Gmail access: " + hasGmailAccess);
+
+        if(!hasGmailAccess){
             String link = "employee/settings/google-services";
             String code = "403";
             String buttonText = "Grant Access";
