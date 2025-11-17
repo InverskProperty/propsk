@@ -46,7 +46,9 @@
                                 <div class="card-header bg-info text-white">
                                     <h6 class="mb-0">
                                         <i class="fas fa-users"></i> Or Select from Customers
-                                        <span class="badge bg-light text-dark ms-2" th:text="${customers.size()}">0</span>
+                                        <span class="badge bg-light text-dark ms-2">
+                                            <span id="selectedCount">0</span> selected of <span th:text="${customers.size()}">0</span>
+                                        </span>
                                     </h6>
                                 </div>
                                 <div class="card-body" style="max-height: 300px; overflow-y: auto;">
@@ -137,6 +139,15 @@
     <script src="https://kit.fontawesome.com/a076d05399.js"></script>
     
     <script th:inline="javascript">
+        // Update selected count
+        function updateSelectedCount() {
+            const selectedCount = document.querySelectorAll('.customer-checkbox:checked').length;
+            const countElement = document.getElementById('selectedCount');
+            if (countElement) {
+                countElement.textContent = selectedCount;
+            }
+        }
+
         // Toggle select all checkboxes
         function toggleSelectAll() {
             const selectAll = document.getElementById('selectAll');
@@ -144,9 +155,14 @@
             checkboxes.forEach(checkbox => {
                 checkbox.checked = selectAll.checked;
             });
+            updateSelectedCount();
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Add event listeners to all customer checkboxes to update count
+            document.querySelectorAll('.customer-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectedCount);
+            });
             // Get server-side variables
             var customerCount = /*[[${customers != null ? customers.size() : 0}]]*/ 0;
             var customerType = /*[[${customerType != null ? customerType.toLowerCase() : 'customers'}]]*/ 'customers';
@@ -190,31 +206,55 @@
             document.querySelector('form').addEventListener('submit', function(e) {
                 const subject = document.getElementById('subject').value.trim();
                 const message = document.getElementById('message').value.trim();
-                
+                const recipientField = document.getElementById('recipient').value.trim();
+                const selectedCustomers = document.querySelectorAll('.customer-checkbox:checked').length;
+
+                // Basic validation
                 if (!subject || !message) {
                     e.preventDefault();
                     alert('Please fill in both subject and message fields.');
                     return false;
                 }
-                
+
                 if (subject.length < 3) {
                     e.preventDefault();
                     alert('Subject must be at least 3 characters long.');
                     return false;
                 }
-                
+
                 if (message.length < 10) {
                     e.preventDefault();
                     alert('Message must be at least 10 characters long.');
                     return false;
                 }
-                
-                // Confirmation dialog using server-side variables
-                if (!confirm('Are you sure you want to send this email to ' + customerCount + ' ' + customerType + '?')) {
+
+                // Check if at least one recipient is specified
+                if (!recipientField && selectedCustomers === 0) {
+                    e.preventDefault();
+                    alert('Please enter at least one email address or select customers from the list.');
+                    return false;
+                }
+
+                // Count total recipients
+                let totalRecipients = 0;
+                if (recipientField) {
+                    totalRecipients += recipientField.split(',').filter(e => e.trim()).length;
+                }
+                totalRecipients += selectedCustomers;
+
+                // Confirmation dialog with accurate count
+                let confirmMessage = 'Are you sure you want to send this email to ';
+                if (totalRecipients === 1) {
+                    confirmMessage += '1 recipient?';
+                } else {
+                    confirmMessage += totalRecipients + ' recipients?';
+                }
+
+                if (!confirm(confirmMessage)) {
                     e.preventDefault();
                     return false;
                 }
-                
+
                 // Disable submit button to prevent double submission
                 const submitBtn = this.querySelector('button[type="submit"]');
                 submitBtn.disabled = true;
