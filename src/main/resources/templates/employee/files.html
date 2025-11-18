@@ -300,7 +300,7 @@ function loadPropertySubfolders(propertyId, propertyName) {
         action: () => loadAllProperties()
     });
 
-    currentContext = {type: 'property', propertyId, propertyName, ...clearContext()};
+    currentContext = {...clearContext(), type: 'property', propertyId, propertyName};
     currentLevel = 'property';
     updateBreadcrumb(['Property Documents', propertyName]);
 
@@ -538,7 +538,7 @@ function loadInternalFiles(subfolderName) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                currentContext = {type: 'internal', internalFolder: subfolderName, ...clearContext()};
+                currentContext = {...clearContext(), type: 'internal', internalFolder: subfolderName};
                 updateBreadcrumb(['Internal Documents', subfolderName]);
                 displayFiles(data.files);
                 document.getElementById('uploadBtn').disabled = false; // Enable upload
