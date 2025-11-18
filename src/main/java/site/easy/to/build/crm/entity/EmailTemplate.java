@@ -20,10 +20,12 @@ public class EmailTemplate {
     @Column(name = "name")
     private String name;
 
-    @Column(name = "content")
+    @Lob
+    @Column(name = "content", columnDefinition = "MEDIUMTEXT")
     private String content;
 
-    @Column(name = "json_design")
+    @Lob
+    @Column(name = "json_design", columnDefinition = "MEDIUMTEXT")
     private String jsonDesign;
 
     @ManyToOne
