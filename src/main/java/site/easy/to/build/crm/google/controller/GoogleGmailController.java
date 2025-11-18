@@ -124,66 +124,101 @@ public class GoogleGmailController {
         }
 
         // Load all data for enhanced compose page
+        System.out.println("📧 Loading email compose page data...");
+
+        // Load customers with error handling per customer
+        List<CustomerWithBlockDTO> customersWithBlocks = new ArrayList<>();
         try {
-            // Load all customers for filtering
+            System.out.println("👥 Loading customers...");
             List<Customer> allCustomers = customerService.findAll();
+            System.out.println("   Found " + allCustomers.size() + " customers");
 
-            // Convert customers to DTOs with block information
-            List<CustomerWithBlockDTO> customersWithBlocks = allCustomers.stream()
+            // Convert customers to DTOs with block information (with error handling per customer)
+            customersWithBlocks = allCustomers.stream()
                 .map(customer -> {
-                    // Get first property assignment to determine block
-                    List<Property> properties = customerPropertyAssignmentService.getPropertiesForCustomer(
-                        customer.getCustomerId(), null);
+                    try {
+                        // Get first property assignment to determine block
+                        List<Property> properties = customerPropertyAssignmentService.getPropertiesForCustomer(
+                            customer.getCustomerId(), null);
 
-                    String blockName = null;
-                    Long blockId = null;
+                        String blockName = null;
+                        Long blockId = null;
 
-                    if (!properties.isEmpty()) {
-                        Property firstProperty = properties.get(0);
-                        if (firstProperty.getBlock() != null) {
-                            blockName = firstProperty.getBlock().getName();
-                            blockId = firstProperty.getBlock().getId();
+                        if (!properties.isEmpty()) {
+                            Property firstProperty = properties.get(0);
+                            if (firstProperty.getBlock() != null) {
+                                blockName = firstProperty.getBlock().getName();
+                                blockId = firstProperty.getBlock().getId();
+                            }
                         }
-                    }
 
-                    return new CustomerWithBlockDTO(customer, blockName, blockId);
+                        return new CustomerWithBlockDTO(customer, blockName, blockId);
+                    } catch (Exception e) {
+                        // If error getting block info, just return customer without block
+                        System.err.println("⚠️ Error loading block for customer " + customer.getCustomerId() + ": " + e.getMessage());
+                        return new CustomerWithBlockDTO(customer, null, null);
+                    }
                 })
                 .collect(Collectors.toList());
 
-            model.addAttribute("customers", customersWithBlocks);
-
-            // Load email templates
-            List<EmailTemplate> emailTemplates = emailTemplateRepository.findAll();
-            model.addAttribute("emailTemplates", emailTemplates);
-
-            // Load active document templates
-            List<DocumentTemplate> documentTemplates = documentTemplateService.findAllActive();
-            model.addAttribute("documentTemplates", documentTemplates);
-
-            // Load blocks for tenant filtering
-            List<Block> blocks = blockRepository.findAll();
-            model.addAttribute("blocks", blocks);
-
-            // Add customer types for filtering
-            model.addAttribute("customerTypes", CustomerType.values());
-
-            // Add available merge fields
-            model.addAttribute("mergeFields", documentTemplateService.getAvailableMergeFields());
-
-            model.addAttribute("pageTitle", "Compose Email");
-            model.addAttribute("backUrl", "/employee/gmail/emails");
-
+            System.out.println("✅ Loaded " + customersWithBlocks.size() + " customers with block info");
         } catch (Exception e) {
-            System.err.println("⚠️ Error loading compose page data: " + e.getMessage());
+            System.err.println("❌ Error loading customers: " + e.getMessage());
             e.printStackTrace();
-            // Continue with empty lists
-            model.addAttribute("customers", new ArrayList<CustomerWithBlockDTO>());
-            model.addAttribute("emailTemplates", new ArrayList<EmailTemplate>());
-            model.addAttribute("documentTemplates", new ArrayList<DocumentTemplate>());
-            model.addAttribute("blocks", new ArrayList<Block>());
-            model.addAttribute("customerTypes", CustomerType.values());
-            model.addAttribute("mergeFields", new ArrayList<String>());
         }
+        model.addAttribute("customers", customersWithBlocks);
+
+        // Load email templates
+        List<EmailTemplate> emailTemplates = new ArrayList<>();
+        try {
+            System.out.println("📧 Loading email templates...");
+            emailTemplates = emailTemplateRepository.findAll();
+            System.out.println("✅ Loaded " + emailTemplates.size() + " email templates");
+        } catch (Exception e) {
+            System.err.println("❌ Error loading email templates: " + e.getMessage());
+            e.printStackTrace();
+        }
+        model.addAttribute("emailTemplates", emailTemplates);
+
+        // Load document templates
+        List<DocumentTemplate> documentTemplates = new ArrayList<>();
+        try {
+            System.out.println("📄 Loading document templates...");
+            documentTemplates = documentTemplateService.findAllActive();
+            System.out.println("✅ Loaded " + documentTemplates.size() + " document templates");
+        } catch (Exception e) {
+            System.err.println("❌ Error loading document templates: " + e.getMessage());
+            e.printStackTrace();
+        }
+        model.addAttribute("documentTemplates", documentTemplates);
+
+        // Load blocks
+        List<Block> blocks = new ArrayList<>();
+        try {
+            System.out.println("🏢 Loading blocks...");
+            blocks = blockRepository.findAll();
+            System.out.println("✅ Loaded " + blocks.size() + " blocks");
+        } catch (Exception e) {
+            System.err.println("❌ Error loading blocks: " + e.getMessage());
+            e.printStackTrace();
+        }
+        model.addAttribute("blocks", blocks);
+
+        // Add customer types and merge fields (these shouldn't fail)
+        model.addAttribute("customerTypes", CustomerType.values());
+
+        List<String> mergeFields = new ArrayList<>();
+        try {
+            mergeFields = documentTemplateService.getAvailableMergeFields();
+        } catch (Exception e) {
+            System.err.println("❌ Error loading merge fields: " + e.getMessage());
+        }
+        model.addAttribute("mergeFields", mergeFields);
+
+        model.addAttribute("pageTitle", "Compose Email");
+        model.addAttribute("backUrl", "/employee/gmail/emails");
+
+        System.out.println("✅ Email compose page data loaded successfully");
 
         model.addAttribute("emailForm", new GmailEmailInfo());
         return "gmail/email-form";
