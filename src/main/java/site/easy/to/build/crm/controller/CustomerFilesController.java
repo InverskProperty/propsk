@@ -14,17 +14,20 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.GoogleDriveFile;
 import site.easy.to.build.crm.entity.OAuthUser;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.repository.GoogleDriveFileRepository;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
 import site.easy.to.build.crm.service.drive.SharedDriveFileService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
+import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsStatementService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.io.IOException;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/customer/files")
@@ -36,6 +39,8 @@ public class CustomerFilesController {
     private final PayPropSyncOrchestrator payPropSyncOrchestrator;
     private final GoogleSheetsStatementService googleSheetsStatementService;
     private final AuthenticationUtils authenticationUtils;
+    private final GoogleDriveFileRepository googleDriveFileRepository;
+    private final PropertyService propertyService;
 
     @Autowired
     public CustomerFilesController(CustomerService customerService,
@@ -43,13 +48,17 @@ public class CustomerFilesController {
                                  SharedDriveFileService sharedDriveFileService,
                                  @Autowired(required = false) PayPropSyncOrchestrator payPropSyncOrchestrator,
                                  GoogleSheetsStatementService googleSheetsStatementService,
-                                 AuthenticationUtils authenticationUtils) {
+                                 AuthenticationUtils authenticationUtils,
+                                 GoogleDriveFileRepository googleDriveFileRepository,
+                                 PropertyService propertyService) {
         this.customerService = customerService;
         this.customerDriveOrganizationService = customerDriveOrganizationService;
         this.sharedDriveFileService = sharedDriveFileService;
         this.payPropSyncOrchestrator = payPropSyncOrchestrator;
         this.googleSheetsStatementService = googleSheetsStatementService;
         this.authenticationUtils = authenticationUtils;
+        this.googleDriveFileRepository = googleDriveFileRepository;
+        this.propertyService = propertyService;
     }
 
     /**
@@ -60,23 +69,34 @@ public class CustomerFilesController {
         try {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             Customer customer = customerService.findByCustomerId(customerId);
-            
+
             if (customer == null) {
                 return "redirect:/customer/all-customers";
             }
-            
+
             // Get customer files by category
             Map<String, List<GoogleDriveFile>> filesByCategory = getCustomerFilesByCategory(customer, oAuthUser);
-            
-            // Get folder structure
-            CustomerDriveOrganizationService.CustomerFolderStructure folderStructure = 
-                customerDriveOrganizationService.getOrCreateCustomerFolderStructure(oAuthUser, customer);
-            
+
+            // Get all files (flatten the category map)
+            List<GoogleDriveFile> allFiles = filesByCategory.values().stream()
+                .flatMap(List::stream)
+                .collect(java.util.stream.Collectors.toList());
+
+            // Get folder structure (optional - may not be needed if using Shared Drive)
+            CustomerDriveOrganizationService.CustomerFolderStructure folderStructure = null;
+            try {
+                folderStructure = customerDriveOrganizationService.getOrCreateCustomerFolderStructure(oAuthUser, customer);
+            } catch (Exception e) {
+                // Folder structure is optional - customer files come from Shared Drive
+                System.out.println("⚠️ Could not create customer folder structure (using Shared Drive): " + e.getMessage());
+            }
+
             model.addAttribute("customer", customer);
             model.addAttribute("filesByCategory", filesByCategory);
+            model.addAttribute("allFiles", allFiles);
             model.addAttribute("folderStructure", folderStructure);
             model.addAttribute("canGenerateStatements", canGenerateStatements(customer));
-            
+
             return "customer/files-dashboard";
         } catch (Exception e) {
             model.addAttribute("error", "Error loading customer files: " + e.getMessage());
@@ -86,33 +106,104 @@ public class CustomerFilesController {
 
     /**
      * Upload file to customer folder
+     * Files are uploaded to the Shared Drive and metadata is saved to the database
      */
     @PostMapping("/{customerId}/upload")
     public String uploadFile(@PathVariable Long customerId,
                            @RequestParam("file") MultipartFile file,
                            @RequestParam("category") String category,
                            @RequestParam(value = "description", required = false) String description,
+                           @RequestParam(value = "propertyId", required = false) Long propertyId,
                            Authentication authentication,
                            RedirectAttributes redirectAttributes) {
         try {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             Customer customer = customerService.findByCustomerId(customerId);
-            
+
             if (customer == null) {
                 redirectAttributes.addFlashAttribute("error", "Customer not found");
                 return "redirect:/customer/all-customers";
             }
-            
-            // Upload file to Google Drive and organize
-            // This would need additional implementation in your GoogleDriveApiService
-            // to handle file uploads from MultipartFile
-            
+
+            if (file.isEmpty()) {
+                redirectAttributes.addFlashAttribute("error", "Please select a file to upload");
+                return "redirect:/customer/files/" + customerId;
+            }
+
+            System.out.println("📤 Customer " + customer.getName() + " uploading file: " + file.getOriginalFilename() + " (category: " + category + ")");
+
+            // Determine which property to associate the file with
+            Long targetPropertyId = propertyId;
+            if (targetPropertyId == null) {
+                // If no property specified, use the first property owned by the customer
+                List<Property> customerProperties = propertyService.findPropertiesByCustomerId(customerId);
+                if (!customerProperties.isEmpty()) {
+                    targetPropertyId = customerProperties.get(0).getId();
+                    System.out.println("  ℹ️ No property specified, using first property: " + targetPropertyId);
+                }
+            }
+
+            // Upload file to appropriate subfolder in Shared Drive based on category
+            String subfolder = mapCategoryToSubfolder(category);
+            Map<String, Object> uploadResult;
+
+            if (targetPropertyId != null) {
+                // Upload to property subfolder in Shared Drive
+                uploadResult = sharedDriveFileService.uploadToPropertySubfolder(targetPropertyId, subfolder, file);
+            } else {
+                // Upload to internal folder if no property
+                uploadResult = sharedDriveFileService.uploadToInternalFolder("Miscellaneous", file);
+            }
+
+            String driveFileId = (String) uploadResult.get("fileId");
+            String driveFolderId = (String) uploadResult.get("folderId");
+
+            // Save metadata to database
+            GoogleDriveFile googleDriveFile = new GoogleDriveFile();
+            googleDriveFile.setDriveFileId(driveFileId);
+            googleDriveFile.setGoogleDriveFolderId(driveFolderId);
+            googleDriveFile.setCustomerId(customer.getCustomerId().intValue());
+            googleDriveFile.setPropertyId(targetPropertyId);
+            googleDriveFile.setFileName(file.getOriginalFilename());
+            googleDriveFile.setFileCategory(category);
+            googleDriveFile.setFileDescription(description);
+            googleDriveFile.setIsActive(true);
+            googleDriveFile.setIsPayPropFile(false);
+            googleDriveFile.setCreatedAt(java.time.LocalDateTime.now());
+            googleDriveFile.setEntityType("customer");
+
+            googleDriveFileRepository.save(googleDriveFile);
+
+            System.out.println("✅ File uploaded successfully to Shared Drive and saved to database");
             redirectAttributes.addFlashAttribute("success", "File uploaded successfully");
+
         } catch (Exception e) {
+            System.err.println("❌ Error uploading file: " + e.getMessage());
+            e.printStackTrace();
             redirectAttributes.addFlashAttribute("error", "Error uploading file: " + e.getMessage());
         }
-        
+
         return "redirect:/customer/files/" + customerId;
+    }
+
+    /**
+     * Map file category to Shared Drive subfolder name
+     */
+    private String mapCategoryToSubfolder(String category) {
+        // Map customer file categories to property subfolder names
+        switch (category) {
+            case "EPC":
+            case "Insurance":
+            case "EICR":
+                return category;
+            case "Management Agreement":
+            case "Statements":
+            case "Invoices":
+            case "Letters":
+            case "Misc":
+            default:
+                return "Miscellaneous";
+        }
     }
 
     /**
@@ -372,9 +463,44 @@ public class CustomerFilesController {
 
     // Helper methods
     private Map<String, List<GoogleDriveFile>> getCustomerFilesByCategory(Customer customer, OAuthUser oAuthUser) {
-        // Implementation depends on your GoogleDriveFileService having category-based queries
-        // This is a placeholder that would need to be implemented
-        return Map.of();
+        System.out.println("📂 Loading files for customer: " + customer.getCustomerId() + " (" + customer.getName() + ")");
+
+        // Get all properties owned by this customer
+        List<Property> customerProperties = propertyService.findPropertiesByCustomerId(customer.getCustomerId());
+        System.out.println("📋 Found " + customerProperties.size() + " properties for customer");
+
+        // Collect all files from all customer properties
+        Map<String, List<GoogleDriveFile>> filesByCategory = new java.util.HashMap<>();
+
+        for (Property property : customerProperties) {
+            System.out.println("  📁 Loading files for property: " + property.getId() + " - " + property.getPropertyName());
+
+            // Get files for this property from the Shared Drive (via google_drive_file table)
+            List<GoogleDriveFile> propertyFiles = googleDriveFileRepository.findByPropertyIdAndIsActiveTrue(property.getId());
+            System.out.println("    ✅ Found " + propertyFiles.size() + " files");
+
+            // Group files by category
+            for (GoogleDriveFile file : propertyFiles) {
+                String category = file.getFileCategory() != null ? file.getFileCategory() : "Uncategorized";
+                filesByCategory.computeIfAbsent(category, k -> new java.util.ArrayList<>()).add(file);
+            }
+        }
+
+        // Also get files directly associated with the customer (not property-specific)
+        List<GoogleDriveFile> customerFiles = googleDriveFileRepository.findByCustomerIdAndIsActiveTrue(customer.getCustomerId().intValue());
+        System.out.println("  📄 Found " + customerFiles.size() + " customer-level files");
+
+        for (GoogleDriveFile file : customerFiles) {
+            String category = file.getFileCategory() != null ? file.getFileCategory() : "Uncategorized";
+            filesByCategory.computeIfAbsent(category, k -> new java.util.ArrayList<>()).add(file);
+        }
+
+        System.out.println("✅ Total files across " + filesByCategory.size() + " categories");
+        filesByCategory.forEach((cat, files) ->
+            System.out.println("  - " + cat + ": " + files.size() + " files")
+        );
+
+        return filesByCategory;
     }
 
     private boolean canGenerateStatements(Customer customer) {
