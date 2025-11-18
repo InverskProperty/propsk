@@ -701,6 +701,90 @@ public class EmployeeFilesController {
         }
     }
 
+    /**
+     * TEST ENDPOINT: Force creation of property subfolders for ALL properties
+     * Creates EICR, EPC, Insurance, Miscellaneous folders for every property in the system
+     */
+    @GetMapping("/test/create-all-property-folders")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCreateAllPropertyFolders(Authentication authentication) {
+        try {
+            ensureEmployeeAccess(authentication);
+
+            System.out.println("🔧 [TEST] Force creating property subfolders for ALL properties");
+            long startTime = System.currentTimeMillis();
+
+            // Get all properties
+            List<Map<String, Object>> allProperties = sharedDriveFileService.listAllPropertyFolders();
+
+            List<Map<String, Object>> results = new ArrayList<>();
+            int successCount = 0;
+            int errorCount = 0;
+
+            for (Map<String, Object> property : allProperties) {
+                Long propertyId = ((Number) property.get("propertyId")).longValue();
+                String propertyName = (String) property.get("name");
+
+                try {
+                    System.out.println("📁 Creating subfolders for: " + propertyName + " (ID: " + propertyId + ")");
+
+                    // This creates the subfolders if they don't exist
+                    List<Map<String, Object>> subfolders = sharedDriveFileService.listPropertySubfolders(propertyId);
+
+                    Map<String, Object> propertyResult = new HashMap<>();
+                    propertyResult.put("propertyId", propertyId);
+                    propertyResult.put("propertyName", propertyName);
+                    propertyResult.put("success", true);
+                    propertyResult.put("subfoldersCreated", subfolders.size());
+                    propertyResult.put("subfolders", subfolders.stream()
+                        .map(sf -> sf.get("name"))
+                        .collect(java.util.stream.Collectors.toList()));
+
+                    results.add(propertyResult);
+                    successCount++;
+                    System.out.println("✅ Created " + subfolders.size() + " subfolders for " + propertyName);
+
+                } catch (Exception e) {
+                    System.err.println("❌ Error creating folders for property " + propertyId + ": " + e.getMessage());
+
+                    Map<String, Object> propertyResult = new HashMap<>();
+                    propertyResult.put("propertyId", propertyId);
+                    propertyResult.put("propertyName", propertyName);
+                    propertyResult.put("success", false);
+                    propertyResult.put("error", e.getMessage());
+
+                    results.add(propertyResult);
+                    errorCount++;
+                }
+            }
+
+            long duration = System.currentTimeMillis() - startTime;
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Completed creating property subfolders for all properties");
+            response.put("totalProperties", allProperties.size());
+            response.put("successCount", successCount);
+            response.put("errorCount", errorCount);
+            response.put("durationMs", duration);
+            response.put("results", results);
+            response.put("instruction", "Check your Google Drive Shared Drive under: Property Documents → [each property] → EICR/EPC/Insurance/Miscellaneous");
+
+            System.out.println("✅ [TEST] Completed! " + successCount + " succeeded, " + errorCount + " failed in " + duration + "ms");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [TEST] Error in bulk folder creation: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "error", "Error creating property folders: " + e.getMessage(),
+                "errorType", e.getClass().getSimpleName()
+            ));
+        }
+    }
+
     // ===================================================================
     // Helper Methods
     // ===================================================================
