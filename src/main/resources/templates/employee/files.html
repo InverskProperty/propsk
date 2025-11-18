@@ -877,12 +877,18 @@ function downloadFile(fileId) {
 function refreshCurrentView() {
     if (currentContext.type === 'property-subfolder') {
         loadPropertySubfolderFiles(currentContext.propertyId, currentContext.subfolder);
+    } else if (currentContext.type === 'tenant-subfolder') {
+        loadTenantSubfolderFiles(currentContext.propertyId, currentContext.leaseId, currentContext.subfolder);
     } else if (currentContext.type === 'internal') {
         loadInternalFiles(currentContext.internalFolder);
     } else if (currentContext.type === 'property-list') {
         loadAllProperties();
+    } else if (currentContext.type === 'property-list') {
+        loadAllProperties();
     } else if (currentContext.type === 'property') {
         loadPropertySubfolders(currentContext.propertyId, currentContext.propertyName);
+    } else if (currentContext.type === 'tenant') {
+        displayTenantSubfolders();
     } else if (currentContext.type === 'internal-list') {
         loadInternalFolders();
     }
