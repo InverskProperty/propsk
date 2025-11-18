@@ -217,6 +217,7 @@ public class GoogleGmailController {
 
         model.addAttribute("pageTitle", "Compose Email");
         model.addAttribute("backUrl", "/employee/gmail/emails");
+        model.addAttribute("gmailError", ""); // No error - Gmail is connected
 
         System.out.println("✅ Email compose page data loaded successfully");
 
