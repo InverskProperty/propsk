@@ -722,8 +722,8 @@ public class EmployeeFilesController {
             int errorCount = 0;
 
             for (Map<String, Object> property : allProperties) {
-                Long propertyId = ((Number) property.get("propertyId")).longValue();
-                String propertyName = (String) property.get("name");
+                Long propertyId = ((Number) property.get("id")).longValue();
+                String propertyName = (String) property.get("propertyName");
 
                 try {
                     System.out.println("📁 Creating subfolders for: " + propertyName + " (ID: " + propertyId + ")");
