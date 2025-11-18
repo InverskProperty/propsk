@@ -320,7 +320,7 @@ function loadPropertySubfolders(propertyId, propertyName) {
 }
 
 function displayPropertyHybridView(propertySubfolders, tenants) {
-    const container = document.getElementById('contentArea');
+    const container = document.getElementById('fileListContainer');
     let html = '';
 
     // Property-level document folders
@@ -413,7 +413,7 @@ function openTenant(leaseId, tenantName) {
 }
 
 function displayTenantSubfolders() {
-    const container = document.getElementById('contentArea');
+    const container = document.getElementById('fileListContainer');
     const subfolders = [
         {name: 'Contracts', description: 'Tenancy agreements and contracts'},
         {name: 'Inspections', description: 'Property inspection reports'},
