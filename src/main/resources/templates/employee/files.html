@@ -486,7 +486,7 @@ function loadPropertySubfolderFiles(propertyId, subfolder) {
     console.log('📁 Loading files in property', propertyId, '/', subfolder);
     showLoading();
 
-    fetch(`/employee/files/browse/property/${propertyId}/subfolder/${subfolder}`)
+    fetch(`/employee/files/property/${propertyId}/subfolder/${subfolder}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
