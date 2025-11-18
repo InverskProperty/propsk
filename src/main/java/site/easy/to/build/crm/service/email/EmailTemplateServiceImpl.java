@@ -42,13 +42,49 @@ public class EmailTemplateServiceImpl implements EmailTemplateService {
 
     @Override
     public void save(EmailTemplate emailTemplate, Authentication authentication) {
-        int userId = authenticationUtils.getLoggedInUserId(authentication);
-        if (userId == -1) {
-            throw new UsernameNotFoundException("User not found");
+        System.out.println("📧 EmailTemplateService.save() called");
+
+        try {
+            // Get user ID from authentication
+            System.out.println("🔐 Getting user ID from authentication...");
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            System.out.println("   User ID result: " + userId);
+
+            if (userId == -1) {
+                System.err.println("❌ ERROR: User ID is -1 (user not found or not authenticated)");
+                throw new UsernameNotFoundException("User not found");
+            }
+            System.out.println("✅ Valid user ID: " + userId);
+
+            // Find user
+            System.out.println("👤 Looking up User entity by ID: " + userId);
+            User user = userService.findById(Long.valueOf(userId));
+
+            if (user == null) {
+                System.err.println("❌ ERROR: User not found in database for ID: " + userId);
+                throw new UsernameNotFoundException("User not found with ID: " + userId);
+            }
+            System.out.println("✅ User found: " + user.getName() + " (" + user.getEmail() + ")");
+
+            // Associate user with template
+            System.out.println("🔗 Associating user with template...");
+            emailTemplate.setUser(user);
+
+            // Save to database
+            System.out.println("💾 Saving EmailTemplate to repository...");
+            EmailTemplate savedTemplate = emailTemplateRepository.save(emailTemplate);
+            System.out.println("✅ Template saved! Generated ID: " + savedTemplate.getTemplateId());
+
+        } catch (UsernameNotFoundException e) {
+            System.err.println("❌ UsernameNotFoundException in save: " + e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            System.err.println("❌ EXCEPTION in EmailTemplateService.save:");
+            System.err.println("   Exception type: " + e.getClass().getName());
+            System.err.println("   Message: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to save email template: " + e.getMessage(), e);
         }
-        User user = userService.findById(Long.valueOf(userId));
-        emailTemplate.setUser(user);
-        emailTemplateRepository.save(emailTemplate);
     }
 
     @Override

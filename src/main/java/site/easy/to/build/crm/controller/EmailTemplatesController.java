@@ -116,23 +116,70 @@ public class EmailTemplatesController {
     @PostMapping("/create")
     public ResponseEntity<String> createEmailTemplate(@RequestBody Map<String, String> requestPayload, Authentication authentication,
                                                       RedirectAttributes redirectAttributes) {
-        String name = requestPayload.get("name");
-        EmailTemplate currentEmailTemplate = emailTemplateService.findByName(name);
-        if (currentEmailTemplate != null) {
-            String errorMessage = "The name is not unique.";
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMessage);
+        System.out.println("=== EMAIL TEMPLATE CREATION STARTED ===");
+
+        try {
+            // Log authentication details
+            if (authentication == null) {
+                System.out.println("❌ ERROR: Authentication is NULL");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication required");
+            }
+            System.out.println("✅ Authentication present: " + authentication.getName());
+            System.out.println("   Principal type: " + authentication.getPrincipal().getClass().getSimpleName());
+            System.out.println("   Authenticated: " + authentication.isAuthenticated());
+            System.out.println("   Authorities: " + authentication.getAuthorities());
+
+            // Log request payload
+            System.out.println("📦 Request payload keys: " + requestPayload.keySet());
+            String name = requestPayload.get("name");
+            String content = requestPayload.get("content");
+            String jsonDesign = requestPayload.get("jsonDesign");
+
+            System.out.println("   Template name: " + (name != null ? "'" + name + "'" : "NULL"));
+            System.out.println("   Content length: " + (content != null ? content.length() + " chars" : "NULL"));
+            System.out.println("   JSON design length: " + (jsonDesign != null ? jsonDesign.length() + " chars" : "NULL"));
+
+            // Validate required fields
+            if (name == null || name.trim().isEmpty()) {
+                System.out.println("❌ ERROR: Template name is empty");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Template name is required");
+            }
+
+            // Check uniqueness
+            System.out.println("🔍 Checking if template name already exists...");
+            EmailTemplate currentEmailTemplate = emailTemplateService.findByName(name);
+            if (currentEmailTemplate != null) {
+                System.out.println("❌ ERROR: Template name '" + name + "' already exists (ID: " + currentEmailTemplate.getTemplateId() + ")");
+                String errorMessage = "The name is not unique.";
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorMessage);
+            }
+            System.out.println("✅ Template name is unique");
+
+            // Create template
+            System.out.println("📝 Creating new EmailTemplate entity...");
+            EmailTemplate emailTemplate = new EmailTemplate();
+            emailTemplate.setContent(content);
+            emailTemplate.setName(name);
+            emailTemplate.setJsonDesign(jsonDesign);
+            emailTemplate.setCreatedAt(LocalDateTime.now());
+
+            // Save template
+            System.out.println("💾 Saving template to database...");
+            emailTemplateService.save(emailTemplate, authentication);
+            System.out.println("✅ Template saved successfully! ID: " + emailTemplate.getTemplateId());
+
+            System.out.println("=== EMAIL TEMPLATE CREATION COMPLETED SUCCESSFULLY ===");
+            return ResponseEntity.ok().build();
+
+        } catch (Exception e) {
+            System.err.println("❌ EXCEPTION in createEmailTemplate:");
+            System.err.println("   Exception type: " + e.getClass().getName());
+            System.err.println("   Message: " + e.getMessage());
+            System.err.println("   Stack trace:");
+            e.printStackTrace();
+            System.out.println("=== EMAIL TEMPLATE CREATION FAILED ===");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
         }
-        String content = requestPayload.get("content");
-        String jsonDesign = requestPayload.get("jsonDesign");
-
-        EmailTemplate emailTemplate = new EmailTemplate();
-        emailTemplate.setContent(content);
-        emailTemplate.setName(name);
-        emailTemplate.setJsonDesign(jsonDesign);
-        emailTemplate.setCreatedAt(LocalDateTime.now());
-        emailTemplateService.save(emailTemplate, authentication);
-
-        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/update/{id}")
