@@ -672,7 +672,7 @@ function displayFiles(files) {
 // ===================================================================
 
 function uploadFiles() {
-    if (!currentContext.type || (currentContext.type !== 'property-subfolder' && currentContext.type !== 'internal')) {
+    if (!currentContext.type || (currentContext.type !== 'property-subfolder' && currentContext.type !== 'tenant-subfolder' && currentContext.type !== 'internal')) {
         alert('Please select a folder first');
         return;
     }
@@ -707,6 +707,8 @@ function uploadFiles() {
         let uploadUrl;
         if (currentContext.type === 'property-subfolder') {
             uploadUrl = `/employee/files/upload/property/${currentContext.propertyId}/subfolder/${currentContext.subfolder}`;
+        } else if (currentContext.type === 'tenant-subfolder') {
+            uploadUrl = `/employee/files/property/${currentContext.propertyId}/tenant/${currentContext.leaseId}/subfolder/${currentContext.subfolder}/upload`;
         } else if (currentContext.type === 'internal') {
             uploadUrl = `/employee/files/upload/internal/${currentContext.internalFolder}`;
         }
