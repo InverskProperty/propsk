@@ -12,9 +12,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.BlockRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.repository.EmailTemplateRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
+import site.easy.to.build.crm.service.correspondence.CorrespondenceService;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.document.DocumentTemplateService;
 import site.easy.to.build.crm.service.email.EmailService;
 import site.easy.to.build.crm.service.payprop.LocalToPayPropSyncService;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -44,6 +47,8 @@ public class CustomerController {
     private final CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
     private final BlockRepository blockRepository;
     private final PropertyRepository propertyRepository;
+    private final DocumentTemplateService documentTemplateService;
+    private final EmailTemplateRepository emailTemplateRepository;
 
     @Autowired(required = false)
     private LocalToPayPropSyncService localToPayPropSyncService;
@@ -57,7 +62,9 @@ public class CustomerController {
                             EmailService emailService,
                             CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository,
                             BlockRepository blockRepository,
-                            PropertyRepository propertyRepository) {
+                            PropertyRepository propertyRepository,
+                            DocumentTemplateService documentTemplateService,
+                            EmailTemplateRepository emailTemplateRepository) {
         this.customerService = customerService;
         this.userService = userService;
         this.propertyService = propertyService;
@@ -67,6 +74,8 @@ public class CustomerController {
         this.customerPropertyAssignmentRepository = customerPropertyAssignmentRepository;
         this.blockRepository = blockRepository;
         this.propertyRepository = propertyRepository;
+        this.documentTemplateService = documentTemplateService;
+        this.emailTemplateRepository = emailTemplateRepository;
     }
 
     // ===== MAIN CUSTOMER DASHBOARD =====
@@ -874,25 +883,23 @@ public class CustomerController {
             User user = userService.findById(userId);
 
             List<Customer> tenants = customerService.findTenants();
-
-            // Get all properties for the dropdown
-            List<Property> properties = propertyService.findAll();
-
-            // Get all blocks for the dropdown
             List<Block> blocks = blockRepository.findAll();
+            List<EmailTemplate> emailTemplates = emailTemplateRepository.findAll();
+            List<DocumentTemplate> documentTemplates = documentTemplateService.findAllActive();
+            List<String> mergeFields = documentTemplateService.getAvailableMergeFields();
 
-            model.addAttribute("customers", tenants);
-            model.addAttribute("properties", properties);
+            model.addAttribute("tenants", tenants);
             model.addAttribute("blocks", blocks);
-            model.addAttribute("customerType", "Tenants"); // Changed to plural
+            model.addAttribute("emailTemplates", emailTemplates);
+            model.addAttribute("documentTemplates", documentTemplates);
+            model.addAttribute("mergeFields", mergeFields);
             model.addAttribute("user", user);
             model.addAttribute("pageTitle", "Email Tenants");
-            model.addAttribute("backUrl", "/employee/customer/tenants");
 
-            return "customer/email-form";
+            return "employee/customer/email-tenants";
 
         } catch (Exception e) {
-            model.addAttribute("error", "Error loading email form: " + e.getMessage());
+            model.addAttribute("errorMessage", "Error loading email form: " + e.getMessage());
             return "error/500";
         }
     }
