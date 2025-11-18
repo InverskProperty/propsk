@@ -1,7 +1,7 @@
 package site.easy.to.build.crm.dto;
 
 import site.easy.to.build.crm.entity.Customer;
-import site.easy.to.build.crm.entity.enums.CustomerType;
+import site.easy.to.build.crm.entity.CustomerType;
 
 /**
  * DTO for displaying customers with their associated block information

@@ -15,12 +15,13 @@ import site.easy.to.build.crm.entity.CustomerType;
 import site.easy.to.build.crm.entity.GoogleDriveFile;
 import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.enums.AssignmentType;
 import site.easy.to.build.crm.repository.GoogleDriveFileRepository;
+import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
 import site.easy.to.build.crm.service.drive.SharedDriveFileService;
 import site.easy.to.build.crm.service.payprop.PayPropSyncOrchestrator;
-import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.sheets.GoogleSheetsStatementService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
@@ -40,7 +41,7 @@ public class CustomerFilesController {
     private final GoogleSheetsStatementService googleSheetsStatementService;
     private final AuthenticationUtils authenticationUtils;
     private final GoogleDriveFileRepository googleDriveFileRepository;
-    private final PropertyService propertyService;
+    private final CustomerPropertyAssignmentService assignmentService;
 
     @Autowired
     public CustomerFilesController(CustomerService customerService,
@@ -50,7 +51,7 @@ public class CustomerFilesController {
                                  GoogleSheetsStatementService googleSheetsStatementService,
                                  AuthenticationUtils authenticationUtils,
                                  GoogleDriveFileRepository googleDriveFileRepository,
-                                 PropertyService propertyService) {
+                                 CustomerPropertyAssignmentService assignmentService) {
         this.customerService = customerService;
         this.customerDriveOrganizationService = customerDriveOrganizationService;
         this.sharedDriveFileService = sharedDriveFileService;
@@ -58,7 +59,7 @@ public class CustomerFilesController {
         this.googleSheetsStatementService = googleSheetsStatementService;
         this.authenticationUtils = authenticationUtils;
         this.googleDriveFileRepository = googleDriveFileRepository;
-        this.propertyService = propertyService;
+        this.assignmentService = assignmentService;
     }
 
     /**
@@ -136,7 +137,7 @@ public class CustomerFilesController {
             Long targetPropertyId = propertyId;
             if (targetPropertyId == null) {
                 // If no property specified, use the first property owned by the customer
-                List<Property> customerProperties = propertyService.findPropertiesByCustomerId(customerId);
+                List<Property> customerProperties = assignmentService.getPropertiesForCustomer(customerId, AssignmentType.OWNER);
                 if (!customerProperties.isEmpty()) {
                     targetPropertyId = customerProperties.get(0).getId();
                     System.out.println("  ℹ️ No property specified, using first property: " + targetPropertyId);
@@ -466,7 +467,7 @@ public class CustomerFilesController {
         System.out.println("📂 Loading files for customer: " + customer.getCustomerId() + " (" + customer.getName() + ")");
 
         // Get all properties owned by this customer
-        List<Property> customerProperties = propertyService.findPropertiesByCustomerId(customer.getCustomerId());
+        List<Property> customerProperties = assignmentService.getPropertiesForCustomer(customer.getCustomerId(), AssignmentType.OWNER);
         System.out.println("📋 Found " + customerProperties.size() + " properties for customer");
 
         // Collect all files from all customer properties

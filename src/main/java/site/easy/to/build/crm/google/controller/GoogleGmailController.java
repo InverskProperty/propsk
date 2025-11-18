@@ -141,7 +141,7 @@ public class GoogleGmailController {
                     if (!properties.isEmpty()) {
                         Property firstProperty = properties.get(0);
                         if (firstProperty.getBlock() != null) {
-                            blockName = firstProperty.getBlock().getBlockName();
+                            blockName = firstProperty.getBlock().getName();
                             blockId = firstProperty.getBlock().getId();
                         }
                     }
