@@ -42,11 +42,9 @@ $(document).ready(function() {
             $.ajax({
                 type: "POST",
                 url: home+"employee/email-template/create",
-                processData: false,
-                contentType: false,
+                contentType: "application/json",
                 headers: {
-                    [csrfHeaderName]: csrfToken,
-                    "Content-Type": "application/json" // Set the content type to JSON
+                    [csrfHeaderName]: csrfToken
                 },
                 data: JSON.stringify({
                     content: content,
@@ -58,8 +56,11 @@ $(document).ready(function() {
                 },
                 error: function(xhr, status, error) {
                     var errorMessage = xhr.responseText;
-                    if (errorMessage) {
+                    if (errorMessage && errorMessage.includes("not unique")) {
                         window.location.href = home+"employee/email-template/create?error=unique";
+                    } else {
+                        console.error("Error creating template:", errorMessage);
+                        alert("Error creating template: " + (errorMessage || error));
                     }
                 }
             });
@@ -85,11 +86,9 @@ $(document).ready(function() {
             $.ajax({
                 type: "POST",
                 url: home+"employee/email-template/update",
-                processData: false,
-                contentType: false,
+                contentType: "application/json",
                 headers: {
-                    [csrfHeaderName]: csrfToken,
-                    "Content-Type": "application/json" // Set the content type to JSON
+                    [csrfHeaderName]: csrfToken
                 },
                 data: JSON.stringify({
                     id: id,
@@ -102,8 +101,11 @@ $(document).ready(function() {
                 },
                 error: function(xhr, status, error) {
                     var errorMessage = xhr.responseText;
-                    if (errorMessage) {
+                    if (errorMessage && errorMessage.includes("not unique")) {
                         window.location.href = home+"employee/email-template/update/"+id+"?error=unique";
+                    } else {
+                        console.error("Error updating template:", errorMessage);
+                        alert("Error updating template: " + (errorMessage || error));
                     }
                 }
             });
