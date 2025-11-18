@@ -142,6 +142,18 @@
                         </div>
                     </div>
 
+                    <!-- Back/Forward Navigation -->
+                    <div class="mt-3">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary" id="backButton" onclick="navigateBack()" disabled>
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="forwardButton" onclick="navigateForward()" disabled>
+                                Forward <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Breadcrumb Navigation -->
                     <div class="breadcrumb-nav mt-3" id="breadcrumbNav" style="display: none;">
                         <small class="text-muted">Current Location:</small>
@@ -193,6 +205,7 @@
 <script>
 // Navigation state
 let navigationStack = [];
+let forwardStack = [];
 let currentLevel = 'root'; // root, property, property-subfolder, tenants, tenant, tenant-subfolder, internal
 
 // Global state
@@ -248,19 +261,100 @@ function updateBreadcrumbNav(items) {
 }
 
 function pushNavigation(state) {
-    navigationStack.push(state);
-    console.log('Navigation stack:', navigationStack);
+    // Save current state before navigating
+    navigationStack.push({
+        ...state,
+        context: {...currentContext},
+        level: currentLevel
+    });
+    // Clear forward stack when navigating to new location
+    forwardStack = [];
+    updateNavigationButtons();
+    console.log('Navigation stack:', navigationStack.length, 'Forward stack:', forwardStack.length);
 }
 
 function navigateBack() {
     if (navigationStack.length === 0) return;
 
+    // Save current state to forward stack
+    forwardStack.push({
+        context: {...currentContext},
+        level: currentLevel,
+        action: getCurrentNavigationAction()
+    });
+
     const previousState = navigationStack.pop();
     console.log('Navigating back to:', previousState);
 
-    // Execute the previous state's action
+    // Restore previous state
+    currentContext = {...previousState.context};
+    currentLevel = previousState.level;
+
+    // Execute the previous state's action without adding to history
     if (previousState.action) {
         previousState.action();
+    }
+
+    updateNavigationButtons();
+}
+
+function navigateForward() {
+    if (forwardStack.length === 0) return;
+
+    // Save current state to navigation stack
+    navigationStack.push({
+        context: {...currentContext},
+        level: currentLevel,
+        action: getCurrentNavigationAction()
+    });
+
+    const forwardState = forwardStack.pop();
+    console.log('Navigating forward to:', forwardState);
+
+    // Restore forward state
+    currentContext = {...forwardState.context};
+    currentLevel = forwardState.level;
+
+    // Execute the forward state's action
+    if (forwardState.action) {
+        forwardState.action();
+    }
+
+    updateNavigationButtons();
+}
+
+function getCurrentNavigationAction() {
+    // Return function to recreate current view
+    const ctx = {...currentContext};
+
+    if (ctx.type === 'property-list') {
+        return () => loadAllProperties();
+    } else if (ctx.type === 'property') {
+        return () => loadPropertySubfolders(ctx.propertyId, ctx.propertyName);
+    } else if (ctx.type === 'property-subfolder') {
+        return () => loadPropertySubfolderFiles(ctx.propertyId, ctx.subfolder);
+    } else if (ctx.type === 'tenant') {
+        return () => openTenant(ctx.leaseId, ctx.tenantName);
+    } else if (ctx.type === 'tenant-subfolder') {
+        return () => loadTenantSubfolderFiles(ctx.propertyId, ctx.leaseId, ctx.subfolder);
+    } else if (ctx.type === 'internal-list') {
+        return () => loadInternalFolders();
+    } else if (ctx.type === 'internal') {
+        return () => openInternalFolder(ctx.internalFolder);
+    }
+
+    return () => loadAllProperties();
+}
+
+function updateNavigationButtons() {
+    const backBtn = document.getElementById('backButton');
+    const forwardBtn = document.getElementById('forwardButton');
+
+    if (backBtn) {
+        backBtn.disabled = navigationStack.length === 0;
+    }
+    if (forwardBtn) {
+        forwardBtn.disabled = forwardStack.length === 0;
     }
 }
 
@@ -822,18 +916,30 @@ function navigateToBreadcrumb(index) {
     if (!path || index >= path.length) return;
 
     const level = path[index];
+    console.log('Breadcrumb click:', level, 'index:', index, 'current type:', currentContext.type);
 
-    // Navigate based on breadcrumb level
-    if (level === 'Property Documents') {
+    // Clear forward stack when using breadcrumb (like a new navigation)
+    forwardStack = [];
+
+    // Navigate based on breadcrumb level and current context
+    if (level === 'Property Documents' && index === 0) {
+        // Root: Property Documents list
         loadAllProperties();
-    } else if (level === 'Internal Documents') {
+    } else if (level === 'Internal Documents' && index === 0) {
+        // Root: Internal Documents list
         loadInternalFolders();
-    } else if (currentContext.type === 'property-subfolder' && index === 1) {
-        // Going back to property from subfolder
-        loadPropertySubfolders(currentContext.propertyId, currentContext.propertyName);
-    } else if (currentContext.type === 'internal' && index === 1) {
-        // Going back to internal folders list
+    } else if (index === 1 && (currentContext.type === 'property-subfolder' || currentContext.type === 'property' || currentContext.type === 'tenant' || currentContext.type === 'tenant-subfolder')) {
+        // Level 1: Property (from any property-related view)
+        loadPropertySubfolders(currentContext.propertyId, currentContext.propertyName || level);
+    } else if (index === 1 && currentContext.type === 'internal') {
+        // Level 1: Back to internal folders list
         loadInternalFolders();
+    } else if (index === 2 && currentContext.type === 'tenant-subfolder') {
+        // Level 2: Tenant (from tenant subfolder)
+        // The tenant name is at index 2
+        openTenant(currentContext.leaseId, currentContext.tenantName || level);
+    } else {
+        console.warn('Unhandled breadcrumb navigation:', { index, level, currentType: currentContext.type });
     }
 }
 
