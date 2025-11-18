@@ -10,9 +10,11 @@ import java.time.LocalDateTime;
  * Provides an audit trail for customer communications
  */
 @Entity
-@Table(name = "email_correspondence")
-@org.hibernate.annotations.Index(name = "idx_customer_sent_date", columnList = "customer_id,sent_date DESC")
-@org.hibernate.annotations.Index(name = "idx_sent_date", columnList = "sent_date DESC")
+@Table(name = "email_correspondence",
+       indexes = {
+           @Index(name = "idx_customer_sent_date", columnList = "customer_id,sent_date"),
+           @Index(name = "idx_sent_date", columnList = "sent_date")
+       })
 public class EmailCorrespondence {
 
     @Id

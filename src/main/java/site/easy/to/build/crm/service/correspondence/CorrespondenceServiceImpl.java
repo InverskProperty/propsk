@@ -60,7 +60,7 @@ public class CorrespondenceServiceImpl implements CorrespondenceService {
 
         // Set email template if provided
         if (emailTemplateId != null) {
-            emailTemplateRepository.findById(emailTemplateId).ifPresent(correspondence::setEmailTemplateUsed);
+            emailTemplateRepository.findById(emailTemplateId.intValue()).ifPresent(correspondence::setEmailTemplateUsed);
         }
 
         // Set bulk send info

@@ -16,7 +16,7 @@ import site.easy.to.build.crm.entity.OAuthUser;
 import site.easy.to.build.crm.google.service.drive.GoogleDriveApiService;
 import site.easy.to.build.crm.google.util.GoogleApiHelper;
 import site.easy.to.build.crm.service.user.OAuthUserService;
-import site.easy.to.build.crm.util.GsonUtil;
+import site.easy.to.build.crm.google.util.GsonUtil;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

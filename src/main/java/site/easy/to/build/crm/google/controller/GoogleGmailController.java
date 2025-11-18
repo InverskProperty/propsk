@@ -196,7 +196,8 @@ public class GoogleGmailController {
 
         try {
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
-            User currentUser = userService.getCurrentUser(authentication);
+            Long userId = Long.valueOf(authenticationUtils.getLoggedInUserId(authentication));
+            User currentUser = userService.findById(userId);
 
             if (oAuthUser == null) {
                 redirectAttributes.addFlashAttribute("errorMessage",
