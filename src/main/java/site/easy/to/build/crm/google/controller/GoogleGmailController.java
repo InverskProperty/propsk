@@ -27,14 +27,17 @@ import site.easy.to.build.crm.google.model.gmail.EmailPage;
 import site.easy.to.build.crm.google.service.gmail.GmailEmailService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailApiService;
 import site.easy.to.build.crm.google.service.gmail.GoogleGmailLabelService;
+import site.easy.to.build.crm.dto.CustomerWithBlockDTO;
 import site.easy.to.build.crm.entity.Block;
 import site.easy.to.build.crm.entity.DocumentTemplate;
 import site.easy.to.build.crm.entity.EmailTemplate;
+import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.enums.CustomerType;
 import site.easy.to.build.crm.google.service.docs.GoogleDocsApiService;
 import site.easy.to.build.crm.repository.BlockRepository;
 import site.easy.to.build.crm.repository.EmailTemplateRepository;
+import site.easy.to.build.crm.service.assignment.CustomerPropertyAssignmentService;
 import site.easy.to.build.crm.service.correspondence.CorrespondenceService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.document.DocumentTemplateService;
@@ -65,6 +68,7 @@ public class GoogleGmailController {
     private final CorrespondenceService correspondenceService;
     private final UserService userService;
     private final BlockRepository blockRepository;
+    private final CustomerPropertyAssignmentService customerPropertyAssignmentService;
 
     @Autowired
     public GoogleGmailController(AuthenticationUtils authenticationUtils, GmailEmailService gmailEmailService,
@@ -72,7 +76,8 @@ public class GoogleGmailController {
                                 GoogleServiceAccountService googleServiceAccountService, CustomerService customerService,
                                 DocumentTemplateService documentTemplateService, EmailTemplateRepository emailTemplateRepository,
                                 GoogleDocsApiService googleDocsApiService, CorrespondenceService correspondenceService,
-                                UserService userService, BlockRepository blockRepository) {
+                                UserService userService, BlockRepository blockRepository,
+                                CustomerPropertyAssignmentService customerPropertyAssignmentService) {
         this.authenticationUtils = authenticationUtils;
         this.gmailEmailService = gmailEmailService;
         this.googleGmailApiService = googleGmailApiService;
@@ -85,6 +90,7 @@ public class GoogleGmailController {
         this.correspondenceService = correspondenceService;
         this.userService = userService;
         this.blockRepository = blockRepository;
+        this.customerPropertyAssignmentService = customerPropertyAssignmentService;
     }
 
     @GetMapping("/send")
@@ -121,7 +127,30 @@ public class GoogleGmailController {
         try {
             // Load all customers for filtering
             List<Customer> allCustomers = customerService.findAll();
-            model.addAttribute("customers", allCustomers);
+
+            // Convert customers to DTOs with block information
+            List<CustomerWithBlockDTO> customersWithBlocks = allCustomers.stream()
+                .map(customer -> {
+                    // Get first property assignment to determine block
+                    List<Property> properties = customerPropertyAssignmentService.getPropertiesForCustomer(
+                        customer.getCustomerId(), null);
+
+                    String blockName = null;
+                    Long blockId = null;
+
+                    if (!properties.isEmpty()) {
+                        Property firstProperty = properties.get(0);
+                        if (firstProperty.getBlock() != null) {
+                            blockName = firstProperty.getBlock().getBlockName();
+                            blockId = firstProperty.getBlock().getId();
+                        }
+                    }
+
+                    return new CustomerWithBlockDTO(customer, blockName, blockId);
+                })
+                .collect(Collectors.toList());
+
+            model.addAttribute("customers", customersWithBlocks);
 
             // Load email templates
             List<EmailTemplate> emailTemplates = emailTemplateRepository.findAll();
@@ -148,7 +177,7 @@ public class GoogleGmailController {
             System.err.println("⚠️ Error loading compose page data: " + e.getMessage());
             e.printStackTrace();
             // Continue with empty lists
-            model.addAttribute("customers", new ArrayList<Customer>());
+            model.addAttribute("customers", new ArrayList<CustomerWithBlockDTO>());
             model.addAttribute("emailTemplates", new ArrayList<EmailTemplate>());
             model.addAttribute("documentTemplates", new ArrayList<DocumentTemplate>());
             model.addAttribute("blocks", new ArrayList<Block>());

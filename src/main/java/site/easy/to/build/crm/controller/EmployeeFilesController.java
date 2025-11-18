@@ -662,6 +662,45 @@ public class EmployeeFilesController {
         }
     }
 
+    /**
+     * TEST ENDPOINT: Force creation of property subfolders for a specific property
+     * Use this to verify that folders are being created in Google Drive
+     */
+    @GetMapping("/test/create-property-folders/{propertyId}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> testCreatePropertyFolders(@PathVariable Long propertyId,
+                                                                         Authentication authentication) {
+        try {
+            ensureEmployeeAccess(authentication);
+
+            System.out.println("🔧 [TEST] Force creating property subfolders for property: " + propertyId);
+
+            // This should create EICR, EPC, Insurance, Miscellaneous folders in Google Drive
+            List<Map<String, Object>> subfolders = sharedDriveFileService.listPropertySubfolders(propertyId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Property subfolders created/retrieved successfully");
+            response.put("propertyId", propertyId);
+            response.put("subfolders", subfolders);
+            response.put("count", subfolders.size());
+            response.put("instruction", "Check your Google Drive Shared Drive under: Property Documents → Property " + propertyId);
+
+            System.out.println("✅ [TEST] Successfully created/retrieved " + subfolders.size() + " property subfolders");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ [TEST] Error creating property folders: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "error", "Error creating property folders: " + e.getMessage(),
+                "errorType", e.getClass().getSimpleName()
+            ));
+        }
+    }
+
     // ===================================================================
     // Helper Methods
     // ===================================================================

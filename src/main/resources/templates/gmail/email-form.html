@@ -139,7 +139,7 @@
                                         </div>
                                         <div class="recipient-list" id="list-all">
                                             <div th:each="customer : ${customers}" class="customer-item form-check"
-                                                 th:attr="data-type=${customer.customerType}, data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.block?.blockName}">
+                                                 th:attr="data-type=${customer.customerType}, data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.blockName}">
                                                 <input class="form-check-input customer-checkbox" type="checkbox"
                                                        th:id="'customer_all_' + ${customer.customerId}"
                                                        name="selectedIds"
@@ -149,7 +149,7 @@
                                                     <strong th:text="${customer.name}">Customer Name</strong>
                                                     <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
                                                     <span class="badge bg-info ms-2" th:text="${customer.customerType}">Type</span>
-                                                    <span th:if="${customer.block != null}" class="badge bg-secondary ms-1" th:text="${customer.block.blockName}">Block</span>
+                                                    <span th:if="${customer.blockName != null}" class="badge bg-secondary ms-1" th:text="${customer.blockName}">Block</span>
                                                 </label>
                                             </div>
                                         </div>
@@ -215,7 +215,7 @@
                                         <div class="recipient-list" id="list-tenants">
                                             <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'TENANT'}"
                                                  class="customer-item form-check"
-                                                 th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.block?.blockName}">
+                                                 th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.blockName}">
                                                 <input class="form-check-input customer-checkbox" type="checkbox"
                                                        th:id="'customer_tenants_' + ${customer.customerId}"
                                                        name="selectedIds"
@@ -224,7 +224,7 @@
                                                 <label class="form-check-label" th:for="'customer_tenants_' + ${customer.customerId}">
                                                     <strong th:text="${customer.name}">Customer Name</strong>
                                                     <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
-                                                    <span th:if="${customer.block != null}" class="badge bg-secondary ms-1" th:text="${customer.block.blockName}">Block</span>
+                                                    <span th:if="${customer.blockName != null}" class="badge bg-secondary ms-1" th:text="${customer.blockName}">Block</span>
                                                 </label>
                                             </div>
                                         </div>
@@ -290,7 +290,7 @@
                                                 <option th:each="template : ${emailTemplates}"
                                                         th:value="${template.templateId}"
                                                         th:text="${template.name}"
-                                                        th:attr="data-subject=${template.subject}, data-body=${template.body}">
+                                                        th:attr="data-subject=${template.name}, data-body=${template.content}">
                                                     Template Name
                                                 </option>
                                             </select>
