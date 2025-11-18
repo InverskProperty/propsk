@@ -1428,7 +1428,7 @@ public class PropertyOwnerController {
                 return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
             }
 
-            // Use SharedDriveFileService for real Google Drive integration
+            // Use SharedDriveFileService - same as employee portal
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("folderType", folderType);
@@ -1438,25 +1438,30 @@ public class PropertyOwnerController {
             List<Map<String, Object>> files = new ArrayList<>();
 
             try {
-                switch (folderType.toLowerCase()) {
-                    case "property-documents":
-                        // Show property-specific folders from Google Drive (NEW: property-centric)
-                        folders = sharedDriveFileService.listCustomerPropertyFolders(customer.getCustomerId());
-                        break;
+                if (folderType.equalsIgnoreCase("property-documents")) {
+                    // Show ALL property folders from Shared Drive (same as employee side)
+                    List<Map<String, Object>> allProperties = sharedDriveFileService.listAllPropertyFolders();
 
-                    case "tenant-documents":
-                    case "financial-statements":
-                    case "maintenance-records":
-                        // List files in the specific folder type
-                        files = sharedDriveFileService.listFiles(customer, folderType);
-                        break;
+                    // Filter to only show properties accessible by this customer
+                    List<Property> customerProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
 
-                    default:
-                        return ResponseEntity.badRequest().body(Map.of("error", "Unknown folder type: " + folderType));
+                    Set<Long> customerPropertyIds = customerProperties.stream()
+                        .map(Property::getId)
+                        .collect(Collectors.toSet());
+
+                    folders = allProperties.stream()
+                        .filter(prop -> customerPropertyIds.contains(((Number)prop.get("id")).longValue()))
+                        .collect(Collectors.toList());
+
+                    System.out.println("📂 Found " + folders.size() + " properties for customer " + customer.getName());
+
+                } else {
+                    // For other folder types, show placeholder
+                    response.put("warning", "This folder type is not yet implemented: " + folderType);
                 }
             } catch (Exception e) {
                 System.err.println("❌ Error accessing shared drive: " + e.getMessage());
-                // Fallback to empty lists on error
+                e.printStackTrace();
                 folders = new ArrayList<>();
                 files = new ArrayList<>();
                 response.put("warning", "Could not access shared drive: " + e.getMessage());
@@ -1470,6 +1475,7 @@ public class PropertyOwnerController {
 
         } catch (Exception e) {
             System.err.println("❌ Error browsing files: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("error", "Error browsing files: " + e.getMessage()));
         }
     }
