@@ -4003,8 +4003,9 @@ public class PropertyOwnerController {
             System.out.println("✅ Generating XLSX statement for customer: " + customer.getCustomerId());
 
             // Use the monthly breakdown version to create separate sheets per rent cycle
+            // Empty set means include all data sources (UNIFIED)
             byte[] xlsxContent = xlsxStatementService.generateMonthlyPropertyOwnerStatementXLSX(
-                customer, fromDate, toDate
+                customer, fromDate, toDate, new java.util.HashSet<>()
             );
 
             // Set response headers for file download
