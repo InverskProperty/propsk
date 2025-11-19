@@ -1,635 +1,678 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compose Email</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .recipient-tab {
-            cursor: pointer;
-            padding: 10px 20px;
-            border: 1px solid #dee2e6;
-            border-bottom: none;
-            background-color: #f8f9fa;
-            margin-right: 5px;
-            border-radius: 5px 5px 0 0;
-        }
-        .recipient-tab.active {
-            background-color: #fff;
-            border-bottom: 2px solid #fff;
-            font-weight: bold;
-        }
-        .recipient-panel {
-            display: none;
-            border: 1px solid #dee2e6;
-            padding: 15px;
-            border-radius: 0 5px 5px 5px;
-            background-color: #fff;
-        }
-        .recipient-panel.active {
-            display: block;
-        }
-        .customer-item {
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .customer-item:hover {
-            background-color: #f8f9fa;
-        }
-        .merge-field-btn {
-            font-size: 0.75rem;
-            padding: 2px 6px;
-            margin: 2px;
-        }
-        .recipient-list {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        .template-preview {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            padding: 10px;
-            border-radius: 5px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-    </style>
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<!-- Custom CSS -->
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+<style>
+    .recipient-tab {
+        cursor: pointer;
+        padding: 10px 20px;
+        border: 1px solid #dee2e6;
+        border-bottom: none;
+        background-color: #f8f9fa;
+        margin-right: 5px;
+        border-radius: 5px 5px 0 0;
+    }
+    .recipient-tab.active {
+        background-color: #fff;
+        border-bottom: 2px solid #fff;
+        font-weight: bold;
+    }
+    .recipient-panel {
+        display: none;
+        border: 1px solid #dee2e6;
+        padding: 15px;
+        border-radius: 0 5px 5px 5px;
+        background-color: #fff;
+    }
+    .recipient-panel.active {
+        display: block;
+    }
+    .customer-item {
+        padding: 8px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .customer-item:hover {
+        background-color: #f8f9fa;
+    }
+    .merge-field-btn {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+        margin: 2px;
+    }
+    .recipient-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+    .template-preview {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+        border-radius: 5px;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+</style>
 </head>
-<body>
-    <div class="container-fluid mt-4">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">
-                            <i class="fas fa-envelope"></i> Compose Email
-                        </h4>
-                    </div>
-                    <div class="card-body">
 
-                        <!-- Gmail Status Check -->
-                        <div th:if="${gmailError == null or gmailError == ''}" class="alert alert-success alert-dismissible fade show">
-                            <i class="fas fa-check-circle"></i>
-                            <strong>Ready to send!</strong> Gmail API is connected.
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<body class="skin-blue fixed-layout">
+<!-- Preloader -->
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">Elite admin</p>
+    </div>
+</div>
+
+<!-- Main wrapper -->
+<div id="main-wrapper">
+    <!-- Topbar header -->
+    <div th:replace="~{general/header.html}"></div>
+
+    <!-- Left Sidebar -->
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <!-- Page wrapper -->
+    <div class="page-wrapper">
+        <!-- Container fluid -->
+        <div class="container-fluid">
+            <!-- Page titles -->
+            <div th:insert="~{general/page-titles.html}"></div>
+
+            <!-- Start Page Content -->
+            <div class="row">
+                <div class="col-lg-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0 text-white">
+                                <i class="fas fa-envelope"></i> Compose Email
+                            </h4>
                         </div>
+                        <div class="card-body">
 
-                        <div th:if="${gmailError != null and gmailError != ''}" class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Gmail Setup Required:</strong> <span th:text="${gmailError}">Error message</span>
-                            <div class="mt-2">
-                                <a href="/oauth2/authorization/google" class="btn btn-danger">
-                                    <i class="fab fa-google"></i> Login with Google
-                                </a>
+                            <!-- Gmail Status Check -->
+                            <div th:if="${gmailError == null or gmailError == ''}" class="alert alert-success alert-dismissible fade show">
+                                <i class="fas fa-check-circle"></i>
+                                <strong>Ready to send!</strong> Gmail API is connected.
+                                <button type="button" class="close" data-dismiss="alert">&times;</button>
                             </div>
-                        </div>
 
-                        <!-- Email Form -->
-                        <form method="post" th:action="@{/employee/gmail/send}" id="emailForm" th:if="${gmailError == null or gmailError == ''}">
-                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-
-                            <!-- RECIPIENT SELECTION SECTION -->
-                            <div class="card border-primary mb-4">
-                                <div class="card-header bg-light">
-                                    <h5 class="mb-0">
-                                        <i class="fas fa-users"></i> Recipients
-                                        <span class="badge bg-primary ms-2">
-                                            <span id="totalSelectedCount">0</span> selected
-                                        </span>
-                                    </h5>
+                            <div th:if="${gmailError != null and gmailError != ''}" class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>Gmail Setup Required:</strong> <span th:text="${gmailError}">Error message</span>
+                                <div class="mt-2">
+                                    <a href="/oauth2/authorization/google" class="btn btn-danger">
+                                        <i class="fab fa-google"></i> Login with Google
+                                    </a>
                                 </div>
-                                <div class="card-body">
+                            </div>
 
-                                    <!-- Tabs for recipient types -->
-                                    <div class="d-flex mb-3">
-                                        <div class="recipient-tab active" onclick="switchTab('all')">
-                                            All Customers
-                                        </div>
-                                        <div class="recipient-tab" onclick="switchTab('owners')">
-                                            Property Owners
-                                        </div>
-                                        <div class="recipient-tab" onclick="switchTab('tenants')">
-                                            Tenants
-                                        </div>
-                                        <div class="recipient-tab" onclick="switchTab('contractors')">
-                                            Contractors
-                                        </div>
-                                        <div class="recipient-tab" onclick="switchTab('manual')">
-                                            Manual Entry
-                                        </div>
+                            <!-- Email Form -->
+                            <form method="post" th:action="@{/employee/gmail/send}" id="emailForm" th:if="${gmailError == null or gmailError == ''}">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                                <!-- RECIPIENT SELECTION SECTION -->
+                                <div class="card border-primary mb-4">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-users"></i> Recipients
+                                            <span class="badge badge-primary ms-2">
+                                                <span id="totalSelectedCount">0</span> selected
+                                            </span>
+                                        </h5>
                                     </div>
+                                    <div class="card-body">
 
-                                    <!-- All Customers Panel -->
-                                    <div id="panel-all" class="recipient-panel active">
-                                        <div class="row mb-3">
+                                        <!-- Tabs for recipient types -->
+                                        <div class="d-flex mb-3">
+                                            <div class="recipient-tab active" onclick="switchTab('all')">
+                                                All Customers
+                                            </div>
+                                            <div class="recipient-tab" onclick="switchTab('owners')">
+                                                Property Owners
+                                            </div>
+                                            <div class="recipient-tab" onclick="switchTab('tenants')">
+                                                Tenants
+                                            </div>
+                                            <div class="recipient-tab" onclick="switchTab('contractors')">
+                                                Contractors
+                                            </div>
+                                            <div class="recipient-tab" onclick="switchTab('manual')">
+                                                Manual Entry
+                                            </div>
+                                        </div>
+
+                                        <!-- All Customers Panel -->
+                                        <div id="panel-all" class="recipient-panel active">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <input type="text" class="form-control" id="search-all"
+                                                           placeholder="Search customers by name or email..."
+                                                           onkeyup="filterCustomers('all')">
+                                                </div>
+                                                <div class="col-md-6 text-right">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('all')">
+                                                        <i class="fas fa-check-square"></i> Select All
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('all')">
+                                                        <i class="fas fa-square"></i> Deselect All
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="recipient-list" id="list-all">
+                                                <div th:each="customer : ${customers}" class="customer-item form-check"
+                                                     th:attr="data-type=${customer.customerType}, data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.blockName}">
+                                                    <input class="form-check-input customer-checkbox" type="checkbox"
+                                                           th:id="'customer_all_' + ${customer.customerId}"
+                                                           name="selectedIds"
+                                                           th:value="${customer.customerId}"
+                                                           onchange="updateSelectedCount()">
+                                                    <label class="form-check-label" th:for="'customer_all_' + ${customer.customerId}">
+                                                        <strong th:text="${customer.name}">Customer Name</strong>
+                                                        <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
+                                                        <span class="badge badge-info ms-2" th:text="${customer.customerType}">Type</span>
+                                                        <span th:if="${customer.blockName != null}" class="badge badge-secondary ms-1" th:text="${customer.blockName}">Block</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Property Owners Panel -->
+                                        <div id="panel-owners" class="recipient-panel">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <input type="text" class="form-control" id="search-owners"
+                                                           placeholder="Search property owners..."
+                                                           onkeyup="filterCustomers('owners')">
+                                                </div>
+                                                <div class="col-md-6 text-right">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('owners')">
+                                                        <i class="fas fa-check-square"></i> Select All
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('owners')">
+                                                        <i class="fas fa-square"></i> Deselect All
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="recipient-list" id="list-owners">
+                                                <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'OWNER'}"
+                                                     class="customer-item form-check"
+                                                     th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}">
+                                                    <input class="form-check-input customer-checkbox" type="checkbox"
+                                                           th:id="'customer_owners_' + ${customer.customerId}"
+                                                           name="selectedIds"
+                                                           th:value="${customer.customerId}"
+                                                           onchange="updateSelectedCount()">
+                                                    <label class="form-check-label" th:for="'customer_owners_' + ${customer.customerId}">
+                                                        <strong th:text="${customer.name}">Customer Name</strong>
+                                                        <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Tenants Panel -->
+                                        <div id="panel-tenants" class="recipient-panel">
+                                            <div class="row mb-3">
+                                                <div class="col-md-4">
+                                                    <select class="form-control" id="block-filter" onchange="filterCustomers('tenants')">
+                                                        <option value="">All Blocks</option>
+                                                        <option th:each="block : ${blocks}" th:value="${block.blockName}" th:text="${block.blockName}">Block Name</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <input type="text" class="form-control" id="search-tenants"
+                                                           placeholder="Search tenants..."
+                                                           onkeyup="filterCustomers('tenants')">
+                                                </div>
+                                                <div class="col-md-4 text-right">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('tenants')">
+                                                        <i class="fas fa-check-square"></i> Select All
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('tenants')">
+                                                        <i class="fas fa-square"></i> Deselect All
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="recipient-list" id="list-tenants">
+                                                <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'TENANT'}"
+                                                     class="customer-item form-check"
+                                                     th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.blockName}">
+                                                    <input class="form-check-input customer-checkbox" type="checkbox"
+                                                           th:id="'customer_tenants_' + ${customer.customerId}"
+                                                           name="selectedIds"
+                                                           th:value="${customer.customerId}"
+                                                           onchange="updateSelectedCount()">
+                                                    <label class="form-check-label" th:for="'customer_tenants_' + ${customer.customerId}">
+                                                        <strong th:text="${customer.name}">Customer Name</strong>
+                                                        <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
+                                                        <span th:if="${customer.blockName != null}" class="badge badge-secondary ms-1" th:text="${customer.blockName}">Block</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Contractors Panel -->
+                                        <div id="panel-contractors" class="recipient-panel">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <input type="text" class="form-control" id="search-contractors"
+                                                           placeholder="Search contractors..."
+                                                           onkeyup="filterCustomers('contractors')">
+                                                </div>
+                                                <div class="col-md-6 text-right">
+                                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('contractors')">
+                                                        <i class="fas fa-check-square"></i> Select All
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('contractors')">
+                                                        <i class="fas fa-square"></i> Deselect All
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="recipient-list" id="list-contractors">
+                                                <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'CONTRACTOR'}"
+                                                     class="customer-item form-check"
+                                                     th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}">
+                                                    <input class="form-check-input customer-checkbox" type="checkbox"
+                                                           th:id="'customer_contractors_' + ${customer.customerId}"
+                                                           name="selectedIds"
+                                                           th:value="${customer.customerId}"
+                                                           onchange="updateSelectedCount()">
+                                                    <label class="form-check-label" th:for="'customer_contractors_' + ${customer.customerId}">
+                                                        <strong th:text="${customer.name}">Customer Name</strong>
+                                                        <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Manual Entry Panel -->
+                                        <div id="panel-manual" class="recipient-panel">
+                                            <label for="recipient" class="form-label">Enter email addresses (comma separated)</label>
+                                            <textarea class="form-control" id="recipient" name="recipient" rows="3"
+                                                      placeholder="example1@email.com, example2@email.com, example3@email.com"></textarea>
+                                            <div class="form-text text-muted">
+                                                You can enter multiple email addresses separated by commas
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <!-- TEMPLATE SELECTION SECTION -->
+                                <div class="card border-info mb-4">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0"><i class="fas fa-file-alt"></i> Email Template (Optional)</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
                                             <div class="col-md-6">
-                                                <input type="text" class="form-control" id="search-all"
-                                                       placeholder="Search customers by name or email..."
-                                                       onkeyup="filterCustomers('all')">
-                                            </div>
-                                            <div class="col-md-6 text-end">
-                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('all')">
-                                                    <i class="fas fa-check-square"></i> Select All
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('all')">
-                                                    <i class="fas fa-square"></i> Deselect All
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="recipient-list" id="list-all">
-                                            <div th:each="customer : ${customers}" class="customer-item form-check"
-                                                 th:attr="data-type=${customer.customerType}, data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.blockName}">
-                                                <input class="form-check-input customer-checkbox" type="checkbox"
-                                                       th:id="'customer_all_' + ${customer.customerId}"
-                                                       name="selectedIds"
-                                                       th:value="${customer.customerId}"
-                                                       onchange="updateSelectedCount()">
-                                                <label class="form-check-label" th:for="'customer_all_' + ${customer.customerId}">
-                                                    <strong th:text="${customer.name}">Customer Name</strong>
-                                                    <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
-                                                    <span class="badge bg-info ms-2" th:text="${customer.customerType}">Type</span>
-                                                    <span th:if="${customer.blockName != null}" class="badge bg-secondary ms-1" th:text="${customer.blockName}">Block</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Property Owners Panel -->
-                                    <div id="panel-owners" class="recipient-panel">
-                                        <div class="row mb-3">
-                                            <div class="col-md-6">
-                                                <input type="text" class="form-control" id="search-owners"
-                                                       placeholder="Search property owners..."
-                                                       onkeyup="filterCustomers('owners')">
-                                            </div>
-                                            <div class="col-md-6 text-end">
-                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('owners')">
-                                                    <i class="fas fa-check-square"></i> Select All
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('owners')">
-                                                    <i class="fas fa-square"></i> Deselect All
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="recipient-list" id="list-owners">
-                                            <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'OWNER'}"
-                                                 class="customer-item form-check"
-                                                 th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}">
-                                                <input class="form-check-input customer-checkbox" type="checkbox"
-                                                       th:id="'customer_owners_' + ${customer.customerId}"
-                                                       name="selectedIds"
-                                                       th:value="${customer.customerId}"
-                                                       onchange="updateSelectedCount()">
-                                                <label class="form-check-label" th:for="'customer_owners_' + ${customer.customerId}">
-                                                    <strong th:text="${customer.name}">Customer Name</strong>
-                                                    <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Tenants Panel -->
-                                    <div id="panel-tenants" class="recipient-panel">
-                                        <div class="row mb-3">
-                                            <div class="col-md-4">
-                                                <select class="form-select" id="block-filter" onchange="filterCustomers('tenants')">
-                                                    <option value="">All Blocks</option>
-                                                    <option th:each="block : ${blocks}" th:value="${block.blockName}" th:text="${block.blockName}">Block Name</option>
+                                                <select class="form-control" id="emailTemplateId" name="emailTemplateId" onchange="loadEmailTemplate()">
+                                                    <option value="">-- No Template --</option>
+                                                    <option th:each="template : ${emailTemplates}"
+                                                            th:value="${template.templateId}"
+                                                            th:text="${template.name}"
+                                                            th:attr="data-subject=${template.name}, data-body=${template.content}">
+                                                        Template Name
+                                                    </option>
                                                 </select>
                                             </div>
-                                            <div class="col-md-4">
-                                                <input type="text" class="form-control" id="search-tenants"
-                                                       placeholder="Search tenants..."
-                                                       onkeyup="filterCustomers('tenants')">
-                                            </div>
-                                            <div class="col-md-4 text-end">
-                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('tenants')">
-                                                    <i class="fas fa-check-square"></i> Select All
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('tenants')">
-                                                    <i class="fas fa-square"></i> Deselect All
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="recipient-list" id="list-tenants">
-                                            <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'TENANT'}"
-                                                 class="customer-item form-check"
-                                                 th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}, data-block=${customer.blockName}">
-                                                <input class="form-check-input customer-checkbox" type="checkbox"
-                                                       th:id="'customer_tenants_' + ${customer.customerId}"
-                                                       name="selectedIds"
-                                                       th:value="${customer.customerId}"
-                                                       onchange="updateSelectedCount()">
-                                                <label class="form-check-label" th:for="'customer_tenants_' + ${customer.customerId}">
-                                                    <strong th:text="${customer.name}">Customer Name</strong>
-                                                    <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
-                                                    <span th:if="${customer.blockName != null}" class="badge bg-secondary ms-1" th:text="${customer.blockName}">Block</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Contractors Panel -->
-                                    <div id="panel-contractors" class="recipient-panel">
-                                        <div class="row mb-3">
                                             <div class="col-md-6">
-                                                <input type="text" class="form-control" id="search-contractors"
-                                                       placeholder="Search contractors..."
-                                                       onkeyup="filterCustomers('contractors')">
-                                            </div>
-                                            <div class="col-md-6 text-end">
-                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllInTab('contractors')">
-                                                    <i class="fas fa-check-square"></i> Select All
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllInTab('contractors')">
-                                                    <i class="fas fa-square"></i> Deselect All
+                                                <button type="button" class="btn btn-sm btn-outline-info" onclick="clearEmailTemplate()">
+                                                    <i class="fas fa-times"></i> Clear Template
                                                 </button>
                                             </div>
                                         </div>
-                                        <div class="recipient-list" id="list-contractors">
-                                            <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'CONTRACTOR'}"
-                                                 class="customer-item form-check"
-                                                 th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}">
-                                                <input class="form-check-input customer-checkbox" type="checkbox"
-                                                       th:id="'customer_contractors_' + ${customer.customerId}"
-                                                       name="selectedIds"
-                                                       th:value="${customer.customerId}"
-                                                       onchange="updateSelectedCount()">
-                                                <label class="form-check-label" th:for="'customer_contractors_' + ${customer.customerId}">
-                                                    <strong th:text="${customer.name}">Customer Name</strong>
-                                                    <span class="text-muted small" th:text="' (' + ${customer.email} + ')'"> (email)</span>
-                                                </label>
+                                        <div id="templatePreview" class="mt-3 template-preview" style="display: none;">
+                                            <strong>Template Preview:</strong>
+                                            <div id="templatePreviewContent"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- DOCUMENT TEMPLATE SECTION -->
+                                <div class="card border-success mb-4">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0"><i class="fas fa-file-pdf"></i> Document Templates (Optional)</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small mb-3">
+                                            Select document templates to generate personalized PDF attachments for each recipient
+                                        </p>
+                                        <div class="row">
+                                            <div th:each="docTemplate : ${documentTemplates}" class="col-md-6 mb-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox"
+                                                           name="documentTemplateIds"
+                                                           th:value="${docTemplate.templateId}"
+                                                           th:id="'docTemplate_' + ${docTemplate.templateId}">
+                                                    <label class="form-check-label" th:for="'docTemplate_' + ${docTemplate.templateId}">
+                                                        <strong th:text="${docTemplate.name}">Template Name</strong>
+                                                        <span class="badge badge-success ms-2" th:text="${docTemplate.category}">Category</span>
+                                                    </label>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <!-- Manual Entry Panel -->
-                                    <div id="panel-manual" class="recipient-panel">
-                                        <label for="recipient" class="form-label">Enter email addresses (comma separated)</label>
-                                        <textarea class="form-control" id="recipient" name="recipient" rows="3"
-                                                  placeholder="example1@email.com, example2@email.com, example3@email.com"></textarea>
-                                        <div class="form-text">
-                                            You can enter multiple email addresses separated by commas
+                                        <div th:if="${documentTemplates == null || documentTemplates.isEmpty()}" class="alert alert-warning">
+                                            No document templates available. Create templates in the Document Templates section.
                                         </div>
                                     </div>
-
                                 </div>
-                            </div>
 
-                            <!-- TEMPLATE SELECTION SECTION -->
-                            <div class="card border-info mb-4">
-                                <div class="card-header bg-light">
-                                    <h5 class="mb-0"><i class="fas fa-file-alt"></i> Email Template (Optional)</h5>
-                                </div>
-                                <div class="card-body">
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <select class="form-select" id="emailTemplateId" name="emailTemplateId" onchange="loadEmailTemplate()">
-                                                <option value="">-- No Template --</option>
-                                                <option th:each="template : ${emailTemplates}"
-                                                        th:value="${template.templateId}"
-                                                        th:text="${template.name}"
-                                                        th:attr="data-subject=${template.name}, data-body=${template.content}">
-                                                    Template Name
-                                                </option>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <button type="button" class="btn btn-sm btn-outline-info" onclick="clearEmailTemplate()">
-                                                <i class="fas fa-times"></i> Clear Template
+                                <!-- SUBJECT FIELD -->
+                                <div class="mb-3">
+                                    <label for="subject" class="form-label">Subject *</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="subject" name="subject"
+                                               placeholder="Enter email subject" required maxlength="200">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-secondary dropdown-toggle"
+                                                    data-toggle="dropdown">
+                                                Insert Field
                                             </button>
-                                        </div>
-                                    </div>
-                                    <div id="templatePreview" class="mt-3 template-preview" style="display: none;">
-                                        <strong>Template Preview:</strong>
-                                        <div id="templatePreviewContent"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- DOCUMENT TEMPLATE SECTION -->
-                            <div class="card border-success mb-4">
-                                <div class="card-header bg-light">
-                                    <h5 class="mb-0"><i class="fas fa-file-pdf"></i> Document Templates (Optional)</h5>
-                                </div>
-                                <div class="card-body">
-                                    <p class="text-muted small mb-3">
-                                        Select document templates to generate personalized PDF attachments for each recipient
-                                    </p>
-                                    <div class="row">
-                                        <div th:each="docTemplate : ${documentTemplates}" class="col-md-6 mb-2">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox"
-                                                       name="documentTemplateIds"
-                                                       th:value="${docTemplate.templateId}"
-                                                       th:id="'docTemplate_' + ${docTemplate.templateId}">
-                                                <label class="form-check-label" th:for="'docTemplate_' + ${docTemplate.templateId}">
-                                                    <strong th:text="${docTemplate.name}">Template Name</strong>
-                                                    <span class="badge bg-success ms-2" th:text="${docTemplate.category}">Category</span>
-                                                </label>
+                                            <div class="dropdown-menu dropdown-menu-right">
+                                                <a class="dropdown-item" href="#" th:each="field : ${mergeFields}"
+                                                   th:text="${field}"
+                                                   th:onclick="'insertMergeField(\'subject\', \'' + ${field} + '\'); return false;'">
+                                                    Field
+                                                </a>
                                             </div>
                                         </div>
                                     </div>
-                                    <div th:if="${documentTemplates == null || documentTemplates.isEmpty()}" class="alert alert-warning">
-                                        No document templates available. Create templates in the Document Templates section.
-                                    </div>
+                                    <small class="form-text text-muted">Use {{field_name}} for personalization</small>
                                 </div>
-                            </div>
 
-                            <!-- SUBJECT FIELD -->
-                            <div class="mb-3">
-                                <label for="subject" class="form-label">Subject *</label>
-                                <div class="input-group">
-                                    <input type="text" class="form-control" id="subject" name="subject"
-                                           placeholder="Enter email subject" required maxlength="200">
-                                    <button type="button" class="btn btn-outline-secondary dropdown-toggle"
-                                            data-bs-toggle="dropdown">
-                                        Insert Field
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        <li th:each="field : ${mergeFields}">
-                                            <a class="dropdown-item" href="#" th:text="${field}"
-                                               th:onclick="'insertMergeField(\'subject\', \'' + ${field} + '\'); return false;'">
-                                                Field
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </div>
-                                <div class="form-text">Use {{field_name}} for personalization</div>
-                            </div>
-
-                            <!-- MESSAGE FIELD -->
-                            <div class="mb-3">
-                                <label for="message" class="form-label">Message *</label>
-                                <div class="mb-2">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                            data-bs-toggle="dropdown">
-                                        <i class="fas fa-plus"></i> Insert Merge Field
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li th:each="field : ${mergeFields}">
-                                            <a class="dropdown-item" href="#" th:text="${field}"
+                                <!-- MESSAGE FIELD -->
+                                <div class="mb-3">
+                                    <label for="message" class="form-label">Message *</label>
+                                    <div class="mb-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                                data-toggle="dropdown">
+                                            <i class="fas fa-plus"></i> Insert Merge Field
+                                        </button>
+                                        <div class="dropdown-menu">
+                                            <a class="dropdown-item" href="#" th:each="field : ${mergeFields}"
+                                               th:text="${field}"
                                                th:onclick="'insertMergeField(\'message\', \'' + ${field} + '\'); return false;'">
                                                 Field
                                             </a>
-                                        </li>
-                                    </ul>
+                                        </div>
+                                    </div>
+                                    <textarea class="form-control" id="message" name="message" rows="12"
+                                              placeholder="Enter your email message here..." required maxlength="5000"></textarea>
+                                    <div class="form-text text-muted">
+                                        Available merge fields: <span th:each="field, iterStat : ${mergeFields}">
+                                            <code th:text="'{{' + ${field} + '}}'" class="merge-field-btn">{{field}}</code><span th:unless="${iterStat.last}">, </span>
+                                        </span>
+                                    </div>
+                                    <div id="charCount" class="form-text text-muted">0 / 5000 characters</div>
                                 </div>
-                                <textarea class="form-control" id="message" name="message" rows="12"
-                                          placeholder="Enter your email message here..." required maxlength="5000"></textarea>
-                                <div class="form-text">
-                                    Available merge fields: <span th:each="field, iterStat : ${mergeFields}">
-                                        <code th:text="'{{' + ${field} + '}}'" class="merge-field-btn">{{field}}</code><span th:unless="${iterStat.last}">, </span>
-                                    </span>
+
+                                <!-- ACTION BUTTONS -->
+                                <div class="mb-3">
+                                    <button type="submit" class="btn btn-success btn-lg">
+                                        <i class="fas fa-paper-plane"></i> Send Email
+                                    </button>
+                                    <a th:href="@{/employee/gmail/inbox}" class="btn btn-secondary btn-lg ms-2">
+                                        <i class="fas fa-arrow-left"></i> Back to Inbox
+                                    </a>
                                 </div>
-                                <div id="charCount" class="form-text text-muted">0 / 5000 characters</div>
-                            </div>
 
-                            <!-- ACTION BUTTONS -->
-                            <div class="mb-3">
-                                <button type="submit" class="btn btn-success btn-lg">
-                                    <i class="fas fa-paper-plane"></i> Send Email
-                                </button>
-                                <a th:href="@{/employee/gmail/inbox}" class="btn btn-secondary btn-lg ms-2">
-                                    <i class="fas fa-arrow-left"></i> Back to Inbox
-                                </a>
-                            </div>
+                            </form>
 
-                        </form>
-
+                        </div>
                     </div>
                 </div>
             </div>
+            <!-- End Page Content -->
+
+            <!-- Right sidebar -->
+            <div th:insert="~{general/right-sidebar.html}"></div>
         </div>
+        <!-- End Container fluid -->
     </div>
+    <!-- End Page wrapper -->
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Font Awesome -->
-    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+    <!-- Footer -->
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+<!-- End Wrapper -->
 
-    <script th:inline="javascript">
-        let currentTab = 'all';
+<!-- All Jquery -->
+<script th:inline="javascript">
+    var home = /*[[${home}]]*/ null;
+</script>
+<script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/jquery.sparkline.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
 
-        // Switch between recipient tabs
-        function switchTab(tabName) {
-            // Hide all panels
-            document.querySelectorAll('.recipient-panel').forEach(panel => {
-                panel.classList.remove('active');
-            });
+<script>
+$(document).ready(function() {
+    let currentTab = 'all';
 
-            // Deactivate all tabs
-            document.querySelectorAll('.recipient-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
+    // Switch between recipient tabs
+    window.switchTab = function(tabName) {
+        // Hide all panels
+        $('.recipient-panel').removeClass('active');
 
-            // Show selected panel
-            document.getElementById('panel-' + tabName).classList.add('active');
+        // Deactivate all tabs
+        $('.recipient-tab').removeClass('active');
 
-            // Activate selected tab
-            event.target.classList.add('active');
+        // Show selected panel
+        $('#panel-' + tabName).addClass('active');
 
-            currentTab = tabName;
-        }
+        // Activate selected tab
+        event.target.classList.add('active');
 
-        // Filter customers based on search and block
-        function filterCustomers(tabName) {
-            const searchInput = document.getElementById('search-' + tabName);
-            const searchValue = searchInput ? searchInput.value.toLowerCase() : '';
-            const blockFilter = document.getElementById('block-filter');
-            const blockValue = blockFilter ? blockFilter.value : '';
+        currentTab = tabName;
+    };
 
-            const listContainer = document.getElementById('list-' + tabName);
-            const items = listContainer.querySelectorAll('.customer-item');
+    // Filter customers based on search and block
+    window.filterCustomers = function(tabName) {
+        const searchInput = $('#search-' + tabName);
+        const searchValue = searchInput.length ? searchInput.val().toLowerCase() : '';
+        const blockFilter = $('#block-filter');
+        const blockValue = blockFilter.length ? blockFilter.val() : '';
 
-            items.forEach(item => {
-                const name = item.getAttribute('data-name') || '';
-                const email = item.getAttribute('data-email') || '';
-                const block = item.getAttribute('data-block') || '';
+        const listContainer = $('#list-' + tabName);
+        const items = listContainer.find('.customer-item');
 
-                let matchesSearch = true;
-                let matchesBlock = true;
+        items.each(function() {
+            const $item = $(this);
+            const name = $item.attr('data-name') || '';
+            const email = $item.attr('data-email') || '';
+            const block = $item.attr('data-block') || '';
 
-                if (searchValue) {
-                    matchesSearch = name.includes(searchValue) || email.includes(searchValue);
-                }
+            let matchesSearch = true;
+            let matchesBlock = true;
 
-                if (blockValue && tabName === 'tenants') {
-                    matchesBlock = block === blockValue;
-                }
-
-                if (matchesSearch && matchesBlock) {
-                    item.style.display = 'block';
-                } else {
-                    item.style.display = 'none';
-                }
-            });
-        }
-
-        // Select all visible customers in current tab
-        function selectAllInTab(tabName) {
-            const listContainer = document.getElementById('list-' + tabName);
-            const checkboxes = listContainer.querySelectorAll('.customer-checkbox');
-
-            checkboxes.forEach(checkbox => {
-                const item = checkbox.closest('.customer-item');
-                if (item.style.display !== 'none') {
-                    checkbox.checked = true;
-                }
-            });
-
-            updateSelectedCount();
-        }
-
-        // Deselect all customers in current tab
-        function deselectAllInTab(tabName) {
-            const listContainer = document.getElementById('list-' + tabName);
-            const checkboxes = listContainer.querySelectorAll('.customer-checkbox');
-
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = false;
-            });
-
-            updateSelectedCount();
-        }
-
-        // Update total selected count across all tabs
-        function updateSelectedCount() {
-            const allCheckboxes = document.querySelectorAll('.customer-checkbox:checked');
-            const count = allCheckboxes.length;
-            document.getElementById('totalSelectedCount').textContent = count;
-        }
-
-        // Load email template into subject and message fields
-        function loadEmailTemplate() {
-            const select = document.getElementById('emailTemplateId');
-            const selectedOption = select.options[select.selectedIndex];
-
-            if (selectedOption.value) {
-                const subject = selectedOption.getAttribute('data-subject');
-                const body = selectedOption.getAttribute('data-body');
-
-                document.getElementById('subject').value = subject || '';
-                document.getElementById('message').value = body || '';
-
-                // Show preview
-                document.getElementById('templatePreview').style.display = 'block';
-                document.getElementById('templatePreviewContent').innerHTML =
-                    '<strong>Subject:</strong> ' + (subject || '') + '<br><strong>Body:</strong><br>' + (body || '').replace(/\n/g, '<br>');
-            } else {
-                document.getElementById('templatePreview').style.display = 'none';
+            if (searchValue) {
+                matchesSearch = name.includes(searchValue) || email.includes(searchValue);
             }
-        }
 
-        // Clear email template selection
-        function clearEmailTemplate() {
-            document.getElementById('emailTemplateId').value = '';
-            document.getElementById('subject').value = '';
-            document.getElementById('message').value = '';
-            document.getElementById('templatePreview').style.display = 'none';
-        }
-
-        // Insert merge field into subject or message
-        function insertMergeField(fieldId, fieldName) {
-            const field = document.getElementById(fieldId);
-            const cursorPos = field.selectionStart;
-            const textBefore = field.value.substring(0, cursorPos);
-            const textAfter = field.value.substring(cursorPos);
-
-            const mergeField = '{{' + fieldName + '}}';
-            field.value = textBefore + mergeField + textAfter;
-
-            // Set cursor position after inserted field
-            field.focus();
-            field.selectionStart = field.selectionEnd = cursorPos + mergeField.length;
-        }
-
-        // Character count for message
-        function updateCharCount() {
-            const message = document.getElementById('message');
-            const charCount = document.getElementById('charCount');
-            const count = message.value.length;
-            const maxLength = 5000;
-
-            charCount.textContent = count + ' / ' + maxLength + ' characters';
-
-            if (maxLength - count < 100) {
-                charCount.className = 'form-text text-warning';
-            } else {
-                charCount.className = 'form-text text-muted';
+            if (blockValue && tabName === 'tenants') {
+                matchesBlock = block === blockValue;
             }
-        }
 
-        // Form validation and submission
-        document.addEventListener('DOMContentLoaded', function() {
-            // Character count listener
-            document.getElementById('message').addEventListener('input', updateCharCount);
-
-            // Form submit validation
-            document.getElementById('emailForm').addEventListener('submit', function(e) {
-                const subject = document.getElementById('subject').value.trim();
-                const message = document.getElementById('message').value.trim();
-                const manualRecipients = document.getElementById('recipient').value.trim();
-                const selectedCustomers = document.querySelectorAll('.customer-checkbox:checked').length;
-
-                // Validate subject and message
-                if (!subject || !message) {
-                    e.preventDefault();
-                    alert('Please fill in both subject and message fields.');
-                    return false;
-                }
-
-                if (subject.length < 3) {
-                    e.preventDefault();
-                    alert('Subject must be at least 3 characters long.');
-                    return false;
-                }
-
-                if (message.length < 10) {
-                    e.preventDefault();
-                    alert('Message must be at least 10 characters long.');
-                    return false;
-                }
-
-                // Validate recipients
-                let totalRecipients = 0;
-                if (manualRecipients) {
-                    totalRecipients += manualRecipients.split(',').filter(e => e.trim()).length;
-                }
-                totalRecipients += selectedCustomers;
-
-                if (totalRecipients === 0) {
-                    e.preventDefault();
-                    alert('Please select at least one recipient or enter an email address manually.');
-                    return false;
-                }
-
-                // Confirmation dialog
-                let confirmMessage = 'Are you sure you want to send this email to ';
-                if (totalRecipients === 1) {
-                    confirmMessage += '1 recipient?';
-                } else {
-                    confirmMessage += totalRecipients + ' recipients?';
-                }
-
-                // Check if document templates are selected
-                const selectedDocTemplates = document.querySelectorAll('input[name="documentTemplateIds"]:checked').length;
-                if (selectedDocTemplates > 0) {
-                    confirmMessage += '\n\n' + selectedDocTemplates + ' document template(s) will be generated for each recipient as PDF attachments.';
-                }
-
-                if (!confirm(confirmMessage)) {
-                    e.preventDefault();
-                    return false;
-                }
-
-                // Disable submit button to prevent double submission
-                const submitBtn = this.querySelector('button[type="submit"]');
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-            });
+            if (matchesSearch && matchesBlock) {
+                $item.show();
+            } else {
+                $item.hide();
+            }
         });
-    </script>
+    };
+
+    // Select all visible customers in current tab
+    window.selectAllInTab = function(tabName) {
+        const listContainer = $('#list-' + tabName);
+        const checkboxes = listContainer.find('.customer-checkbox');
+
+        checkboxes.each(function() {
+            const $checkbox = $(this);
+            const $item = $checkbox.closest('.customer-item');
+            if ($item.is(':visible')) {
+                $checkbox.prop('checked', true);
+            }
+        });
+
+        updateSelectedCount();
+    };
+
+    // Deselect all customers in current tab
+    window.deselectAllInTab = function(tabName) {
+        const listContainer = $('#list-' + tabName);
+        const checkboxes = listContainer.find('.customer-checkbox');
+
+        checkboxes.prop('checked', false);
+        updateSelectedCount();
+    };
+
+    // Update total selected count across all tabs
+    window.updateSelectedCount = function() {
+        const allCheckboxes = $('.customer-checkbox:checked');
+        const count = allCheckboxes.length;
+        $('#totalSelectedCount').text(count);
+    };
+
+    // Load email template into subject and message fields
+    window.loadEmailTemplate = function() {
+        const $select = $('#emailTemplateId');
+        const selectedOption = $select.find(':selected');
+
+        if (selectedOption.val()) {
+            const subject = selectedOption.attr('data-subject');
+            const body = selectedOption.attr('data-body');
+
+            $('#subject').val(subject || '');
+            $('#message').val(body || '');
+
+            // Show preview
+            $('#templatePreview').show();
+            $('#templatePreviewContent').html(
+                '<strong>Subject:</strong> ' + (subject || '') + '<br><strong>Body:</strong><br>' + (body || '').replace(/\n/g, '<br>')
+            );
+        } else {
+            $('#templatePreview').hide();
+        }
+    };
+
+    // Clear email template selection
+    window.clearEmailTemplate = function() {
+        $('#emailTemplateId').val('');
+        $('#subject').val('');
+        $('#message').val('');
+        $('#templatePreview').hide();
+    };
+
+    // Insert merge field into subject or message
+    window.insertMergeField = function(fieldId, fieldName) {
+        const field = $('#' + fieldId)[0];
+        const cursorPos = field.selectionStart;
+        const textBefore = field.value.substring(0, cursorPos);
+        const textAfter = field.value.substring(cursorPos);
+
+        const mergeField = '{{' + fieldName + '}}';
+        field.value = textBefore + mergeField + textAfter;
+
+        // Set cursor position after inserted field
+        field.focus();
+        field.selectionStart = field.selectionEnd = cursorPos + mergeField.length;
+    };
+
+    // Character count for message
+    function updateCharCount() {
+        const message = $('#message');
+        const charCount = $('#charCount');
+        const count = message.val().length;
+        const maxLength = 5000;
+
+        charCount.text(count + ' / ' + maxLength + ' characters');
+
+        if (maxLength - count < 100) {
+            charCount.removeClass('text-muted').addClass('text-warning');
+        } else {
+            charCount.removeClass('text-warning').addClass('text-muted');
+        }
+    }
+
+    // Character count listener
+    $('#message').on('input', updateCharCount);
+
+    // Form submit validation
+    $('#emailForm').on('submit', function(e) {
+        const subject = $('#subject').val().trim();
+        const message = $('#message').val().trim();
+        const manualRecipients = $('#recipient').val().trim();
+        const selectedCustomers = $('.customer-checkbox:checked').length;
+
+        // Validate subject and message
+        if (!subject || !message) {
+            e.preventDefault();
+            alert('Please fill in both subject and message fields.');
+            return false;
+        }
+
+        if (subject.length < 3) {
+            e.preventDefault();
+            alert('Subject must be at least 3 characters long.');
+            return false;
+        }
+
+        if (message.length < 10) {
+            e.preventDefault();
+            alert('Message must be at least 10 characters long.');
+            return false;
+        }
+
+        // Validate recipients
+        let totalRecipients = 0;
+        if (manualRecipients) {
+            totalRecipients += manualRecipients.split(',').filter(e => e.trim()).length;
+        }
+        totalRecipients += selectedCustomers;
+
+        if (totalRecipients === 0) {
+            e.preventDefault();
+            alert('Please select at least one recipient or enter an email address manually.');
+            return false;
+        }
+
+        // Confirmation dialog
+        let confirmMessage = 'Are you sure you want to send this email to ';
+        if (totalRecipients === 1) {
+            confirmMessage += '1 recipient?';
+        } else {
+            confirmMessage += totalRecipients + ' recipients?';
+        }
+
+        // Check if document templates are selected
+        const selectedDocTemplates = $('input[name="documentTemplateIds"]:checked').length;
+        if (selectedDocTemplates > 0) {
+            confirmMessage += '\n\n' + selectedDocTemplates + ' document template(s) will be generated for each recipient as PDF attachments.';
+        }
+
+        if (!confirm(confirmMessage)) {
+            e.preventDefault();
+            return false;
+        }
+
+        // Disable submit button to prevent double submission
+        const $submitBtn = $(this).find('button[type="submit"]');
+        $submitBtn.prop('disabled', true);
+        $submitBtn.html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+    });
+});
+</script>
 </body>
 </html>
