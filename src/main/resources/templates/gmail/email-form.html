@@ -45,8 +45,17 @@
     .customer-item .form-check-input {
         position: relative;
         margin-top: 0.25rem;
-        margin-right: 0.5rem;
+        margin-right: 0.75rem;
         flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        border: 2px solid #007bff;
+        background-color: white;
+    }
+    .customer-item .form-check-input:checked {
+        background-color: #007bff;
+        border-color: #007bff;
     }
     .customer-item .form-check-label {
         flex: 1;
@@ -402,7 +411,10 @@
 
                                 <!-- MESSAGE FIELD -->
                                 <div class="mb-3">
-                                    <label for="message" class="form-label">Message *</label>
+                                    <label for="message" class="form-label">
+                                        Message <span id="messageOptionalLabel" style="display: none;">(Optional - template content will be used)</span>
+                                        <span id="messageRequiredLabel">*</span>
+                                    </label>
                                     <div class="mb-2">
                                         <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
                                                 data-toggle="dropdown">
@@ -418,7 +430,7 @@
                                         </div>
                                     </div>
                                     <textarea class="form-control" id="message" name="message" rows="12"
-                                              placeholder="Enter your email message here..." required maxlength="5000"></textarea>
+                                              placeholder="Enter your email message here... (or select a template above)" maxlength="5000"></textarea>
                                     <div class="form-text text-muted">
                                         Available merge fields: <span th:each="field, iterStat : ${mergeFields}">
                                             <code th:text="'{{' + ${field} + '}}'" class="merge-field-btn">{{field}}</code><span th:unless="${iterStat.last}">, </span>
@@ -579,8 +591,14 @@ $(document).ready(function() {
                 '<div><strong>Template Content:</strong></div>' +
                 '<div style="border: 1px solid #ddd; padding: 10px; background: white; margin-top: 5px;">' + (body || 'No content') + '</div>'
             );
+
+            // Update label to show message is optional
+            $('#messageOptionalLabel').show();
+            $('#messageRequiredLabel').hide();
         } else {
             $('#templatePreview').hide();
+            $('#messageOptionalLabel').hide();
+            $('#messageRequiredLabel').show();
         }
     };
 
@@ -590,6 +608,8 @@ $(document).ready(function() {
         $('#subject').val('');
         $('#message').val('');
         $('#templatePreview').hide();
+        $('#messageOptionalLabel').hide();
+        $('#messageRequiredLabel').show();
     };
 
     // Insert merge field into subject or message
@@ -630,13 +650,14 @@ $(document).ready(function() {
     $('#emailForm').on('submit', function(e) {
         const subject = $('#subject').val().trim();
         const message = $('#message').val().trim();
+        const templateId = $('#emailTemplateId').val();
         const manualRecipients = $('#recipient').val().trim();
         const selectedCustomers = $('.customer-checkbox:checked').length;
 
-        // Validate subject and message
-        if (!subject || !message) {
+        // Validate subject
+        if (!subject) {
             e.preventDefault();
-            alert('Please fill in both subject and message fields.');
+            alert('Please enter a subject.');
             return false;
         }
 
@@ -646,7 +667,14 @@ $(document).ready(function() {
             return false;
         }
 
-        if (message.length < 10) {
+        // Validate message or template
+        if (!templateId && !message) {
+            e.preventDefault();
+            alert('Please enter a message or select an email template.');
+            return false;
+        }
+
+        if (!templateId && message.length < 10) {
             e.preventDefault();
             alert('Message must be at least 10 characters long.');
             return false;

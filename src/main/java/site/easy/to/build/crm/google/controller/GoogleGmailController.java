@@ -248,7 +248,7 @@ public class GoogleGmailController {
                             @RequestParam(value = "recipient", required = false) String recipient,
                             @RequestParam(value = "selectedIds", required = false) List<Long> selectedIds,
                             @RequestParam("subject") String subject,
-                            @RequestParam("message") String message,
+                            @RequestParam(value = "message", required = false) String message,
                             @RequestParam(value = "emailTemplateId", required = false) Long emailTemplateId,
                             @RequestParam(value = "documentTemplateIds", required = false) List<Long> documentTemplateIds,
                             RedirectAttributes redirectAttributes) {
@@ -301,6 +301,28 @@ public class GoogleGmailController {
                 return "redirect:/employee/gmail/send";
             }
 
+            // Use email template content if template is selected, otherwise use message field
+            String emailContent = null;
+            if (emailTemplateId != null) {
+                EmailTemplate emailTemplate = emailTemplateService.findByTemplateId(emailTemplateId.intValue());
+                if (emailTemplate != null && emailTemplate.getContent() != null) {
+                    emailContent = emailTemplate.getContent();
+                    System.out.println("📧 Using email template: " + emailTemplate.getName());
+                }
+            }
+
+            // If no template content, use the message field
+            if (emailContent == null || emailContent.trim().isEmpty()) {
+                emailContent = message;
+            }
+
+            // Validate that we have content to send
+            if (emailContent == null || emailContent.trim().isEmpty()) {
+                redirectAttributes.addFlashAttribute("errorMessage",
+                    "Please enter a message or select an email template.");
+                return "redirect:/employee/gmail/send";
+            }
+
             // Generate bulk send batch ID for tracking
             String bulkSendBatchId = correspondenceService.generateBulkSendBatchId();
             int totalRecipients = recipientCustomers.size() + manualEmails.size();
@@ -350,7 +372,7 @@ public class GoogleGmailController {
                 try {
                     // Personalize subject and message
                     String personalizedSubject = replaceCustomerMergeFields(subject, customer);
-                    String personalizedMessage = replaceCustomerMergeFields(message, customer);
+                    String personalizedMessage = replaceCustomerMergeFields(emailContent, customer);
 
                     // Prepare attachments
                     List<Attachment> attachments = new ArrayList<>();
@@ -384,7 +406,7 @@ public class GoogleGmailController {
 
                 } catch (Exception e) {
                     System.err.println("   ❌ Failed for " + customer.getEmail() + ": " + e.getMessage());
-                    correspondenceService.logFailedEmail(customer, currentUser, subject, message,
+                    correspondenceService.logFailedEmail(customer, currentUser, subject, emailContent,
                                                         e.getMessage(), bulkSendBatchId);
                 }
             }
@@ -392,7 +414,7 @@ public class GoogleGmailController {
             // Send to manual emails (no personalization, no correspondence tracking)
             for (String email : manualEmails) {
                 try {
-                    googleGmailApiService.sendEmail(oAuthUser, email, subject, message, new ArrayList<>(), new ArrayList<>());
+                    googleGmailApiService.sendEmail(oAuthUser, email, subject, emailContent, new ArrayList<>(), new ArrayList<>());
                     successCount++;
                     System.out.println("   ✅ Sent to manual recipient " + email);
                     Thread.sleep(100);
