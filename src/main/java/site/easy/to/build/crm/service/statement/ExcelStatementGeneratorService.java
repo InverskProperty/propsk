@@ -1016,10 +1016,10 @@ public class ExcelStatementGeneratorService {
                     monthCell.setCellValue(monthStart);
                     monthCell.setCellStyle(dateStyle);
 
-                    // Rent due, rent received, arrears - using simple values instead of formulas for separate sheets
+                    // Rent due
                     Cell rentDueCell = row.createCell(col++);
-                    BigDecimal rentAmount = lease.getRentAmount() != null ? lease.getRentAmount() : BigDecimal.ZERO;
-                    rentDueCell.setCellValue(rentAmount.doubleValue());
+                    BigDecimal monthlyRent = lease.getMonthlyRent() != null ? lease.getMonthlyRent() : BigDecimal.ZERO;
+                    rentDueCell.setCellValue(monthlyRent.doubleValue());
                     rentDueCell.setCellStyle(currencyStyle);
 
                     // Rent received - 0 for now (could be enhanced with transaction lookups)
@@ -1027,24 +1027,22 @@ public class ExcelStatementGeneratorService {
                     rentReceivedCell.setCellValue(0);
                     rentReceivedCell.setCellStyle(currencyStyle);
 
-                    // Arrears
+                    // Arrears (formula: due - received)
                     Cell arrearsCell = row.createCell(col++);
                     arrearsCell.setCellFormula(String.format("G%d - H%d", rowNum + 1, rowNum + 1));
                     arrearsCell.setCellStyle(currencyStyle);
 
-                    // Commission - using property commission percentage
-                    BigDecimal commissionRate = lease.getCommissionPercentage() != null ?
-                        lease.getCommissionPercentage() : BigDecimal.valueOf(15.0);
-
+                    // Management fee (formula: rent_received * management_fee_percent)
                     Cell managementFeeCell = row.createCell(col++);
-                    managementFeeCell.setCellFormula(String.format("H%d * %.2f / 100", rowNum + 1, commissionRate.doubleValue()));
+                    managementFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
                     managementFeeCell.setCellStyle(currencyStyle);
 
+                    // Service fee (formula: rent_received * service_fee_percent)
                     Cell serviceFeeCell = row.createCell(col++);
-                    serviceFeeCell.setCellValue(0); // Service fee is 0 per simplified commission logic
+                    serviceFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     serviceFeeCell.setCellStyle(currencyStyle);
 
-                    // Total commission
+                    // Total commission (formula: mgmt + svc)
                     Cell totalCommissionCell = row.createCell(col++);
                     totalCommissionCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
                     totalCommissionCell.setCellStyle(currencyStyle);
@@ -1054,7 +1052,7 @@ public class ExcelStatementGeneratorService {
                     expensesCell.setCellValue(0);
                     expensesCell.setCellStyle(currencyStyle);
 
-                    // Net to owner
+                    // Net to owner (formula: received - commission - expenses)
                     Cell netCell = row.createCell(col++);
                     netCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netCell.setCellStyle(currencyStyle);
