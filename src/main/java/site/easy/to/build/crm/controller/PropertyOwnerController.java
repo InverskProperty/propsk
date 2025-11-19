@@ -4002,8 +4002,8 @@ public class PropertyOwnerController {
 
             System.out.println("✅ Generating XLSX statement for customer: " + customer.getCustomerId());
 
-            // Use the XLSXStatementService directly
-            byte[] xlsxContent = xlsxStatementService.generatePropertyOwnerStatementXLSX(
+            // Use the monthly breakdown version to create separate sheets per rent cycle
+            byte[] xlsxContent = xlsxStatementService.generateMonthlyPropertyOwnerStatementXLSX(
                 customer, fromDate, toDate
             );
 
