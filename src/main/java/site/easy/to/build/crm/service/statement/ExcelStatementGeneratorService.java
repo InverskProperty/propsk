@@ -100,11 +100,11 @@ public class ExcelStatementGeneratorService {
         createExpensesSheet(workbook, leaseMaster, startDate, endDate);
 
         // Create separate monthly statement sheets for each month in the period
-        List<site.easy.to.build.crm.util.RentCyclePeriod> periods =
+        List<site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod> periods =
             site.easy.to.build.crm.util.RentCyclePeriodCalculator.calculateMonthlyPeriods(startDate, endDate);
 
         log.info("Creating {} separate monthly statement sheets", periods.size());
-        for (site.easy.to.build.crm.util.RentCyclePeriod period : periods) {
+        for (site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod period : periods) {
             createMonthlyStatementSheetForPeriod(workbook, leaseMaster, period);
         }
 
@@ -938,7 +938,7 @@ public class ExcelStatementGeneratorService {
      * Used when generating separate sheets for each month
      */
     private void createMonthlyStatementSheetForPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                      site.easy.to.build.crm.util.RentCyclePeriod period) {
+                                                      site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod period) {
         String sheetName = sanitizeSheetName(period.getSheetName());
         log.info("Creating monthly statement sheet: {}", sheetName);
 
