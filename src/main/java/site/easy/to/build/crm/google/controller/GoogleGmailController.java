@@ -304,7 +304,7 @@ public class GoogleGmailController {
             // Use email template content if template is selected, otherwise use message field
             String emailContent = null;
             if (emailTemplateId != null) {
-                EmailTemplate emailTemplate = emailTemplateService.findByTemplateId(emailTemplateId.intValue());
+                EmailTemplate emailTemplate = emailTemplateRepository.findByTemplateId(emailTemplateId.intValue());
                 if (emailTemplate != null && emailTemplate.getContent() != null) {
                     emailContent = emailTemplate.getContent();
                     System.out.println("📧 Using email template: " + emailTemplate.getName());
