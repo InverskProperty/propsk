@@ -20,6 +20,7 @@ import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
+import site.easy.to.build.crm.service.property.PropertyService;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -56,6 +57,9 @@ public class StatementDataExtractService {
 
     @Autowired
     private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
+
+    @Autowired
+    private PropertyService propertyService;
 
     /**
      * Extract lease master data (all leases)
@@ -118,60 +122,62 @@ public class StatementDataExtractService {
     /**
      * Extract lease master data for specific customer
      *
+     * FIXED: Now uses PropertyService.findPropertiesAccessibleByCustomer() to properly handle
+     * DELEGATED_USER with manages_owner_id inheritance (same pattern as dashboard, statements page, etc.)
+     *
      * @param customerId Customer ID to filter by
      * @return List of lease master records for this customer
      */
     public List<LeaseMasterDTO> extractLeaseMasterForCustomer(Long customerId) {
-        log.error("🔍 DEBUG: Extracting lease master data for customer {}...", customerId);
+        log.info("🔍 Extracting lease master data for customer {}...", customerId);
 
         Customer customer = customerRepository.findById(customerId).orElse(null);
         if (customer == null) {
-            log.error("🔍 DEBUG: Customer {} not found - returning empty list", customerId);
+            log.error("❌ Customer {} not found - returning empty list", customerId);
             return new ArrayList<>();
         }
 
-        log.error("🔍 DEBUG: Customer {} found, type={}", customerId, customer.getCustomerType());
+        log.info("✅ Customer {} found, type={}", customerId, customer.getCustomerType());
 
         // Get leases based on customer type
         List<Invoice> invoices;
 
         if (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.PROPERTY_OWNER ||
             customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER) {
-            // For property owners and delegated users: Get leases for properties they OWN
-            log.error("🔍 DEBUG: Customer {} is {}, getting leases for owned properties",
-                customerId, customer.getCustomerType());
 
-            // Get properties where customer is OWNER or MANAGER (same logic as PropertyService)
-            List<Long> ownerPropertyIds = customerPropertyAssignmentRepository
-                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.OWNER);
-            List<Long> managerPropertyIds = customerPropertyAssignmentRepository
-                .findPropertyIdsByCustomerIdAndAssignmentType(customerId, AssignmentType.MANAGER);
+            // ✅ USE THE ESTABLISHED PATTERN - Same as dashboard, property listings, etc.
+            // This automatically handles:
+            // - DELEGATED_USER with manages_owner_id → redirects to owner's properties
+            // - PROPERTY_OWNER → returns their own properties
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId);
 
-            // Combine and deduplicate into final variable for lambda
-            final List<Long> ownedPropertyIds = new ArrayList<>();
-            ownedPropertyIds.addAll(ownerPropertyIds);
-            ownedPropertyIds.addAll(managerPropertyIds);
-            final List<Long> deduplicatedIds = ownedPropertyIds.stream().distinct().collect(Collectors.toList());
+            log.info("✅ Found {} properties accessible by customer {} using PropertyService filter",
+                properties.size(), customerId);
 
-            log.error("🔍 DEBUG: Found {} OWNER + {} MANAGER = {} total properties for customer {}, IDs: {}",
-                ownerPropertyIds.size(), managerPropertyIds.size(), deduplicatedIds.size(), customerId, deduplicatedIds);
+            // Get property IDs for filtering invoices
+            final List<Long> propertyIds = properties.stream()
+                .map(Property::getId)
+                .collect(Collectors.toList());
 
+            log.info("📋 Property IDs: {}", propertyIds);
+
+            // Get leases (invoices) for these properties
             invoices = invoiceRepository.findAll().stream()
                 .filter(i -> i.getProperty() != null)
-                .filter(i -> ownedPropertyIds.contains(i.getProperty().getId()))
+                .filter(i -> propertyIds.contains(i.getProperty().getId()))
                 .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
                 .collect(Collectors.toList());
 
-            log.error("🔍 DEBUG: After filtering invoices for customer {}: {} leases found", customerId, invoices.size());
+            log.info("✅ Found {} leases for customer {}'s properties", invoices.size(), customerId);
         } else {
-            // For tenants: Get leases where they are the customer
-            log.error("🔍 DEBUG: Customer {} is TENANT, getting leases where they are the customer", customerId);
+            // For tenants: Get leases where they are the customer (tenant on the lease)
+            log.info("📋 Customer {} is TENANT, getting leases where they are the customer", customerId);
             invoices = invoiceRepository.findByCustomer(customer).stream()
                 .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
                 .collect(Collectors.toList());
         }
 
-        log.error("🔍 DEBUG: Total {} leases found for customer {}", invoices.size(), customerId);
+        log.info("📊 Total {} leases found for customer {}", invoices.size(), customerId);
 
         List<LeaseMasterDTO> leaseMaster = new ArrayList<>();
 
@@ -202,14 +208,16 @@ public class StatementDataExtractService {
             leaseMaster.add(dto);
         }
 
-        // Log lease_id distribution to match against transaction invoice_ids
-        log.error("🔍 DEBUG: Lease_id distribution for customer {}: {}",
-            customerId,
-            leaseMaster.stream()
-                .map(l -> "lease_id=" + l.getLeaseId() + " ref=" + l.getLeaseReference() + " property=" + l.getPropertyName())
-                .collect(Collectors.toList()));
+        log.info("✅ Extracted {} lease master records for customer {}", leaseMaster.size(), customerId);
 
-        log.info("Extracted {} lease master records for customer {}", leaseMaster.size(), customerId);
+        if (!leaseMaster.isEmpty()) {
+            log.info("📋 Sample leases: {}",
+                leaseMaster.stream()
+                    .limit(3)
+                    .map(l -> "lease_id=" + l.getLeaseId() + " ref=" + l.getLeaseReference() + " property=" + l.getPropertyName())
+                    .collect(Collectors.toList()));
+        }
+
         return leaseMaster;
     }
 
