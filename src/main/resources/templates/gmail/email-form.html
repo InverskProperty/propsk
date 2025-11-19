@@ -36,9 +36,21 @@
     .customer-item {
         padding: 8px;
         border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        align-items: flex-start;
     }
     .customer-item:hover {
         background-color: #f8f9fa;
+    }
+    .customer-item .form-check-input {
+        position: relative;
+        margin-top: 0.25rem;
+        margin-right: 0.5rem;
+        flex-shrink: 0;
+    }
+    .customer-item .form-check-label {
+        flex: 1;
+        cursor: pointer;
     }
     .merge-field-btn {
         font-size: 0.75rem;
@@ -200,7 +212,7 @@
                                                 </div>
                                             </div>
                                             <div class="recipient-list" id="list-owners">
-                                                <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'OWNER'}"
+                                                <div th:each="customer : ${customers}" th:if="${customer.customerType?.name() == 'PROPERTY_OWNER'}"
                                                      class="customer-item form-check"
                                                      th:attr="data-name=${customer.name?.toLowerCase()}, data-email=${customer.email?.toLowerCase()}">
                                                     <input class="form-check-input customer-checkbox" type="checkbox"
@@ -557,12 +569,15 @@ $(document).ready(function() {
             const body = selectedOption.attr('data-body');
 
             $('#subject').val(subject || '');
-            $('#message').val(body || '');
+            // Don't overwrite message field with HTML template
+            // $('#message').val(body || '');
 
-            // Show preview
+            // Show preview with actual HTML rendering
             $('#templatePreview').show();
             $('#templatePreviewContent').html(
-                '<strong>Subject:</strong> ' + (subject || '') + '<br><strong>Body:</strong><br>' + (body || '').replace(/\n/g, '<br>')
+                '<div style="margin-bottom: 10px;"><strong>Subject:</strong> ' + (subject || '') + '</div>' +
+                '<div><strong>Template Content:</strong></div>' +
+                '<div style="border: 1px solid #ddd; padding: 10px; background: white; margin-top: 5px;">' + (body || 'No content') + '</div>'
             );
         } else {
             $('#templatePreview').hide();
