@@ -378,7 +378,8 @@
                                             <div class="dropdown-menu dropdown-menu-right">
                                                 <a class="dropdown-item" href="#" th:each="field : ${mergeFields}"
                                                    th:text="${field}"
-                                                   th:onclick="'insertMergeField(\'subject\', \'' + ${field} + '\'); return false;'">
+                                                   th:attr="data-field=${field}"
+                                                   onclick="insertMergeField('subject', this.getAttribute('data-field')); return false;">
                                                     Field
                                                 </a>
                                             </div>
@@ -398,7 +399,8 @@
                                         <div class="dropdown-menu">
                                             <a class="dropdown-item" href="#" th:each="field : ${mergeFields}"
                                                th:text="${field}"
-                                               th:onclick="'insertMergeField(\'message\', \'' + ${field} + '\'); return false;'">
+                                               th:attr="data-field=${field}"
+                                               onclick="insertMergeField('message', this.getAttribute('data-field')); return false;">
                                                 Field
                                             </a>
                                         </div>
