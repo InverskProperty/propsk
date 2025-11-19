@@ -316,6 +316,7 @@ public class EmployeeFilesController {
             List<Map<String, Object>> subfolders = sharedDriveFileService.listPropertySubfolders(propertyId);
 
             Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
             response.put("subfolders", subfolders);
             response.put("count", subfolders.size());
             response.put("propertyId", propertyId);
@@ -344,6 +345,7 @@ public class EmployeeFilesController {
             List<Map<String, Object>> tenants = sharedDriveFileService.listTenantsForProperty(propertyId);
 
             Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
             response.put("tenants", tenants);
             response.put("count", tenants.size());
             response.put("propertyId", propertyId);
@@ -373,6 +375,7 @@ public class EmployeeFilesController {
             List<Map<String, Object>> files = sharedDriveFileService.listPropertySubfolderFiles(propertyId, subfolderName);
 
             Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
             response.put("files", files);
             response.put("count", files.size());
             response.put("propertyId", propertyId);
@@ -454,6 +457,7 @@ public class EmployeeFilesController {
             List<Map<String, Object>> files = sharedDriveFileService.listTenantSubfolderFiles(propertyId, leaseId, subfolderName);
 
             Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
             response.put("files", files);
             response.put("count", files.size());
             response.put("propertyId", propertyId);

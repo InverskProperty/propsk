@@ -367,20 +367,34 @@ function loadAllProperties() {
     console.log('📁 Loading all properties...');
     showLoading();
 
-    fetch('/employee/files/browse/properties')
-        .then(response => response.json())
+    const url = '/employee/files/browse/properties';
+    console.log('📡 Fetching URL:', url);
+
+    fetch(url)
+        .then(response => {
+            console.log('📡 Response status:', response.status, response.statusText);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('❌ HTTP Error Response:', text);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${text.substring(0, 200)}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('📦 Response data:', data);
             if (data.success) {
                 currentContext = {type: 'property-list', ...clearContext()};
                 updateBreadcrumb(['Property Documents']);
                 displayPropertyFolders(data.properties);
                 document.getElementById('uploadBtn').disabled = true;
             } else {
+                console.error('❌ Request failed:', data.error);
                 showError(data.error || 'Failed to load properties');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('❌ Error loading properties:', error);
             showError('Error loading properties: ' + error.message);
         });
 }
@@ -399,17 +413,41 @@ function loadPropertySubfolders(propertyId, propertyName) {
     currentLevel = 'property';
     updateBreadcrumb(['Property Documents', propertyName]);
 
+    const subfoldersUrl = `/employee/files/property/${propertyId}/subfolders`;
+    const tenantsUrl = `/employee/files/property/${propertyId}/tenants`;
+    console.log('📡 Fetching URLs:', subfoldersUrl, tenantsUrl);
+
     // Load hybrid view: both property folders and tenants
     Promise.all([
-        fetch(`/employee/files/property/${propertyId}/subfolders`).then(r => r.json()),
-        fetch(`/employee/files/property/${propertyId}/tenants`).then(r => r.json())
+        fetch(subfoldersUrl).then(r => {
+            console.log('📡 Subfolders response status:', r.status, r.statusText);
+            if (!r.ok) {
+                return r.text().then(text => {
+                    console.error('❌ Subfolders HTTP Error:', text);
+                    throw new Error(`Subfolders HTTP ${r.status}: ${text.substring(0, 200)}`);
+                });
+            }
+            return r.json();
+        }),
+        fetch(tenantsUrl).then(r => {
+            console.log('📡 Tenants response status:', r.status, r.statusText);
+            if (!r.ok) {
+                return r.text().then(text => {
+                    console.error('❌ Tenants HTTP Error:', text);
+                    throw new Error(`Tenants HTTP ${r.status}: ${text.substring(0, 200)}`);
+                });
+            }
+            return r.json();
+        })
     ])
     .then(([subfoldersData, tenantsData]) => {
+        console.log('📦 Subfolders data:', subfoldersData);
+        console.log('📦 Tenants data:', tenantsData);
         displayPropertyHybridView(subfoldersData.subfolders || [], tenantsData.tenants || []);
         document.getElementById('uploadBtn').disabled = true;
     })
     .catch(error => {
-        console.error('Error loading property view:', error);
+        console.error('❌ Error loading property view:', error);
         showError('Error loading property view: ' + error.message);
     });
 }
@@ -551,10 +589,23 @@ function loadTenantSubfolderFiles(propertyId, leaseId, subfolderName) {
         action: () => displayTenantSubfolders()
     });
 
-    fetch(`/employee/files/property/${propertyId}/tenant/${leaseId}/subfolder/${subfolderName}`)
-        .then(response => response.json())
+    const url = `/employee/files/property/${propertyId}/tenant/${leaseId}/subfolder/${subfolderName}`;
+    console.log('📡 Fetching URL:', url);
+
+    fetch(url)
+        .then(response => {
+            console.log('📡 Response status:', response.status, response.statusText);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('❌ HTTP Error Response:', text);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${text.substring(0, 200)}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.files) {
+            console.log('📦 Response data:', data);
+            if (data.success && data.files) {
                 currentContext = {...currentContext, type: 'tenant-subfolder', subfolder: subfolderName};
                 currentLevel = 'tenant-subfolder';
                 updateBreadcrumb([
@@ -566,13 +617,15 @@ function loadTenantSubfolderFiles(propertyId, leaseId, subfolderName) {
                 displayFiles(data.files);
                 document.getElementById('uploadBtn').disabled = false; // Enable upload
             } else if (data.error) {
+                console.error('❌ Request failed:', data.error);
                 showError(data.error);
             } else {
-                showError('Failed to load files');
+                console.error('❌ Unexpected response format:', data);
+                showError('Failed to load files - response missing success or files field');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('❌ Error loading tenant subfolder files:', error);
             showError('Error loading files: ' + error.message);
         });
 }
@@ -581,9 +634,22 @@ function loadPropertySubfolderFiles(propertyId, subfolder) {
     console.log('📁 Loading files in property', propertyId, '/', subfolder);
     showLoading();
 
-    fetch(`/employee/files/property/${propertyId}/subfolder/${subfolder}`)
-        .then(response => response.json())
+    const url = `/employee/files/property/${propertyId}/subfolder/${subfolder}`;
+    console.log('📡 Fetching URL:', url);
+
+    fetch(url)
+        .then(response => {
+            console.log('📡 Response status:', response.status, response.statusText);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('❌ HTTP Error Response:', text);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${text.substring(0, 200)}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('📦 Response data:', data);
             if (data.success) {
                 currentContext = {...currentContext, type: 'property-subfolder', propertyId, subfolder};
                 updateBreadcrumb([
@@ -594,11 +660,12 @@ function loadPropertySubfolderFiles(propertyId, subfolder) {
                 displayFiles(data.files);
                 document.getElementById('uploadBtn').disabled = false; // Enable upload
             } else {
+                console.error('❌ Request failed:', data.error);
                 showError(data.error || 'Failed to load files');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('❌ Error loading property subfolder files:', error);
             showError('Error loading files: ' + error.message);
         });
 }
@@ -607,20 +674,34 @@ function loadInternalFolders() {
     console.log('📁 Loading internal folders...');
     showLoading();
 
-    fetch('/employee/files/browse/internal')
-        .then(response => response.json())
+    const url = '/employee/files/browse/internal';
+    console.log('📡 Fetching URL:', url);
+
+    fetch(url)
+        .then(response => {
+            console.log('📡 Response status:', response.status, response.statusText);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('❌ HTTP Error Response:', text);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${text.substring(0, 200)}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('📦 Response data:', data);
             if (data.success) {
                 currentContext = {type: 'internal-list', ...clearContext()};
                 updateBreadcrumb(['Internal Documents']);
                 displayInternalFolders(data.folders);
                 document.getElementById('uploadBtn').disabled = true;
             } else {
+                console.error('❌ Request failed:', data.error);
                 showError(data.error || 'Failed to load internal folders');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('❌ Error loading internal folders:', error);
             showError('Error loading internal folders: ' + error.message);
         });
 }
@@ -629,20 +710,34 @@ function loadInternalFiles(subfolderName) {
     console.log('📁 Loading internal files in:', subfolderName);
     showLoading();
 
-    fetch(`/employee/files/browse/internal/${subfolderName}`)
-        .then(response => response.json())
+    const url = `/employee/files/browse/internal/${subfolderName}`;
+    console.log('📡 Fetching URL:', url);
+
+    fetch(url)
+        .then(response => {
+            console.log('📡 Response status:', response.status, response.statusText);
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('❌ HTTP Error Response:', text);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText} - ${text.substring(0, 200)}`);
+                });
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('📦 Response data:', data);
             if (data.success) {
                 currentContext = {...clearContext(), type: 'internal', internalFolder: subfolderName};
                 updateBreadcrumb(['Internal Documents', subfolderName]);
                 displayFiles(data.files);
                 document.getElementById('uploadBtn').disabled = false; // Enable upload
             } else {
+                console.error('❌ Request failed:', data.error);
                 showError(data.error || 'Failed to load files');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
+            console.error('❌ Error loading internal files:', error);
             showError('Error loading files: ' + error.message);
         });
 }
