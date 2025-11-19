@@ -222,7 +222,7 @@
                                                 <div class="col-md-4">
                                                     <select class="form-control" id="block-filter" onchange="filterCustomers('tenants')">
                                                         <option value="">All Blocks</option>
-                                                        <option th:each="block : ${blocks}" th:value="${block.blockName}" th:text="${block.blockName}">Block Name</option>
+                                                        <option th:each="block : ${blocks}" th:value="${block.name}" th:text="${block.name}">Block Name</option>
                                                     </select>
                                                 </div>
                                                 <div class="col-md-4">
