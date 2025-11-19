@@ -111,6 +111,16 @@ public interface GoogleDocsApiService {
     Map<String, String> buildCustomerMergeData(Customer customer);
 
     /**
+     * Build merge data map from customer and user objects
+     * Extracts customer fields and agent/user fields into merge field format
+     *
+     * @param customer The customer object
+     * @param currentUser The current user (for agent fields)
+     * @return Map of merge field names to values
+     */
+    Map<String, String> buildCustomerMergeData(Customer customer, site.easy.to.build.crm.entity.User currentUser);
+
+    /**
      * Delete a document (cleanup after PDF generation)
      *
      * @param oAuthUser The authenticated user

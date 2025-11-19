@@ -372,6 +372,42 @@ public class GoogleDocsApiServiceImpl implements GoogleDocsApiService {
     }
 
     @Override
+    public Map<String, String> buildCustomerMergeData(Customer customer, site.easy.to.build.crm.entity.User currentUser) {
+        // Start with customer data
+        Map<String, String> mergeData = buildCustomerMergeData(customer);
+
+        // Add agent/user fields if user is provided
+        if (currentUser != null) {
+            // Get user email
+            mergeData.put("agent_email", nvl(currentUser.getEmail()));
+
+            // Get user profile data
+            site.easy.to.build.crm.entity.UserProfile userProfile = currentUser.getUserProfile();
+            if (userProfile != null) {
+                mergeData.put("agent_first_name", nvl(userProfile.getFirstName()));
+                mergeData.put("agent_last_name", nvl(userProfile.getLastName()));
+
+                // Build full name
+                String fullName = "";
+                if (userProfile.getFirstName() != null && userProfile.getLastName() != null) {
+                    fullName = userProfile.getFirstName() + " " + userProfile.getLastName();
+                } else if (userProfile.getFirstName() != null) {
+                    fullName = userProfile.getFirstName();
+                } else if (userProfile.getLastName() != null) {
+                    fullName = userProfile.getLastName();
+                }
+                mergeData.put("agent_name", fullName);
+
+                mergeData.put("agent_phone", nvl(userProfile.getPhone()));
+                mergeData.put("agent_position", nvl(userProfile.getPosition()));
+                mergeData.put("agent_address", nvl(userProfile.getAddress()));
+            }
+        }
+
+        return mergeData;
+    }
+
+    @Override
     public void deleteDocument(OAuthUser oAuthUser, String documentId)
             throws IOException, GeneralSecurityException {
 

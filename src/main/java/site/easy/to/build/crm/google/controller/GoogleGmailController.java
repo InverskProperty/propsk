@@ -371,8 +371,8 @@ public class GoogleGmailController {
             for (Customer customer : recipientCustomers) {
                 try {
                     // Personalize subject and message
-                    String personalizedSubject = replaceCustomerMergeFields(subject, customer);
-                    String personalizedMessage = replaceCustomerMergeFields(emailContent, customer);
+                    String personalizedSubject = replaceCustomerMergeFields(subject, customer, currentUser);
+                    String personalizedMessage = replaceCustomerMergeFields(emailContent, customer, currentUser);
 
                     // Prepare attachments
                     List<Attachment> attachments = new ArrayList<>();
@@ -443,12 +443,12 @@ public class GoogleGmailController {
     }
 
     /**
-     * Replace merge fields in text with customer data
+     * Replace merge fields in text with customer and agent data
      */
-    private String replaceCustomerMergeFields(String text, Customer customer) {
+    private String replaceCustomerMergeFields(String text, Customer customer, User currentUser) {
         if (text == null) return "";
 
-        Map<String, String> mergeData = googleDocsApiService.buildCustomerMergeData(customer);
+        Map<String, String> mergeData = googleDocsApiService.buildCustomerMergeData(customer, currentUser);
         String result = text;
 
         for (Map.Entry<String, String> entry : mergeData.entrySet()) {
