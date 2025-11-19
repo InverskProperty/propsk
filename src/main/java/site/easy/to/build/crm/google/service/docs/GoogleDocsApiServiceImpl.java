@@ -17,6 +17,8 @@ import site.easy.to.build.crm.google.service.drive.GoogleDriveApiService;
 import site.easy.to.build.crm.google.util.GoogleApiHelper;
 import site.easy.to.build.crm.service.user.OAuthUserService;
 import site.easy.to.build.crm.google.util.GsonUtil;
+import site.easy.to.build.crm.service.settings.AgencySettingsService;
+import site.easy.to.build.crm.entity.AgencySettings;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,6 +40,9 @@ public class GoogleDocsApiServiceImpl implements GoogleDocsApiService {
 
     @Autowired
     private GoogleDriveApiService googleDriveApiService;
+
+    @Autowired
+    private AgencySettingsService agencySettingsService;
 
     @Override
     public String copyTemplateDocument(OAuthUser oAuthUser, String templateId, String targetFolderId, String newName)
@@ -356,10 +361,21 @@ public class GoogleDocsApiServiceImpl implements GoogleDocsApiService {
         mergeData.put("agent_position", "");
         mergeData.put("agent_address", "");
 
-        // Company/Agency Fields
-        // TODO: Load from agency_settings table (may need to be created)
-        mergeData.put("company_name", "");
-        mergeData.put("company_address", "");
+        // Company/Agency Fields - Load from agency_settings
+        try {
+            AgencySettings agencySettings = agencySettingsService.getSettings().orElse(null);
+            if (agencySettings != null) {
+                mergeData.put("company_name", nvl(agencySettings.getCompanyName()));
+                mergeData.put("company_address", nvl(agencySettings.getCompanyAddress()));
+            } else {
+                mergeData.put("company_name", "");
+                mergeData.put("company_address", "");
+            }
+        } catch (Exception e) {
+            // Fallback if agency settings not available
+            mergeData.put("company_name", "");
+            mergeData.put("company_address", "");
+        }
 
         // Date Fields
         java.time.LocalDate today = java.time.LocalDate.now();
