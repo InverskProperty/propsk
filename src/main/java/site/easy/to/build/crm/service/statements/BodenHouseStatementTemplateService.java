@@ -353,11 +353,12 @@ public class BodenHouseStatementTemplateService {
         // Split total commission into management and service components
         // Business rule: Standard split is 10% management + 5% service = 15% total
         // For other totals, proportionally adjust management while keeping 5% service
-        if (totalCommission.equals(new BigDecimal("15.00"))) {
+        // Use compareTo() instead of equals() to avoid BigDecimal scale issues
+        if (totalCommission.compareTo(new BigDecimal("15.00")) == 0) {
             // Standard case: 10% + 5% = 15%
             unit.managementFeePercentage = new BigDecimal("10.00");
             unit.serviceFeePercentage = new BigDecimal("5.00");
-        } else if (totalCommission.equals(new BigDecimal("10.00"))) {
+        } else if (totalCommission.compareTo(new BigDecimal("10.00")) == 0) {
             // Knighton Hayes case: 10% + 0% = 10% (no service fee)
             unit.managementFeePercentage = new BigDecimal("10.00");
             unit.serviceFeePercentage = new BigDecimal("0.00");
@@ -944,11 +945,12 @@ public class BodenHouseStatementTemplateService {
         // Split total commission into management and service components
         // Business rule: Standard split is 10% management + 5% service = 15% total
         // For other totals, proportionally adjust management while keeping 5% service
-        if (totalCommission.equals(new BigDecimal("15.00"))) {
+        // Use compareTo() instead of equals() to avoid BigDecimal scale issues
+        if (totalCommission.compareTo(new BigDecimal("15.00")) == 0) {
             // Standard case: 10% + 5% = 15%
             unit.managementFeePercentage = new BigDecimal("10.00");
             unit.serviceFeePercentage = new BigDecimal("5.00");
-        } else if (totalCommission.equals(new BigDecimal("10.00"))) {
+        } else if (totalCommission.compareTo(new BigDecimal("10.00")) == 0) {
             // Knighton Hayes case: 10% + 0% = 10% (no service fee)
             unit.managementFeePercentage = new BigDecimal("10.00");
             unit.serviceFeePercentage = new BigDecimal("0.00");
