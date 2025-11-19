@@ -70,8 +70,20 @@ public class GoogleGmailApiServiceImpl implements GoogleGmailApiService {
         HttpContent httpContent = ByteArrayContent.fromString("application/json", email.toString());
 
         GenericUrl sendUrl = new GenericUrl(GMAIL_API_BASE_URL + "/messages/send");
-        HttpRequest request = httpRequestFactory.buildPostRequest(sendUrl, httpContent);
-        request.execute();
+
+        try {
+            HttpRequest request = httpRequestFactory.buildPostRequest(sendUrl, httpContent);
+            HttpResponse response = request.execute();
+            System.out.println("✅ Email sent successfully to: " + to);
+        } catch (HttpResponseException e) {
+            System.err.println("❌ Gmail API Error sending to " + to + ": " + e.getStatusCode() + " - " + e.getStatusMessage());
+            System.err.println("❌ Error content: " + e.getContent());
+            throw e;
+        } catch (Exception e) {
+            System.err.println("❌ General error sending email to " + to + ": " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
     }
     
     @Override

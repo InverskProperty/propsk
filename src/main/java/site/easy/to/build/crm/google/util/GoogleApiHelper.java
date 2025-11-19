@@ -75,7 +75,8 @@ public class GoogleApiHelper {
         Multipart multipart = new MimeMultipart();
 
         MimeBodyPart textPart = new MimeBodyPart();
-        textPart.setContent(body, "text/html; charset=UTF-8");
+        // Use setText() with "html" subtype for proper HTML email handling
+        textPart.setText(body, "UTF-8", "html");
         multipart.addBodyPart(textPart);
 
         for (File attachment : attachments) {
