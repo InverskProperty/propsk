@@ -293,10 +293,21 @@ public class GoogleDocsApiServiceImpl implements GoogleDocsApiService {
     public Map<String, String> buildCustomerMergeData(Customer customer) {
         Map<String, String> mergeData = new HashMap<>();
 
-        // Basic customer info
+        // Customer - Individual Contact Fields
+        mergeData.put("customer_first_name", nvl(customer.getFirstName()));
+        mergeData.put("customer_last_name", nvl(customer.getLastName()));
         mergeData.put("customer_name", nvl(customer.getName()));
         mergeData.put("customer_email", nvl(customer.getEmail()));
         mergeData.put("customer_phone", nvl(customer.getPhone()));
+        mergeData.put("customer_mobile", nvl(customer.getMobileNumber()));
+
+        // Customer - Business Contact Fields
+        mergeData.put("customer_business_name", nvl(customer.getBusinessName()));
+        mergeData.put("customer_position", nvl(customer.getPosition()));
+        mergeData.put("customer_vat_number", nvl(customer.getVatNumber()));
+        mergeData.put("customer_company_registration", nvl(customer.getRegistrationNumber()));
+
+        // Customer - Address Fields
         mergeData.put("customer_address", nvl(customer.getAddress()));
         mergeData.put("customer_city", nvl(customer.getCity()));
         mergeData.put("customer_state", nvl(customer.getState()));
@@ -306,6 +317,8 @@ public class GoogleDocsApiServiceImpl implements GoogleDocsApiService {
         // Customer type
         if (customer.getCustomerType() != null) {
             mergeData.put("customer_type", customer.getCustomerType().toString());
+        } else {
+            mergeData.put("customer_type", "");
         }
 
         // TODO: Add property-specific fields when customer has associated property
@@ -313,16 +326,47 @@ public class GoogleDocsApiServiceImpl implements GoogleDocsApiService {
         // For now, we'll add placeholders
         mergeData.put("property_address", "");
         mergeData.put("property_postcode", "");
+        mergeData.put("property_monthly_rent", "");
         mergeData.put("block_name", "");
         mergeData.put("rent_amount", "");
+
+        // Lease/Contract Fields
         mergeData.put("lease_start_date", "");
         mergeData.put("lease_end_date", "");
 
-        // Landlord/agent info (these should come from system settings)
+        // Property Viewing Fields
+        // TODO: Load from property_viewings table when viewing context is available
+        mergeData.put("viewing_date", "");
+        mergeData.put("viewing_time", "");
+        mergeData.put("viewing_type", "");
+        mergeData.put("viewing_status", "");
+
+        // Landlord Fields
+        // TODO: Load from property owner when property context is available
         mergeData.put("landlord_name", "");
         mergeData.put("landlord_address", "");
+
+        // Agent/User Fields
+        // TODO: Populate with current user data - requires passing User object to this method
+        mergeData.put("agent_first_name", "");
+        mergeData.put("agent_last_name", "");
         mergeData.put("agent_name", "");
+        mergeData.put("agent_email", "");
+        mergeData.put("agent_phone", "");
+        mergeData.put("agent_position", "");
         mergeData.put("agent_address", "");
+
+        // Company/Agency Fields
+        // TODO: Load from agency_settings table (may need to be created)
+        mergeData.put("company_name", "");
+        mergeData.put("company_address", "");
+
+        // Date Fields
+        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.format.DateTimeFormatter shortFormatter = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        java.time.format.DateTimeFormatter longFormatter = java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy");
+        mergeData.put("current_date", today.format(shortFormatter));
+        mergeData.put("current_date_long", today.format(longFormatter));
 
         return mergeData;
     }

@@ -97,27 +97,65 @@ public class DocumentTemplateServiceImpl implements DocumentTemplateService {
     @Override
     public List<String> getAvailableMergeFields() {
         return Arrays.asList(
+            // Customer - Individual Contact Fields
+            "customer_first_name",
+            "customer_last_name",
             "customer_name",
             "customer_email",
             "customer_phone",
+            "customer_mobile",
+
+            // Customer - Business Contact Fields
+            "customer_business_name",
+            "customer_position",
+            "customer_vat_number",
+            "customer_company_registration",
+
+            // Customer - Address Fields
             "customer_address",
             "customer_city",
             "customer_state",
             "customer_country",
             "customer_postcode",
             "customer_type",
+
+            // Property Fields
             "property_address",
             "property_postcode",
+            "property_monthly_rent",
             "block_name",
             "rent_amount",
+
+            // Lease/Contract Fields
             "lease_start_date",
             "lease_end_date",
-            "current_date",
-            "current_date_long",
+
+            // Property Viewing Fields
+            "viewing_date",
+            "viewing_time",
+            "viewing_type",
+            "viewing_status",
+
+            // Landlord Fields
             "landlord_name",
             "landlord_address",
+
+            // Agent/User Fields
+            "agent_first_name",
+            "agent_last_name",
             "agent_name",
-            "agent_address"
+            "agent_email",
+            "agent_phone",
+            "agent_position",
+            "agent_address",
+
+            // Company/Agency Fields
+            "company_name",
+            "company_address",
+
+            // Date Fields
+            "current_date",
+            "current_date_long"
         );
     }
 }
