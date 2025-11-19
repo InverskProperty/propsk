@@ -1065,9 +1065,18 @@ public class ExcelStatementGeneratorService {
                     netCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netCell.setCellStyle(currencyStyle);
 
-                    // Opening balance and cumulative arrears - simplified for now
-                    row.createCell(col++).setCellValue(0);
-                    row.createCell(col++).setCellValue(0);
+                    // Column O: opening_balance (sum all rent due before this month minus all rent received before this month)
+                    Cell openingBalanceCell = row.createCell(col++);
+                    openingBalanceCell.setCellFormula(String.format(
+                        "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, \"<\"&F%d) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \"<\"&F%d)",
+                        lease.getLeaseId(), rowNum + 1, lease.getLeaseId(), rowNum + 1
+                    ));
+                    openingBalanceCell.setCellStyle(currencyStyle);
+
+                    // Column P: cumulative_arrears (opening_balance + current month arrears)
+                    Cell cumulativeArrearsCell = row.createCell(col++);
+                    cumulativeArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum + 1, rowNum + 1));
+                    cumulativeArrearsCell.setCellStyle(currencyStyle);
 
                     rowNum++;
                 }
