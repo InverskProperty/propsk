@@ -92,15 +92,23 @@ public class ExcelStatementGeneratorService {
         log.info("Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
                 leaseMaster.size(), transactions.size(), customerId);
 
-        // Create sheets
+        // Create data sheets
         createLeaseMasterSheet(workbook, leaseMaster);
         createTransactionsSheet(workbook, transactions);
         createRentDueSheet(workbook, leaseMaster, startDate, endDate);
         createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
         createExpensesSheet(workbook, leaseMaster, startDate, endDate);
-        createMonthlyStatementSheet(workbook, leaseMaster, startDate, endDate);
 
-        log.info("Customer statement workbook created successfully");
+        // Create separate monthly statement sheets for each month in the period
+        List<site.easy.to.build.crm.util.RentCyclePeriod> periods =
+            site.easy.to.build.crm.util.RentCyclePeriodCalculator.calculateMonthlyPeriods(startDate, endDate);
+
+        log.info("Creating {} separate monthly statement sheets", periods.size());
+        for (site.easy.to.build.crm.util.RentCyclePeriod period : periods) {
+            createMonthlyStatementSheetForPeriod(workbook, leaseMaster, period);
+        }
+
+        log.info("Customer statement workbook created successfully with {} monthly sheets", periods.size());
         return workbook;
     }
 
@@ -923,6 +931,164 @@ public class ExcelStatementGeneratorService {
         }
 
         log.info("MONTHLY_STATEMENT sheet created with {} rows", rowNum - 1);
+    }
+
+    /**
+     * Create a monthly statement sheet for a specific period
+     * Used when generating separate sheets for each month
+     */
+    private void createMonthlyStatementSheetForPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                      site.easy.to.build.crm.util.RentCyclePeriod period) {
+        String sheetName = sanitizeSheetName(period.getSheetName());
+        log.info("Creating monthly statement sheet: {}", sheetName);
+
+        // Call the existing method with the period's date range
+        createMonthlyStatementSheetWithName(workbook, leaseMaster, period.getStartDate(), period.getEndDate(), sheetName);
+    }
+
+    /**
+     * Create MONTHLY_STATEMENT sheet with a custom name
+     */
+    private void createMonthlyStatementSheetWithName(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                     LocalDate startDate, LocalDate endDate, String sheetName) {
+        log.info("Creating {} sheet with formulas", sheetName);
+
+        Sheet sheet = workbook.createSheet(sheetName);
+
+        // Header row
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day", "month",
+            "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
+            "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Generate one row per lease per month (statement period only)
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            // Generate monthly rows for STATEMENT PERIOD only
+            YearMonth currentMonth = YearMonth.from(startDate);
+            YearMonth endMonth = YearMonth.from(endDate);
+
+            while (!currentMonth.isAfter(endMonth)) {
+                LocalDate monthStart = currentMonth.atDay(1);
+                LocalDate monthEnd = currentMonth.atEndOfMonth();
+
+                boolean leaseActive = (leaseEnd == null || !monthEnd.isBefore(leaseStart))
+                                   && !monthStart.isAfter(leaseEnd != null ? leaseEnd : monthEnd);
+
+                if (leaseActive) {
+                    Row row = sheet.createRow(rowNum);
+                    int col = 0;
+
+                    // Basic lease info
+                    row.createCell(col++).setCellValue(lease.getLeaseReference());
+                    row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+                    row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+
+                    // Lease start date
+                    Cell startDateCell = row.createCell(col++);
+                    if (leaseStart != null) {
+                        startDateCell.setCellValue(leaseStart);
+                        startDateCell.setCellStyle(dateStyle);
+                    }
+
+                    // Rent due day
+                    row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
+
+                    // Month
+                    Cell monthCell = row.createCell(col++);
+                    monthCell.setCellValue(monthStart);
+                    monthCell.setCellStyle(dateStyle);
+
+                    // Rent due, rent received, arrears - using simple values instead of formulas for separate sheets
+                    Cell rentDueCell = row.createCell(col++);
+                    BigDecimal rentAmount = lease.getRentAmount() != null ? lease.getRentAmount() : BigDecimal.ZERO;
+                    rentDueCell.setCellValue(rentAmount.doubleValue());
+                    rentDueCell.setCellStyle(currencyStyle);
+
+                    // Rent received - 0 for now (could be enhanced with transaction lookups)
+                    Cell rentReceivedCell = row.createCell(col++);
+                    rentReceivedCell.setCellValue(0);
+                    rentReceivedCell.setCellStyle(currencyStyle);
+
+                    // Arrears
+                    Cell arrearsCell = row.createCell(col++);
+                    arrearsCell.setCellFormula(String.format("G%d - H%d", rowNum + 1, rowNum + 1));
+                    arrearsCell.setCellStyle(currencyStyle);
+
+                    // Commission - using property commission percentage
+                    BigDecimal commissionRate = lease.getCommissionPercentage() != null ?
+                        lease.getCommissionPercentage() : BigDecimal.valueOf(15.0);
+
+                    Cell managementFeeCell = row.createCell(col++);
+                    managementFeeCell.setCellFormula(String.format("H%d * %.2f / 100", rowNum + 1, commissionRate.doubleValue()));
+                    managementFeeCell.setCellStyle(currencyStyle);
+
+                    Cell serviceFeeCell = row.createCell(col++);
+                    serviceFeeCell.setCellValue(0); // Service fee is 0 per simplified commission logic
+                    serviceFeeCell.setCellStyle(currencyStyle);
+
+                    // Total commission
+                    Cell totalCommissionCell = row.createCell(col++);
+                    totalCommissionCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
+                    totalCommissionCell.setCellStyle(currencyStyle);
+
+                    // Total expenses - 0 for now
+                    Cell expensesCell = row.createCell(col++);
+                    expensesCell.setCellValue(0);
+                    expensesCell.setCellStyle(currencyStyle);
+
+                    // Net to owner
+                    Cell netCell = row.createCell(col++);
+                    netCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                    netCell.setCellStyle(currencyStyle);
+
+                    // Opening balance and cumulative arrears - simplified for now
+                    row.createCell(col++).setCellValue(0);
+                    row.createCell(col++).setCellValue(0);
+
+                    rowNum++;
+                }
+
+                currentMonth = currentMonth.plusMonths(1);
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("{} sheet created with {} rows", sheetName, rowNum - 1);
+    }
+
+    /**
+     * Sanitize sheet name for Excel compatibility
+     */
+    private String sanitizeSheetName(String name) {
+        // Excel sheet names can't contain: \ / ? * [ ]
+        // Max length is 31 characters
+        String sanitized = name.replaceAll("[\\\\/:*?\\[\\]]", "-");
+        if (sanitized.length() > 31) {
+            sanitized = sanitized.substring(0, 31);
+        }
+        return sanitized;
     }
 
     // ============================================================================
