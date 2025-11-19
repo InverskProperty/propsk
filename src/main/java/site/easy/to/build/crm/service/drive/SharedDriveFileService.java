@@ -396,12 +396,19 @@ public class SharedDriveFileService {
             folderId
         );
 
+        System.out.println("🔍 Executing query: " + query);
+
         FileList result = driveService.files().list()
             .setQ(query)
             .setSupportsAllDrives(true)
             .setIncludeItemsFromAllDrives(true)
             .setFields("files(id,name,size,modifiedTime,mimeType)")
             .execute();
+
+        System.out.println("📋 Query returned " + result.getFiles().size() + " files");
+        for (File file : result.getFiles()) {
+            System.out.println("  - " + file.getName() + " (ID: " + file.getId() + ")");
+        }
 
         List<Map<String, Object>> files = new ArrayList<>();
         for (File file : result.getFiles()) {
@@ -753,11 +760,15 @@ public class SharedDriveFileService {
      * Get or create a subfolder within a parent folder
      */
     private String getOrCreateSubfolder(Drive driveService, String parentFolderId, String subfolderName) throws IOException {
+        System.out.println("🔍 Looking for subfolder '" + subfolderName + "' in parent: " + parentFolderId);
+
         // Search for existing subfolder
         String query = String.format(
             "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
             subfolderName, parentFolderId
         );
+
+        System.out.println("🔍 Subfolder search query: " + query);
 
         FileList result = driveService.files().list()
             .setQ(query)
@@ -766,8 +777,12 @@ public class SharedDriveFileService {
             .execute();
 
         if (!result.getFiles().isEmpty()) {
-            return result.getFiles().get(0).getId();
+            String foundId = result.getFiles().get(0).getId();
+            System.out.println("✅ Found existing subfolder '" + subfolderName + "': " + foundId);
+            return foundId;
         }
+
+        System.out.println("⚠️  Subfolder '" + subfolderName + "' not found, creating new one...");
 
         // Create subfolder
         File folderMetadata = new File();
@@ -836,12 +851,15 @@ public class SharedDriveFileService {
      */
     private String getOrCreatePropertyFolderDirect(Drive driveService, String propertyFolderName) throws IOException {
         String documentsFolderId = getDocumentsFolderId(driveService);
+        System.out.println("🔍 Looking for property folder '" + propertyFolderName + "' in Property-Documents folder: " + documentsFolderId);
 
         // Search for existing property folder
         String query = String.format(
             "name='%s' and parents in '%s' and trashed=false and mimeType='application/vnd.google-apps.folder'",
             propertyFolderName, documentsFolderId
         );
+
+        System.out.println("🔍 Property folder search query: " + query);
 
         FileList result = driveService.files().list()
             .setQ(query)
@@ -850,8 +868,12 @@ public class SharedDriveFileService {
             .execute();
 
         if (!result.getFiles().isEmpty()) {
-            return result.getFiles().get(0).getId();
+            String foundId = result.getFiles().get(0).getId();
+            System.out.println("✅ Found existing property folder '" + propertyFolderName + "': " + foundId);
+            return foundId;
         }
+
+        System.out.println("⚠️  Property folder '" + propertyFolderName + "' not found, creating new one...");
 
         // Create property folder if it doesn't exist
         return createFolderInParent(driveService, propertyFolderName, documentsFolderId);
@@ -976,6 +998,8 @@ public class SharedDriveFileService {
     public List<Map<String, Object>> listPropertySubfolderFiles(Long propertyId, String subfolderName)
             throws IOException, GeneralSecurityException {
 
+        System.out.println("🔍 [SharedDriveFileService] listPropertySubfolderFiles called for propertyId=" + propertyId + ", subfolder=" + subfolderName);
+
         if (!hasServiceAccount()) {
             throw new IllegalStateException("Service account not configured");
         }
@@ -994,10 +1018,18 @@ public class SharedDriveFileService {
 
         // Navigate: Property → Subfolder
         String propertyFolderName = generatePropertyFolderName(property);
-        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
-        String subfolderId = getOrCreateSubfolder(driveService, propertyFolderId, subfolderName);
+        System.out.println("📁 Generated property folder name: '" + propertyFolderName + "'");
 
-        return listFilesInFolder(driveService, subfolderId);
+        String propertyFolderId = getOrCreatePropertyFolderDirect(driveService, propertyFolderName);
+        System.out.println("📁 Property folder ID: " + propertyFolderId);
+
+        String subfolderId = getOrCreateSubfolder(driveService, propertyFolderId, subfolderName);
+        System.out.println("📁 Subfolder '" + subfolderName + "' ID: " + subfolderId);
+
+        List<Map<String, Object>> files = listFilesInFolder(driveService, subfolderId);
+        System.out.println("📄 Found " + files.size() + " files in subfolder");
+
+        return files;
     }
 
     /**
