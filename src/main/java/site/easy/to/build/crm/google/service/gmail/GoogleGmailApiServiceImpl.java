@@ -37,6 +37,11 @@ public class GoogleGmailApiServiceImpl implements GoogleGmailApiService {
         JsonObject email = new JsonObject();
         email.addProperty("raw", rawEmail);
 
+        // Add SENT label so email appears in Sent folder
+        com.google.gson.JsonArray labelIds = new com.google.gson.JsonArray();
+        labelIds.add("SENT");
+        email.add("labelIds", labelIds);
+
         String accessToken = oAuthUserService.refreshAccessTokenIfNeeded(oAuthUser);
         HttpRequestFactory httpRequestFactory = GoogleApiHelper.createRequestFactory(accessToken);
 
@@ -63,6 +68,11 @@ public class GoogleGmailApiServiceImpl implements GoogleGmailApiService {
         String rawEmail = GoogleApiHelper.createRawEmailWithAttachments(to, subject, body, attachments, initAttachment);
         JsonObject email = new JsonObject();
         email.addProperty("raw", rawEmail);
+
+        // Add SENT label so email appears in Sent folder
+        com.google.gson.JsonArray labelIds = new com.google.gson.JsonArray();
+        labelIds.add("SENT");
+        email.add("labelIds", labelIds);
 
         String accessToken = oAuthUserService.refreshAccessTokenIfNeeded(oAuthUser);
         HttpRequestFactory httpRequestFactory = GoogleApiHelper.createRequestFactory(accessToken);
