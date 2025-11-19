@@ -402,6 +402,7 @@ public class SharedDriveFileService {
             .setQ(query)
             .setSupportsAllDrives(true)
             .setIncludeItemsFromAllDrives(true)
+            .setCorpora("allDrives")
             .setFields("files(id,name,size,modifiedTime,mimeType)")
             .execute();
 
@@ -435,6 +436,7 @@ public class SharedDriveFileService {
             .setQ(query)
             .setSupportsAllDrives(true)
             .setIncludeItemsFromAllDrives(true)
+            .setCorpora("allDrives")
             .setFields("files(id,name,modifiedTime)")
             .execute();
 
@@ -774,6 +776,7 @@ public class SharedDriveFileService {
             .setQ(query)
             .setSupportsAllDrives(true)
             .setIncludeItemsFromAllDrives(true)
+            .setCorpora("allDrives")
             .execute();
 
         if (!result.getFiles().isEmpty()) {
@@ -865,6 +868,7 @@ public class SharedDriveFileService {
             .setQ(query)
             .setSupportsAllDrives(true)
             .setIncludeItemsFromAllDrives(true)
+            .setCorpora("allDrives")
             .execute();
 
         if (!result.getFiles().isEmpty()) {
