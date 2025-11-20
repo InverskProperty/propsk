@@ -7,6 +7,7 @@
 
 <link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
 <link th:href="@{/css/style.min.css}" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
 
 <style>
     .detail-card {
@@ -160,21 +161,80 @@
 
                 <!-- Properties in Block -->
                 <div class="col-lg-8">
-                    <!-- Financial Summary Card -->
+                    <!-- Date Range Filter -->
+                    <div class="card mb-3">
+                        <div class="card-body py-2">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <div class="form-row align-items-center">
+                                        <div class="col-auto">
+                                            <label class="mb-0 mr-2"><small>Date Range:</small></label>
+                                        </div>
+                                        <div class="col-auto">
+                                            <input type="date" class="form-control form-control-sm" id="startDate">
+                                        </div>
+                                        <div class="col-auto">
+                                            <span class="mx-1">to</span>
+                                        </div>
+                                        <div class="col-auto">
+                                            <input type="date" class="form-control form-control-sm" id="endDate">
+                                        </div>
+                                        <div class="col-auto">
+                                            <button class="btn btn-sm btn-primary" onclick="refreshAllData()">
+                                                <i class="fas fa-sync"></i> Refresh
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 text-right">
+                                    <small class="text-muted">Default: Last 12 Months</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabbed Financial Analytics Card -->
                     <div class="card mb-3">
                         <div class="card-header bg-info text-white">
                             <h5 class="mb-0">
-                                <i class="fas fa-chart-line"></i> Financial Summary
-                                <button class="btn btn-sm btn-light float-right" onclick="loadBlockFinancials()">
-                                    <i class="fas fa-sync"></i> Refresh
-                                </button>
+                                <i class="fas fa-chart-line"></i> Financial Analytics
                             </h5>
                         </div>
-                        <div class="card-body">
-                            <div id="financialSummaryContainer">
-                                <div class="text-center py-3">
-                                    <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
-                                    <p class="text-muted mt-2">Loading financial data...</p>
+                        <div class="card-body p-0">
+                            <!-- Nav tabs -->
+                            <ul class="nav nav-tabs" id="financialTabs" role="tablist">
+                                <li class="nav-item">
+                                    <a class="nav-link active" id="summary-tab" data-toggle="tab" href="#summary" role="tab">
+                                        <i class="fas fa-chart-bar"></i> Summary
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" id="analytics-tab" data-toggle="tab" href="#analytics" role="tab" onclick="loadAnalyticsTab()">
+                                        <i class="fas fa-chart-pie"></i> Detailed Analytics
+                                    </a>
+                                </li>
+                            </ul>
+
+                            <!-- Tab panes -->
+                            <div class="tab-content p-3">
+                                <!-- Summary Tab -->
+                                <div class="tab-pane fade show active" id="summary" role="tabpanel">
+                                    <div id="financialSummaryContainer">
+                                        <div class="text-center py-3">
+                                            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                                            <p class="text-muted mt-2">Loading financial data...</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Analytics Tab -->
+                                <div class="tab-pane fade" id="analytics" role="tabpanel">
+                                    <div id="analyticsContainer">
+                                        <div class="text-center py-3">
+                                            <i class="fas fa-info-circle fa-2x text-muted"></i>
+                                            <p class="text-muted mt-2">Click to load detailed analytics</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -214,7 +274,20 @@ const blockId = /*[[${block.id}]]*/ 0;
 const csrfToken = /*[[${_csrf.token}]]*/ '';
 const csrfHeader = /*[[${_csrf.headerName}]]*/ '';
 
+// Chart instances
+let monthlyTrendsChart = null;
+let expenseBreakdownChart = null;
+let analyticsLoaded = false;
+
 $(document).ready(function() {
+    // Set default date range to last 12 months
+    const today = new Date();
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(today.getMonth() - 12);
+
+    $('#endDate').val(today.toISOString().split('T')[0]);
+    $('#startDate').val(twelveMonthsAgo.toISOString().split('T')[0]);
+
     loadBlockProperties();
     loadBlockFinancials();
 });
@@ -460,6 +533,361 @@ function displayFinancialSummary(data) {
 function formatCurrency(value) {
     if (!value) return '0.00';
     return parseFloat(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+// ==== NEW ANALYTICS FUNCTIONS ====
+
+function refreshAllData() {
+    loadBlockFinancials();
+    if (analyticsLoaded) {
+        loadAnalyticsTab();
+    }
+}
+
+function loadAnalyticsTab() {
+    if (analyticsLoaded) {
+        return; // Already loaded, don't reload
+    }
+
+    const container = $('#analyticsContainer');
+    container.html(`
+        <div class="text-center py-3">
+            <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+            <p class="text-muted mt-2">Loading analytics data...</p>
+        </div>
+    `);
+
+    const startDate = $('#startDate').val();
+    const endDate = $('#endDate').val();
+
+    // Load all analytics data in parallel
+    Promise.all([
+        fetch(`/customer-login/blocks/api/${blockId}/occupancy?startDate=${startDate}&endDate=${endDate}`).then(r => r.json()),
+        fetch(`/customer-login/blocks/api/${blockId}/roi`).then(r => r.json()),
+        fetch(`/customer-login/blocks/api/${blockId}/chart-data?startDate=${startDate}&endDate=${endDate}`).then(r => r.json())
+    ])
+    .then(([occupancyData, roiData, chartData]) => {
+        displayAnalytics(occupancyData, roiData, chartData);
+        analyticsLoaded = true;
+    })
+    .catch(error => {
+        console.error('Error loading analytics:', error);
+        container.html(`
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i>
+                Error loading analytics data. Please try again.
+            </div>
+        `);
+    });
+}
+
+function displayAnalytics(occupancyData, roiData, chartData) {
+    let html = `
+        <!-- Occupancy Table -->
+        <div class="mb-4">
+            <h5 class="text-primary">
+                <i class="fas fa-calendar-check"></i> Occupancy Analysis (Last 12 Months)
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover table-bordered">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Property</th>
+                            <th>Current Status</th>
+                            <th class="text-right">Occupancy %</th>
+                            <th class="text-right">Occupied Days</th>
+                            <th class="text-right">Vacant Days</th>
+                            <th class="text-right">Lost Income</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+    if (occupancyData.success && occupancyData.occupancyData) {
+        occupancyData.occupancyData.forEach(prop => {
+            const occupancyPct = prop.occupancyPercentage || 0;
+            let occupancyColor = 'success';
+            if (occupancyPct < 70) occupancyColor = 'danger';
+            else if (occupancyPct < 90) occupancyColor = 'warning';
+
+            const statusBadge = prop.currentStatus === 'Occupied' ?
+                '<span class="badge badge-success">Occupied</span>' :
+                '<span class="badge badge-warning">Vacant</span>';
+
+            html += `
+                <tr>
+                    <td>${prop.propertyName}</td>
+                    <td>${statusBadge}</td>
+                    <td class="text-right">
+                        <span class="badge badge-${occupancyColor}">${occupancyPct.toFixed(1)}%</span>
+                    </td>
+                    <td class="text-right">${prop.occupiedDays}</td>
+                    <td class="text-right">${prop.vacantDays}</td>
+                    <td class="text-right text-danger">£${formatCurrency(prop.lostIncome)}</td>
+                </tr>
+            `;
+        });
+    }
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row mb-4">
+            <!-- Monthly Trends Chart -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-line"></i> Monthly Performance Trends</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="monthlyTrendsChart" height="80"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expense Breakdown Chart -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="mb-0"><i class="fas fa-chart-pie"></i> Expense Breakdown</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="expenseBreakdownChart" height="160"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROI Summary Table -->
+        <div class="mb-4">
+            <h5 class="text-success">
+                <i class="fas fa-piggy-bank"></i> Return on Investment (ROI) Summary
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover table-bordered">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Property</th>
+                            <th class="text-right">Purchase Price</th>
+                            <th class="text-right">Current Value</th>
+                            <th class="text-right">Capital Gain %</th>
+                            <th class="text-right">Rental Yield %</th>
+                            <th class="text-right">Total ROI %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+    if (roiData.success && roiData.roiData) {
+        roiData.roiData.forEach(prop => {
+            if (!prop.hasValuationData) {
+                html += `
+                    <tr class="text-muted">
+                        <td>${prop.propertyName}</td>
+                        <td colspan="5" class="text-center"><em>Valuation data not available</em></td>
+                    </tr>
+                `;
+            } else {
+                const totalROI = prop.totalROI || 0;
+                const roiColor = totalROI > 0 ? 'text-success' : 'text-danger';
+
+                html += `
+                    <tr>
+                        <td>${prop.propertyName}</td>
+                        <td class="text-right">£${formatCurrency(prop.purchasePrice)}</td>
+                        <td class="text-right">£${formatCurrency(prop.currentValue)}</td>
+                        <td class="text-right ${prop.capitalGain > 0 ? 'text-success' : 'text-danger'}">
+                            ${prop.capitalGain.toFixed(2)}%
+                        </td>
+                        <td class="text-right text-info">${prop.rentalYield.toFixed(2)}%</td>
+                        <td class="text-right font-weight-bold ${roiColor}">
+                            ${totalROI.toFixed(2)}%
+                        </td>
+                    </tr>
+                `;
+            }
+        });
+    }
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    $('#analyticsContainer').html(html);
+
+    // Initialize charts after DOM is ready
+    setTimeout(() => {
+        initializeMonthlyTrendsChart(chartData);
+        initializeExpenseBreakdownChart(chartData);
+    }, 100);
+}
+
+function initializeMonthlyTrendsChart(chartData) {
+    const ctx = document.getElementById('monthlyTrendsChart');
+    if (!ctx) return;
+
+    // Destroy existing chart if it exists
+    if (monthlyTrendsChart) {
+        monthlyTrendsChart.destroy();
+    }
+
+    const monthlyTrends = chartData.monthlyTrends || [];
+
+    // Extract labels and data
+    const labels = monthlyTrends.map(m => m.month || m.yearMonth);
+    const incomeData = monthlyTrends.map(m => m.income || m.totalIncome || 0);
+    const expensesData = monthlyTrends.map(m => m.expenses || m.totalExpenses || 0);
+    const commissionData = monthlyTrends.map(m => m.commission || m.totalCommission || 0);
+    const netData = monthlyTrends.map(m => m.netToOwner || m.netIncome || 0);
+
+    monthlyTrendsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Income',
+                    data: incomeData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Expenses',
+                    data: expensesData,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Commission',
+                    data: commissionData,
+                    borderColor: 'rgb(255, 159, 64)',
+                    backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                    tension: 0.4
+                },
+                {
+                    label: 'Net to Owner',
+                    data: netData,
+                    borderColor: 'rgb(54, 162, 235)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 3
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += '£' + context.parsed.y.toFixed(2);
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '£' + value.toLocaleString();
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function initializeExpenseBreakdownChart(chartData) {
+    const ctx = document.getElementById('expenseBreakdownChart');
+    if (!ctx) return;
+
+    // Destroy existing chart if it exists
+    if (expenseBreakdownChart) {
+        expenseBreakdownChart.destroy();
+    }
+
+    const expensesByCategory = chartData.expensesByCategory || {};
+    const labels = Object.keys(expensesByCategory);
+    const data = Object.values(expensesByCategory);
+
+    if (labels.length === 0) {
+        $(ctx).parent().html('<p class="text-muted text-center py-4">No expense data available</p>');
+        return;
+    }
+
+    const backgroundColors = [
+        'rgba(255, 99, 132, 0.8)',
+        'rgba(54, 162, 235, 0.8)',
+        'rgba(255, 206, 86, 0.8)',
+        'rgba(75, 192, 192, 0.8)',
+        'rgba(153, 102, 255, 0.8)',
+        'rgba(255, 159, 64, 0.8)',
+        'rgba(199, 199, 199, 0.8)',
+        'rgba(83, 102, 255, 0.8)',
+        'rgba(255, 102, 146, 0.8)',
+        'rgba(102, 255, 178, 0.8)'
+    ];
+
+    expenseBreakdownChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: backgroundColors,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        boxWidth: 12,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += '£' + context.parsed.toFixed(2);
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 </script>
 

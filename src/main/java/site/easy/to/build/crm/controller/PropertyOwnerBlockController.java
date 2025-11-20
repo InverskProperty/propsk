@@ -17,11 +17,15 @@ import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.service.portfolio.PortfolioBlockService;
 import site.easy.to.build.crm.service.portfolio.PortfolioService;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.property.PropertyOccupancyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
 import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -62,6 +66,9 @@ public class PropertyOwnerBlockController {
 
     @Autowired
     private UnifiedFinancialDataService unifiedFinancialDataService;
+
+    @Autowired
+    private PropertyOccupancyService propertyOccupancyService;
 
     @Autowired
     private site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository assignmentRepository;
@@ -1031,6 +1038,264 @@ public class PropertyOwnerBlockController {
             log.error("❌ Failed to get financial summary for block {}: {}", id, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Failed to get block financial data: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get occupancy data for all properties in a block
+     * GET /customer-login/blocks/api/{id}/occupancy?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+     */
+    @GetMapping("/api/{id}/occupancy")
+    @ResponseBody
+    public ResponseEntity<?> getBlockOccupancy(
+            @PathVariable Long id,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            Authentication auth) {
+        log.info("📊 Getting occupancy data for block {}", id);
+
+        try {
+            Customer customer = getLoggedInCustomer(auth);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            if (!hasAccessToBlock(customer, id)) {
+                log.warn("Customer {} denied access to block {} occupancy", customer.getCustomerId(), id);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Access denied"));
+            }
+
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Default to last 12 months if no dates provided
+            LocalDate endLocalDate = endDate != null ?
+                LocalDate.parse(endDate) : LocalDate.now();
+            LocalDate startLocalDate = startDate != null ?
+                LocalDate.parse(startDate) : endLocalDate.minusDays(365);
+
+            List<Property> blockProperties = propertyBlockAssignmentRepository.findPropertiesByBlockIdOrdered(id);
+
+            // Filter for delegated users
+            if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+                Set<Long> userPropertyIds = userProperties.stream()
+                    .map(Property::getId)
+                    .collect(Collectors.toSet());
+                blockProperties = blockProperties.stream()
+                    .filter(p -> userPropertyIds.contains(p.getId()))
+                    .collect(Collectors.toList());
+            }
+
+            List<Map<String, Object>> occupancyData = new ArrayList<>();
+            long totalDays = java.time.temporal.ChronoUnit.DAYS.between(startLocalDate, endLocalDate);
+
+            for (Property property : blockProperties) {
+                PropertyOccupancyService.OccupancyStats stats =
+                    propertyOccupancyService.calculateOccupancy(property.getId(), startLocalDate, endLocalDate);
+
+                // Calculate lost income from vacancy
+                BigDecimal monthlyRent = property.getMonthlyPayment() != null ?
+                    property.getMonthlyPayment() : BigDecimal.ZERO;
+                BigDecimal lostIncome = BigDecimal.valueOf(stats.getVacantDays())
+                    .multiply(monthlyRent)
+                    .divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
+
+                boolean isCurrentlyOccupied = propertyOccupancyService.isCurrentlyOccupied(property.getId());
+
+                Map<String, Object> propOccupancy = new HashMap<>();
+                propOccupancy.put("propertyId", property.getId());
+                propOccupancy.put("propertyName", property.getPropertyName());
+                propOccupancy.put("currentStatus", isCurrentlyOccupied ? "Occupied" : "Vacant");
+                propOccupancy.put("occupancyPercentage", stats.getOccupancyPercentage());
+                propOccupancy.put("occupiedDays", stats.getOccupiedDays());
+                propOccupancy.put("vacantDays", stats.getVacantDays());
+                propOccupancy.put("totalDays", stats.getTotalDays());
+                propOccupancy.put("lostIncome", lostIncome);
+                propOccupancy.put("monthlyRent", monthlyRent);
+
+                occupancyData.add(propOccupancy);
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("occupancyData", occupancyData);
+            response.put("startDate", startLocalDate.toString());
+            response.put("endDate", endLocalDate.toString());
+            response.put("periodDays", totalDays);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to get occupancy data for block {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to get occupancy data: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get ROI data for all properties in a block
+     * GET /customer-login/blocks/api/{id}/roi
+     */
+    @GetMapping("/api/{id}/roi")
+    @ResponseBody
+    public ResponseEntity<?> getBlockROI(@PathVariable Long id, Authentication auth) {
+        log.info("📈 Getting ROI data for block {}", id);
+
+        try {
+            Customer customer = getLoggedInCustomer(auth);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            if (!hasAccessToBlock(customer, id)) {
+                log.warn("Customer {} denied access to block {} ROI", customer.getCustomerId(), id);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Access denied"));
+            }
+
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            List<Property> blockProperties = propertyBlockAssignmentRepository.findPropertiesByBlockIdOrdered(id);
+
+            // Filter for delegated users
+            if (customer.getCustomerType() == CustomerType.DELEGATED_USER) {
+                List<Property> userProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+                Set<Long> userPropertyIds = userProperties.stream()
+                    .map(Property::getId)
+                    .collect(Collectors.toSet());
+                blockProperties = blockProperties.stream()
+                    .filter(p -> userPropertyIds.contains(p.getId()))
+                    .collect(Collectors.toList());
+            }
+
+            List<Map<String, Object>> roiData = new ArrayList<>();
+
+            for (Property property : blockProperties) {
+                BigDecimal purchasePrice = property.getPurchasePrice() != null ?
+                    property.getPurchasePrice() : BigDecimal.ZERO;
+                BigDecimal currentValue = property.getEstimatedCurrentValue() != null ?
+                    property.getEstimatedCurrentValue() : BigDecimal.ZERO;
+                BigDecimal monthlyRent = property.getMonthlyPayment() != null ?
+                    property.getMonthlyPayment() : BigDecimal.ZERO;
+
+                // Calculate rental yield: (annual rent / purchase price) * 100
+                BigDecimal rentalYield = BigDecimal.ZERO;
+                if (purchasePrice.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal annualRent = monthlyRent.multiply(BigDecimal.valueOf(12));
+                    rentalYield = annualRent
+                        .divide(purchasePrice, 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100));
+                }
+
+                // Calculate capital gain: ((current value - purchase price) / purchase price) * 100
+                BigDecimal capitalGain = BigDecimal.ZERO;
+                if (purchasePrice.compareTo(BigDecimal.ZERO) > 0 && currentValue.compareTo(BigDecimal.ZERO) > 0) {
+                    capitalGain = currentValue.subtract(purchasePrice)
+                        .divide(purchasePrice, 4, RoundingMode.HALF_UP)
+                        .multiply(BigDecimal.valueOf(100));
+                }
+
+                // Total ROI = rental yield + capital gain
+                BigDecimal totalROI = rentalYield.add(capitalGain);
+
+                Map<String, Object> propROI = new HashMap<>();
+                propROI.put("propertyId", property.getId());
+                propROI.put("propertyName", property.getPropertyName());
+                propROI.put("purchasePrice", purchasePrice);
+                propROI.put("currentValue", currentValue);
+                propROI.put("capitalGain", capitalGain);
+                propROI.put("rentalYield", rentalYield);
+                propROI.put("totalROI", totalROI);
+                propROI.put("purchaseDate", property.getPurchaseDate());
+                propROI.put("lastValuationDate", property.getLastValuationDate());
+                propROI.put("hasValuationData",
+                    purchasePrice.compareTo(BigDecimal.ZERO) > 0 && currentValue.compareTo(BigDecimal.ZERO) > 0);
+
+                roiData.add(propROI);
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("roiData", roiData);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to get ROI data for block {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to get ROI data: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get chart data for block analytics (monthly trends, expense breakdown)
+     * GET /customer-login/blocks/api/{id}/chart-data?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+     */
+    @GetMapping("/api/{id}/chart-data")
+    @ResponseBody
+    public ResponseEntity<?> getBlockChartData(
+            @PathVariable Long id,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            Authentication auth) {
+        log.info("📊 Getting chart data for block {}", id);
+
+        try {
+            Customer customer = getLoggedInCustomer(auth);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            if (!hasAccessToBlock(customer, id)) {
+                log.warn("Customer {} denied access to block {} chart data", customer.getCustomerId(), id);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Access denied"));
+            }
+
+            Optional<Block> blockOpt = blockRepository.findById(id);
+            if (!blockOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Default to last 12 months if no dates provided
+            LocalDate endLocalDate = endDate != null ?
+                LocalDate.parse(endDate) : LocalDate.now();
+            LocalDate startLocalDate = startDate != null ?
+                LocalDate.parse(startDate) : endLocalDate.minusDays(365);
+
+            // Get monthly trends for customer
+            List<Map<String, Object>> monthlyTrends =
+                unifiedFinancialDataService.getMonthlyTrendsForCustomer(
+                    customer.getCustomerId(), startLocalDate, endLocalDate);
+
+            // Get expense breakdown by category
+            Map<String, BigDecimal> expensesByCategory =
+                unifiedFinancialDataService.getExpensesByCategoryForCustomer(
+                    customer.getCustomerId(), startLocalDate, endLocalDate);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("monthlyTrends", monthlyTrends);
+            response.put("expensesByCategory", expensesByCategory);
+            response.put("startDate", startLocalDate.toString());
+            response.put("endDate", endLocalDate.toString());
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("❌ Failed to get chart data for block {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Failed to get chart data: " + e.getMessage()));
         }
     }
 
