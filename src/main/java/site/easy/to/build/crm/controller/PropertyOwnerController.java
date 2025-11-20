@@ -4008,27 +4008,36 @@ public class PropertyOwnerController {
             @RequestParam(value = "tenantPresentRequired", required = false) Boolean tenantPresentRequired,
             @RequestParam(value = "preferredTimeSlot", required = false) String preferredTimeSlot,
             Authentication authentication) {
-        
+
         System.out.println("🔧 Creating new maintenance request for property: " + propertyId);
-        
+
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
             if (customer == null) {
+                System.err.println("❌ MAINTENANCE: Customer authentication failed - getAuthenticatedPropertyOwner returned null");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("success", false, "error", "Authentication required"));
             }
-            
+
+            System.out.println("✅ MAINTENANCE: Authenticated customer ID: " + customer.getCustomerId() + ", Type: " + customer.getCustomerType());
+
             // Verify property ownership
             List<Property> ownedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+            System.out.println("📋 MAINTENANCE: Customer has access to " + ownedProperties.size() + " properties");
+
             Property property = ownedProperties.stream()
                 .filter(p -> p.getId().equals(propertyId))
                 .findFirst()
                 .orElse(null);
-                
+
             if (property == null) {
+                System.err.println("❌ MAINTENANCE: Property " + propertyId + " not found in customer's accessible properties");
+                System.err.println("   Available property IDs: " + ownedProperties.stream().map(p -> p.getId().toString()).collect(java.util.stream.Collectors.joining(", ")));
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("success", false, "error", "You don't have access to this property"));
             }
+
+            System.out.println("✅ MAINTENANCE: Access verified for property: " + property.getPropertyName());
             
             // Validate required fields
             if (subject == null || subject.trim().isEmpty()) {
