@@ -319,6 +319,7 @@ public interface LettingInstructionRepository extends JpaRepository<LettingInstr
     /**
      * Find active instructions for properties assigned to customer (OWNER or MANAGER)
      * Use case: Property owner dashboard - show current letting activity (including delegated users)
+     * Note: JPQL doesn't support NULLS LAST, so we use CASE WHEN to handle nulls
      */
     @Query("SELECT li FROM LettingInstruction li " +
            "WHERE li.property.id IN " +
@@ -332,6 +333,7 @@ public interface LettingInstructionRepository extends JpaRepository<LettingInstr
            "site.easy.to.build.crm.entity.InstructionStatus.VIEWINGS_IN_PROGRESS, " +
            "site.easy.to.build.crm.entity.InstructionStatus.OFFER_ACCEPTED, " +
            "site.easy.to.build.crm.entity.InstructionStatus.ACTIVE_LEASE) " +
-           "ORDER BY li.advertisingStartDate DESC NULLS LAST, li.createdAt DESC")
+           "ORDER BY CASE WHEN li.advertisingStartDate IS NULL THEN 1 ELSE 0 END, " +
+           "li.advertisingStartDate DESC, li.createdAt DESC")
     List<LettingInstruction> findActiveInstructionsByPropertyOwner(@Param("customerId") Long customerId);
 }
