@@ -69,6 +69,7 @@ import site.easy.to.build.crm.service.drive.CustomerDriveOrganizationService;
 import site.easy.to.build.crm.service.drive.SharedDriveFileService;
 import site.easy.to.build.crm.service.financial.UnifiedFinancialDataService;
 import site.easy.to.build.crm.service.financial.PropertyFinancialSummaryService;
+import site.easy.to.build.crm.service.property.PropertyOccupancyService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Set;
@@ -134,6 +135,9 @@ public class PropertyOwnerController {
 
     @Autowired
     private PropertyFinancialSummaryService propertyFinancialSummaryService;
+
+    @Autowired
+    private PropertyOccupancyService propertyOccupancyService;
 
     // Letting instruction and viewing repositories for property owner dashboard
     @Autowired
@@ -954,6 +958,19 @@ public class PropertyOwnerController {
             model.addAttribute("isOccupied", isOccupied);
             model.addAttribute("currentTenant", currentTenant);
             model.addAttribute("tenancyStartDate", tenancyStartDate);
+
+            // ===== OCCUPANCY STATISTICS (LAST 12 MONTHS) =====
+            PropertyOccupancyService.OccupancyStats occupancyStats =
+                propertyOccupancyService.calculateOccupancyLast12Months(propertyId);
+
+            model.addAttribute("occupancyStats", occupancyStats);
+            model.addAttribute("occupancyPercentage", occupancyStats.getOccupancyPercentage());
+            model.addAttribute("occupiedDays", occupancyStats.getOccupiedDays());
+            model.addAttribute("vacantDays", occupancyStats.getVacantDays());
+
+            System.out.println("📊 Occupancy Stats (Last 12 months) - Property " + propertyId);
+            System.out.println("   Occupied: " + occupancyStats.getOccupiedDays() + " days (" + occupancyStats.getOccupancyPercentage() + "%)");
+            System.out.println("   Vacant: " + occupancyStats.getVacantDays() + " days");
 
             // ===== LETTING INSTRUCTIONS / PIPELINE =====
             // Get all instructions for this property (history)

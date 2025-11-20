@@ -292,33 +292,55 @@
                             </div>
                         </div>
 
-                        <!-- UPDATED: Property Stats with Real Occupancy -->
+                        <!-- Occupancy Statistics Card (Last 12 Months) -->
                         <div class="card mt-3">
                             <div class="card-header">
-                                <h5>Property Status</h5>
+                                <h5><i class="fas fa-chart-bar"></i> Occupancy (Last 12 Months)</h5>
                             </div>
                             <div class="card-body">
-                                <div class="row text-center">
-                                    <div class="col-6">
-                                        <div class="border-end">
-                                            <h4 class="text-primary">0</h4>
-                                            <p class="text-muted mb-0">Open Issues</p>
-                                        </div>
-                                    </div>
-                                    <div class="col-6">
-                                        <h4 th:class="${isOccupied ? 'text-success' : 'text-danger'}"
-                                            th:text="${isOccupied ? '100%' : '0%'}">100%</h4>
-                                        <p class="text-muted mb-0">Occupancy</p>
+                                <!-- Occupancy Percentage -->
+                                <div class="text-center mb-3">
+                                    <h2 th:class="${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(80)) >= 0} ? 'text-success' :
+                                                   (${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(50)) >= 0} ? 'text-warning' : 'text-danger')"
+                                        th:text="${#numbers.formatDecimal(occupancyPercentage, 1, 1)} + '%'">
+                                        0%
+                                    </h2>
+                                    <p class="text-muted mb-0">Average Occupancy</p>
+                                </div>
+
+                                <!-- Progress Bar -->
+                                <div class="progress mb-3" style="height: 25px;">
+                                    <div class="progress-bar"
+                                         th:classappend="${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(80)) >= 0} ? 'bg-success' :
+                                                         (${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(50)) >= 0} ? 'bg-warning' : 'bg-danger')"
+                                         role="progressbar"
+                                         th:style="'width: ' + ${occupancyPercentage} + '%'"
+                                         th:attr="aria-valuenow=${occupancyPercentage}">
+                                        <span th:text="${#numbers.formatDecimal(occupancyPercentage, 1, 1)} + '%'">0%</span>
                                     </div>
                                 </div>
 
-                                <!-- Occupancy Status Badge -->
+                                <!-- Day Breakdown -->
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="border-end">
+                                            <h5 class="text-success mb-0" th:text="${occupiedDays}">0</h5>
+                                            <small class="text-muted">Days Occupied</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <h5 class="text-danger mb-0" th:text="${vacantDays}">0</h5>
+                                        <small class="text-muted">Days Vacant</small>
+                                    </div>
+                                </div>
+
+                                <!-- Current Status Badge -->
                                 <div class="mt-3 text-center">
                                     <span th:if="${isOccupied}" class="badge bg-success">
-                                        <i class="fas fa-check-circle"></i> Occupied
+                                        <i class="fas fa-check-circle"></i> Currently Occupied
                                     </span>
                                     <span th:unless="${isOccupied}" class="badge bg-warning">
-                                        <i class="fas fa-exclamation-circle"></i> Vacant
+                                        <i class="fas fa-exclamation-circle"></i> Currently Vacant
                                     </span>
                                 </div>
                             </div>
