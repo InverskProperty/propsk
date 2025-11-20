@@ -476,108 +476,6 @@
                 </div>
             </div>
 
-            <!-- ✨ PHASE 2: Recent Transactions (Collapsible) -->
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header" data-toggle="collapse" data-target="#recentTransactionsTable" style="cursor: pointer;">
-                            <h4 class="card-title mb-0">
-                                <i class="fas fa-list text-info"></i> Recent Transactions
-                                <i class="fas fa-chevron-down float-right"></i>
-                            </h4>
-                            <p class="text-muted mb-0">Latest financial transactions from PayProp (click to expand/collapse)</p>
-                        </div>
-                        <div class="collapse show" id="recentTransactionsTable">
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-striped">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Property</th>
-                                            <th>Type</th>
-                                            <th>Amount</th>
-                                            <th>Commission</th>
-                                            <th>Net to Owner</th>
-                                            <th>Description</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr th:each="transaction : ${recentTransactions}">
-                                            <td th:text="${#temporals.format(transaction.transactionDate, 'dd/MM/yyyy')}">Date</td>
-                                            <td>
-                                                <small th:text="${transaction.propertyName}">Property</small>
-                                            </td>
-                                            <td>
-                                                <span class="badge" 
-                                                      th:classappend="${transaction.transactionType == 'invoice' ? 'badge-success' : 
-                                                                     transaction.transactionType == 'tenant_payment' ? 'badge-info' :
-                                                                     transaction.transactionType == 'commission_payment' ? 'badge-warning' :
-                                                                     transaction.transactionType == 'payment_to_beneficiary' ? 'badge-primary' :
-                                                                     transaction.transactionType == 'payment_to_agency' ? 'badge-secondary' : 'badge-light'}"
-                                                      th:text="${transaction.transactionType}">Type</span>
-                                            </td>
-                                            <!-- Amount column: Show if amount field exists -->
-                                            <td class="text-right">
-                                                <span th:if="${transaction.amount != null}">
-                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.amount, 1, 2)}">0.00</span></strong>
-                                                </span>
-                                                <span th:if="${transaction.amount == null}">-</span>
-                                            </td>
-                                            <!-- Commission column: Show if commissionAmount field exists -->
-                                            <td class="text-right text-warning">
-                                                <span th:if="${transaction.commissionAmount != null}">
-                                                    £<span th:text="${#numbers.formatDecimal(transaction.commissionAmount, 1, 2)}">0.00</span>
-                                                </span>
-                                                <span th:if="${transaction.commissionAmount == null}">-</span>
-                                            </td>
-                                            <!-- Net to Owner column: Show if netToOwnerAmount field exists -->
-                                            <td class="text-right text-success">
-                                                <span th:if="${transaction.netToOwnerAmount != null}">
-                                                    <strong>£<span th:text="${#numbers.formatDecimal(transaction.netToOwnerAmount, 1, 2)}">0.00</span></strong>
-                                                </span>
-                                                <span th:if="${transaction.netToOwnerAmount == null}">-</span>
-                                            </td>
-                                            <td>
-                                                <small th:text="${transaction.description}">Description</small>
-                                            </td>
-                                        </tr>
-                                        <tr th:if="${#lists.isEmpty(recentTransactions)}">
-                                            <td colspan="7" class="text-center text-muted">
-                                                <i class="fas fa-exclamation-triangle"></i> No recent transactions found
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                    <!-- Totals Footer -->
-                                    <tfoot th:if="${!#lists.isEmpty(recentTransactions)}" class="table-secondary">
-                                        <tr>
-                                            <td colspan="3"><strong>Totals (Last 3 Months):</strong></td>
-                                            <td class="text-right">
-                                                <strong>£<span th:text="${#numbers.formatDecimal(totalRent ?: 0, 1, 2)}">0.00</span></strong>
-                                                <br><small class="text-muted">Invoiced</small>
-                                            </td>
-                                            <td class="text-right text-warning">
-                                                <strong>£<span th:text="${#numbers.formatDecimal(totalCommission ?: 0, 1, 2)}">0.00</span></strong>
-                                                <br><small class="text-muted">Commission</small>
-                                            </td>
-                                            <td class="text-right text-success">
-                                                <strong>£<span th:text="${#numbers.formatDecimal(totalNetToOwner ?: 0, 1, 2)}">0.00</span></strong>
-                                                <br><small class="text-muted">Received</small>
-                                            </td>
-                                            <td>
-                                                <small class="text-muted">
-                                                    <span th:text="${totalTransactions ?: 0}">0</span> transactions
-                                                </small>
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        </div>
-                        </div> <!-- Close collapse div for recent transactions -->
-                    </div>
-                </div>
-            </div>
 
             <!-- Quick Actions -->
             <div class="row">
@@ -596,10 +494,6 @@
                             <div class="list-group">
                                 <a href="#" onclick="openExpenseTracker()" class="list-group-item list-group-item-action">
                                     <i class="fas fa-receipt text-danger"></i> Expense Tracking
-                                    <span class="badge badge-warning float-right">Preview</span>
-                                </a>
-                                <a href="#" onclick="generateTaxReport()" class="list-group-item list-group-item-action">
-                                    <i class="fas fa-file-invoice text-info"></i> Tax Reports
                                     <span class="badge badge-warning float-right">Preview</span>
                                 </a>
                                 <a href="#" onclick="showCashFlowAnalysis()" class="list-group-item list-group-item-action">
@@ -729,8 +623,12 @@
                                     </div>
                                 </div>
                                 <div class="col-md-3">
-                                    <h3 class="text-warning" th:text="${occupancyRate ?: '0'} + '%'">0%</h3>
-                                    <p class="text-muted mb-0">Efficiency Rate</p>
+                                    <h3 class="text-warning" th:text="${actualOccupancyPercentage ?: '0'} + '%'">0%</h3>
+                                    <p class="text-muted mb-0">Occupancy (Last 365 Days)</p>
+                                    <small class="text-muted">
+                                        <span th:text="${totalOccupiedDays ?: 0}">0</span> occupied /
+                                        <span th:text="${totalDaysInPeriod ?: 0}">0</span> total days
+                                    </small>
                                 </div>
                             </div>
                         </div>
@@ -821,21 +719,28 @@
                                         <thead>
                                             <tr>
                                                 <th>Property</th>
-                                                <th>Open Issues</th>
-                                                <th>This Month</th>
-                                                <th>YTD Expenses</th>
+                                                <th>Total Expenses (Period)</th>
+                                                <th>Commission</th>
                                                 <th>Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr th:each="propertyData : ${enhancedProperties}">
                                                 <td th:text="${propertyData.property.propertyName ?: propertyData.property.addressLine1}">Property</td>
-                                                <td><span class="badge badge-warning">2</span></td>
-                                                <td>£450</td>
-                                                <td>£2,100</td>
+                                                <td class="text-danger">
+                                                    <strong>£<span th:text="${#numbers.formatDecimal(propertyData.totalExpenses ?: 0, 1, 2)}">0.00</span></strong>
+                                                </td>
+                                                <td class="text-warning">
+                                                    £<span th:text="${#numbers.formatDecimal(propertyData.totalCommission ?: 0, 1, 2)}">0.00</span>
+                                                </td>
                                                 <td>
-                                                    <a th:href="@{'/property-owner/maintenance?propertyId=' + ${propertyData.property.id}}" 
+                                                    <a th:href="@{'/property-owner/maintenance?propertyId=' + ${propertyData.property.id}}"
                                                        class="btn btn-sm btn-outline-primary">View Details</a>
+                                                </td>
+                                            </tr>
+                                            <tr th:if="${#lists.isEmpty(enhancedProperties)}">
+                                                <td colspan="4" class="text-center text-muted">
+                                                    <i class="fas fa-exclamation-triangle"></i> No property data available
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -847,18 +752,19 @@
                                 <div class="card bg-light">
                                     <div class="card-body">
                                         <div class="text-center">
-                                            <h4 class="text-danger">£3,250</h4>
-                                            <p class="mb-1">Total YTD Expenses</p>
+                                            <h4 class="text-danger">£<span th:text="${#numbers.formatDecimal((totalRent ?: 0) - (totalNetToOwner ?: 0) - (totalCommission ?: 0), 1, 2)}">0.00</span></h4>
+                                            <p class="mb-1">Total Period Expenses</p>
                                             <small class="text-muted">Across all properties</small>
                                         </div>
                                         <hr>
                                         <div class="row text-center">
                                             <div class="col-6">
-                                                <strong>£540</strong><br>
-                                                <small>Avg/Month</small>
+                                                <strong>£<span th:text="${#numbers.formatDecimal(totalCommission ?: 0, 1, 2)}">0.00</span></strong><br>
+                                                <small>Commission</small>
                                             </div>
                                             <div class="col-6">
-                                                <strong>8.5%</strong><br>
+                                                <strong><span th:if="${totalRent != null and totalRent > 0}"
+                                                             th:text="${#numbers.formatDecimal(((totalRent - totalNetToOwner - totalCommission) * 100) / totalRent, 1, 1)}">0.0</span>%</strong><br>
                                                 <small>of Income</small>
                                             </div>
                                         </div>

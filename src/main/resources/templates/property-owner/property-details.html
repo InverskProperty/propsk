@@ -511,6 +511,53 @@
                                             </div>
                                         </div>
 
+                                        <!-- Mortgage & Financing Section -->
+                                        <div class="row mt-3" th:if="${property.mortgageAmount != null or property.mortgageInterestRate != null}">
+                                            <div class="col-12">
+                                                <h6 class="text-warning"><i class="fas fa-home"></i> Mortgage & Financing</h6>
+                                                <table class="table table-sm">
+                                                    <tr th:if="${property.mortgageAmount != null}">
+                                                        <td><strong>Outstanding Mortgage:</strong></td>
+                                                        <td>
+                                                            <span class="text-warning">
+                                                                £<span th:text="${#numbers.formatDecimal(property.mortgageAmount, 1, 2)}">0.00</span>
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.mortgageInterestRate != null}">
+                                                        <td><strong>Interest Rate:</strong></td>
+                                                        <td>
+                                                            <span th:text="${#numbers.formatDecimal(property.mortgageInterestRate, 1, 2)}">0.00</span>%
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.mortgageAmount != null and property.mortgageInterestRate != null}">
+                                                        <td><strong>Annual Interest:</strong></td>
+                                                        <td>
+                                                            <span class="text-danger">
+                                                                £<span th:text="${#numbers.formatDecimal(property.annualMortgagePayment, 1, 2)}">0.00</span>
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.mortgageAmount != null and property.estimatedCurrentValue != null}">
+                                                        <td><strong>Loan-to-Value (LTV):</strong></td>
+                                                        <td>
+                                                            <span th:class="${property.loanToValueRatio.compareTo(T(java.math.BigDecimal).valueOf(75)) <= 0} ? 'text-success' : 'text-warning'">
+                                                                <span th:text="${#numbers.formatDecimal(property.loanToValueRatio, 1, 1)}">0.0</span>%
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.mortgageAmount != null and property.estimatedCurrentValue != null}">
+                                                        <td><strong>Equity:</strong></td>
+                                                        <td>
+                                                            <strong class="text-success">
+                                                                £<span th:text="${#numbers.formatDecimal(property.equity, 1, 2)}">0.00</span>
+                                                            </strong>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                        </div>
+
                                         <div class="row mt-3">
                                             <div class="col-12">
                                                 <h6 class="text-primary">Current Valuation</h6>
@@ -538,12 +585,49 @@
                                                             </span>
                                                         </td>
                                                     </tr>
-                                                    <tr th:if="${property.purchasePrice != null and property.monthlyPayment != null}">
-                                                        <td><strong>Rental Yield:</strong></td>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        <!-- ROI Metrics Section -->
+                                        <div class="row mt-3" th:if="${property.purchasePrice != null and property.monthlyPayment != null}">
+                                            <div class="col-12">
+                                                <h6 class="text-info"><i class="fas fa-percentage"></i> ROI Metrics</h6>
+                                                <table class="table table-sm">
+                                                    <tr>
+                                                        <td><strong>Gross Yield:</strong></td>
                                                         <td>
                                                             <span class="text-success">
-                                                                <strong><span th:text="${#numbers.formatDecimal(property.annualRentalYield, 1, 2)}">0.00</span>%</strong>
+                                                                <strong><span th:text="${#numbers.formatDecimal(property.grossYield, 1, 2)}">0.00</span>%</strong>
                                                             </span>
+                                                            <small class="text-muted ms-2">(Annual rent ÷ Purchase price)</small>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.mortgageAmount != null and property.mortgageInterestRate != null}">
+                                                        <td><strong>Net Yield:</strong></td>
+                                                        <td>
+                                                            <span th:class="${property.netYield.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'">
+                                                                <strong><span th:text="${#numbers.formatDecimal(property.netYield, 1, 2)}">0.00</span>%</strong>
+                                                            </span>
+                                                            <small class="text-muted ms-2">(After mortgage & expenses)</small>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.mortgageAmount != null}">
+                                                        <td><strong>Cash-on-Cash Return:</strong></td>
+                                                        <td>
+                                                            <span th:class="${property.cashOnCashReturn.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'">
+                                                                <strong><span th:text="${#numbers.formatDecimal(property.cashOnCashReturn, 1, 2)}">0.00</span>%</strong>
+                                                            </span>
+                                                            <small class="text-muted ms-2">(Cash flow ÷ Cash invested)</small>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.estimatedCurrentValue != null}">
+                                                        <td><strong>Total ROI:</strong></td>
+                                                        <td>
+                                                            <span th:class="${property.totalROI.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'">
+                                                                <strong><span th:text="${#numbers.formatDecimal(property.totalROI, 1, 2)}">0.00</span>%</strong>
+                                                            </span>
+                                                            <small class="text-muted ms-2">(Income + Capital gain)</small>
                                                         </td>
                                                     </tr>
                                                 </table>

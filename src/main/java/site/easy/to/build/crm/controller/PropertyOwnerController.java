@@ -2921,14 +2921,45 @@ public class PropertyOwnerController {
             BigDecimal occupancyRate = totalMonthlyRent.compareTo(BigDecimal.ZERO) > 0 ?
                 actualMonthlyRent.multiply(BigDecimal.valueOf(100)).divide(totalMonthlyRent, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
 
+            // Calculate actual occupancy percentage based on tenant assignments (last 365 days)
+            long totalOccupiedDays = 0;
+            long totalDaysInPeriod = 0;
+            int propertiesWithOccupancyData = 0;
+
+            for (Property property : properties) {
+                try {
+                    PropertyOccupancyService.OccupancyStats stats =
+                        propertyOccupancyService.calculateOccupancyLast12Months(property.getId());
+                    totalOccupiedDays += stats.getOccupiedDays();
+                    totalDaysInPeriod += stats.getTotalDays();
+                    propertiesWithOccupancyData++;
+                } catch (Exception e) {
+                    System.err.println("⚠️ Error calculating occupancy for property " + property.getId() + ": " + e.getMessage());
+                }
+            }
+
+            BigDecimal actualOccupancyPercentage = totalDaysInPeriod > 0 ?
+                BigDecimal.valueOf(totalOccupiedDays)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalDaysInPeriod), 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+
+            long totalVacantDays = totalDaysInPeriod - totalOccupiedDays;
+
             model.addAttribute("totalMonthlyRent", totalMonthlyRent);
             model.addAttribute("lostMonthlyIncome", lostMonthlyIncome);
             model.addAttribute("occupancyRate", occupancyRate);
+            model.addAttribute("actualOccupancyPercentage", actualOccupancyPercentage);
+            model.addAttribute("totalOccupiedDays", totalOccupiedDays);
+            model.addAttribute("totalVacantDays", totalVacantDays);
+            model.addAttribute("totalDaysInPeriod", totalDaysInPeriod);
 
             System.out.println("📊 Monthly Overview - Potential: £" + totalMonthlyRent +
                              ", Actual: £" + actualMonthlyRent +
                              ", Lost: £" + lostMonthlyIncome +
                              ", Occupancy: " + occupancyRate + "%");
+            System.out.println("📊 Actual Occupancy (Last 365 Days) - " + actualOccupancyPercentage + "% " +
+                             "(" + totalOccupiedDays + " occupied / " + totalDaysInPeriod + " total days across " +
+                             propertiesWithOccupancyData + " properties)");
             
             // 🏠 Property Breakdown Data
             model.addAttribute("propertyBreakdown", propertyBreakdown);
