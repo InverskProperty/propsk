@@ -331,7 +331,7 @@
                                         <div class="row mt-2">
                                             <div class="col-6">
                                                 <small class="text-muted d-block">Contact</small>
-                                                <strong th:text="${assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')}">Not provided</strong>
+                                                <strong th:text="${assignment.customer != null ? (assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')) : 'Not provided'}">Not provided</strong>
                                             </div>
                                             <div class="col-6" th:with="today=${T(java.time.LocalDate).now()},
                                                                          daysSinceStart=${assignment.startDate != null and !assignment.startDate.isAfter(today) ? T(java.time.temporal.ChronoUnit).DAYS.between(assignment.startDate, today) : 0},
@@ -356,10 +356,10 @@
                                     <!-- Action Buttons -->
                                     <div class="mt-3">
                                         <button class="btn btn-primary btn-sm" onclick="showTenantDetails(this)"
-                                                th:attr="data-tenant-id=${assignment.customer.id},
-                                                        data-tenant-name=${assignment.customer.fullName ?: 'Tenant'},
-                                                        data-tenant-email=${assignment.customer.email ?: 'No email'},
-                                                        data-tenant-phone=${assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')},
+                                                th:attr="data-tenant-id=${assignment.customer != null ? assignment.customer.customerId : 0},
+                                                        data-tenant-name=${assignment.customer != null ? (assignment.customer.fullName ?: 'Tenant') : 'Tenant'},
+                                                        data-tenant-email=${assignment.customer != null ? (assignment.customer.email ?: 'No email') : 'No email'},
+                                                        data-tenant-phone=${assignment.customer != null ? (assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')) : 'Not provided'},
                                                         data-property=${assignment.property != null ? assignment.property.propertyName : 'Unknown'},
                                                         data-property-id=${assignment.property != null ? assignment.property.id : null},
                                                         data-start-date=${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not set'},
