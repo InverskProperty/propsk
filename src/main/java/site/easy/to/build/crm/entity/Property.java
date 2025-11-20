@@ -75,9 +75,15 @@ public class Property {
     // Property Details
     @Column(name = "property_type")
     private String propertyType;
-    
+
     private Integer bedrooms;
     private Integer bathrooms;
+
+    @Column(name = "size_sqm", precision = 10, scale = 2)
+    @DecimalMin(value = "0.00", message = "Size must not be negative")
+    @Digits(integer = 8, fraction = 2)
+    private BigDecimal sizeSqm; // Property size in square meters
+
     private String furnished;
     
     @Column(name = "epc_rating")
@@ -159,6 +165,14 @@ public class Property {
     
     @Column(name = "last_valuation_date")
     private LocalDate lastValuationDate;
+
+    @Column(name = "mortgage_amount", precision = 12, scale = 2)
+    @Digits(integer = 10, fraction = 2)
+    private BigDecimal mortgageAmount; // Outstanding mortgage amount
+
+    @Column(name = "mortgage_interest_rate", precision = 5, scale = 2)
+    @Digits(integer = 3, fraction = 2)
+    private BigDecimal mortgageInterestRate; // Annual interest rate percentage
 
     @Column(name = "payprop_property_id", length = 100)
     private String payPropPropertyId;
@@ -425,7 +439,10 @@ public class Property {
     
     public Integer getBathrooms() { return bathrooms; }
     public void setBathrooms(Integer bathrooms) { this.bathrooms = bathrooms; }
-    
+
+    public BigDecimal getSizeSqm() { return sizeSqm; }
+    public void setSizeSqm(BigDecimal sizeSqm) { this.sizeSqm = sizeSqm; }
+
     public String getFurnished() { return furnished; }
     public void setFurnished(String furnished) { this.furnished = furnished; }
     
@@ -499,6 +516,12 @@ public class Property {
     
     public LocalDate getLastValuationDate() { return lastValuationDate; }
     public void setLastValuationDate(LocalDate lastValuationDate) { this.lastValuationDate = lastValuationDate; }
+
+    public BigDecimal getMortgageAmount() { return mortgageAmount; }
+    public void setMortgageAmount(BigDecimal mortgageAmount) { this.mortgageAmount = mortgageAmount; }
+
+    public BigDecimal getMortgageInterestRate() { return mortgageInterestRate; }
+    public void setMortgageInterestRate(BigDecimal mortgageInterestRate) { this.mortgageInterestRate = mortgageInterestRate; }
 
     public String getPayPropPropertyId() { return payPropPropertyId; }
     public void setPayPropPropertyId(String payPropPropertyId) { this.payPropPropertyId = payPropPropertyId; }
@@ -769,6 +792,120 @@ public class Property {
      */
     public boolean hasValuationData() {
         return purchasePrice != null || estimatedCurrentValue != null;
+    }
+
+    // NEW: Advanced ROI and Yield Calculations
+
+    /**
+     * Calculate annual mortgage payment
+     */
+    public BigDecimal getAnnualMortgagePayment() {
+        if (mortgageAmount == null || mortgageInterestRate == null ||
+            mortgageAmount.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        // Simple interest calculation: (mortgage * rate) / 100
+        return mortgageAmount.multiply(mortgageInterestRate)
+                .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Calculate gross rental yield (annual rent / property value) * 100
+     * Uses purchase price as property value
+     */
+    public BigDecimal getGrossYield() {
+        return getAnnualRentalYield(); // Already implemented
+    }
+
+    /**
+     * Calculate net rental yield (annual rent - costs) / property value * 100
+     * Costs = mortgage interest + estimated annual expenses (15% of rent as default)
+     */
+    public BigDecimal getNetYield() {
+        if (monthlyPayment == null || getTotalAcquisitionCost().compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal annualRent = monthlyPayment.multiply(BigDecimal.valueOf(12));
+        BigDecimal mortgageInterest = getAnnualMortgagePayment();
+
+        // Estimate annual expenses as 15% of annual rent (maintenance, insurance, etc.)
+        BigDecimal estimatedExpenses = annualRent.multiply(BigDecimal.valueOf(0.15));
+
+        BigDecimal netIncome = annualRent.subtract(mortgageInterest).subtract(estimatedExpenses);
+
+        return netIncome
+                .multiply(BigDecimal.valueOf(100))
+                .divide(getTotalAcquisitionCost(), 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Calculate cash-on-cash return (annual cash flow / cash invested) * 100
+     * Cash invested = purchase price + costs - mortgage
+     */
+    public BigDecimal getCashOnCashReturn() {
+        BigDecimal totalCost = getTotalAcquisitionCost();
+        BigDecimal mortgage = mortgageAmount != null ? mortgageAmount : BigDecimal.ZERO;
+        BigDecimal cashInvested = totalCost.subtract(mortgage);
+
+        if (cashInvested.compareTo(BigDecimal.ZERO) == 0 || monthlyPayment == null) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal annualRent = monthlyPayment.multiply(BigDecimal.valueOf(12));
+        BigDecimal mortgageInterest = getAnnualMortgagePayment();
+        BigDecimal estimatedExpenses = annualRent.multiply(BigDecimal.valueOf(0.15));
+
+        BigDecimal annualCashFlow = annualRent.subtract(mortgageInterest).subtract(estimatedExpenses);
+
+        return annualCashFlow
+                .multiply(BigDecimal.valueOf(100))
+                .divide(cashInvested, 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Calculate total ROI including capital appreciation
+     * (Annual income + capital gain) / investment * 100
+     */
+    public BigDecimal getTotalROI() {
+        BigDecimal totalCost = getTotalAcquisitionCost();
+        if (totalCost.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal annualIncome = monthlyPayment != null ?
+            monthlyPayment.multiply(BigDecimal.valueOf(12)) : BigDecimal.ZERO;
+        BigDecimal capitalGain = getEstimatedCapitalGain();
+
+        BigDecimal totalReturn = annualIncome.add(capitalGain);
+
+        return totalReturn
+                .multiply(BigDecimal.valueOf(100))
+                .divide(totalCost, 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Calculate loan-to-value ratio
+     */
+    public BigDecimal getLoanToValueRatio() {
+        if (mortgageAmount == null || estimatedCurrentValue == null ||
+            estimatedCurrentValue.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        return mortgageAmount
+                .multiply(BigDecimal.valueOf(100))
+                .divide(estimatedCurrentValue, 2, BigDecimal.ROUND_HALF_UP);
+    }
+
+    /**
+     * Calculate equity in property
+     */
+    public BigDecimal getEquity() {
+        if (estimatedCurrentValue == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal mortgage = mortgageAmount != null ? mortgageAmount : BigDecimal.ZERO;
+        return estimatedCurrentValue.subtract(mortgage);
     }
 
     // NEW: PayProp Financial Tracking Utility Methods

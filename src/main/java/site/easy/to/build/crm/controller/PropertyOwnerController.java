@@ -4346,6 +4346,8 @@ public class PropertyOwnerController {
             @RequestParam(value = "estimatedCurrentValue", required = false) BigDecimal estimatedCurrentValue,
             @RequestParam(value = "purchaseDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate purchaseDate,
             @RequestParam(value = "lastValuationDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate lastValuationDate,
+            @RequestParam(value = "mortgageAmount", required = false) BigDecimal mortgageAmount,
+            @RequestParam(value = "mortgageInterestRate", required = false) BigDecimal mortgageInterestRate,
             Authentication authentication) {
         
         System.out.println("💰 Property Owner updating valuation for property: " + propertyId);
@@ -4407,7 +4409,19 @@ public class PropertyOwnerController {
                 updated = true;
                 System.out.println("🔍 Updated valuation date: " + lastValuationDate);
             }
-            
+
+            if (mortgageAmount != null) {
+                property.setMortgageAmount(mortgageAmount);
+                updated = true;
+                System.out.println("🔍 Updated mortgage amount: £" + mortgageAmount);
+            }
+
+            if (mortgageInterestRate != null) {
+                property.setMortgageInterestRate(mortgageInterestRate);
+                updated = true;
+                System.out.println("🔍 Updated mortgage rate: " + mortgageInterestRate + "%");
+            }
+
             if (updated) {
                 // Save the property
                 propertyService.save(property);
