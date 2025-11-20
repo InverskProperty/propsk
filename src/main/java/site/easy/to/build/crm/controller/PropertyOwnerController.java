@@ -977,9 +977,119 @@ public class PropertyOwnerController {
             return "property-owner/properties";
         }
     }
-    
+
     /**
-     * DEPRECATED: Old property details implementation - keeping for reference  
+     * API endpoint to get chart data for a specific property
+     */
+    @GetMapping("/property-owner/property/{id}/chart-data")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> getPropertyChartData(
+            @PathVariable("id") Long propertyId,
+            Authentication authentication) {
+
+        System.out.println("📊 Property Chart Data - Property ID: " + propertyId);
+
+        try {
+            Customer customer = getAuthenticatedPropertyOwner(authentication);
+            if (customer == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Authentication required"));
+            }
+
+            // Verify ownership
+            List<Property> ownedProperties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+            boolean ownsProperty = ownedProperties.stream()
+                .anyMatch(p -> p.getId().equals(propertyId));
+
+            if (!ownsProperty) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "Access denied"));
+            }
+
+            // Get last 12 months of transaction data
+            PropertyFinancialSummaryService.PropertyFinancialSummary financialSummary =
+                propertyFinancialSummaryService.getPropertySummaryLast12Months(propertyId);
+
+            List<UnifiedTransaction> allTransactions = financialSummary.getAllTransactions();
+
+            // ===== MONTHLY TRENDS DATA =====
+            // Group transactions by month for the chart
+            Map<String, Map<String, BigDecimal>> monthlyData = new LinkedHashMap<>();
+            LocalDate now = LocalDate.now();
+
+            // Initialize last 12 months
+            for (int i = 11; i >= 0; i--) {
+                LocalDate month = now.minusMonths(i);
+                String monthKey = month.format(DateTimeFormatter.ofPattern("MMM yyyy"));
+                Map<String, BigDecimal> monthValues = new HashMap<>();
+                monthValues.put("rent", BigDecimal.ZERO);
+                monthValues.put("expenses", BigDecimal.ZERO);
+                monthlyData.put(monthKey, monthValues);
+            }
+
+            // Aggregate transactions by month
+            for (UnifiedTransaction tx : allTransactions) {
+                if (tx.getTransactionDate() != null) {
+                    String monthKey = tx.getTransactionDate().format(DateTimeFormatter.ofPattern("MMM yyyy"));
+
+                    if (monthlyData.containsKey(monthKey)) {
+                        Map<String, BigDecimal> monthValues = monthlyData.get(monthKey);
+                        BigDecimal amount = tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO;
+
+                        if ("RENT".equalsIgnoreCase(tx.getCategory()) ||
+                            "RENTAL_INCOME".equalsIgnoreCase(tx.getType())) {
+                            monthValues.put("rent", monthValues.get("rent").add(amount.abs()));
+                        } else if ("EXPENSE".equalsIgnoreCase(tx.getType())) {
+                            monthValues.put("expenses", monthValues.get("expenses").add(amount.abs()));
+                        }
+                    }
+                }
+            }
+
+            // ===== EXPENSE BREAKDOWN BY CATEGORY =====
+            Map<String, BigDecimal> expensesByCategory = new HashMap<>();
+            for (UnifiedTransaction tx : financialSummary.getExpenseTransactions()) {
+                String category = tx.getCategory() != null ? tx.getCategory() : "Uncategorized";
+                BigDecimal amount = tx.getAmount() != null ? tx.getAmount().abs() : BigDecimal.ZERO;
+                expensesByCategory.merge(category, amount, BigDecimal::add);
+            }
+
+            // Sort by amount descending
+            Map<String, BigDecimal> sortedExpenses = expensesByCategory.entrySet().stream()
+                .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    Map.Entry::getValue,
+                    (e1, e2) -> e1,
+                    LinkedHashMap::new
+                ));
+
+            // ===== INCOME VS EXPENSES =====
+            Map<String, BigDecimal> incomeVsExpenses = new LinkedHashMap<>();
+            incomeVsExpenses.put("Total Rent", financialSummary.getTotalRent());
+            incomeVsExpenses.put("Total Expenses", financialSummary.getTotalExpenses());
+            incomeVsExpenses.put("Commission", financialSummary.getTotalCommission());
+            incomeVsExpenses.put("Net Income", financialSummary.getNetToOwner());
+
+            // Prepare response
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("monthlyTrends", monthlyData);
+            response.put("expensesByCategory", sortedExpenses);
+            response.put("incomeVsExpenses", incomeVsExpenses);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error loading chart data: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error loading chart data: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * DEPRECATED: Old property details implementation - keeping for reference
      */
     @GetMapping("/property-owner/property-details/{id}")
     public String viewPropertyDetailsOld(@PathVariable("id") Long propertyId,
@@ -1374,10 +1484,12 @@ public class PropertyOwnerController {
     /**
      * Property Owner Files - Access to Google Drive file system
      * Now supports both OAuth2 and service account access
+     * Can optionally filter to a specific property when propertyId is provided
      */
     @GetMapping("/property-owner/files")
-    public String fileSystem(Model model, Authentication authentication) {
-        System.out.println("📁 Property Owner Files - Loading...");
+    public String fileSystem(@RequestParam(value = "propertyId", required = false) Long propertyId,
+                            Model model, Authentication authentication) {
+        System.out.println("📁 Property Owner Files - Loading..." + (propertyId != null ? " (Property: " + propertyId + ")" : ""));
 
         try {
             Customer customer = getAuthenticatedPropertyOwner(authentication);
@@ -1390,11 +1502,28 @@ public class PropertyOwnerController {
             // Load customer's files and properties
             model.addAttribute("customer", customer);
             model.addAttribute("customerId", customer.getCustomerId());
-            model.addAttribute("pageTitle", "Document Files");
 
             // Get customer's properties for file organization
             List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
             model.addAttribute("properties", properties);
+
+            // If propertyId is provided, validate ownership and set for auto-opening
+            if (propertyId != null) {
+                boolean ownsProperty = properties.stream()
+                    .anyMatch(p -> p.getId().equals(propertyId));
+
+                if (ownsProperty) {
+                    model.addAttribute("selectedPropertyId", propertyId);
+                    Property selectedProperty = propertyService.findById(propertyId);
+                    model.addAttribute("pageTitle", "Documents - " + selectedProperty.getPropertyName());
+                    System.out.println("📁 Auto-opening documents for property: " + propertyId);
+                } else {
+                    System.out.println("⚠️ Customer does not own property: " + propertyId);
+                    model.addAttribute("pageTitle", "Document Files");
+                }
+            } else {
+                model.addAttribute("pageTitle", "Document Files");
+            }
 
             // Check if service account is available for shared drive access
             boolean hasServiceAccount = serviceAccountAvailable();

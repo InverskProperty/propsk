@@ -923,6 +923,26 @@
             if (typeof hasServiceAccount !== 'undefined' && hasServiceAccount) {
                 console.log('Service account available for shared drive');
             }
+
+            // Auto-open property documents if propertyId is provided
+            const selectedPropertyId = '[[${selectedPropertyId}]]';
+            if (selectedPropertyId && selectedPropertyId !== '') {
+                console.log('Auto-opening property documents for property:', selectedPropertyId);
+
+                // Find the property name from the properties list
+                const properties = [[${properties}]];
+                const property = properties.find(p => p.id.toString() === selectedPropertyId);
+
+                if (property) {
+                    // Automatically open the property documents
+                    setTimeout(() => {
+                        browseFolder('property-documents');
+                        setTimeout(() => {
+                            openProperty(parseInt(selectedPropertyId), property.propertyName || property.fullAddress);
+                        }, 500);
+                    }, 300);
+                }
+            }
         });
     </script>
 </body>
