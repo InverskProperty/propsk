@@ -413,135 +413,191 @@
                         <div class="card mt-3">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5>Property Valuation</h5>
-                                <button class="btn btn-sm btn-outline-primary" onclick="toggleValuationEdit()">
-                                    <i class="fas fa-edit"></i> Edit
+                                <button id="valuationEditBtn" class="btn btn-sm btn-outline-primary" onclick="toggleValuationEdit()">
+                                    <i class="fas fa-edit"></i> <span id="editBtnText">Edit</span>
                                 </button>
                             </div>
                             <div class="card-body">
                                 <!-- View Mode -->
                                 <div id="valuationView">
-                                    <div class="row">
-                                        <div class="col-12">
-                                            <h6 class="text-success">Purchase Information</h6>
-                                            <table class="table table-sm">
-                                                <tr>
-                                                    <td><strong>Purchase Price:</strong></td>
-                                                    <td>£<span th:text="${property.purchasePrice ?: 'Not set'}">0</span></td>
-                                                </tr>
-                                                <tr>
-                                                    <td><strong>Purchase Costs:</strong></td>
-                                                    <td>£<span th:text="${property.purchaserCosts ?: 'Not set'}">0</span></td>
-                                                </tr>
-                                                <tr>
-                                                    <td><strong>Total Investment:</strong></td>
-                                                    <td><strong>£<span th:text="${property.totalAcquisitionCost ?: 'Not set'}">0</span></strong></td>
-                                                </tr>
-                                                <tr th:if="${property.purchaseDate}">
-                                                    <td><strong>Purchase Date:</strong></td>
-                                                    <td th:text="${#temporals.format(property.purchaseDate, 'dd/MM/yyyy')}">01/01/2024</td>
-                                                </tr>
-                                            </table>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="row mt-3">
-                                        <div class="col-12">
-                                            <h6 class="text-primary">Current Valuation</h6>
-                                            <table class="table table-sm">
-                                                <tr>
-                                                    <td><strong>Estimated Value:</strong></td>
-                                                    <td>£<span th:text="${property.estimatedCurrentValue ?: 'Not set'}">0</span></td>
-                                                </tr>
-                                                <tr th:if="${property.lastValuationDate}">
-                                                    <td><strong>Last Updated:</strong></td>
-                                                    <td th:text="${#temporals.format(property.lastValuationDate, 'dd/MM/yyyy')}">01/01/2024</td>
-                                                </tr>
-                                                <tr th:if="${property.estimatedCapitalGain != null}">
-                                                    <td><strong>Capital Gain:</strong></td>
-                                                    <td>
-                                                        <span th:class="${property.estimatedCapitalGain != null && property.estimatedCapitalGain.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'"
-                                                              th:text="'£' + ${property.estimatedCapitalGain ?: 0}">£0</span>
-                                                        <span th:if="${property.estimatedCapitalGainPercentage != null}"
-                                                              th:text="'(' + ${property.estimatedCapitalGainPercentage} + '%)'">
-                                                            (0%)
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                                <tr th:if="${property.annualRentalYield != null}">
-                                                    <td><strong>Rental Yield:</strong></td>
-                                                    <td><span class="text-success" th:text="${property.annualRentalYield} + '%'">0%</span></td>
-                                                </tr>
-                                            </table>
-                                        </div>
-                                    </div>
-                                    
-                                    <div th:if="${property.purchasePrice == null and property.estimatedCurrentValue == null}" class="text-center py-3">
-                                        <i class="fas fa-chart-line fa-2x text-muted mb-2"></i>
-                                        <p class="text-muted">Add your purchase and valuation details to track ROI</p>
-                                        <button class="btn btn-primary btn-sm" onclick="toggleValuationEdit()">
-                                            Add Valuation Data
+                                    <!-- Show empty state if no data -->
+                                    <div th:if="${property.purchasePrice == null and property.estimatedCurrentValue == null}" class="text-center py-4">
+                                        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                                        <h6 class="text-muted">No Valuation Data</h6>
+                                        <p class="text-muted mb-3">Add your purchase and valuation details to track ROI, capital gains, and rental yield</p>
+                                        <button class="btn btn-primary" onclick="toggleValuationEdit()">
+                                            <i class="fas fa-plus"></i> Add Valuation Data
                                         </button>
+                                    </div>
+
+                                    <!-- Show data tables if any data exists -->
+                                    <div th:if="${property.purchasePrice != null or property.estimatedCurrentValue != null}">
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <h6 class="text-success">Purchase Information</h6>
+                                                <table class="table table-sm">
+                                                    <tr>
+                                                        <td><strong>Purchase Price:</strong></td>
+                                                        <td>
+                                                            <span th:if="${property.purchasePrice != null}">£<span th:text="${#numbers.formatDecimal(property.purchasePrice, 1, 2)}">0.00</span></span>
+                                                            <span th:if="${property.purchasePrice == null}" class="text-muted">Not set</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Purchase Costs:</strong></td>
+                                                        <td>
+                                                            <span th:if="${property.purchaserCosts != null}">£<span th:text="${#numbers.formatDecimal(property.purchaserCosts, 1, 2)}">0.00</span></span>
+                                                            <span th:if="${property.purchaserCosts == null}" class="text-muted">Not set</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.purchasePrice != null}">
+                                                        <td><strong>Total Investment:</strong></td>
+                                                        <td><strong>£<span th:text="${#numbers.formatDecimal(property.totalAcquisitionCost, 1, 2)}">0.00</span></strong></td>
+                                                    </tr>
+                                                    <tr th:if="${property.purchaseDate != null}">
+                                                        <td><strong>Purchase Date:</strong></td>
+                                                        <td th:text="${#temporals.format(property.purchaseDate, 'dd/MM/yyyy')}">01/01/2024</td>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        <div class="row mt-3">
+                                            <div class="col-12">
+                                                <h6 class="text-primary">Current Valuation</h6>
+                                                <table class="table table-sm">
+                                                    <tr>
+                                                        <td><strong>Estimated Value:</strong></td>
+                                                        <td>
+                                                            <span th:if="${property.estimatedCurrentValue != null}">£<span th:text="${#numbers.formatDecimal(property.estimatedCurrentValue, 1, 2)}">0.00</span></span>
+                                                            <span th:if="${property.estimatedCurrentValue == null}" class="text-muted">Not set</span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.lastValuationDate != null}">
+                                                        <td><strong>Last Updated:</strong></td>
+                                                        <td th:text="${#temporals.format(property.lastValuationDate, 'dd/MM/yyyy')}">01/01/2024</td>
+                                                    </tr>
+                                                    <tr th:if="${property.purchasePrice != null and property.estimatedCurrentValue != null}">
+                                                        <td><strong>Capital Gain:</strong></td>
+                                                        <td>
+                                                            <span th:class="${property.estimatedCapitalGain.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'">
+                                                                <strong>£<span th:text="${#numbers.formatDecimal(property.estimatedCapitalGain, 1, 2)}">0.00</span></strong>
+                                                            </span>
+                                                            <span class="ms-2" th:class="${property.estimatedCapitalGain.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'"
+                                                                  th:text="'(' + ${#numbers.formatDecimal(property.estimatedCapitalGainPercentage, 1, 2)} + '%)'">
+                                                                (0%)
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                    <tr th:if="${property.purchasePrice != null and property.monthlyPayment != null}">
+                                                        <td><strong>Rental Yield:</strong></td>
+                                                        <td>
+                                                            <span class="text-success">
+                                                                <strong><span th:text="${#numbers.formatDecimal(property.annualRentalYield, 1, 2)}">0.00</span>%</strong>
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Edit Mode -->
                                 <div id="valuationEdit" style="display: none;">
+                                    <div class="alert alert-info mb-3">
+                                        <i class="fas fa-info-circle"></i>
+                                        <strong>Track Your Property Investment</strong><br>
+                                        <small>Enter your purchase details and current valuation to automatically calculate:
+                                            <ul class="mb-0 mt-1">
+                                                <li>Total Investment (Purchase Price + Costs)</li>
+                                                <li>Capital Gain/Loss</li>
+                                                <li>Annual Rental Yield</li>
+                                            </ul>
+                                        </small>
+                                    </div>
                                     <form id="valuationForm" th:action="@{'/property-owner/property/' + ${property.id} + '/valuation'}" method="post">
                                         <h6 class="text-success mb-3">Purchase Information</h6>
                                         <div class="row">
                                             <div class="col-md-6">
                                                 <div class="form-group mb-3">
-                                                    <label for="purchasePrice">Purchase Price (£) *</label>
-                                                    <input type="number" step="0.01" class="form-control" id="purchasePrice" 
-                                                           name="purchasePrice" th:value="${property.purchasePrice}" 
-                                                           placeholder="Enter purchase price">
+                                                    <label for="purchasePrice">
+                                                        Purchase Price (£)
+                                                        <span class="text-danger">*</span>
+                                                        <i class="fas fa-question-circle text-muted" title="The amount you paid to purchase this property"></i>
+                                                    </label>
+                                                    <input type="number" step="0.01" min="0" class="form-control" id="purchasePrice"
+                                                           name="purchasePrice" th:value="${property.purchasePrice}"
+                                                           placeholder="e.g., 250000.00">
                                                 </div>
                                             </div>
                                             <div class="col-md-6">
                                                 <div class="form-group mb-3">
-                                                    <label for="purchaseDate">Purchase Date</label>
-                                                    <input type="date" class="form-control" id="purchaseDate" 
+                                                    <label for="purchaseDate">
+                                                        Purchase Date
+                                                        <i class="fas fa-question-circle text-muted" title="When you completed the purchase"></i>
+                                                    </label>
+                                                    <input type="date" class="form-control" id="purchaseDate"
                                                            name="purchaseDate" th:value="${property.purchaseDate}">
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div class="form-group mb-3">
-                                            <label for="purchaserCosts">Purchase Costs (£)</label>
-                                            <input type="number" step="0.01" class="form-control" id="purchaserCosts" 
-                                                   name="purchaserCosts" th:value="${property.purchaserCosts}" 
-                                                   placeholder="Legal fees, solicitor fees, agent commission, etc.">
+                                            <label for="purchaserCosts">
+                                                Additional Purchase Costs (£)
+                                                <i class="fas fa-question-circle text-muted" title="Legal fees, stamp duty, surveys, etc."></i>
+                                            </label>
+                                            <input type="number" step="0.01" min="0" class="form-control" id="purchaserCosts"
+                                                   name="purchaserCosts" th:value="${property.purchaserCosts}"
+                                                   placeholder="e.g., 15000.00">
                                             <small class="form-text text-muted">
-                                                Include legal fees, solicitor fees, stamp duty, survey costs, agent commission
+                                                <i class="fas fa-lightbulb"></i> Include: Legal fees, solicitor fees, stamp duty, survey costs, agent commission, renovation costs
                                             </small>
                                         </div>
 
-                                        <hr>
-                                        <h6 class="text-primary mb-3">Current Valuation</h6>
+                                        <hr class="my-4">
+                                        <h6 class="text-primary mb-3">
+                                            <i class="fas fa-chart-line"></i> Current Valuation
+                                        </h6>
                                         <div class="row">
                                             <div class="col-md-6">
                                                 <div class="form-group mb-3">
-                                                    <label for="estimatedCurrentValue">Current Estimated Value (£)</label>
-                                                    <input type="number" step="0.01" class="form-control" id="estimatedCurrentValue" 
-                                                           name="estimatedCurrentValue" th:value="${property.estimatedCurrentValue}" 
-                                                           placeholder="Enter current market value">
+                                                    <label for="estimatedCurrentValue">
+                                                        Current Estimated Value (£)
+                                                        <i class="fas fa-question-circle text-muted" title="Current market value of the property"></i>
+                                                    </label>
+                                                    <input type="number" step="0.01" min="0" class="form-control" id="estimatedCurrentValue"
+                                                           name="estimatedCurrentValue" th:value="${property.estimatedCurrentValue}"
+                                                           placeholder="e.g., 285000.00">
+                                                    <small class="form-text text-muted">
+                                                        Based on recent valuations or market comparables
+                                                    </small>
                                                 </div>
                                             </div>
                                             <div class="col-md-6">
                                                 <div class="form-group mb-3">
-                                                    <label for="lastValuationDate">Valuation Date</label>
-                                                    <input type="date" class="form-control" id="lastValuationDate" 
+                                                    <label for="lastValuationDate">
+                                                        Valuation Date
+                                                        <i class="fas fa-question-circle text-muted" title="When this valuation was done"></i>
+                                                    </label>
+                                                    <input type="date" class="form-control" id="lastValuationDate"
                                                            name="lastValuationDate" th:value="${property.lastValuationDate}">
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div class="text-end">
-                                            <button type="button" class="btn btn-secondary me-2" onclick="toggleValuationEdit()">
-                                                Cancel
+                                        <div class="alert alert-warning mt-3">
+                                            <i class="fas fa-info-circle"></i>
+                                            <small><strong>Note:</strong> At least Purchase Price or Current Estimated Value must be entered to save.</small>
+                                        </div>
+
+                                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                                            <button type="button" class="btn btn-outline-secondary" onclick="toggleValuationEdit()">
+                                                <i class="fas fa-times"></i> Cancel
                                             </button>
-                                            <button type="submit" class="btn btn-primary">
-                                                <i class="fas fa-save"></i> Save Valuation
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="fas fa-save"></i> Save Valuation Data
                                             </button>
                                         </div>
                                     </form>
@@ -575,15 +631,21 @@
         function toggleValuationEdit() {
             const viewMode = document.getElementById('valuationView');
             const editMode = document.getElementById('valuationEdit');
-            
+            const editBtn = document.getElementById('valuationEditBtn');
+            const editBtnText = document.getElementById('editBtnText');
+
             if (viewMode.style.display === 'none') {
                 // Switch to view mode
                 viewMode.style.display = 'block';
                 editMode.style.display = 'none';
+                editBtn.className = 'btn btn-sm btn-outline-primary';
+                editBtnText.innerHTML = 'Edit';
             } else {
                 // Switch to edit mode
                 viewMode.style.display = 'none';
                 editMode.style.display = 'block';
+                editBtn.className = 'btn btn-sm btn-outline-secondary';
+                editBtnText.innerHTML = 'Cancel';
             }
         }
         
@@ -593,25 +655,47 @@
             if (form) {
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
-                    
+
+                    // Validate that at least one field is filled
+                    const purchasePrice = document.getElementById('purchasePrice').value;
+                    const estimatedCurrentValue = document.getElementById('estimatedCurrentValue').value;
+
+                    if (!purchasePrice && !estimatedCurrentValue) {
+                        alert('Please enter at least the Purchase Price or Current Estimated Value to save valuation data.');
+                        return;
+                    }
+
+                    // Disable submit button to prevent double submission
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    const originalBtnText = submitBtn.innerHTML;
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
                     const formData = new FormData(form);
-                    
+
                     fetch(form.action, {
                         method: 'POST',
                         body: formData
                     })
-                    .then(response => {
-                        if (response.ok) {
-                            // Show success message and reload page
-                            alert('Valuation data saved successfully!');
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Show success message
+                            alert('✅ Valuation data saved successfully!\n\nCalculated values:\n' +
+                                  '• Total Investment: £' + data.totalAcquisitionCost + '\n' +
+                                  '• Capital Gain: £' + data.estimatedCapitalGain + ' (' + data.estimatedCapitalGainPercentage + '%)\n' +
+                                  '• Rental Yield: ' + data.annualRentalYield + '%');
                             window.location.reload();
                         } else {
-                            alert('Error saving valuation data. Please try again.');
+                            throw new Error(data.error || 'Failed to save valuation data');
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
-                        alert('Error saving valuation data. Please try again.');
+                        alert('❌ Error saving valuation data: ' + error.message + '\n\nPlease try again.');
+                        // Re-enable button
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
                     });
                 });
             }
