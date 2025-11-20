@@ -6,25 +6,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Document Files - Property Owner Portal</title>
     <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+
+    <!-- Bootstrap Core CSS -->
     <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
-    <link th:href="@{/css/icons.css}" rel="stylesheet">
-    <link th:href="@{/css/style.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
+
+    <!-- jQuery - Load in head for functionality -->
+    <script th:src="@{/js/jquery-3.6.0.min.js}"></script>
 </head>
-<body>
-    <div class="main-wrapper">
-        <div class="page-wrapper">
-            <div class="content container-fluid">
-                <div class="page-header">
-                    <div class="row">
-                        <div class="col">
-                            <h3 class="page-title">Document Files</h3>
-                            <ul class="breadcrumb">
-                                <li class="breadcrumb-item"><a th:href="@{/property-owner/dashboard}">Dashboard</a></li>
-                                <li class="breadcrumb-item active">Files</li>
-                            </ul>
-                        </div>
-                    </div>
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-8 align-self-center">
+                    <h3 class="text-themecolor">
+                        <i class="fas fa-folder text-primary"></i>
+                        Document Files
+                    </h3>
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a th:href="@{/property-owner/dashboard}">Dashboard</a></li>
+                        <li class="breadcrumb-item active">Files</li>
+                    </ol>
                 </div>
+            </div>
 
                 <div class="row" th:if="${error}">
                     <div class="col-12">
@@ -45,112 +64,72 @@
                                 <div class="alert alert-info">
                                     <i class="fas fa-info-circle"></i>
                                     <strong>Document Management System</strong><br>
-                                    Your documents are securely stored and organized by property. 
-                                    You can upload files, generate statements, and sync with PayProp.
+                                    Your documents are securely stored and organized by property in Google Drive.
+                                    Access property-specific folders, tenant documents, and generate financial statements.
                                 </div>
 
                                 <div class="row">
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <div class="card bg-primary text-white">
                                             <div class="card-body text-center">
-                                                <i class="fas fa-cloud-upload-alt fa-2x mb-2"></i>
-                                                <h5>Upload Files</h5>
-                                                <p>Upload property documents and files</p>
-                                                <button class="btn btn-light btn-sm" onclick="uploadFiles()">
-                                                    Upload Files
+                                                <i class="fas fa-folder-open fa-2x mb-2"></i>
+                                                <h5>Browse Property Documents</h5>
+                                                <p>View and manage documents organized by property</p>
+                                                <button class="btn btn-light btn-sm" onclick="browseFolder('property-documents')">
+                                                    <i class="fas fa-folder"></i> Browse Documents
                                                 </button>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6">
                                         <div class="card bg-success text-white">
                                             <div class="card-body text-center">
                                                 <i class="fas fa-file-invoice fa-2x mb-2"></i>
                                                 <h5>Generate Statements</h5>
-                                                <p>Create property and tenant statements</p>
+                                                <p>Create property and tenant financial statements</p>
                                                 <a th:href="@{/property-owner/statements}" class="btn btn-light btn-sm">
-                                                    Generate Statements
+                                                    <i class="fas fa-file-alt"></i> Generate Statements
                                                 </a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="card bg-info text-white">
-                                            <div class="card-body text-center">
-                                                <i class="fas fa-sync fa-2x mb-2"></i>
-                                                <h5>PayProp Sync</h5>
-                                                <p>Sync documents with PayProp system</p>
-                                                <button class="btn btn-light btn-sm" onclick="syncPayProp()">
-                                                    Sync PayProp
-                                                </button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div class="mt-4">
-                                    <h5>Your Document Folders</h5>
+                                    <h5>Document Categories</h5>
+                                    <p class="text-muted">Browse and manage your documents organized by category</p>
                                     <div class="list-group">
                                         <div class="list-group-item">
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
-                                                    <i class="fas fa-folder text-warning me-2"></i>
+                                                    <i class="fas fa-folder text-warning mr-2"></i>
                                                     <strong>Property Documents</strong>
                                                     <br>
-                                                    <small class="text-muted">EICR, EPC, Insurance, and property-specific files</small>
+                                                    <small class="text-muted">Organized by property: EICR, EPC, Insurance, Misc folders + Tenant lease documents</small>
                                                 </div>
-                                                <button class="btn btn-outline-primary btn-sm" onclick="browseFolder('property-documents')">Browse</button>
-                                            </div>
-                                        </div>
-                                        <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <i class="fas fa-folder text-warning me-2"></i>
-                                                    <strong>Tenant Documents</strong>
-                                                    <br>
-                                                    <small class="text-muted">Tenant applications, references, and agreements</small>
-                                                </div>
-                                                <button class="btn btn-outline-primary btn-sm" onclick="browseFolder('tenant-documents')">Browse</button>
-                                            </div>
-                                        </div>
-                                        <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <i class="fas fa-folder text-warning me-2"></i>
-                                                    <strong>Financial Statements</strong>
-                                                    <br>
-                                                    <small class="text-muted">Generated statements and financial reports</small>
-                                                </div>
-                                                <button class="btn btn-outline-primary btn-sm" onclick="browseFolder('financial-statements')">Browse</button>
-                                            </div>
-                                        </div>
-                                        <div class="list-group-item">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <i class="fas fa-folder text-warning me-2"></i>
-                                                    <strong>Maintenance Records</strong>
-                                                    <br>
-                                                    <small class="text-muted">Maintenance requests, invoices, and work orders</small>
-                                                </div>
-                                                <button class="btn btn-outline-primary btn-sm" onclick="browseFolder('maintenance-records')">Browse</button>
+                                                <button class="btn btn-outline-primary btn-sm" onclick="browseFolder('property-documents')">
+                                                    <i class="fas fa-folder-open"></i> Browse
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
 
                                     <!-- File Browser Modal -->
-                                    <div class="modal fade" id="fileBrowserModal" tabindex="-1" aria-labelledby="fileBrowserModalLabel" aria-hidden="true">
-                                        <div class="modal-dialog modal-lg">
+                                    <div class="modal fade" id="fileBrowserModal" tabindex="-1" role="dialog" aria-labelledby="fileBrowserModalLabel" aria-hidden="true">
+                                        <div class="modal-dialog modal-lg" role="document">
                                             <div class="modal-content">
                                                 <div class="modal-header">
                                                     <h5 class="modal-title" id="fileBrowserModalLabel">Browse Files</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                        <span aria-hidden="true">&times;</span>
+                                                    </button>
                                                 </div>
                                                 <div class="modal-body">
                                                     <div class="d-flex justify-content-between align-items-center mb-3">
                                                         <button type="button" class="btn btn-outline-secondary btn-sm" id="backButton" onclick="navigateBack()" style="display: none;">
                                                             <i class="fas fa-arrow-left"></i> Back
                                                         </button>
-                                                        <nav aria-label="breadcrumb" class="flex-grow-1 ms-2">
+                                                        <nav aria-label="breadcrumb" class="flex-grow-1 ml-2">
                                                             <ol class="breadcrumb mb-0" id="breadcrumbList">
                                                                 <li class="breadcrumb-item active">Documents</li>
                                                             </ol>
@@ -159,7 +138,9 @@
 
                                                     <div id="fileListContainer">
                                                         <div class="text-center">
-                                                            <div class="spinner-border" role="status" aria-hidden="true"></div>
+                                                            <div class="spinner-border" role="status">
+                                                                <span class="sr-only">Loading...</span>
+                                                            </div>
                                                             <p>Loading files...</p>
                                                         </div>
                                                     </div>
@@ -168,7 +149,7 @@
                                                     <button type="button" class="btn btn-success" onclick="uploadFiles()">
                                                         <i class="fas fa-upload"></i> Upload Files
                                                     </button>
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -178,13 +159,19 @@
                         </div>
                     </div>
                 </div>
-            </div>
         </div>
     </div>
+</div>
 
-    <script th:src="@{/js/jquery-3.6.0.min.js}"></script>
-    <script th:src="@{/js/bootstrap.bundle.min.js}"></script>
-    <script th:src="@{/js/app.js}"></script>
+<!-- Scripts -->
+<!-- jQuery already loaded in head -->
+<script th:src="@{/js/library/popper.min.js}"></script>
+<script th:src="@{/js/library/bootstrap.min.js}"></script>
+<script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+<script th:src="@{/js/library/waves.js}"></script>
+<script th:src="@{/js/library/sidebarmenu.js}"></script>
+<script th:src="@{/js/library/sticky-kit.min.js}"></script>
+<script th:src="@{/js/library/custom.min.js}"></script>
     
     <script>
         // Navigation state
@@ -269,9 +256,8 @@
                 uploadButton.style.display = 'inline-block';
             }
 
-            // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('fileBrowserModal'));
-            modal.show();
+            // Show modal (Bootstrap 4 jQuery API)
+            $('#fileBrowserModal').modal('show');
 
             // Load files
             loadFiles(folderType);
@@ -876,10 +862,6 @@
 
             // Trigger file selection
             fileInput.click();
-        }
-
-        function syncPayProp() {
-            alert('PayProp sync functionality will be implemented here.\nThis will sync your documents with the PayProp property management system.');
         }
 
         function formatFolderName(folderType) {
