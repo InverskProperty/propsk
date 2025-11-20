@@ -53,6 +53,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
@@ -1037,9 +1038,9 @@ public class PropertyOwnerController {
                         BigDecimal amount = tx.getAmount() != null ? tx.getAmount() : BigDecimal.ZERO;
 
                         if ("RENT".equalsIgnoreCase(tx.getCategory()) ||
-                            "RENTAL_INCOME".equalsIgnoreCase(tx.getType())) {
+                            "RENTAL_INCOME".equalsIgnoreCase(tx.getTransactionType())) {
                             monthValues.put("rent", monthValues.get("rent").add(amount.abs()));
-                        } else if ("EXPENSE".equalsIgnoreCase(tx.getType())) {
+                        } else if ("EXPENSE".equalsIgnoreCase(tx.getTransactionType())) {
                             monthValues.put("expenses", monthValues.get("expenses").add(amount.abs()));
                         }
                     }
