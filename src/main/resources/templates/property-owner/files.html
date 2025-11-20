@@ -243,6 +243,20 @@
 
         function browseFolder(folderType) {
             console.log('📂 browseFolder called with:', folderType);
+
+            // Verify jQuery and Bootstrap are loaded
+            if (typeof $ === 'undefined') {
+                alert('Error: jQuery is not loaded. Please refresh the page and try again.');
+                console.error('jQuery is not defined');
+                return;
+            }
+
+            if (typeof $.fn.modal === 'undefined') {
+                alert('Error: Bootstrap modal is not loaded. Please refresh the page and try again.');
+                console.error('Bootstrap modal is not defined');
+                return;
+            }
+
             currentFolderType = folderType;
 
             // Update modal title
@@ -252,15 +266,23 @@
 
             // Update modal footer upload button visibility
             const uploadButton = document.querySelector('.modal-footer .btn-success');
-            if (folderType === 'property-documents') {
-                uploadButton.style.display = 'none';
-            } else {
-                uploadButton.style.display = 'inline-block';
+            if (uploadButton) {
+                if (folderType === 'property-documents') {
+                    uploadButton.style.display = 'none';
+                } else {
+                    uploadButton.style.display = 'inline-block';
+                }
             }
 
             // Show modal (Bootstrap 4 jQuery API)
             console.log('📂 Opening modal...');
-            $('#fileBrowserModal').modal('show');
+            try {
+                $('#fileBrowserModal').modal('show');
+            } catch (error) {
+                console.error('Error opening modal:', error);
+                alert('Error opening file browser. Please refresh the page and try again.');
+                return;
+            }
 
             // Load files
             console.log('📂 Calling loadFiles...');
@@ -918,12 +940,27 @@
 
         // Initialize folder structure if needed
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM Content Loaded');
+            console.log('jQuery loaded:', typeof $ !== 'undefined');
+            console.log('Bootstrap modal loaded:', typeof $.fn !== 'undefined' && typeof $.fn.modal !== 'undefined');
+
+            // Verify modal element exists
+            const modalElement = document.getElementById('fileBrowserModal');
+            if (!modalElement) {
+                console.error('File browser modal element not found in DOM');
+            } else {
+                console.log('File browser modal element found');
+            }
+
             // Check if shared drive is available and initialize if needed
             if (typeof hasServiceAccount !== 'undefined' && hasServiceAccount) {
                 console.log('Service account available for shared drive');
             }
 
             // Auto-open property documents if propertyId is provided
+            // This feature is currently disabled to prevent JavaScript syntax errors
+            // TODO: Re-enable with proper JSON serialization if needed
+            /*
             const selectedPropertyId = '[[${selectedPropertyId}]]';
             if (selectedPropertyId && selectedPropertyId !== '') {
                 console.log('Auto-opening property documents for property:', selectedPropertyId);
@@ -937,11 +974,12 @@
                     setTimeout(() => {
                         browseFolder('property-documents');
                         setTimeout(() => {
-                            openProperty(parseInt(selectedPropertyId), property.propertyName || property.fullAddress);
+                            openPropertyFolder(parseInt(selectedPropertyId), property.propertyName || property.fullAddress);
                         }, 500);
                     }, 300);
                 }
             }
+            */
         });
     </script>
 </body>
