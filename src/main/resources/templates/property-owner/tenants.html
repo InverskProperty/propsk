@@ -226,15 +226,15 @@
                     
                     <!-- Tenant Cards - NEW: Using tenantAssignments for enhanced display -->
                     <div th:if="${tenantAssignments != null and !#lists.isEmpty(tenantAssignments)}" class="row">
-                        <div th:each="assignment : ${tenantAssignments}" class="col-lg-6 col-xl-4 mb-4">
+                        <div th:each="assignment : ${tenantAssignments}" th:if="${assignment.customer != null}" class="col-lg-6 col-xl-4 mb-4">
                             <div class="card tenant-card">
                                 <div class="card-body">
                                     <!-- Tenant Header -->
                                     <div class="d-flex align-items-center mb-3">
-                                        <div class="tenant-avatar" th:text="${#strings.substring((assignment.customer.fullName ?: 'T'), 0, 1)}">T</div>
+                                        <div class="tenant-avatar" th:text="${assignment.customer != null ? #strings.substring((assignment.customer.fullName ?: 'T'), 0, 1) : 'T'}">T</div>
                                         <div class="ml-3 flex-grow-1">
-                                            <h5 class="mb-0" th:text="${assignment.customer.fullName ?: 'Tenant Name'}">Tenant Name</h5>
-                                            <p class="text-muted mb-0 small" th:text="${assignment.customer.email ?: 'No email provided'}">Email</p>
+                                            <h5 class="mb-0" th:text="${assignment.customer != null ? (assignment.customer.fullName ?: 'Tenant Name') : 'Tenant Name'}">Tenant Name</h5>
+                                            <p class="text-muted mb-0 small" th:text="${assignment.customer != null ? (assignment.customer.email ?: 'No email provided') : 'No email provided'}">Email</p>
                                             <!-- NEW: Dynamic tenancy status based on dates -->
                                             <small th:with="today=${T(java.time.LocalDate).now()},
                                                            isActive=${assignment.endDate == null or assignment.endDate.isAfter(today)},
@@ -250,10 +250,10 @@
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-right">
                                                 <a class="dropdown-item" href="#" onclick="showTenantDetails(this)"
-                                                   th:attr="data-tenant-id=${assignment.customer.id},
-                                                           data-tenant-name=${assignment.customer.fullName ?: 'Tenant'},
-                                                           data-tenant-email=${assignment.customer.email ?: 'No email'},
-                                                           data-tenant-phone=${assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')},
+                                                   th:attr="data-tenant-id=${assignment.customer != null ? assignment.customer.customerId : 0},
+                                                           data-tenant-name=${assignment.customer != null ? (assignment.customer.fullName ?: 'Tenant') : 'Tenant'},
+                                                           data-tenant-email=${assignment.customer != null ? (assignment.customer.email ?: 'No email') : 'No email'},
+                                                           data-tenant-phone=${assignment.customer != null ? (assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')) : 'Not provided'},
                                                            data-property=${assignment.property != null ? assignment.property.propertyName : 'Unknown'},
                                                            data-property-id=${assignment.property != null ? assignment.property.id : null},
                                                            data-start-date=${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not set'},
