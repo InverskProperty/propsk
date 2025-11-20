@@ -250,9 +250,12 @@
                                             </button>
                                             <div class="dropdown-menu dropdown-menu-right">
                                                 <a class="dropdown-item" href="#" onclick="showTenantDetails(this)"
-                                                   th:attr="data-tenant-name=${assignment.customer.fullName ?: 'Tenant'},
+                                                   th:attr="data-tenant-id=${assignment.customer.id},
+                                                           data-tenant-name=${assignment.customer.fullName ?: 'Tenant'},
                                                            data-tenant-email=${assignment.customer.email ?: 'No email'},
+                                                           data-tenant-phone=${assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')},
                                                            data-property=${assignment.property != null ? assignment.property.propertyName : 'Unknown'},
+                                                           data-property-id=${assignment.property != null ? assignment.property.id : null},
                                                            data-start-date=${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not set'},
                                                            data-end-date=${assignment.endDate != null ? #temporals.format(assignment.endDate, 'dd/MM/yyyy') : 'Ongoing'}">
                                                     <i class="fas fa-eye"></i> View Details
@@ -353,9 +356,12 @@
                                     <!-- Action Buttons -->
                                     <div class="mt-3">
                                         <button class="btn btn-primary btn-sm" onclick="showTenantDetails(this)"
-                                                th:attr="data-tenant-name=${assignment.customer.fullName ?: 'Tenant'},
+                                                th:attr="data-tenant-id=${assignment.customer.id},
+                                                        data-tenant-name=${assignment.customer.fullName ?: 'Tenant'},
                                                         data-tenant-email=${assignment.customer.email ?: 'No email'},
+                                                        data-tenant-phone=${assignment.customer.phone ?: (assignment.customer.mobileNumber ?: 'Not provided')},
                                                         data-property=${assignment.property != null ? assignment.property.propertyName : 'Unknown'},
+                                                        data-property-id=${assignment.property != null ? assignment.property.id : null},
                                                         data-start-date=${assignment.startDate != null ? #temporals.format(assignment.startDate, 'dd/MM/yyyy') : 'Not set'},
                                                         data-end-date=${assignment.endDate != null ? #temporals.format(assignment.endDate, 'dd/MM/yyyy') : 'Ongoing'}">
                                             <i class="fas fa-eye"></i> View Details
@@ -408,9 +414,6 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="showComingSoon('Full Tenant Management')">
-                    <i class="fas fa-edit"></i> Manage Tenant
-                </button>
             </div>
         </div>
     </div>
@@ -522,9 +525,12 @@ function filterByProperty() {
 }
 
 function showTenantDetails(button) {
+    const tenantId = button.getAttribute('data-tenant-id');
     const tenantName = button.getAttribute('data-tenant-name');
     const tenantEmail = button.getAttribute('data-tenant-email');
+    const tenantPhone = button.getAttribute('data-tenant-phone');
     const property = button.getAttribute('data-property');
+    const propertyId = button.getAttribute('data-property-id');
     const startDate = button.getAttribute('data-start-date');
     const endDate = button.getAttribute('data-end-date');
 
@@ -539,7 +545,7 @@ function showTenantDetails(button) {
                     <p class="text-muted">${tenantEmail || 'No email provided'}</p>
                 </div>
 
-                <!-- NEW: Enhanced Tenancy Information -->
+                <!-- Tenancy Information -->
                 <div class="card mb-3">
                     <div class="card-body">
                         <h6 class="card-subtitle mb-3"><i class="fas fa-home text-primary"></i> Tenancy Details</h6>
@@ -560,6 +566,12 @@ function showTenantDetails(button) {
                                     <strong>${tenantEmail || 'No email provided'}</strong>
                                 </div>
                                 <div class="mb-3">
+                                    <small class="text-muted d-block">Phone</small>
+                                    <strong>${tenantPhone || 'Not provided'}</strong>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="mb-0">
                                     <small class="text-muted d-block">Move-Out Date</small>
                                     <strong>${endDate || 'Ongoing'}</strong>
                                 </div>
@@ -568,34 +580,56 @@ function showTenantDetails(button) {
                     </div>
                 </div>
 
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-check-circle text-success"></i> Available Now</h6>
-                        <ul class="list-unstyled">
-                            <li><i class="fas fa-check text-success"></i> Tenant contact information</li>
-                            <li><i class="fas fa-check text-success"></i> Property assignment details</li>
-                            <li><i class="fas fa-check text-success"></i> Move-in and move-out dates</li>
-                            <li><i class="fas fa-check text-success"></i> Tenancy status tracking</li>
-                            <li><i class="fas fa-check text-success"></i> Tenancy length calculation</li>
-                        </ul>
+                <!-- Quick Actions -->
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-history fa-2x text-primary mb-2"></i>
+                                <h6>Payment History</h6>
+                                <p class="text-muted small">View rent payments over the last 12 months</p>
+                                <button class="btn btn-sm btn-primary" onclick="showRentHistory(this)" data-property-id="${propertyId || ''}">
+                                    <i class="fas fa-chart-line"></i> View Payments
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <h6><i class="fas fa-rocket text-warning"></i> Coming Soon</h6>
-                        <ul class="list-unstyled">
-                            <li><i class="fas fa-clock text-warning"></i> Payment history tracking</li>
-                            <li><i class="fas fa-clock text-warning"></i> Maintenance request management</li>
-                            <li><i class="fas fa-clock text-warning"></i> Document storage</li>
-                            <li><i class="fas fa-clock text-warning"></i> Automated rent reminders</li>
-                            <li><i class="fas fa-clock text-warning"></i> Lease renewal notifications</li>
-                            <li><i class="fas fa-clock text-warning"></i> Communication history</li>
-                        </ul>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-tools fa-2x text-warning mb-2"></i>
+                                <h6>Maintenance Requests</h6>
+                                <p class="text-muted small">View and manage maintenance tickets</p>
+                                <a href="/employee/ticket/manager/all-tickets?search=${encodeURIComponent(tenantEmail || '')}" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-wrench"></i> View Requests
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                </div>
-
-                <div class="alert alert-info mt-3">
-                    <i class="fas fa-lightbulb"></i>
-                    <strong>Enhanced Tenant View!</strong> You can now see move-in dates, move-out dates, and tenancy status for all your tenants.
-                    More features are coming soon to help you streamline your property management workflow.
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-folder fa-2x text-info mb-2"></i>
+                                <h6>Documents</h6>
+                                <p class="text-muted small">Access tenant documents and files</p>
+                                <a href="/customer/files/${tenantId || ''}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-file-alt"></i> View Documents
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-envelope fa-2x text-success mb-2"></i>
+                                <h6>Communication</h6>
+                                <p class="text-muted small">View email history and notes</p>
+                                <a href="/employee/customer/${tenantId || ''}" class="btn btn-sm btn-success">
+                                    <i class="fas fa-comments"></i> View History
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
