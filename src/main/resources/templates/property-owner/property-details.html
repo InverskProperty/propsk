@@ -293,16 +293,16 @@
                         </div>
 
                         <!-- Occupancy Statistics Card (Last 12 Months) -->
-                        <div class="card mt-3">
+                        <div class="card mt-3" th:if="${occupancyStats != null}">
                             <div class="card-header">
                                 <h5><i class="fas fa-chart-bar"></i> Occupancy (Last 12 Months)</h5>
                             </div>
                             <div class="card-body">
                                 <!-- Occupancy Percentage -->
                                 <div class="text-center mb-3">
-                                    <h2 th:class="${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(80)) >= 0} ? 'text-success' :
-                                                   (${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(50)) >= 0} ? 'text-warning' : 'text-danger')"
-                                        th:text="${#numbers.formatDecimal(occupancyPercentage, 1, 1)} + '%'">
+                                    <h2 th:with="percentage=${occupancyPercentage != null ? occupancyPercentage : 0}"
+                                        th:class="${percentage >= 80} ? 'text-success' : (${percentage >= 50} ? 'text-warning' : 'text-danger')"
+                                        th:text="${#numbers.formatDecimal(percentage, 1, 1)} + '%'">
                                         0%
                                     </h2>
                                     <p class="text-muted mb-0">Average Occupancy</p>
@@ -311,12 +311,12 @@
                                 <!-- Progress Bar -->
                                 <div class="progress mb-3" style="height: 25px;">
                                     <div class="progress-bar"
-                                         th:classappend="${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(80)) >= 0} ? 'bg-success' :
-                                                         (${occupancyPercentage.compareTo(T(java.math.BigDecimal).valueOf(50)) >= 0} ? 'bg-warning' : 'bg-danger')"
+                                         th:with="percentage=${occupancyPercentage != null ? occupancyPercentage : 0}"
+                                         th:classappend="${percentage >= 80} ? 'bg-success' : (${percentage >= 50} ? 'bg-warning' : 'bg-danger')"
                                          role="progressbar"
-                                         th:style="'width: ' + ${occupancyPercentage} + '%'"
-                                         th:attr="aria-valuenow=${occupancyPercentage}">
-                                        <span th:text="${#numbers.formatDecimal(occupancyPercentage, 1, 1)} + '%'">0%</span>
+                                         th:style="'width: ' + ${percentage} + '%'"
+                                         th:attr="aria-valuenow=${percentage}">
+                                        <span th:text="${#numbers.formatDecimal(percentage, 1, 1)} + '%'">0%</span>
                                     </div>
                                 </div>
 
@@ -324,12 +324,12 @@
                                 <div class="row text-center">
                                     <div class="col-6">
                                         <div class="border-end">
-                                            <h5 class="text-success mb-0" th:text="${occupiedDays}">0</h5>
+                                            <h5 class="text-success mb-0" th:text="${occupiedDays != null ? occupiedDays : 0}">0</h5>
                                             <small class="text-muted">Days Occupied</small>
                                         </div>
                                     </div>
                                     <div class="col-6">
-                                        <h5 class="text-danger mb-0" th:text="${vacantDays}">0</h5>
+                                        <h5 class="text-danger mb-0" th:text="${vacantDays != null ? vacantDays : 0}">0</h5>
                                         <small class="text-muted">Days Vacant</small>
                                     </div>
                                 </div>
