@@ -6,14 +6,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${pageTitle ?: 'Property Details'}">Property Details - Property Owner Portal</title>
     <link rel="icon" type="image/png" sizes="16x16" th:href="@{/images/favicon.png}">
+
+    <!-- Bootstrap Core CSS -->
     <link th:href="@{/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link th:href="@{/css/style.min.css}" rel="stylesheet">
+    <!-- Icons CSS -->
     <link th:href="@{/css/icons.css}" rel="stylesheet">
-    <link th:href="@{/css/style.css}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link th:href="@{/css/all.css}" rel="stylesheet">
 </head>
 <body>
-    <div class="main-wrapper">
+    <!-- Preloader -->
+    <div class="preloader">
+        <div class="loader">
+            <div class="loader__figure"></div>
+            <p class="loader__label">CRM</p>
+        </div>
+    </div>
+
+    <div id="main-wrapper">
+        <!-- Header -->
+        <div th:replace="~{general/header.html}"></div>
+
+        <!-- Left Sidebar -->
+        <div th:replace="~{general/left-sidebar.html}"></div>
+
+        <!-- Page wrapper -->
         <div class="page-wrapper">
-            <div class="content container-fluid">
+            <div class="container-fluid">
                 <div class="page-header">
                     <div class="row">
                         <div class="col">
@@ -618,14 +639,24 @@
                     </div>
                 </div>
             </div>
+            <!-- End Container fluid -->
         </div>
+        <!-- End Page wrapper -->
     </div>
+    <!-- End Main wrapper -->
 
-    <!-- CDN Scripts for better reliability -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
+    <!-- Bootstrap -->
+    <script th:src="@{/js/library/bootstrap.min.js}"></script>
+    <!-- Perfect Scrollbar -->
+    <script th:src="@{/js/library/perfect-scrollbar.jquery.min.js}"></script>
+    <!-- Sidebar -->
+    <script th:src="@{/js/library/sidebarmenu.js}"></script>
+    <!-- Custom JS -->
+    <script th:src="@{/js/library/custom.min.js}"></script>
+    <!-- Chart.js for Analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script th:src="@{/js/app.js}" onerror="console.log('App.js not found, continuing without it')"></script>
 
     <script>
         function toggleValuationEdit() {
