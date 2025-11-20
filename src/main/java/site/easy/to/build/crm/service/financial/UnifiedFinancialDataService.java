@@ -275,6 +275,11 @@ public class UnifiedFinancialDataService {
         map.put("category", tx.getCategory());
         map.put("type", tx.getTransactionType());
         map.put("amount", tx.getAmount());
+        // Add flags for filtering
+        map.put("isRentPayment", tx.isRentPayment());
+        map.put("isExpense", tx.isExpense());
+        map.put("isOwnerPayment", tx.isOwnerPayment());
+        map.put("isAgencyFee", tx.isAgencyFee());
 
         // NO SOURCE TRANSPARENCY - removed source badges
 

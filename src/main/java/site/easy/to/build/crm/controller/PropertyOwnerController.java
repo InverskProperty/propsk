@@ -1306,39 +1306,29 @@ public class PropertyOwnerController {
             // Get unified financial summary (last 2 years)
             Map<String, Object> financialSummary = unifiedFinancialDataService.getPropertyFinancialSummary(property);
 
-            // FILTER transactions to show ONLY rent payments FROM tenant (not owner payments or commissions)
+            // FILTER transactions to show ONLY INCOMING RENT PAYMENTS (from tenant)
+            // Uses unified_transactions table which includes both HISTORICAL and PAYPROP data
+            // Excludes: owner payments, commission, agency fees, expenses
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> allTransactions = (List<Map<String, Object>>) financialSummary.get("recentTransactions");
             if (allTransactions != null) {
-                List<Map<String, Object>> rentPaymentsOnly = allTransactions.stream()
+                List<Map<String, Object>> incomingPaymentsOnly = allTransactions.stream()
                     .filter(tx -> {
-                        String category = (String) tx.get("category");
-                        String type = (String) tx.get("type");
-                        String description = (String) tx.get("description");
+                        // Use the DTO's business logic methods for accurate filtering
+                        Boolean isRentPayment = (Boolean) tx.get("isRentPayment");
+                        Boolean isExpense = (Boolean) tx.get("isExpense");
+                        Boolean isOwnerPayment = (Boolean) tx.get("isOwnerPayment");
+                        Boolean isAgencyFee = (Boolean) tx.get("isAgencyFee");
 
-                        // Only include RENT PAYMENTS (incoming from tenant)
-                        // EXCLUDE: Owner payments, Commission, expenses
-                        if (category != null) {
-                            String catLower = category.toLowerCase();
-                            if (catLower.contains("owner") || catLower.contains("commission") ||
-                                catLower.contains("agency") || catLower.contains("beneficiary")) {
-                                return false;
-                            }
-                        }
-
-                        if (description != null) {
-                            String descLower = description.toLowerCase();
-                            if (descLower.contains("landlord payment") || descLower.contains("management fee")) {
-                                return false;
-                            }
-                        }
-
-                        // Include rent payments and similar incoming transactions
-                        return true;
+                        // Only include rent payments, exclude everything else
+                        return Boolean.TRUE.equals(isRentPayment) &&
+                               !Boolean.TRUE.equals(isExpense) &&
+                               !Boolean.TRUE.equals(isOwnerPayment) &&
+                               !Boolean.TRUE.equals(isAgencyFee);
                     })
                     .collect(java.util.stream.Collectors.toList());
 
-                financialSummary.put("recentTransactions", rentPaymentsOnly);
+                financialSummary.put("recentTransactions", incomingPaymentsOnly);
             }
 
             // Add property info
