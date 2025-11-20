@@ -470,7 +470,19 @@
                         <span class="hide-menu">Financial Summary</span>
                     </a>
                 </li>
-                
+                <li>
+                    <a th:href="${home + 'property-owner/files'}" class="waves-effect waves-dark">
+                        <i class="fas fa-folder"></i>
+                        <span class="hide-menu">Document Files</span>
+                    </a>
+                </li>
+                <li>
+                    <a th:href="${home + 'property-owner/statements'}" class="waves-effect waves-dark">
+                        <i class="fas fa-file-invoice"></i>
+                        <span class="hide-menu">Statements</span>
+                    </a>
+                </li>
+
                 <!-- Keep rest of customer sidebar unchanged -->
                 <li>
                     <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
