@@ -248,7 +248,7 @@
                                                             <small class="text-muted">
                                                                 <i class="fas fa-calendar-alt"></i>
                                                                 <span th:if="${assignment.customer != null}">
-                                                                    <strong th:text="${assignment.customer.name}">Tenant Name</strong> -
+                                                                    <strong th:text="${assignment.customer.fullName}">Tenant Name</strong> -
                                                                 </span>
                                                                 Since: <span th:text="${#temporals.format(assignment.startDate, 'dd MMM yyyy')}">Date</span>
                                                                 <span th:if="${assignment.endDate != null}">
