@@ -428,7 +428,16 @@
                 
                 // Create FormData object to handle file uploads
                 const formData = new FormData(this);
-                
+
+                // DEBUG: Log FormData contents
+                console.log('=== CSRF DEBUG: FormData contents ===');
+                for (let [key, value] of formData.entries()) {
+                    if (key === 'csrf') {
+                        console.log('✓ CSRF token found:', value ? 'YES (length: ' + value.length + ')' : 'NO');
+                    }
+                    console.log(key + ':', value instanceof File ? 'FILE: ' + value.name : value);
+                }
+
                 $.ajax({
                     url: '/property-owner/maintenance/create',
                     method: 'POST',

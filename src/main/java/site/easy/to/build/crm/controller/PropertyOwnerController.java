@@ -4007,8 +4007,12 @@ public class PropertyOwnerController {
             @RequestParam(value = "accessRequired", required = false) Boolean accessRequired,
             @RequestParam(value = "tenantPresentRequired", required = false) Boolean tenantPresentRequired,
             @RequestParam(value = "preferredTimeSlot", required = false) String preferredTimeSlot,
-            Authentication authentication) {
+            Authentication authentication,
+            jakarta.servlet.http.HttpServletRequest request) {
 
+        System.out.println("🎯 CSRF DEBUG: POST /property-owner/maintenance/create REACHED!");
+        System.out.println("🎯 CSRF token from request: " + request.getParameter("csrf"));
+        System.out.println("🎯 All request parameters: " + java.util.Collections.list(request.getParameterNames()));
         System.out.println("🔧 Creating new maintenance request for property: " + propertyId);
 
         try {

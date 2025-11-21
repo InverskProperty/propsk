@@ -160,6 +160,17 @@ public class SecurityConfig {
         // Add debug logging for security decisions
         http.addFilterBefore((request, response, chain) -> {
             jakarta.servlet.http.HttpServletRequest httpRequest = (jakarta.servlet.http.HttpServletRequest) request;
+
+            // Debug maintenance request CSRF
+            if (httpRequest.getRequestURI().contains("/property-owner/maintenance/create")) {
+                System.out.println("🎯 CSRF PRE-FILTER DEBUG: " + httpRequest.getMethod() + " " + httpRequest.getRequestURI());
+                System.out.println("🎯 CSRF parameter 'csrf': " + httpRequest.getParameter("csrf"));
+                System.out.println("🎯 CSRF parameter '_csrf': " + httpRequest.getParameter("_csrf"));
+                System.out.println("🎯 Content-Type: " + httpRequest.getContentType());
+                System.out.println("🎯 User Principal: " + httpRequest.getUserPrincipal());
+                System.out.println("🎯 All parameter names: " + java.util.Collections.list(httpRequest.getParameterNames()));
+            }
+
             if (httpRequest.getRequestURI().contains("/employee/transaction")) {
                 System.out.println("🔍 SECURITY DEBUG: " + httpRequest.getMethod() + " " + httpRequest.getRequestURI());
                 System.out.println("🔍 User Principal: " + httpRequest.getUserPrincipal());
