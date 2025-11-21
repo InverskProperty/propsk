@@ -16,9 +16,11 @@ import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.service.statements.StatementTransactionConverter;
 import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
 import site.easy.to.build.crm.entity.CustomerLoginInfo;
+import site.easy.to.build.crm.util.EmailTokenUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -347,6 +349,71 @@ public class TestCategorizationController {
         } catch (Exception e) {
             result.put("status", "ERROR");
             result.put("error", e.getMessage());
+        }
+
+        return result;
+    }
+
+    @GetMapping("/api/test/create-uday-login")
+    public Map<String, Object> createUdayLogin() {
+        Map<String, Object> result = new HashMap<>();
+
+        String email = "uday@sunflaguk.com";
+        String password = "123";
+
+        try {
+            // Check if customer exists
+            List<Customer> customerList = customerRepository.findByEmailContainingIgnoreCase(email);
+
+            if (customerList.isEmpty()) {
+                result.put("status", "ERROR");
+                result.put("message", "Customer with email " + email + " not found");
+                return result;
+            }
+
+            Customer customer = customerList.get(0);
+            result.put("customerId", customer.getCustomerId());
+            result.put("customerName", customer.getFirstName() + " " + customer.getLastName());
+            result.put("customerEmail", customer.getEmail());
+
+            // Check if login already exists
+            CustomerLoginInfo existingLogin = customerLoginInfoService.findByEmail(email);
+
+            if (existingLogin != null) {
+                // Update existing login
+                existingLogin.setPassword(EmailTokenUtils.encodePassword(password));
+                existingLogin.setPasswordSet(true);
+                existingLogin.setUpdatedAt(LocalDateTime.now());
+                existingLogin.setToken(null); // Clear any existing token
+                existingLogin.setTokenExpiresAt(null);
+
+                customerLoginInfoService.save(existingLogin);
+
+                result.put("status", "UPDATED");
+                result.put("message", "Password updated to '123' for " + email);
+                result.put("loginId", existingLogin.getId());
+            } else {
+                // Create new login credentials
+                CustomerLoginInfo loginInfo = new CustomerLoginInfo();
+                loginInfo.setUsername(email);
+                loginInfo.setPassword(EmailTokenUtils.encodePassword(password));
+                loginInfo.setPasswordSet(true);
+                loginInfo.setCreatedAt(LocalDateTime.now());
+                loginInfo.setUpdatedAt(LocalDateTime.now());
+
+                customerLoginInfoService.save(loginInfo);
+
+                result.put("status", "CREATED");
+                result.put("message", "Login credentials created with password '123' for " + email);
+                result.put("loginId", loginInfo.getId());
+            }
+
+            result.put("password", password);
+
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+            e.printStackTrace();
         }
 
         return result;
