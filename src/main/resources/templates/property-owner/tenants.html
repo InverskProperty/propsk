@@ -600,7 +600,7 @@ function showTenantDetails(button) {
                                 <i class="fas fa-tools fa-2x text-warning mb-2"></i>
                                 <h6>Maintenance Requests</h6>
                                 <p class="text-muted small">View and manage maintenance tickets</p>
-                                <a href="/employee/ticket/manager/all-tickets?search=${encodeURIComponent(tenantEmail || '')}" class="btn btn-sm btn-warning">
+                                <a href="/property-owner/maintenance?propertyId=${propertyId || ''}" class="btn btn-sm btn-warning">
                                     <i class="fas fa-wrench"></i> View Requests
                                 </a>
                             </div>
