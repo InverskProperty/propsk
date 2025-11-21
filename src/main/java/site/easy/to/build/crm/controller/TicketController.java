@@ -93,23 +93,67 @@ public class TicketController {
 
     @GetMapping("/show-ticket/{id}")
     public String showTicketDetails(@PathVariable("id") int id, Model model, Authentication authentication) {
-        int userId = authenticationUtils.getLoggedInUserId(authentication);
-        User loggedInUser = userService.findById(Long.valueOf(userId));
-        if(loggedInUser.isInactiveUser()) {
-            return "error/account-inactive";
-        }
+        System.out.println("🎫 === SHOW TICKET DETAILS START === Ticket ID: " + id);
 
-        Ticket ticket = ticketService.findByTicketId(id);
-        if(ticket == null) {
-            return "error/not-found";
-        }
-        User employee = ticket.getEmployee();
-        if(!AuthorizationUtil.checkIfUserAuthorized(employee,loggedInUser) && !AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
-            return "error/access-denied";
-        }
+        try {
+            System.out.println("🔍 Step 1: Getting logged in user...");
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            System.out.println("✅ Step 1: User ID: " + userId);
 
-        model.addAttribute("ticket",ticket);
-        return "ticket/show-ticket";
+            System.out.println("🔍 Step 2: Loading user from database...");
+            User loggedInUser = userService.findById(Long.valueOf(userId));
+            System.out.println("✅ Step 2: User loaded: " + (loggedInUser != null ? loggedInUser.getUsername() : "NULL"));
+
+            if(loggedInUser.isInactiveUser()) {
+                System.out.println("❌ User is inactive, returning error page");
+                return "error/account-inactive";
+            }
+
+            System.out.println("🔍 Step 3: Loading ticket from database...");
+            Ticket ticket = ticketService.findByTicketId(id);
+            System.out.println("✅ Step 3: Ticket loaded: " + (ticket != null ? "ID=" + ticket.getTicketId() + ", Subject=" + ticket.getSubject() : "NULL"));
+
+            if(ticket == null) {
+                System.out.println("❌ Ticket not found, returning error page");
+                return "error/not-found";
+            }
+
+            System.out.println("🔍 Step 4: Checking ticket authorization...");
+            User employee = ticket.getEmployee();
+            System.out.println("   - Ticket employee: " + (employee != null ? employee.getUsername() : "NULL"));
+            System.out.println("   - Logged in user: " + loggedInUser.getUsername());
+
+            boolean isAuthorized = AuthorizationUtil.checkIfUserAuthorized(employee, loggedInUser);
+            boolean isManager = AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER");
+            System.out.println("   - Is authorized: " + isAuthorized);
+            System.out.println("   - Is manager: " + isManager);
+
+            if(!isAuthorized && !isManager) {
+                System.out.println("❌ Access denied, returning error page");
+                return "error/access-denied";
+            }
+            System.out.println("✅ Step 4: Authorization passed");
+
+            System.out.println("🔍 Step 5: Adding ticket to model...");
+            System.out.println("   - Ticket customer: " + (ticket.getCustomer() != null ? ticket.getCustomer().getName() : "NULL"));
+            System.out.println("   - Ticket property: " + (ticket.getProperty() != null ? ticket.getProperty().getId() : "NULL"));
+            System.out.println("   - Ticket manager: " + (ticket.getManager() != null ? ticket.getManager().getUsername() : "NULL"));
+
+            model.addAttribute("ticket", ticket);
+            System.out.println("✅ Step 5: Model prepared");
+
+            System.out.println("🔍 Step 6: Returning template view...");
+            System.out.println("🎫 === SHOW TICKET DETAILS END SUCCESS ===");
+            return "ticket/show-ticket";
+
+        } catch (Exception e) {
+            System.err.println("💥 FATAL ERROR in showTicketDetails:");
+            System.err.println("Error message: " + e.getMessage());
+            System.err.println("Error class: " + e.getClass().getSimpleName());
+            e.printStackTrace();
+            System.out.println("🎫 === SHOW TICKET DETAILS END ERROR ===");
+            throw e;
+        }
     }
 
     // ===== FIXED: Manager Ticket Views =====
