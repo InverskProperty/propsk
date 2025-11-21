@@ -14,6 +14,8 @@ import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.service.statements.StatementTransactionConverter;
+import site.easy.to.build.crm.service.customer.CustomerLoginInfoService;
+import site.easy.to.build.crm.entity.CustomerLoginInfo;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,6 +41,9 @@ public class TestCategorizationController {
 
     @Autowired
     private CustomerPropertyAssignmentRepository assignmentRepository;
+
+    @Autowired
+    private CustomerLoginInfoService customerLoginInfoService;
 
     @GetMapping("/api/test/categorization")
     public Map<String, Object> testCategorization() {
@@ -298,6 +303,51 @@ public class TestCategorizationController {
             .collect(Collectors.toList());
 
         result.put("sampleProperties", sampleProperties);
+
+        return result;
+    }
+
+    @GetMapping("/api/test/check-login")
+    public Map<String, Object> checkLoginCredentials() {
+        Map<String, Object> result = new HashMap<>();
+
+        String email = "uday@sunflaguk.com";
+
+        try {
+            // Check if customer exists
+            List<Customer> customerList = customerRepository.findByEmailContainingIgnoreCase(email);
+
+            if (customerList.isEmpty()) {
+                result.put("status", "NOT_FOUND");
+                result.put("message", "Customer with email " + email + " not found");
+                return result;
+            }
+
+            Customer customer = customerList.get(0);
+            result.put("customerId", customer.getCustomerId());
+            result.put("customerName", customer.getFirstName() + " " + customer.getLastName());
+            result.put("customerEmail", customer.getEmail());
+
+            // Check if login credentials exist
+            CustomerLoginInfo loginInfo = customerLoginInfoService.findByEmail(email);
+
+            if (loginInfo == null) {
+                result.put("status", "NO_LOGIN");
+                result.put("hasLoginCredentials", false);
+                result.put("message", "Customer exists but has no login credentials");
+            } else {
+                result.put("status", "HAS_LOGIN");
+                result.put("hasLoginCredentials", true);
+                result.put("loginId", loginInfo.getId());
+                result.put("username", loginInfo.getUsername());
+                result.put("createdAt", loginInfo.getCreatedAt() != null ? loginInfo.getCreatedAt().toString() : "N/A");
+                result.put("message", "Customer has login credentials");
+            }
+
+        } catch (Exception e) {
+            result.put("status", "ERROR");
+            result.put("error", e.getMessage());
+        }
 
         return result;
     }
