@@ -85,10 +85,10 @@
                             
                             <!-- Basic Ticket Information -->
                             <div class="row">
-                                <div class="col-md-2 col-xs-6 b-r"> 
+                                <div class="col-md-2 col-xs-6 b-r">
                                     <strong>Customer</strong>
                                     <br>
-                                    <p class="text-muted" th:text="${ticket.customer.name}"></p>
+                                    <p class="text-muted" th:text="${ticket.customer != null ? ticket.customer.name : 'N/A'}"></p>
                                 </div>
                                 <div class="col-md-2 col-xs-6 b-r"> 
                                     <strong>Subject</strong>
@@ -127,10 +127,10 @@
                                     <br>
                                     <p class="text-muted text-capitalize" th:text="${ticket.type}"></p>
                                 </div>
-                                <div class="col-md-2 col-xs-6"> 
+                                <div class="col-md-2 col-xs-6">
                                     <strong>Assigned Employee</strong>
                                     <br>
-                                    <p class="text-muted" th:text="${ticket.employee.username}"></p>
+                                    <p class="text-muted" th:text="${ticket.employee != null ? ticket.employee.username : 'Unassigned'}"></p>
                                 </div>
                             </div>
 
