@@ -135,7 +135,7 @@
                             </div>
 
                             <!-- Maintenance-Specific Information -->
-                            <div th:if="${ticket.type == 'maintenance' or ticket.type == 'emergency'}" class="row mt-4">
+                            <div th:if="${ticket.type == 'maintenance' || ticket.type == 'emergency'}" class="row mt-4">
                                 <div class="col-12">
                                     <h5 class="card-title">Maintenance Details</h5>
                                     <hr>
@@ -182,7 +182,7 @@
                             </div>
 
                             <!-- PayProp Integration Information -->
-                            <div th:if="${ticket.payPropTicketId or ticket.payPropPropertyId}" class="row mt-4">
+                            <div th:if="${ticket.payPropTicketId != null || ticket.payPropPropertyId != null}" class="row mt-4">
                                 <div class="col-12">
                                     <h5 class="card-title">PayProp Integration</h5>
                                     <hr>
@@ -216,7 +216,7 @@
                             </div>
 
                             <!-- Contractor Information -->
-                            <div th:if="${ticket.selectedContractorId or ticket.approvedAmount}" class="row mt-4">
+                            <div th:if="${ticket.selectedContractorId != null || ticket.approvedAmount != null}" class="row mt-4">
                                 <div class="col-12">
                                     <h5 class="card-title">Contractor Details</h5>
                                     <hr>
@@ -240,13 +240,13 @@
                             </div>
 
                             <!-- Work Timeline -->
-                            <div th:if="${ticket.workStartedAt or ticket.workCompletedAt}" class="row mt-4">
+                            <div th:if="${ticket.workStartedAt != null || ticket.workCompletedAt != null}" class="row mt-4">
                                 <div class="col-12">
                                     <h5 class="card-title">Work Timeline</h5>
                                     <hr>
                                 </div>
                                 
-                                <div class="col-md-3 col-xs-6 b-r"> 
+                                <div th:if="${ticket.createdAt}" class="col-md-3 col-xs-6 b-r">
                                     <strong>Created</strong>
                                     <br>
                                     <p class="text-muted" th:text="${#temporals.format(ticket.createdAt, 'yyyy-MM-dd HH:mm')}"></p>
@@ -302,7 +302,7 @@
                                         </a>
                                         
                                         <!-- Maintenance-specific actions -->
-                                        <div th:if="${ticket.type == 'maintenance' or ticket.type == 'emergency'}">
+                                        <div th:if="${ticket.type == 'maintenance' || ticket.type == 'emergency'}">
                                             <!-- View Bids Button -->
                                             <a th:href="@{'/employee/ticket/' + ${ticket.ticketId} + '/bids'}" 
                                                class="btn btn-info">

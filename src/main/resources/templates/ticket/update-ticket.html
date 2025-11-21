@@ -157,7 +157,7 @@
                                 </div>
 
                                 <!-- Maintenance-specific fields (show/hide with JavaScript) -->
-                                <div id="maintenanceFields" th:style="${ticket.type == 'maintenance' or ticket.type == 'emergency'} ? 'display: block;' : 'display: none;'">
+                                <div id="maintenanceFields" th:style="${ticket.type == 'maintenance' || ticket.type == 'emergency'} ? 'display: block;' : 'display: none;'">
                                     <hr class="m-t-30">
                                     <h5 class="card-title text-info">Maintenance Details</h5>
                                     
@@ -212,7 +212,7 @@
                                 </div>
 
                                 <!-- Contractor Information (if applicable) -->
-                                <div th:if="${ticket.selectedContractorId or ticket.approvedAmount}" id="contractorFields">
+                                <div th:if="${ticket.selectedContractorId != null || ticket.approvedAmount != null}" id="contractorFields">
                                     <hr class="m-t-30">
                                     <h5 class="card-title text-warning">Contractor Information</h5>
                                     
@@ -256,7 +256,7 @@
                                 </div>
 
                                 <!-- PayProp Integration Fields (read-only) -->
-                                <div th:if="${ticket.payPropTicketId or ticket.payPropPropertyId}" id="payPropFields">
+                                <div th:if="${ticket.payPropTicketId != null || ticket.payPropPropertyId != null}" id="payPropFields">
                                     <hr class="m-t-30">
                                     <h5 class="card-title text-primary">PayProp Integration</h5>
                                     
