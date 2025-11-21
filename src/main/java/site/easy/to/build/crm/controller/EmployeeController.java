@@ -307,18 +307,99 @@ public class EmployeeController {
     @GetMapping("/api/maintenance-stats")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> getMaintenanceStatsApi(Authentication authentication) {
-        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE")) {
+        // Allow employees, managers, and property owners to access this endpoint
+        if (!AuthorizationUtil.hasAnyRole(authentication, "ROLE_MANAGER", "ROLE_EMPLOYEE", "ROLE_PROPERTY_OWNER")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         try {
+            // Check if this is a property owner
+            if (AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
+                return calculatePropertyOwnerMaintenanceStats(authentication);
+            }
+
+            // Otherwise, handle as employee/manager
             int userId = authenticationUtils.getLoggedInUserId(authentication);
             User user = userService.findById(Long.valueOf(userId));
-            
+
             Map<String, Object> stats = calculateEmployeeMaintenanceStats(userId, user);
             return ResponseEntity.ok(stats);
-            
+
         } catch (Exception e) {
+            return ResponseEntity.ok(getDefaultMaintenanceStats());
+        }
+    }
+
+    // ✅ NEW: Calculate maintenance stats for property owners
+    private ResponseEntity<Map<String, Object>> calculatePropertyOwnerMaintenanceStats(Authentication authentication) {
+        try {
+            String email = authentication.getName();
+            Customer customer = customerService.findByEmail(email);
+
+            if (customer == null) {
+                return ResponseEntity.ok(getDefaultMaintenanceStats());
+            }
+
+            Long customerId = customer.getCustomerId();
+
+            // Get all tickets related to this property owner's properties
+            List<Property> ownerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+            List<Long> propertyIds = ownerProperties.stream().map(Property::getId).collect(java.util.stream.Collectors.toList());
+
+            // Get maintenance and emergency tickets for owner's properties
+            List<Ticket> allMaintenanceTickets = new java.util.ArrayList<>();
+            List<Ticket> allEmergencyTickets = new java.util.ArrayList<>();
+
+            // Collect tickets for all owner's properties
+            for (Long propertyId : propertyIds) {
+                try {
+                    List<Ticket> propertyMaintenanceTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "maintenance");
+                    List<Ticket> propertyEmergencyTickets = ticketService.getTicketsByPropertyIdAndType(propertyId, "emergency");
+
+                    allMaintenanceTickets.addAll(propertyMaintenanceTickets);
+                    allEmergencyTickets.addAll(propertyEmergencyTickets);
+                } catch (Exception e) {
+                    System.err.println("Error getting tickets for property " + propertyId + ": " + e.getMessage());
+                }
+            }
+
+            // Calculate stats
+            Map<String, Object> stats = new HashMap<>();
+
+            long openTickets = allMaintenanceTickets.stream()
+                .filter(t -> "open".equals(t.getStatus()))
+                .count();
+
+            long inProgressTickets = allMaintenanceTickets.stream()
+                .filter(t -> "in-progress".equals(t.getStatus()) || "work-in-progress".equals(t.getStatus()))
+                .count();
+
+            long emergencyCount = allEmergencyTickets.stream()
+                .filter(t -> !"closed".equals(t.getStatus()) && !"resolved".equals(t.getStatus()))
+                .count();
+
+            long awaitingBids = allMaintenanceTickets.stream()
+                .filter(t -> "bidding".equals(t.getStatus()) || "awaiting-bids".equals(t.getStatus()))
+                .count();
+
+            long totalMaintenance = allMaintenanceTickets.size();
+
+            long completedTickets = allMaintenanceTickets.stream()
+                .filter(t -> "completed".equals(t.getStatus()) || "closed".equals(t.getStatus()))
+                .count();
+
+            stats.put("openTickets", openTickets);
+            stats.put("inProgressTickets", inProgressTickets);
+            stats.put("emergencyTickets", emergencyCount);
+            stats.put("awaitingBids", awaitingBids);
+            stats.put("totalMaintenance", totalMaintenance);
+            stats.put("completedTickets", completedTickets);
+            stats.put("activeMaintenanceCount", openTickets + inProgressTickets);
+
+            return ResponseEntity.ok(stats);
+
+        } catch (Exception e) {
+            System.err.println("Error calculating property owner maintenance stats: " + e.getMessage());
             return ResponseEntity.ok(getDefaultMaintenanceStats());
         }
     }
