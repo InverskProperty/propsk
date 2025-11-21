@@ -189,12 +189,15 @@
                     </button>
                 </div>
                 <form id="createRequestForm" enctype="multipart/form-data">
+                    <!-- CSRF Token for Spring Security -->
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
                     <div class="modal-body">
                         <div class="form-group">
                             <label for="requestProperty">Property *</label>
                             <select class="form-control" id="requestProperty" name="propertyId" required>
                                 <option value="">Select a property...</option>
-                                <option th:each="property : ${properties}" 
+                                <option th:each="property : ${properties}"
                                         th:value="${property.id}"
                                         th:text="${property.propertyName ?: property.addressLine1}">
                                     Property Name
