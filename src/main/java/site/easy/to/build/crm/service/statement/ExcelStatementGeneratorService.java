@@ -1455,7 +1455,7 @@ public class ExcelStatementGeneratorService {
                     // G: rent_due (VLOOKUP to RENT_DUE sheet)
                     Cell rentDueCell = row.createCell(col++);
                     rentDueCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(RENT_DUE!L:L, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        "IFERROR(INDEX(RENT_DUE!L:L, MATCH(1, (RENT_DUE!A:A=\"%s\") * (RENT_DUE!C:C=DATE(%d,%d,%d)), 0)), 0)",
                         lease.getLeaseReference(),
                         period.periodStart.getYear(),
                         period.periodStart.getMonthValue(),
