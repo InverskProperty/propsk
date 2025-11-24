@@ -654,13 +654,15 @@ public class StatementDataExtractService {
 
     /**
      * Extract tenant name from invoice/lease
-     * Tries to get tenant from letting instruction
+     * Tries multiple sources:
+     * 1. Letting instruction tenant
+     * 2. Most recent financial transaction tenant_name
      *
      * @param invoice The lease/invoice
      * @return Tenant name or empty string if not found
      */
     private String extractTenantName(Invoice invoice) {
-        // Get tenant from letting instruction
+        // Try 1: Get tenant from letting instruction
         if (invoice.getLettingInstruction() != null) {
             LettingInstruction instruction = invoice.getLettingInstruction();
             if (instruction.getTenant() != null) {
@@ -668,6 +670,28 @@ public class StatementDataExtractService {
                 String name = tenant.getName();
                 if (name != null && !name.trim().isEmpty()) {
                     return name.trim();
+                }
+            }
+        }
+
+        // Try 2: Get tenant name from most recent financial transaction
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByInvoiceId(invoice.getId());
+
+        if (!transactions.isEmpty()) {
+            // Sort by date descending to get most recent
+            transactions.sort((a, b) -> b.getTransactionDate().compareTo(a.getTransactionDate()));
+
+            // Look for tenant name in description (INCOMING_PAYMENT format: "Tenant Payment - [Name] - ...")
+            for (UnifiedTransaction txn : transactions) {
+                if (txn.getDescription() != null && txn.getDescription().contains("Tenant Payment -")) {
+                    String desc = txn.getDescription();
+                    // Extract name between "Tenant Payment - " and next " - "
+                    int start = desc.indexOf("Tenant Payment - ") + 17;
+                    int end = desc.indexOf(" - ", start);
+                    if (end > start) {
+                        return desc.substring(start, end).trim();
+                    }
                 }
             }
         }
