@@ -18,6 +18,7 @@ public class LeaseMasterDTO {
     private String propertyAddress;
     private Long customerId;
     private String customerName;
+    private String tenantName;  // Tenant/occupant name
     private LocalDate startDate;
     private LocalDate endDate;  // NULL = ongoing lease
     private BigDecimal monthlyRent;
@@ -99,6 +100,14 @@ public class LeaseMasterDTO {
 
     public void setCustomerName(String customerName) {
         this.customerName = customerName;
+    }
+
+    public String getTenantName() {
+        return tenantName;
+    }
+
+    public void setTenantName(String tenantName) {
+        this.tenantName = tenantName;
     }
 
     public LocalDate getStartDate() {

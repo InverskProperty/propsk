@@ -12,6 +12,7 @@ import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.Invoice;
+import site.easy.to.build.crm.entity.LettingInstruction;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.UnifiedTransaction;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
@@ -105,12 +106,16 @@ public class StatementDataExtractService {
                 dto.setPropertyAddress(property.getFullAddress());
             }
 
-            // Customer details
+            // Customer details (property owner)
             Customer customer = invoice.getCustomer();
             if (customer != null) {
                 dto.setCustomerId(customer.getCustomerId());
                 dto.setCustomerName(customer.getName());
             }
+
+            // Tenant details (occupant)
+            String tenantName = extractTenantName(invoice);
+            dto.setTenantName(tenantName);
 
             leaseMaster.add(dto);
         }
@@ -645,5 +650,28 @@ public class StatementDataExtractService {
 
         log.info("Extracted {} customer records", customerDTOs.size());
         return customerDTOs;
+    }
+
+    /**
+     * Extract tenant name from invoice/lease
+     * Tries to get tenant from letting instruction
+     *
+     * @param invoice The lease/invoice
+     * @return Tenant name or empty string if not found
+     */
+    private String extractTenantName(Invoice invoice) {
+        // Get tenant from letting instruction
+        if (invoice.getLettingInstruction() != null) {
+            LettingInstruction instruction = invoice.getLettingInstruction();
+            if (instruction.getTenant() != null) {
+                Customer tenant = instruction.getTenant();
+                String name = tenant.getName();
+                if (name != null && !name.trim().isEmpty()) {
+                    return name.trim();
+                }
+            }
+        }
+
+        return ""; // No tenant name found
     }
 }
