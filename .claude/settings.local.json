@@ -3,7 +3,8 @@
     "allow": [
       "Bash(nul)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(mvn clean package:*)"
     ],
     "deny": [],
     "ask": [],
