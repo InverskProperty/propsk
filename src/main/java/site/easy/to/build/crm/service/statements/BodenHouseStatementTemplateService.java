@@ -212,12 +212,11 @@ public class BodenHouseStatementTemplateService {
             unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
         } catch (Exception e) {
             System.err.println("Warning: Could not calculate rent due for property " + property.getId() +
-                             ", falling back to monthly payment: " + e.getMessage());
-            // Fallback to PayProp invoice data or monthly payment
+                             ", falling back to PayProp invoice data: " + e.getMessage());
+            // Fallback to PayProp invoice data only on exception
             enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
-            if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
-                unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
-            }
+            // Note: Do NOT fall back to monthly payment if calculation returns zero
+            // Zero is a valid result (lease not active during period, or ended before period)
         }
         if (unit.rentDueDate == null) {
             unit.rentDueDate = extractRentDueDay(property);
@@ -267,12 +266,11 @@ public class BodenHouseStatementTemplateService {
             unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
         } catch (Exception e) {
             System.err.println("Warning: Could not calculate rent due for property " + property.getId() +
-                             ", falling back to monthly payment: " + e.getMessage());
-            // Fallback to PayProp invoice data or monthly payment
+                             ", falling back to PayProp invoice data: " + e.getMessage());
+            // Fallback to PayProp invoice data only on exception
             enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
-            if (unit.rentDueAmount.equals(BigDecimal.ZERO)) {
-                unit.rentDueAmount = property.getMonthlyPayment() != null ? property.getMonthlyPayment() : BigDecimal.ZERO;
-            }
+            // Note: Do NOT fall back to monthly payment if calculation returns zero
+            // Zero is a valid result (lease not active during period, or ended before period)
         }
         if (unit.rentDueDate == null) {
             unit.rentDueDate = extractRentDueDay(property);
