@@ -662,6 +662,8 @@ public class StatementDataExtractService {
      * @return Tenant name or empty string if not found
      */
     private String extractTenantName(Invoice invoice) {
+        log.debug("Extracting tenant name for invoice/lease ID: {}", invoice.getId());
+
         // Try 1: Get tenant from letting instruction
         if (invoice.getLettingInstruction() != null) {
             LettingInstruction instruction = invoice.getLettingInstruction();
@@ -669,6 +671,7 @@ public class StatementDataExtractService {
                 Customer tenant = instruction.getTenant();
                 String name = tenant.getName();
                 if (name != null && !name.trim().isEmpty()) {
+                    log.debug("Found tenant name from letting instruction: {}", name);
                     return name.trim();
                 }
             }
@@ -678,24 +681,30 @@ public class StatementDataExtractService {
         List<UnifiedTransaction> transactions = unifiedTransactionRepository
             .findByInvoiceId(invoice.getId());
 
+        log.debug("Found {} unified transactions for invoice ID {}", transactions.size(), invoice.getId());
+
         if (!transactions.isEmpty()) {
             // Sort by date descending to get most recent
             transactions.sort((a, b) -> b.getTransactionDate().compareTo(a.getTransactionDate()));
 
             // Look for tenant name in description (INCOMING_PAYMENT format: "Tenant Payment - [Name] - ...")
             for (UnifiedTransaction txn : transactions) {
+                log.debug("Checking transaction description: {}", txn.getDescription());
                 if (txn.getDescription() != null && txn.getDescription().contains("Tenant Payment -")) {
                     String desc = txn.getDescription();
                     // Extract name between "Tenant Payment - " and next " - "
                     int start = desc.indexOf("Tenant Payment - ") + 17;
                     int end = desc.indexOf(" - ", start);
                     if (end > start) {
-                        return desc.substring(start, end).trim();
+                        String tenantName = desc.substring(start, end).trim();
+                        log.debug("Extracted tenant name: {}", tenantName);
+                        return tenantName;
                     }
                 }
             }
         }
 
+        log.warn("No tenant name found for invoice/lease ID: {}", invoice.getId());
         return ""; // No tenant name found
     }
 }
