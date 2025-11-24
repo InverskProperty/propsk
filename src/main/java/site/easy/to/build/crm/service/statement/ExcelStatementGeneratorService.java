@@ -1520,6 +1520,67 @@ public class ExcelStatementGeneratorService {
             }
         }
 
+        // Add totals row
+        if (rowNum > 1) {
+            Row totalsRow = sheet.createRow(rowNum);
+            int col = 0;
+
+            // A-E: Label in first column
+            Cell labelCell = totalsRow.createCell(col++);
+            labelCell.setCellValue("TOTALS");
+            Font boldFont = workbook.createFont();
+            boldFont.setBold(true);
+            CellStyle boldStyle = workbook.createCellStyle();
+            boldStyle.setFont(boldFont);
+            labelCell.setCellStyle(boldStyle);
+
+            // Skip columns B-E
+            col += 4;
+
+            // F: total_rent_due
+            Cell totalRentDueCell = totalsRow.createCell(col++);
+            totalRentDueCell.setCellFormula(String.format("SUM(F2:F%d)", rowNum));
+            CellStyle boldCurrencyStyle = workbook.createCellStyle();
+            boldCurrencyStyle.cloneStyleFrom(currencyStyle);
+            boldCurrencyStyle.setFont(boldFont);
+            totalRentDueCell.setCellStyle(boldCurrencyStyle);
+
+            // G: total_rent_received
+            Cell totalRentReceivedCell = totalsRow.createCell(col++);
+            totalRentReceivedCell.setCellFormula(String.format("SUM(G2:G%d)", rowNum));
+            totalRentReceivedCell.setCellStyle(boldCurrencyStyle);
+
+            // H: total_arrears
+            Cell totalArrearsCell = totalsRow.createCell(col++);
+            totalArrearsCell.setCellFormula(String.format("SUM(H2:H%d)", rowNum));
+            totalArrearsCell.setCellStyle(boldCurrencyStyle);
+
+            // I: total_management_fee
+            Cell totalMgmtFeeCell = totalsRow.createCell(col++);
+            totalMgmtFeeCell.setCellFormula(String.format("SUM(I2:I%d)", rowNum));
+            totalMgmtFeeCell.setCellStyle(boldCurrencyStyle);
+
+            // J: total_service_fee
+            Cell totalSvcFeeCell = totalsRow.createCell(col++);
+            totalSvcFeeCell.setCellFormula(String.format("SUM(J2:J%d)", rowNum));
+            totalSvcFeeCell.setCellStyle(boldCurrencyStyle);
+
+            // K: total_commission
+            Cell totalCommCell = totalsRow.createCell(col++);
+            totalCommCell.setCellFormula(String.format("SUM(K2:K%d)", rowNum));
+            totalCommCell.setCellStyle(boldCurrencyStyle);
+
+            // L: total_expenses
+            Cell totalExpensesCell = totalsRow.createCell(col++);
+            totalExpensesCell.setCellFormula(String.format("SUM(L2:L%d)", rowNum));
+            totalExpensesCell.setCellStyle(boldCurrencyStyle);
+
+            // M: total_net_to_owner
+            Cell totalNetCell = totalsRow.createCell(col++);
+            totalNetCell.setCellFormula(String.format("SUM(M2:M%d)", rowNum));
+            totalNetCell.setCellStyle(boldCurrencyStyle);
+        }
+
         // Auto-size columns
         for (int i = 0; i < headers.length; i++) {
             sheet.autoSizeColumn(i);
@@ -1670,6 +1731,77 @@ public class ExcelStatementGeneratorService {
 
                 rowNum++;
             }
+        }
+
+        // Add totals row
+        if (rowNum > 1) {
+            Row totalsRow = sheet.createRow(rowNum);
+            int col = 0;
+
+            // A-E: Label in first column
+            Cell labelCell = totalsRow.createCell(col++);
+            labelCell.setCellValue("TOTALS");
+            Font boldFont = workbook.createFont();
+            boldFont.setBold(true);
+            CellStyle boldStyle = workbook.createCellStyle();
+            boldStyle.setFont(boldFont);
+            labelCell.setCellStyle(boldStyle);
+
+            // Skip columns B-E
+            col += 4;
+
+            // F: total_rent_due
+            Cell totalRentDueCell = totalsRow.createCell(col++);
+            totalRentDueCell.setCellFormula(String.format("SUM(F2:F%d)", rowNum));
+            CellStyle boldCurrencyStyle = workbook.createCellStyle();
+            boldCurrencyStyle.cloneStyleFrom(currencyStyle);
+            boldCurrencyStyle.setFont(boldFont);
+            totalRentDueCell.setCellStyle(boldCurrencyStyle);
+
+            // G: total_rent_received
+            Cell totalRentReceivedCell = totalsRow.createCell(col++);
+            totalRentReceivedCell.setCellFormula(String.format("SUM(G2:G%d)", rowNum));
+            totalRentReceivedCell.setCellStyle(boldCurrencyStyle);
+
+            // H: total_arrears
+            Cell totalArrearsCell = totalsRow.createCell(col++);
+            totalArrearsCell.setCellFormula(String.format("SUM(H2:H%d)", rowNum));
+            totalArrearsCell.setCellStyle(boldCurrencyStyle);
+
+            // I: total_management_fee
+            Cell totalMgmtFeeCell = totalsRow.createCell(col++);
+            totalMgmtFeeCell.setCellFormula(String.format("SUM(I2:I%d)", rowNum));
+            totalMgmtFeeCell.setCellStyle(boldCurrencyStyle);
+
+            // J: total_service_fee
+            Cell totalSvcFeeCell = totalsRow.createCell(col++);
+            totalSvcFeeCell.setCellFormula(String.format("SUM(J2:J%d)", rowNum));
+            totalSvcFeeCell.setCellStyle(boldCurrencyStyle);
+
+            // K: total_commission
+            Cell totalCommCell = totalsRow.createCell(col++);
+            totalCommCell.setCellFormula(String.format("SUM(K2:K%d)", rowNum));
+            totalCommCell.setCellStyle(boldCurrencyStyle);
+
+            // L: total_expenses
+            Cell totalExpensesCell = totalsRow.createCell(col++);
+            totalExpensesCell.setCellFormula(String.format("SUM(L2:L%d)", rowNum));
+            totalExpensesCell.setCellStyle(boldCurrencyStyle);
+
+            // M: total_net_to_owner
+            Cell totalNetCell = totalsRow.createCell(col++);
+            totalNetCell.setCellFormula(String.format("SUM(M2:M%d)", rowNum));
+            totalNetCell.setCellStyle(boldCurrencyStyle);
+
+            // N: total_opening_balance
+            Cell totalOpeningBalanceCell = totalsRow.createCell(col++);
+            totalOpeningBalanceCell.setCellFormula(String.format("SUM(N2:N%d)", rowNum));
+            totalOpeningBalanceCell.setCellStyle(boldCurrencyStyle);
+
+            // O: total_closing_balance
+            Cell totalClosingBalanceCell = totalsRow.createCell(col++);
+            totalClosingBalanceCell.setCellFormula(String.format("SUM(O2:O%d)", rowNum));
+            totalClosingBalanceCell.setCellStyle(boldCurrencyStyle);
         }
 
         // Auto-size columns
