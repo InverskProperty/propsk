@@ -1153,8 +1153,8 @@ public class ExcelStatementGeneratorService {
 
             for (CustomPeriod period : periods) {
                 // Check if lease overlaps with this period
-                boolean leaseActive = (leaseEnd == null || !period.periodEnd.isBefore(leaseStart))
-                                   && !period.periodStart.isAfter(leaseEnd != null ? leaseEnd : period.periodEnd);
+                boolean leaseActive = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
+                                   && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
 
                 if (leaseActive) {
                     Row row = sheet.createRow(rowNum);
@@ -1304,8 +1304,8 @@ public class ExcelStatementGeneratorService {
             LocalDate leaseEnd = lease.getEndDate();
 
             for (CustomPeriod period : periods) {
-                boolean leaseActive = (leaseEnd == null || !period.periodEnd.isBefore(leaseStart))
-                                   && !period.periodStart.isAfter(leaseEnd != null ? leaseEnd : period.periodEnd);
+                boolean leaseActive = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
+                                   && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
 
                 if (leaseActive) {
                     Row row = sheet.createRow(rowNum);
@@ -1421,8 +1421,8 @@ public class ExcelStatementGeneratorService {
             boolean isFirstPeriodForLease = true;
 
             for (CustomPeriod period : periods) {
-                boolean leaseActive = (leaseEnd == null || !period.periodEnd.isBefore(leaseStart))
-                                   && !period.periodStart.isAfter(leaseEnd != null ? leaseEnd : period.periodEnd);
+                boolean leaseActive = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
+                                   && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
 
                 if (leaseActive) {
                     Row row = sheet.createRow(rowNum);
