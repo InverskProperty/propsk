@@ -208,16 +208,13 @@ public class BodenHouseStatementTemplateService {
             tenant.getMoveInDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
 
         // Calculate rent due using RentCalculationService for accurate partial month handling
-        try {
-            unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not calculate rent due for property " + property.getId() +
-                             ", falling back to PayProp invoice data: " + e.getMessage());
-            // Fallback to PayProp invoice data only on exception
-            enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
-            // Note: Do NOT fall back to monthly payment if calculation returns zero
-            // Zero is a valid result (lease not active during period, or ended before period)
-        }
+        unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
+
+        // Note: Zero is a valid result when:
+        // - Lease hasn't started yet (starts after the period)
+        // - Lease ended before the period
+        // - No active lease for this property
+        // We trust the calculation service to return the correct value
         if (unit.rentDueDate == null) {
             unit.rentDueDate = extractRentDueDay(property);
         }
@@ -262,16 +259,13 @@ public class BodenHouseStatementTemplateService {
             tenant.getMoveInDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "";
 
         // Calculate rent due using RentCalculationService for accurate partial month handling
-        try {
-            unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
-        } catch (Exception e) {
-            System.err.println("Warning: Could not calculate rent due for property " + property.getId() +
-                             ", falling back to PayProp invoice data: " + e.getMessage());
-            // Fallback to PayProp invoice data only on exception
-            enhanceWithPayPropInvoiceData(unit, property, fromDate, toDate);
-            // Note: Do NOT fall back to monthly payment if calculation returns zero
-            // Zero is a valid result (lease not active during period, or ended before period)
-        }
+        unit.rentDueAmount = rentCalculationService.calculateTotalRentDue(property.getId(), fromDate, toDate);
+
+        // Note: Zero is a valid result when:
+        // - Lease hasn't started yet (starts after the period)
+        // - Lease ended before the period
+        // - No active lease for this property
+        // We trust the calculation service to return the correct value
         if (unit.rentDueDate == null) {
             unit.rentDueDate = extractRentDueDay(property);
         }
