@@ -172,15 +172,30 @@ public class ExcelStatementGeneratorService {
         log.error("🔍 DEBUG: Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
                 leaseMaster.size(), transactions.size(), customerId);
 
-        // Create sheets with custom periods
+        // Create data sheets with custom periods
         createLeaseMasterSheet(workbook, leaseMaster);
         createTransactionsSheet(workbook, transactions);
         createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
         createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
         createExpensesSheet(workbook, leaseMaster, startDate, endDate);
-        createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
 
-        log.info("Customer statement workbook with custom periods created successfully");
+        // Generate custom periods
+        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
+
+        // Create separate monthly statement sheets for each period
+        log.info("Creating {} separate monthly statement sheets", periods.size());
+        for (CustomPeriod period : periods) {
+            String sheetName = sanitizeSheetName(
+                period.periodStart.format(DateTimeFormatter.ofPattern("MMM dd")) + " - " +
+                period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
+            );
+            createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName);
+        }
+
+        // Create summary sheet (totals across all periods)
+        createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate);
+
+        log.info("Customer statement workbook with custom periods created successfully with {} monthly sheets", periods.size());
         return workbook;
     }
 
@@ -1379,6 +1394,290 @@ public class ExcelStatementGeneratorService {
         }
 
         log.info("RENT_RECEIVED sheet created with {} rows (custom periods)", rowNum - 1);
+    }
+
+    /**
+     * Create a monthly statement sheet for a specific custom period
+     */
+    private void createMonthlyStatementSheetForCustomPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                           CustomPeriod period, String sheetName) {
+        log.info("Creating monthly statement sheet: {}", sheetName);
+
+        Sheet sheet = workbook.createSheet(sheetName);
+
+        // Header row
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day",
+            "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
+            "total_commission", "total_expenses", "net_to_owner"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Generate rows for each lease
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            // Check if lease overlaps with this period
+            boolean leaseActive = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
+                               && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
+
+            if (leaseActive) {
+                Row row = sheet.createRow(rowNum);
+                int col = 0;
+
+                // A: lease_reference
+                row.createCell(col++).setCellValue(lease.getLeaseReference());
+
+                // B: property_name
+                row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                // C: customer_name
+                row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+
+                // D: lease_start_date
+                Cell startDateCell = row.createCell(col++);
+                if (leaseStart != null) {
+                    startDateCell.setCellValue(leaseStart);
+                    startDateCell.setCellStyle(dateStyle);
+                }
+
+                // E: rent_due_day
+                row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
+
+                // F: rent_due (SUMIFS to RENT_DUE sheet)
+                Cell rentDueCell = row.createCell(col++);
+                rentDueCell.setCellFormula(String.format(
+                    "IFERROR(SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, \"%s\", RENT_DUE!D:D, DATE(%d,%d,%d)), 0)",
+                    lease.getLeaseReference(),
+                    period.periodStart.getYear(),
+                    period.periodStart.getMonthValue(),
+                    period.periodStart.getDayOfMonth()
+                ));
+                rentDueCell.setCellStyle(currencyStyle);
+
+                // G: rent_received (SUMIFS to RENT_RECEIVED sheet)
+                Cell rentReceivedCell = row.createCell(col++);
+                rentReceivedCell.setCellFormula(String.format(
+                    "IFERROR(SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, DATE(%d,%d,%d)), 0)",
+                    lease.getLeaseReference(),
+                    period.periodStart.getYear(),
+                    period.periodStart.getMonthValue(),
+                    period.periodStart.getDayOfMonth()
+                ));
+                rentReceivedCell.setCellStyle(currencyStyle);
+
+                // H: arrears (formula: due - received)
+                Cell arrearsCell = row.createCell(col++);
+                arrearsCell.setCellFormula(String.format("F%d - G%d", rowNum + 1, rowNum + 1));
+                arrearsCell.setCellStyle(currencyStyle);
+
+                // I: management_fee (formula: rent_received * management_fee_percent)
+                Cell mgmtFeeCell = row.createCell(col++);
+                mgmtFeeCell.setCellFormula(String.format("G%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                mgmtFeeCell.setCellStyle(currencyStyle);
+
+                // J: service_fee (formula: rent_received * service_fee_percent)
+                Cell svcFeeCell = row.createCell(col++);
+                svcFeeCell.setCellFormula(String.format("G%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                svcFeeCell.setCellStyle(currencyStyle);
+
+                // K: total_commission (formula: mgmt + svc)
+                Cell totalCommCell = row.createCell(col++);
+                totalCommCell.setCellFormula(String.format("I%d + J%d", rowNum + 1, rowNum + 1));
+                totalCommCell.setCellStyle(currencyStyle);
+
+                // L: total_expenses (INDEX/MATCH to EXPENSES sheet)
+                Cell expensesCell = row.createCell(col++);
+                expensesCell.setCellFormula(String.format(
+                    "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                    lease.getLeaseReference(),
+                    period.periodStart.getYear(),
+                    period.periodStart.getMonthValue(),
+                    period.periodStart.getDayOfMonth()
+                ));
+                expensesCell.setCellStyle(currencyStyle);
+
+                // M: net_to_owner (formula: received - commission - expenses)
+                Cell netToOwnerCell = row.createCell(col++);
+                netToOwnerCell.setCellFormula(String.format("G%d - K%d - L%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                netToOwnerCell.setCellStyle(currencyStyle);
+
+                rowNum++;
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("{} sheet created with {} rows", sheetName, rowNum - 1);
+    }
+
+    /**
+     * Create SUMMARY sheet that totals across all custom periods
+     */
+    private void createSummarySheetForCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                   List<CustomPeriod> periods, LocalDate startDate, LocalDate endDate) {
+        log.info("Creating SUMMARY sheet for custom periods");
+
+        Sheet sheet = workbook.createSheet("SUMMARY");
+
+        // Header row
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day",
+            "total_rent_due", "total_rent_received", "total_arrears", "total_management_fee", "total_service_fee",
+            "total_commission", "total_expenses", "total_net_to_owner", "opening_balance", "closing_balance"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Generate summary rows for each lease
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            // Check if lease was active during ANY period
+            boolean wasActiveInAnyPeriod = false;
+            for (CustomPeriod period : periods) {
+                boolean leaseActive = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
+                                   && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
+                if (leaseActive) {
+                    wasActiveInAnyPeriod = true;
+                    break;
+                }
+            }
+
+            if (wasActiveInAnyPeriod) {
+                Row row = sheet.createRow(rowNum);
+                int col = 0;
+
+                // A: lease_reference
+                row.createCell(col++).setCellValue(lease.getLeaseReference());
+
+                // B: property_name
+                row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                // C: customer_name
+                row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+
+                // D: lease_start_date
+                Cell startDateCell = row.createCell(col++);
+                if (leaseStart != null) {
+                    startDateCell.setCellValue(leaseStart);
+                    startDateCell.setCellStyle(dateStyle);
+                }
+
+                // E: rent_due_day
+                row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
+
+                // F: total_rent_due (SUM across all periods in RENT_DUE sheet)
+                Cell totalRentDueCell = row.createCell(col++);
+                totalRentDueCell.setCellFormula(String.format(
+                    "SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, \"%s\", RENT_DUE!D:D, \">=\"&DATE(%d,%d,%d), RENT_DUE!D:D, \"<=\"&DATE(%d,%d,%d))",
+                    lease.getLeaseReference(),
+                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
+                    endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
+                ));
+                totalRentDueCell.setCellStyle(currencyStyle);
+
+                // G: total_rent_received (SUM across all periods in RENT_RECEIVED sheet)
+                Cell totalRentReceivedCell = row.createCell(col++);
+                totalRentReceivedCell.setCellFormula(String.format(
+                    "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, \">=\"&DATE(%d,%d,%d), RENT_RECEIVED!E:E, \"<=\"&DATE(%d,%d,%d))",
+                    lease.getLeaseReference(),
+                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
+                    endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
+                ));
+                totalRentReceivedCell.setCellStyle(currencyStyle);
+
+                // H: total_arrears (formula: total_due - total_received)
+                Cell totalArrearsCell = row.createCell(col++);
+                totalArrearsCell.setCellFormula(String.format("F%d - G%d", rowNum + 1, rowNum + 1));
+                totalArrearsCell.setCellStyle(currencyStyle);
+
+                // I: total_management_fee
+                Cell totalMgmtFeeCell = row.createCell(col++);
+                totalMgmtFeeCell.setCellFormula(String.format("G%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                totalMgmtFeeCell.setCellStyle(currencyStyle);
+
+                // J: total_service_fee
+                Cell totalSvcFeeCell = row.createCell(col++);
+                totalSvcFeeCell.setCellFormula(String.format("G%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                totalSvcFeeCell.setCellStyle(currencyStyle);
+
+                // K: total_commission
+                Cell totalCommCell = row.createCell(col++);
+                totalCommCell.setCellFormula(String.format("I%d + J%d", rowNum + 1, rowNum + 1));
+                totalCommCell.setCellStyle(currencyStyle);
+
+                // L: total_expenses (SUM all expenses for this lease in the period)
+                Cell totalExpensesCell = row.createCell(col++);
+                totalExpensesCell.setCellFormula(String.format(
+                    "SUMIFS(EXPENSES!R:R, EXPENSES!B:B, \"%s\", EXPENSES!D:D, \">=\"&DATE(%d,%d,%d), EXPENSES!D:D, \"<=\"&DATE(%d,%d,%d))",
+                    lease.getLeaseReference(),
+                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
+                    endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
+                ));
+                totalExpensesCell.setCellStyle(currencyStyle);
+
+                // M: total_net_to_owner
+                Cell totalNetCell = row.createCell(col++);
+                totalNetCell.setCellFormula(String.format("G%d - K%d - L%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                totalNetCell.setCellStyle(currencyStyle);
+
+                // N: opening_balance (arrears before first period start)
+                Cell openingBalanceCell = row.createCell(col++);
+                openingBalanceCell.setCellFormula(String.format(
+                    "SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, \"%s\", RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
+                    lease.getLeaseReference(),
+                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
+                    lease.getLeaseReference(),
+                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth()
+                ));
+                openingBalanceCell.setCellStyle(currencyStyle);
+
+                // O: closing_balance (opening + arrears for period)
+                Cell closingBalanceCell = row.createCell(col++);
+                closingBalanceCell.setCellFormula(String.format("N%d + H%d", rowNum + 1, rowNum + 1));
+                closingBalanceCell.setCellStyle(currencyStyle);
+
+                rowNum++;
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("SUMMARY sheet created with {} rows", rowNum - 1);
     }
 
     /**
