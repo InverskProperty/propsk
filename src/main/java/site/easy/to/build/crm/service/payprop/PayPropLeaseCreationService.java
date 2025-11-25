@@ -88,6 +88,15 @@ public class PayPropLeaseCreationService {
                         tenantData.getDisplayName(), tenantData.getPaypropTenantId(), e.getMessage());
                     result.addError(error);
                     log.error("❌ " + error, e);
+
+                    // CRITICAL: Clear the entity manager after an error to prevent cascade failures
+                    // When a constraint violation occurs, Hibernate marks the session as rollback-only
+                    // and subsequent operations fail with "null id" errors
+                    try {
+                        entityManager.clear();
+                    } catch (Exception clearEx) {
+                        log.warn("Failed to clear entity manager after error: {}", clearEx.getMessage());
+                    }
                 }
             }
 
@@ -309,8 +318,8 @@ public class PayPropLeaseCreationService {
 
     /**
      * Process a single PayProp tenant: create customer, tenant record, lease, and assignments
+     * Note: Runs within the parent transaction - errors are handled by clearing entity manager
      */
-    @Transactional
     private void processPayPropTenant(PayPropTenantData tenantData, LeaseCreationResult result) throws Exception {
 
         log.info("🔄 Processing tenant: {} ({})", tenantData.getDisplayName(), tenantData.getPaypropTenantId());
@@ -488,7 +497,8 @@ public class PayPropLeaseCreationService {
     }
 
     /**
-     * Find existing assignment
+     * Find existing assignment - checks for ANY assignment regardless of dates
+     * to avoid unique constraint violations (customer_id, property_id, assignment_type)
      */
     private CustomerPropertyAssignment findExistingAssignment(Property property, Customer customer, AssignmentType type) {
         List<CustomerPropertyAssignment> assignments = assignmentRepository
@@ -496,10 +506,9 @@ public class PayPropLeaseCreationService {
 
         for (CustomerPropertyAssignment assignment : assignments) {
             if (assignment.getCustomer().getCustomerId().equals(customer.getCustomerId())) {
-                // Check if assignment is still active (no end date or end date in future)
-                if (assignment.getEndDate() == null || assignment.getEndDate().isAfter(LocalDate.now())) {
-                    return assignment;
-                }
+                // Return ANY existing assignment - unique constraint is on customer+property+type
+                // regardless of dates, so we can't create a new one
+                return assignment;
             }
         }
 
