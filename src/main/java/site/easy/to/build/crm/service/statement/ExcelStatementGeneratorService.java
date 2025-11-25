@@ -891,9 +891,9 @@ public class ExcelStatementGeneratorService {
                     svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
                     svcFeeCell.setCellStyle(currencyStyle);
 
-                    // Column L: total_commission (formula: mgmt + svc)
+                    // Column L: total_commission (formula: ABS(mgmt + svc))
                     Cell totalCommCell = row.createCell(col++);
-                    totalCommCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
+                    totalCommCell.setCellFormula(String.format("ABS(J%d + K%d)", rowNum + 1, rowNum + 1));
                     totalCommCell.setCellStyle(currencyStyle);
 
                     // Column M: total_expenses (SUMIFS to EXPENSES sheet)
