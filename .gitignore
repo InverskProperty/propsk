@@ -55,6 +55,7 @@ set-env-variables.sh
 
 # Database backups (may contain sensitive data)
 *.sql
+!src/main/resources/db/migration/*.sql
 *_backup_*
 backup_*
 
