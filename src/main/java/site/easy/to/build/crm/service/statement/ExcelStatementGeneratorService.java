@@ -1494,9 +1494,11 @@ public class ExcelStatementGeneratorService {
                 // I: opening_balance (cumulative arrears BEFORE this period)
                 // Formula: SUM(all rent due before period start) - SUM(all rent received before period start)
                 // References RENT_DUE and RENT_RECEIVED sheets for full traceability
+                // RENT_DUE: B=lease_reference, D=period_start, L=prorated_rent_due
+                // RENT_RECEIVED: B=lease_reference, E=period_start, O=total_received
                 Cell openingBalanceCell = row.createCell(col++);
                 openingBalanceCell.setCellFormula(String.format(
-                    "SUMIFS(RENT_DUE!H:H, RENT_DUE!B:B, A%d, RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, A%d, RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
+                    "SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, A%d, RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, A%d, RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
                     rowNum + 1,
                     period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
                     rowNum + 1,
