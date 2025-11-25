@@ -234,6 +234,8 @@ public class PayPropInvoiceInstructionEnrichmentService {
 
                     // Hard delete the soft-deleted invoice
                     invoiceRepository.delete(invoice);
+                    // Force flush the delete immediately to clear the constraint
+                    entityManager.flush();
 
                     log.info("✅ Removed soft-deleted invoice to prevent duplicate payprop_id constraint violation");
                 }
@@ -242,6 +244,13 @@ public class PayPropInvoiceInstructionEnrichmentService {
         } catch (Exception e) {
             log.error("❌ Failed to cleanup soft-deleted invoice with payprop_id '{}': {}",
                     paypropId, e.getMessage());
+            // CRITICAL: Clear the entity manager to remove any dirty entities that would cause
+            // cascade failures on subsequent operations
+            try {
+                entityManager.clear();
+            } catch (Exception clearEx) {
+                log.warn("Failed to clear entity manager in cleanup: {}", clearEx.getMessage());
+            }
             // Don't throw - let the sync continue and handle the duplicate error if it occurs
         }
     }

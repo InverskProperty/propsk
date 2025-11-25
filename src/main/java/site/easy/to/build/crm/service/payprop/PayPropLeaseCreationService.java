@@ -509,7 +509,10 @@ public class PayPropLeaseCreationService {
         lease.setSyncStatus(Invoice.SyncStatus.synced); // From PayProp
         lease.setInvoiceType("lease");
         lease.setCreatedAt(LocalDateTime.now());
-        lease.setPaypropId(tenantData.getPaypropTenantId()); // Link to PayProp tenant
+        // Link tenant PayProp ID to paypropCustomerId (NOT paypropId)
+        // paypropId is reserved for invoice instruction IDs (unique constraint)
+        // paypropCustomerId identifies the tenant associated with this lease
+        lease.setPaypropCustomerId(tenantData.getPaypropTenantId());
 
         return lease;
     }
