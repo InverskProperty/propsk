@@ -696,10 +696,15 @@ public class StatementDataExtractService {
 
         // Try 2: Get tenant from PayProp tenant data via property's payprop_id
         // This searches the payprop_export_tenants_complete table where properties_json contains the property ID
+        // IMPORTANT: For properties with multiple leases, we match tenant based on overlapping dates
         Property property = invoice.getProperty();
         if (property != null && property.getPayPropId() != null && !property.getPayPropId().trim().isEmpty()) {
             String propertyPayPropId = property.getPayPropId();
-            log.info("🔍 Looking up PayProp tenant for property payprop_id: {}", propertyPayPropId);
+            LocalDate leaseStartDate = invoice.getStartDate();
+            LocalDate leaseEndDate = invoice.getEndDate();
+
+            log.info("🔍 Looking up PayProp tenant for property payprop_id: {} (lease: {} to {})",
+                propertyPayPropId, leaseStartDate, leaseEndDate);
 
             try {
                 // Find tenants linked to this property via properties_json
@@ -707,26 +712,21 @@ public class StatementDataExtractService {
                     .findByPropertiesJsonContainingPropertyId(propertyPayPropId);
 
                 if (!payPropTenants.isEmpty()) {
-                    // If multiple tenants found, try to get the most relevant one
-                    // Prefer tenants that are currently active (no end date or end date in future)
-                    PayPropTenantComplete activeTenant = null;
-                    for (PayPropTenantComplete tenant : payPropTenants) {
-                        if (tenant.isCurrentlyActive()) {
-                            activeTenant = tenant;
-                            break;
+                    log.info("📊 Found {} PayProp tenant(s) for property {}", payPropTenants.size(), propertyPayPropId);
+
+                    // Find the tenant whose tenancy dates overlap with this lease's dates
+                    PayPropTenantComplete matchedTenant = findTenantMatchingLeaseDates(
+                        payPropTenants, propertyPayPropId, leaseStartDate, leaseEndDate);
+
+                    if (matchedTenant != null) {
+                        String tenantName = matchedTenant.getDisplayName();
+                        if (tenantName != null && !tenantName.trim().isEmpty()) {
+                            log.info("✓ Found tenant name from PayProp tenant data: {} (payprop_id: {})",
+                                tenantName, matchedTenant.getPayPropId());
+                            return tenantName.trim();
                         }
-                    }
-
-                    // If no active tenant, use the first one (most recently imported)
-                    if (activeTenant == null) {
-                        activeTenant = payPropTenants.get(0);
-                    }
-
-                    String tenantName = activeTenant.getDisplayName();
-                    if (tenantName != null && !tenantName.trim().isEmpty()) {
-                        log.info("✓ Found tenant name from PayProp tenant data: {} (payprop_id: {})",
-                            tenantName, activeTenant.getPayPropId());
-                        return tenantName.trim();
+                    } else {
+                        log.info("📊 No matching tenant found for lease dates {} to {}", leaseStartDate, leaseEndDate);
                     }
                 } else {
                     log.info("📊 No PayProp tenants found for property payprop_id: {}", propertyPayPropId);
@@ -774,5 +774,176 @@ public class StatementDataExtractService {
         log.warn("⚠️ No tenant name found for invoice/lease ID: {} ({})",
             invoice.getId(), invoice.getLeaseReference());
         return ""; // No tenant name found
+    }
+
+    /**
+     * Find the tenant whose tenancy dates overlap with the lease dates
+     * Parses the properties_json to get tenant-specific start/end dates for the property
+     *
+     * @param tenants List of tenants linked to the property
+     * @param propertyPayPropId The PayProp ID of the property
+     * @param leaseStartDate The lease start date
+     * @param leaseEndDate The lease end date (can be null for ongoing leases)
+     * @return The matching tenant or null if no match found
+     */
+    private PayPropTenantComplete findTenantMatchingLeaseDates(
+            List<PayPropTenantComplete> tenants,
+            String propertyPayPropId,
+            LocalDate leaseStartDate,
+            LocalDate leaseEndDate) {
+
+        if (tenants.size() == 1) {
+            // Only one tenant, return it directly
+            return tenants.get(0);
+        }
+
+        PayPropTenantComplete bestMatch = null;
+        int bestOverlapDays = -1;
+
+        for (PayPropTenantComplete tenant : tenants) {
+            try {
+                // Parse the properties_json to find tenant dates for this specific property
+                String propertiesJson = tenant.getPropertiesJson();
+                if (propertiesJson == null || propertiesJson.isEmpty()) {
+                    continue;
+                }
+
+                // Extract tenant dates from the JSON for this property
+                // Format: [{"id": "propertyId", "tenant": {"start_date": "2025-06-17", "end_date": "2025-08-28"}, ...}]
+                LocalDate tenantStartDate = extractTenantStartDateFromJson(propertiesJson, propertyPayPropId);
+                LocalDate tenantEndDate = extractTenantEndDateFromJson(propertiesJson, propertyPayPropId);
+
+                if (tenantStartDate == null) {
+                    // Fall back to entity-level dates if JSON parsing fails
+                    tenantStartDate = tenant.getTenancyStartDate();
+                    tenantEndDate = tenant.getTenancyEndDate();
+                }
+
+                log.info("🔍 Checking tenant {} ({}) - tenancy: {} to {} vs lease: {} to {}",
+                    tenant.getDisplayName(), tenant.getPayPropId(),
+                    tenantStartDate, tenantEndDate, leaseStartDate, leaseEndDate);
+
+                // Check if tenant dates overlap with lease dates
+                if (datesOverlap(leaseStartDate, leaseEndDate, tenantStartDate, tenantEndDate)) {
+                    int overlapDays = calculateOverlapDays(leaseStartDate, leaseEndDate, tenantStartDate, tenantEndDate);
+                    log.info("✓ Tenant {} overlaps with lease ({} days)", tenant.getDisplayName(), overlapDays);
+
+                    if (overlapDays > bestOverlapDays) {
+                        bestOverlapDays = overlapDays;
+                        bestMatch = tenant;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ Error parsing tenant dates for {}: {}", tenant.getPayPropId(), e.getMessage());
+            }
+        }
+
+        return bestMatch;
+    }
+
+    /**
+     * Check if two date ranges overlap
+     */
+    private boolean datesOverlap(LocalDate start1, LocalDate end1, LocalDate start2, LocalDate end2) {
+        // Handle null end dates (ongoing)
+        LocalDate effectiveEnd1 = end1 != null ? end1 : LocalDate.of(2099, 12, 31);
+        LocalDate effectiveEnd2 = end2 != null ? end2 : LocalDate.of(2099, 12, 31);
+
+        // Ranges overlap if start1 <= end2 AND start2 <= end1
+        return !start1.isAfter(effectiveEnd2) && !start2.isAfter(effectiveEnd1);
+    }
+
+    /**
+     * Calculate overlap days between two date ranges
+     */
+    private int calculateOverlapDays(LocalDate start1, LocalDate end1, LocalDate start2, LocalDate end2) {
+        LocalDate effectiveEnd1 = end1 != null ? end1 : LocalDate.now();
+        LocalDate effectiveEnd2 = end2 != null ? end2 : LocalDate.now();
+
+        LocalDate overlapStart = start1.isAfter(start2) ? start1 : start2;
+        LocalDate overlapEnd = effectiveEnd1.isBefore(effectiveEnd2) ? effectiveEnd1 : effectiveEnd2;
+
+        if (overlapStart.isAfter(overlapEnd)) {
+            return 0;
+        }
+
+        return (int) java.time.temporal.ChronoUnit.DAYS.between(overlapStart, overlapEnd);
+    }
+
+    /**
+     * Extract tenant start_date from properties_json for a specific property
+     * JSON format: [{"id": "propertyId", "tenant": {"start_date": "2025-06-17", ...}, ...}]
+     */
+    private LocalDate extractTenantStartDateFromJson(String json, String propertyId) {
+        try {
+            // Find the property object in the JSON array
+            int propIndex = json.indexOf("\"id\": \"" + propertyId + "\"");
+            if (propIndex == -1) {
+                propIndex = json.indexOf("\"id\":\"" + propertyId + "\"");
+            }
+            if (propIndex == -1) {
+                return null;
+            }
+
+            // Find start_date after this property
+            int startDateIndex = json.indexOf("\"start_date\":", propIndex);
+            if (startDateIndex == -1 || startDateIndex > propIndex + 500) { // Limit search scope
+                return null;
+            }
+
+            // Extract the date value
+            int valueStart = json.indexOf("\"", startDateIndex + 13) + 1;
+            int valueEnd = json.indexOf("\"", valueStart);
+            if (valueStart > 0 && valueEnd > valueStart) {
+                String dateStr = json.substring(valueStart, valueEnd);
+                if (dateStr != null && !dateStr.isEmpty() && !dateStr.equals("null")) {
+                    return LocalDate.parse(dateStr);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not parse start_date from JSON: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Extract tenant end_date from properties_json for a specific property
+     */
+    private LocalDate extractTenantEndDateFromJson(String json, String propertyId) {
+        try {
+            // Find the property object in the JSON array
+            int propIndex = json.indexOf("\"id\": \"" + propertyId + "\"");
+            if (propIndex == -1) {
+                propIndex = json.indexOf("\"id\":\"" + propertyId + "\"");
+            }
+            if (propIndex == -1) {
+                return null;
+            }
+
+            // Find end_date after this property
+            int endDateIndex = json.indexOf("\"end_date\":", propIndex);
+            if (endDateIndex == -1 || endDateIndex > propIndex + 500) { // Limit search scope
+                return null;
+            }
+
+            // Check for null value
+            int nullCheck = json.indexOf("null", endDateIndex + 11);
+            if (nullCheck == endDateIndex + 12 || nullCheck == endDateIndex + 13) {
+                return null; // end_date is null (ongoing tenancy)
+            }
+
+            // Extract the date value
+            int valueStart = json.indexOf("\"", endDateIndex + 11) + 1;
+            int valueEnd = json.indexOf("\"", valueStart);
+            if (valueStart > 0 && valueEnd > valueStart) {
+                String dateStr = json.substring(valueStart, valueEnd);
+                if (dateStr != null && !dateStr.isEmpty() && !dateStr.equals("null")) {
+                    return LocalDate.parse(dateStr);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not parse end_date from JSON: {}", e.getMessage());
+        }
+        return null;
     }
 }
