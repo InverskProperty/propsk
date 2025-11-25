@@ -472,15 +472,77 @@ public class PayPropLeaseCreationService {
     }
 
     /**
-     * Find existing lease for property, customer, and start date
+     * Find existing lease for property - prevents duplicates when customer matching fails
+     *
+     * A lease is considered a duplicate if:
+     * 1. Same property + same customer (regardless of dates or active status)
+     * 2. Same property + ANY lease with overlapping dates (customer may not have linked correctly)
+     *
+     * This prevents duplicates when:
+     * - Local lease was created with customer that doesn't have PayProp ID
+     * - PayProp import creates new customer (can't match) and would create duplicate lease
+     * - Existing lease has is_active=false or NULL
+     *
+     * Note: This is conservative - if a property has ANY lease with overlapping dates,
+     * we won't create another one even if the tenant appears different.
      */
     private Invoice findExistingLease(Property property, Customer customer, LocalDate startDate) {
-        List<Invoice> leases = invoiceRepository.findByCustomerAndProperty(customer, property);
+        // FIRST: Check for existing lease with same property + customer (exact match)
+        List<Invoice> customerLeases = invoiceRepository.findByCustomerAndProperty(customer, property);
 
-        for (Invoice lease : leases) {
-            if (lease.getInvoiceType() != null && lease.getInvoiceType().equals("lease") &&
-                lease.getStartDate() != null && lease.getStartDate().equals(startDate)) {
+        for (Invoice lease : customerLeases) {
+            // Check for lease type - accept both explicit "lease" type and NULL (legacy data)
+            String invoiceType = lease.getInvoiceType();
+            boolean isLease = "lease".equals(invoiceType) || invoiceType == null;
+            if (!isLease) {
+                continue;
+            }
+
+            // If lease is active OR has no end date, it's a duplicate
+            if (Boolean.TRUE.equals(lease.getIsActive()) || lease.getEndDate() == null) {
+                log.info("   ✓ Found existing lease for same property+customer: {} (active: {}, endDate: {})",
+                    lease.getLeaseReference(), lease.getIsActive(), lease.getEndDate());
                 return lease;
+            }
+
+            // If lease dates overlap with the new start date, it's a duplicate
+            if (lease.getStartDate() != null && startDate != null) {
+                LocalDate leaseEnd = lease.getEndDate();
+                if (leaseEnd == null || !leaseEnd.isBefore(startDate)) {
+                    log.info("   ✓ Found existing overlapping lease for same property+customer: {} (start: {}, end: {})",
+                        lease.getLeaseReference(), lease.getStartDate(), leaseEnd);
+                    return lease;
+                }
+            }
+        }
+
+        // SECOND: Check for ANY lease on this property with overlapping dates (regardless of active status)
+        // This catches cases where:
+        // - Customer wasn't linked properly (missing PayProp ID, different email, etc.)
+        // - Lease has is_active=false/NULL but is still current
+        List<Invoice> propertyLeases = invoiceRepository.findByProperty(property);
+
+        for (Invoice lease : propertyLeases) {
+            // Check for lease type - accept both explicit "lease" type and NULL (legacy data)
+            String invoiceType = lease.getInvoiceType();
+            boolean isLease = "lease".equals(invoiceType) || invoiceType == null;
+            if (!isLease) {
+                continue;
+            }
+
+            // Check for date overlap (don't skip based on is_active - that was causing duplicates!)
+            if (startDate != null && lease.getStartDate() != null) {
+                LocalDate leaseEnd = lease.getEndDate();
+
+                // Overlap: new start is before existing end (or no end)
+                if (leaseEnd == null || !leaseEnd.isBefore(startDate)) {
+                    log.info("   ⚠️ Found existing lease on same property (different customer): {} - tenant: {} (active: {})",
+                        lease.getLeaseReference(),
+                        lease.getCustomer() != null ? lease.getCustomer().getName() : "unknown",
+                        lease.getIsActive());
+                    log.info("      Preventing duplicate - link customers or end existing lease first");
+                    return lease;
+                }
             }
         }
 
