@@ -136,4 +136,29 @@ public interface PayPropTenantCompleteRepository extends JpaRepository<PayPropTe
            "FROM PayPropTenantComplete t " +
            "WHERE t.tenancyStartDate IS NOT NULL AND t.tenancyEndDate IS NOT NULL")
     Object[] getOverallTenancyDurationStats();
+
+    /**
+     * Find tenants by property PayProp ID via properties_json field
+     * The properties_json contains an array of property objects with "id" field
+     * Uses native query with LIKE since JSON functions vary across databases
+     */
+    @Query(value = "SELECT * FROM payprop_export_tenants_complete t " +
+           "WHERE t.properties_json LIKE CONCAT('%', :propertyPayPropId, '%')",
+           nativeQuery = true)
+    List<PayPropTenantComplete> findByPropertiesJsonContainingPropertyId(
+            @Param("propertyPayPropId") String propertyPayPropId
+    );
+
+    /**
+     * Find current/active tenants by property PayProp ID via properties_json field
+     * Returns tenants where end_date is null or in the future
+     */
+    @Query(value = "SELECT * FROM payprop_export_tenants_complete t " +
+           "WHERE t.properties_json LIKE CONCAT('%', :propertyPayPropId, '%') " +
+           "AND (t.tenancy_end_date IS NULL OR t.tenancy_end_date > :today)",
+           nativeQuery = true)
+    List<PayPropTenantComplete> findCurrentTenantsByPropertiesJsonContainingPropertyId(
+            @Param("propertyPayPropId") String propertyPayPropId,
+            @Param("today") LocalDate today
+    );
 }

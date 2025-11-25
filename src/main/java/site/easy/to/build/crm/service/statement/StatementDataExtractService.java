@@ -13,12 +13,14 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.LettingInstruction;
+import site.easy.to.build.crm.entity.PayPropTenantComplete;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.UnifiedTransaction;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
+import site.easy.to.build.crm.repository.PayPropTenantCompleteRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
@@ -61,6 +63,9 @@ public class StatementDataExtractService {
 
     @Autowired
     private PropertyService propertyService;
+
+    @Autowired
+    private PayPropTenantCompleteRepository payPropTenantCompleteRepository;
 
     /**
      * Extract lease master data (all leases)
@@ -666,7 +671,8 @@ public class StatementDataExtractService {
      * Extract tenant name from invoice/lease
      * Tries multiple sources:
      * 1. Letting instruction tenant
-     * 2. Most recent financial transaction tenant_name
+     * 2. PayProp tenant data via property's payprop_id (from payprop_export_tenants_complete)
+     * 3. Most recent financial transaction tenant_name (fallback for INCOMING_PAYMENT descriptions)
      *
      * @param invoice The lease/invoice
      * @return Tenant name or empty string if not found
@@ -688,7 +694,49 @@ public class StatementDataExtractService {
             }
         }
 
-        // Try 2: Get tenant name from most recent unified transaction
+        // Try 2: Get tenant from PayProp tenant data via property's payprop_id
+        // This searches the payprop_export_tenants_complete table where properties_json contains the property ID
+        Property property = invoice.getProperty();
+        if (property != null && property.getPayPropId() != null && !property.getPayPropId().trim().isEmpty()) {
+            String propertyPayPropId = property.getPayPropId();
+            log.info("🔍 Looking up PayProp tenant for property payprop_id: {}", propertyPayPropId);
+
+            try {
+                // Find tenants linked to this property via properties_json
+                List<PayPropTenantComplete> payPropTenants = payPropTenantCompleteRepository
+                    .findByPropertiesJsonContainingPropertyId(propertyPayPropId);
+
+                if (!payPropTenants.isEmpty()) {
+                    // If multiple tenants found, try to get the most relevant one
+                    // Prefer tenants that are currently active (no end date or end date in future)
+                    PayPropTenantComplete activeTenant = null;
+                    for (PayPropTenantComplete tenant : payPropTenants) {
+                        if (tenant.isCurrentlyActive()) {
+                            activeTenant = tenant;
+                            break;
+                        }
+                    }
+
+                    // If no active tenant, use the first one (most recently imported)
+                    if (activeTenant == null) {
+                        activeTenant = payPropTenants.get(0);
+                    }
+
+                    String tenantName = activeTenant.getDisplayName();
+                    if (tenantName != null && !tenantName.trim().isEmpty()) {
+                        log.info("✓ Found tenant name from PayProp tenant data: {} (payprop_id: {})",
+                            tenantName, activeTenant.getPayPropId());
+                        return tenantName.trim();
+                    }
+                } else {
+                    log.info("📊 No PayProp tenants found for property payprop_id: {}", propertyPayPropId);
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ Error looking up PayProp tenant for property {}: {}", propertyPayPropId, e.getMessage());
+            }
+        }
+
+        // Try 3: Get tenant name from most recent unified transaction (fallback)
         List<UnifiedTransaction> transactions = unifiedTransactionRepository
             .findByInvoiceId(invoice.getId());
 
@@ -715,7 +763,7 @@ public class StatementDataExtractService {
                         int end = desc.indexOf(" - ", start);
                         if (end > start) {
                             String tenantName = desc.substring(start, end).trim();
-                            log.info("✓ Extracted tenant name: '{}'", tenantName);
+                            log.info("✓ Extracted tenant name from transaction: '{}'", tenantName);
                             return tenantName;
                         }
                     }
