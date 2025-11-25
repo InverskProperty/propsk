@@ -25,6 +25,10 @@ public class LeaseMasterDTO {
     private String frequency;  // MONTHLY, WEEKLY, etc.
     private Integer paymentDay;  // Day of month rent is due
 
+    // Commission rates from Property - used instead of global defaults
+    private BigDecimal commissionPercentage;  // Management fee % from property
+    private BigDecimal serviceFeePercentage;  // Service fee % from property
+
     // Constructor
     public LeaseMasterDTO() {
     }
@@ -148,6 +152,22 @@ public class LeaseMasterDTO {
 
     public void setPaymentDay(Integer paymentDay) {
         this.paymentDay = paymentDay;
+    }
+
+    public BigDecimal getCommissionPercentage() {
+        return commissionPercentage;
+    }
+
+    public void setCommissionPercentage(BigDecimal commissionPercentage) {
+        this.commissionPercentage = commissionPercentage;
+    }
+
+    public BigDecimal getServiceFeePercentage() {
+        return serviceFeePercentage;
+    }
+
+    public void setServiceFeePercentage(BigDecimal serviceFeePercentage) {
+        this.serviceFeePercentage = serviceFeePercentage;
     }
 
     @Override

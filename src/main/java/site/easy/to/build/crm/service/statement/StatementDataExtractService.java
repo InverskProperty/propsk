@@ -109,6 +109,9 @@ public class StatementDataExtractService {
                 dto.setPropertyId(property.getId());
                 dto.setPropertyName(property.getPropertyName());
                 dto.setPropertyAddress(property.getFullAddress());
+                // Commission rates from property (not global defaults)
+                dto.setCommissionPercentage(property.getCommissionPercentage());
+                dto.setServiceFeePercentage(property.getServiceFeePercentage());
             }
 
             // Customer details (property owner)
@@ -212,6 +215,9 @@ public class StatementDataExtractService {
                 dto.setPropertyId(property.getId());
                 dto.setPropertyName(property.getPropertyName());
                 dto.setPropertyAddress(property.getFullAddress());
+                // Commission rates from property (not global defaults)
+                dto.setCommissionPercentage(property.getCommissionPercentage());
+                dto.setServiceFeePercentage(property.getServiceFeePercentage());
             }
 
             // Customer details (always same customer in this method)

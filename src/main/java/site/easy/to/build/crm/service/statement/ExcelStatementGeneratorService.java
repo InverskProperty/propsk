@@ -882,13 +882,21 @@ public class ExcelStatementGeneratorService {
                     arrearsCell.setCellStyle(currencyStyle);
 
                     // Column J: management_fee (formula: rent_received * management_fee_percent)
+                    // Use property-specific commission rate, fallback to global default if not set
+                    double mgmtFeeRate = lease.getCommissionPercentage() != null
+                        ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal
+                        : commissionConfig.getManagementFeePercent().doubleValue();
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                    mgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
                     // Column K: service_fee (formula: rent_received * service_fee_percent)
+                    // Use property-specific service fee rate, fallback to global default if not set
+                    double svcFeeRate = lease.getServiceFeePercentage() != null
+                        ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal
+                        : commissionConfig.getServiceFeePercent().doubleValue();
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                    svcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                     svcFeeCell.setCellStyle(currencyStyle);
 
                     // Column L: total_commission (formula: ABS(mgmt + svc))
@@ -1489,13 +1497,21 @@ public class ExcelStatementGeneratorService {
                 arrearsCell.setCellStyle(currencyStyle);
 
                 // J: management_fee (formula: rent_received * management_fee_percent) - H is rent_received
+                // Use property-specific commission rate, fallback to global default if not set
+                double mgmtFeeRate = lease.getCommissionPercentage() != null
+                    ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal (0.10)
+                    : commissionConfig.getManagementFeePercent().doubleValue();
                 Cell mgmtFeeCell = row.createCell(col++);
-                mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                mgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                 mgmtFeeCell.setCellStyle(currencyStyle);
 
                 // K: service_fee (formula: rent_received * service_fee_percent) - H is rent_received
+                // Use property-specific service fee rate, fallback to global default if not set
+                double svcFeeRate = lease.getServiceFeePercentage() != null
+                    ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal (0.05)
+                    : commissionConfig.getServiceFeePercent().doubleValue();
                 Cell svcFeeCell = row.createCell(col++);
-                svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                svcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                 svcFeeCell.setCellStyle(currencyStyle);
 
                 // L: total_commission (formula: ABS(mgmt + svc)) - J is mgmt_fee, K is svc_fee
