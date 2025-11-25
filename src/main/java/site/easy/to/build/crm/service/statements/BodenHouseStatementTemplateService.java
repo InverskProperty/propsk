@@ -539,7 +539,7 @@ public class BodenHouseStatementTemplateService {
         row[15] = "=N" + currentRow + "*O" + currentRow; // Management Fee £ - Column P (Total Rent Received * Management Fee %)
         row[16] = serviceDecimal; // Service Fee % (as decimal for Excel) - Column Q
         row[17] = "=N" + currentRow + "*Q" + currentRow; // Service Fee £ - Column R (Total Rent Received * Service Fee %)
-        row[18] = "=P" + currentRow + "+R" + currentRow; // Total Fees Charged by Propsk (Column S = P + R)
+        row[18] = "=ABS(P" + currentRow + "+R" + currentRow + ")"; // Total Fees Charged by Propsk (Column S = ABS(P + R))
 
         // Expenses (up to 4 expenses like your spreadsheet)
         for (int i = 0; i < 4 && i < unit.expenses.size(); i++) {
@@ -552,7 +552,7 @@ public class BodenHouseStatementTemplateService {
         // More formulas matching your spreadsheet
         row[31] = "=U" + currentRow + "+X" + currentRow + "+AA" + currentRow + "+AD" + currentRow; // Total Expenses (sum of 4 expense amounts)
         row[32] = "=AF" + currentRow + "+S" + currentRow; // Total Expenses and Commission (Total Expenses + Total Fees)
-        row[33] = "=N" + currentRow + "-S" + currentRow + "-AF" + currentRow; // Net Due to Owner (Total Rent Received - Fees - Expenses)
+        row[33] = "=K" + currentRow + "-S" + currentRow + "-AF" + currentRow; // Net Due to Owner (Rent Received - Total Commission - Total Expenses)
         row[34] = "=AH" + currentRow; // Net Due from Propsk (same as Net Due to Owner for now)
         row[35] = unit.datePaid;
         row[36] = "=F" + currentRow + "-K" + currentRow; // Rent Due less Received (F=rentDueAmount, K=rentReceivedAmount)
