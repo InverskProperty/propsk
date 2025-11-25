@@ -330,6 +330,7 @@ public class BodenHouseStatementTemplateService {
 
     /**
      * Calculate all unit amounts following your spreadsheet formulas
+     * Uses ACTUAL commission amounts from transaction records (not calculated percentages)
      */
     private void calculateUnitAmounts(PropertyUnit unit, Property property, List<HistoricalTransaction> transactions) {
         // Calculate rent received
@@ -338,27 +339,34 @@ public class BodenHouseStatementTemplateService {
         unit.amountReceivedOldAccount = calculateOldAccountAmount(transactions);
         unit.totalRentReceivedByPropsk = unit.amountReceivedPayProp.add(unit.amountReceivedOldAccount);
 
-        // Commission calculations - use stored commission percentage
-        BigDecimal totalCommission = property.getCommissionPercentage() != null ?
-            property.getCommissionPercentage() : new BigDecimal("15.00");
+        // Commission calculations - use ACTUAL amounts from transaction records
+        // Sum commissionAmount as management fee, serviceFeeAmount as service fee
+        BigDecimal actualCommissionAmount = transactions.stream()
+            .filter(t -> t.getCommissionAmount() != null)
+            .map(HistoricalTransaction::getCommissionAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Put entire commission in management fee (no split)
-        unit.managementFeePercentage = totalCommission;
-        unit.serviceFeePercentage = BigDecimal.ZERO;
+        BigDecimal actualServiceFeeAmount = transactions.stream()
+            .filter(t -> t.getServiceFeeAmount() != null)
+            .map(HistoricalTransaction::getServiceFeeAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Use actual amounts from transactions
+        // Commission amounts are typically stored as positive, negate for statement display
+        unit.managementFeeAmount = actualCommissionAmount.negate();
+        unit.serviceFeeAmount = actualServiceFeeAmount.negate();
+
+        // Calculate percentage for display (if rent received > 0)
         if (unit.rentReceivedAmount.compareTo(BigDecimal.ZERO) > 0) {
-            unit.managementFeeAmount = unit.rentReceivedAmount
-                .multiply(unit.managementFeePercentage)
-                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
-                .negate(); // Negative for fees
-
-            unit.serviceFeeAmount = unit.rentReceivedAmount
-                .multiply(unit.serviceFeePercentage)
-                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
-                .negate(); // Negative for fees
+            unit.managementFeePercentage = actualCommissionAmount.abs()
+                .multiply(new BigDecimal("100"))
+                .divide(unit.rentReceivedAmount, 2, RoundingMode.HALF_UP);
+            unit.serviceFeePercentage = actualServiceFeeAmount.abs()
+                .multiply(new BigDecimal("100"))
+                .divide(unit.rentReceivedAmount, 2, RoundingMode.HALF_UP);
         } else {
-            unit.managementFeeAmount = BigDecimal.ZERO;
-            unit.serviceFeeAmount = BigDecimal.ZERO;
+            unit.managementFeePercentage = BigDecimal.ZERO;
+            unit.serviceFeePercentage = BigDecimal.ZERO;
         }
 
         unit.totalFeesChargedByPropsk = unit.managementFeeAmount.add(unit.serviceFeeAmount);
@@ -902,6 +910,7 @@ public class BodenHouseStatementTemplateService {
     /**
      * Calculate all unit amounts using StatementTransactionDto (NEW VERSION)
      * Handles BOTH historical and PayProp transactions
+     * Uses ACTUAL commission amounts from transaction records (not calculated percentages)
      */
     private void calculateUnitAmountsDto(PropertyUnit unit, Property property, List<StatementTransactionDto> transactions) {
         // Calculate rent received from BOTH sources
@@ -910,27 +919,34 @@ public class BodenHouseStatementTemplateService {
         unit.amountReceivedOldAccount = calculateOldAccountAmountDto(transactions);
         unit.totalRentReceivedByPropsk = unit.amountReceivedPayProp.add(unit.amountReceivedOldAccount);
 
-        // Commission calculations - use stored commission percentage
-        BigDecimal totalCommission = property.getCommissionPercentage() != null ?
-            property.getCommissionPercentage() : new BigDecimal("15.00");
+        // Commission calculations - use ACTUAL amounts from transaction records
+        // Sum commissionAmount as management fee, serviceFeeAmount as service fee
+        BigDecimal actualCommissionAmount = transactions.stream()
+            .filter(t -> t.getCommissionAmount() != null)
+            .map(StatementTransactionDto::getCommissionAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Put entire commission in management fee (no split)
-        unit.managementFeePercentage = totalCommission;
-        unit.serviceFeePercentage = BigDecimal.ZERO;
+        BigDecimal actualServiceFeeAmount = transactions.stream()
+            .filter(t -> t.getServiceFeeAmount() != null)
+            .map(StatementTransactionDto::getServiceFeeAmount)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Use actual amounts from transactions
+        // Commission amounts are typically stored as positive, negate for statement display
+        unit.managementFeeAmount = actualCommissionAmount.negate();
+        unit.serviceFeeAmount = actualServiceFeeAmount.negate();
+
+        // Calculate percentage for display (if rent received > 0)
         if (unit.rentReceivedAmount.compareTo(BigDecimal.ZERO) > 0) {
-            unit.managementFeeAmount = unit.rentReceivedAmount
-                .multiply(unit.managementFeePercentage)
-                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
-                .negate(); // Negative for fees
-
-            unit.serviceFeeAmount = unit.rentReceivedAmount
-                .multiply(unit.serviceFeePercentage)
-                .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP)
-                .negate(); // Negative for fees
+            unit.managementFeePercentage = actualCommissionAmount.abs()
+                .multiply(new BigDecimal("100"))
+                .divide(unit.rentReceivedAmount, 2, RoundingMode.HALF_UP);
+            unit.serviceFeePercentage = actualServiceFeeAmount.abs()
+                .multiply(new BigDecimal("100"))
+                .divide(unit.rentReceivedAmount, 2, RoundingMode.HALF_UP);
         } else {
-            unit.managementFeeAmount = BigDecimal.ZERO;
-            unit.serviceFeeAmount = BigDecimal.ZERO;
+            unit.managementFeePercentage = BigDecimal.ZERO;
+            unit.serviceFeePercentage = BigDecimal.ZERO;
         }
 
         unit.totalFeesChargedByPropsk = unit.managementFeeAmount.add(unit.serviceFeeAmount);
