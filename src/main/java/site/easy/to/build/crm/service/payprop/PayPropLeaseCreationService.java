@@ -196,9 +196,11 @@ public class PayPropLeaseCreationService {
 
                 // Extract property ID
                 String propertyId = extractJsonValue(clean, "\"id\":");
-                // Clean up any trailing/leading whitespace or escape characters
+                // Clean up any trailing/leading whitespace, escape characters, and trailing punctuation
                 if (propertyId != null) {
-                    propertyId = propertyId.trim().replaceAll("[\\\\\"]", "");
+                    propertyId = propertyId.trim()
+                        .replaceAll("[\\\\\"]", "")      // Remove escape chars and quotes
+                        .replaceAll("[,;:\\s]+$", "");    // Remove trailing commas, semicolons, colons, spaces
                 }
                 assignment.setPropertyPaypropId(propertyId);
 
@@ -424,10 +426,10 @@ public class PayPropLeaseCreationService {
      * Find property by PayProp ID
      */
     private Property findPropertyByPayPropId(String paypropId) {
-        // Clean the input - remove any whitespace or escape characters
-        String cleanId = paypropId != null ? paypropId.trim() : null;
+        // Clean the input - remove any whitespace, trailing commas, or other punctuation
+        String cleanId = paypropId != null ? paypropId.trim().replaceAll("[,;:\\s]+$", "") : null;
 
-        log.debug("🔍 Searching for property with PayProp ID: {} (length: {}, cleaned: {})",
+        log.debug("🔍 Searching for property with PayProp ID: '{}' (length: {}, cleaned: '{}')",
             paypropId, paypropId != null ? paypropId.length() : 0, cleanId);
 
         Optional<Property> result = propertyRepository.findByPayPropId(cleanId);
