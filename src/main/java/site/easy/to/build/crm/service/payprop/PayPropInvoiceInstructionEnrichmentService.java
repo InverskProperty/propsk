@@ -13,6 +13,7 @@ import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 
+import jakarta.persistence.EntityManager;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -51,6 +52,9 @@ public class PayPropInvoiceInstructionEnrichmentService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     /**
      * Enrich local leases with PayProp invoice instruction IDs
@@ -166,6 +170,15 @@ public class PayPropInvoiceInstructionEnrichmentService {
                     log.error("❌ Failed to process instruction {}: {}", instruction.paypropId, e.getMessage());
                     errors++;
                     result.addError(instruction.paypropId, e.getMessage());
+
+                    // CRITICAL: Clear the entity manager after an error to prevent cascade failures
+                    // When a constraint violation occurs, Hibernate marks the session as rollback-only
+                    // and subsequent operations fail with duplicate entry or null id errors
+                    try {
+                        entityManager.clear();
+                    } catch (Exception clearEx) {
+                        log.warn("Failed to clear entity manager after error: {}", clearEx.getMessage());
+                    }
                 }
             }
 

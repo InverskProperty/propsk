@@ -259,34 +259,52 @@ public class PayPropLeaseCreationService {
 
     /**
      * Extract value for a JSON key (simple extraction)
+     * Handles values like: "key": "value", "key": 123, "key": null
      */
     private String extractJsonValue(String json, String key) {
         int keyIndex = json.indexOf(key);
         if (keyIndex == -1) return null;
 
         int valueStart = keyIndex + key.length();
-        while (valueStart < json.length() && (json.charAt(valueStart) == ' ' || json.charAt(valueStart) == '"')) {
+        // Skip whitespace after the colon
+        while (valueStart < json.length() && Character.isWhitespace(json.charAt(valueStart))) {
             valueStart++;
         }
 
+        if (valueStart >= json.length()) return null;
+
+        // Check if value is quoted
+        boolean isQuoted = json.charAt(valueStart) == '"';
+        if (isQuoted) {
+            valueStart++; // Skip opening quote
+        }
+
         int valueEnd = valueStart;
-        boolean inQuotes = false;
         while (valueEnd < json.length()) {
             char c = json.charAt(valueEnd);
-            if (c == '"' && (valueEnd == 0 || json.charAt(valueEnd - 1) != '\\')) {
-                if (inQuotes) break;
-                inQuotes = true;
-            } else if (!inQuotes && (c == ',' || c == '}')) {
-                break;
+            if (isQuoted) {
+                // For quoted values, look for closing quote (not escaped)
+                if (c == '"' && (valueEnd == valueStart || json.charAt(valueEnd - 1) != '\\')) {
+                    break;
+                }
+            } else {
+                // For unquoted values, stop at comma, brace, or bracket
+                if (c == ',' || c == '}' || c == ']') {
+                    break;
+                }
             }
             valueEnd++;
         }
 
         String value = json.substring(valueStart, valueEnd).trim();
-        if (value.startsWith("\"")) value = value.substring(1);
-        if (value.endsWith("\"")) value = value.substring(0, value.length() - 1);
 
-        return value;
+        // Clean up any remaining quotes, commas, braces from the value
+        value = value.replaceAll("^[\"']+", "")     // Leading quotes
+                     .replaceAll("[\"']+$", "")     // Trailing quotes
+                     .replaceAll("[,}\\]]+$", "")   // Trailing punctuation
+                     .trim();
+
+        return value.isEmpty() || value.equals("null") ? null : value;
     }
 
     /**
