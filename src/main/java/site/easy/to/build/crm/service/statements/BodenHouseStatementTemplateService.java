@@ -555,7 +555,7 @@ public class BodenHouseStatementTemplateService {
         row[33] = "=N" + currentRow + "-S" + currentRow + "-AF" + currentRow; // Net Due to Owner (Total Rent Received - Fees - Expenses)
         row[34] = "=AH" + currentRow; // Net Due from Propsk (same as Net Due to Owner for now)
         row[35] = unit.datePaid;
-        row[36] = "=G" + currentRow + "-L" + currentRow; // Rent Due less Received
+        row[36] = "=F" + currentRow + "-K" + currentRow; // Rent Due less Received (F=rentDueAmount, K=rentReceivedAmount)
 
         // Generate cross-sheet reference for running tenant balance (like your spreadsheet)
         String tenantBalanceFormula = generateTenantBalanceFormula(unit, currentRow);
