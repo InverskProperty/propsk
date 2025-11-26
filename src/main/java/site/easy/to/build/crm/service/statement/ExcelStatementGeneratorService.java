@@ -215,6 +215,76 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
+     * Generate rent due periods based on the LEASE START DATE (anniversary-based)
+     * Each lease has its own rent cycle based on when it started.
+     * E.g., a lease starting March 6th has periods: Mar 6 - Apr 5, Apr 6 - May 5, etc.
+     *
+     * @param leaseStart The lease start date (determines rent due day)
+     * @param leaseEnd The lease end date (null for ongoing leases)
+     * @param overallStart The overall statement start date
+     * @param overallEnd The overall statement end date
+     * @return List of rent due periods for this specific lease
+     */
+    private List<CustomPeriod> generateLeaseBasedPeriods(LocalDate leaseStart, LocalDate leaseEnd,
+                                                          LocalDate overallStart, LocalDate overallEnd) {
+        List<CustomPeriod> periods = new ArrayList<>();
+
+        if (leaseStart == null) {
+            log.warn("Lease has no start date, cannot generate periods");
+            return periods;
+        }
+
+        int rentDueDay = leaseStart.getDayOfMonth();
+
+        // Find the first rent due date on or after lease start that's within our statement range
+        LocalDate periodStart = leaseStart;
+
+        // If lease started before our statement range, find the first period that overlaps
+        if (periodStart.isBefore(overallStart)) {
+            // Move forward to find the rent due date in or just before the statement range
+            while (periodStart.plusMonths(1).isBefore(overallStart) ||
+                   periodStart.plusMonths(1).isEqual(overallStart)) {
+                periodStart = periodStart.plusMonths(1);
+                // Adjust for months with fewer days
+                periodStart = LocalDate.of(periodStart.getYear(), periodStart.getMonthValue(),
+                                          Math.min(rentDueDay, periodStart.lengthOfMonth()));
+            }
+        }
+
+        // Determine the effective end date (lease end or statement end, whichever is earlier)
+        LocalDate effectiveEnd = overallEnd;
+        if (leaseEnd != null && leaseEnd.isBefore(overallEnd)) {
+            effectiveEnd = leaseEnd;
+        }
+
+        // Generate periods from lease start to effective end
+        while (!periodStart.isAfter(effectiveEnd)) {
+            // Calculate period end (one day before next month's rent due date)
+            LocalDate nextPeriodStart = periodStart.plusMonths(1);
+            nextPeriodStart = LocalDate.of(nextPeriodStart.getYear(), nextPeriodStart.getMonthValue(),
+                                          Math.min(rentDueDay, nextPeriodStart.lengthOfMonth()));
+            LocalDate periodEnd = nextPeriodStart.minusDays(1);
+
+            // If lease ends before period end, use lease end
+            if (leaseEnd != null && leaseEnd.isBefore(periodEnd)) {
+                periodEnd = leaseEnd;
+            }
+
+            // Only add period if it overlaps with our statement range
+            if (!periodEnd.isBefore(overallStart) && !periodStart.isAfter(overallEnd)) {
+                periods.add(new CustomPeriod(periodStart, periodEnd));
+            }
+
+            // Move to next period
+            periodStart = nextPeriodStart;
+        }
+
+        log.debug("Generated {} lease-based periods for lease starting {} (rent due day: {})",
+                 periods.size(), leaseStart, rentDueDay);
+        return periods;
+    }
+
+    /**
      * Generate custom periods based on start day (e.g., 22nd of each month)
      */
     private List<CustomPeriod> generateCustomPeriods(LocalDate start, LocalDate end, int periodStartDay) {
@@ -1166,12 +1236,14 @@ public class ExcelStatementGeneratorService {
     // ============================================================================
 
     /**
-     * Create RENT_DUE sheet with custom periods and accurate calendar-day pro-rating
-     * Uses actual month days instead of fixed 30-day months
+     * Create RENT_DUE sheet with LEASE-BASED periods (anniversary dates)
+     * Each lease gets its own rent cycle based on when the lease started.
+     * E.g., a lease starting March 6th has periods: Mar 6 - Apr 5, Apr 6 - May 5, etc.
+     * Uses actual month days for accurate pro-rating.
      */
     private void createRentDueSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                                     LocalDate startDate, LocalDate endDate, int periodStartDay) {
-        log.info("Creating RENT_DUE sheet with custom periods (start day: {})", periodStartDay);
+        log.info("Creating RENT_DUE sheet with LEASE-BASED periods (ignoring periodStartDay: {})", periodStartDay);
 
         Sheet sheet = workbook.createSheet("RENT_DUE");
 
@@ -1197,27 +1269,22 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate custom periods
-        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
-
-        // Generate rows for each lease × custom period that has started
-        // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
+        // Generate rows for each lease using LEASE-BASED periods (not fixed billing periods)
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
-            int rentDueDay = leaseStart != null ? leaseStart.getDayOfMonth() : periodStartDay;
+            int rentDueDay = leaseStart != null ? leaseStart.getDayOfMonth() : 1;
 
-            for (CustomPeriod period : periods) {
-                // Skip future leases that haven't started yet (lease start is after period end)
-                if (leaseStart != null && leaseStart.isAfter(period.periodEnd)) {
-                    continue; // Don't show leases that haven't started yet
-                }
+            // Skip leases without start date
+            if (leaseStart == null) {
+                log.warn("Skipping lease {} - no start date", lease.getLeaseReference());
+                continue;
+            }
 
-                // Check if lease is active during this period (for rent calculation)
-                boolean leaseActiveInPeriod = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
-                                   && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
+            // Generate periods based on THIS LEASE's start date (anniversary-based)
+            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate);
 
-                // Create row for leases that have started (active or ended, but not future)
+            for (CustomPeriod period : leasePeriods) {
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
@@ -1230,12 +1297,12 @@ public class ExcelStatementGeneratorService {
                 // C: property_name
                 row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
 
-                // D: period_start
+                // D: period_start (based on lease anniversary)
                 Cell periodStartCell = row.createCell(col++);
                 periodStartCell.setCellValue(period.periodStart);
                 periodStartCell.setCellStyle(dateStyle);
 
-                // E: period_end
+                // E: period_end (day before next anniversary, or lease end if earlier)
                 Cell periodEndCell = row.createCell(col++);
                 periodEndCell.setCellValue(period.periodEnd);
                 periodEndCell.setCellStyle(dateStyle);
@@ -1245,10 +1312,8 @@ public class ExcelStatementGeneratorService {
 
                 // G: lease_start
                 Cell leaseStartCell = row.createCell(col++);
-                if (leaseStart != null) {
-                    leaseStartCell.setCellValue(leaseStart);
-                    leaseStartCell.setCellStyle(dateStyle);
-                }
+                leaseStartCell.setCellValue(leaseStart);
+                leaseStartCell.setCellStyle(dateStyle);
 
                 // H: lease_end
                 Cell leaseEndCell = row.createCell(col++);
@@ -1264,38 +1329,27 @@ public class ExcelStatementGeneratorService {
                     monthlyRentCell.setCellStyle(currencyStyle);
                 }
 
-                // J: rent_due_day
+                // J: rent_due_day (from lease start date)
                 row.createCell(col++).setCellValue(rentDueDay);
 
-                // K: lease_days_in_period - 0 if lease not active in this period
+                // K: lease_days_in_period
                 Cell leaseDaysCell = row.createCell(col++);
-                if (leaseActiveInPeriod) {
-                    leaseDaysCell.setCellFormula(String.format(
-                        "MAX(0, MIN(IF(ISBLANK(H%d), E%d, H%d), E%d) - MAX(G%d, D%d) + 1)",
-                        rowNum + 1, rowNum + 1, rowNum + 1, // lease_end or period_end
-                        rowNum + 1, // period_end
-                        rowNum + 1, rowNum + 1 // lease_start, period_start
-                    ));
-                } else {
-                    // Lease not active - 0 days in this period
-                    leaseDaysCell.setCellValue(0);
-                }
+                leaseDaysCell.setCellValue(period.periodDays);
 
-                // L: prorated_rent_due - £0 if lease not active in this period
+                // L: prorated_rent_due
+                // If this is a full period (period_days >= 28), use full monthly rent
+                // If this is a partial period (e.g., lease ends mid-period), prorate
                 Cell proratedRentCell = row.createCell(col++);
-                if (leaseActiveInPeriod) {
-                    proratedRentCell.setCellFormula(String.format(
-                        "IF(AND(NOT(ISBLANK(H%d)), H%d>=D%d, H%d<E%d), ROUND((H%d-D%d+1)/DAY(EOMONTH(D%d, 0))*I%d, 2), I%d)",
-                        rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, // lease_end checks
-                        rowNum + 1, rowNum + 1, // lease_end - period_start + 1
-                        rowNum + 1, // days in anchor month
-                        rowNum + 1, // monthly_rent (pro-rated)
-                        rowNum + 1  // monthly_rent (full)
-                    ));
-                } else {
-                    // Lease not active - rent due is £0
-                    proratedRentCell.setCellValue(0);
-                }
+                // Check if period is prorated (less than ~28 days for a month)
+                // Use formula: IF period_days < 28, prorate, else full rent
+                proratedRentCell.setCellFormula(String.format(
+                    "IF(F%d < 28, ROUND(F%d / DAY(EOMONTH(D%d, 0)) * I%d, 2), I%d)",
+                    rowNum + 1, // period_days
+                    rowNum + 1, // period_days for proration
+                    rowNum + 1, // period_start for month length
+                    rowNum + 1, // monthly_rent
+                    rowNum + 1  // monthly_rent (full)
+                ));
                 proratedRentCell.setCellStyle(currencyStyle);
 
                 // M: management_fee (from config)
@@ -1327,7 +1381,7 @@ public class ExcelStatementGeneratorService {
             sheet.autoSizeColumn(i);
         }
 
-        log.info("RENT_DUE sheet created with {} rows (custom periods)", rowNum - 1);
+        log.info("RENT_DUE sheet created with {} rows (lease-based periods)", rowNum - 1);
     }
 
     /**
