@@ -359,7 +359,14 @@ public class BodenHouseStatementTemplateService {
 
         // Calculate rent due for THIS SPECIFIC LEASE
         // Returns £0 if lease is not active during the period
-        unit.rentDueAmount = rentCalculationService.calculateRentDueForPeriod(lease, fromDate, toDate);
+        BigDecimal calculatedRent = rentCalculationService.calculateRentDueForPeriod(lease, fromDate, toDate);
+        unit.rentDueAmount = calculatedRent;
+
+        System.out.println("DEBUG LEASE (no filter): " + lease.getLeaseReference() +
+            " | Period: " + fromDate + " to " + toDate +
+            " | Lease: " + lease.getStartDate() + " to " + lease.getEndDate() +
+            " | Amount: " + lease.getAmount() +
+            " | Calculated Rent Due: " + calculatedRent);
 
         // Rent due day from lease
         unit.rentDueDate = lease.getPaymentDay() != null ? lease.getPaymentDay() :
@@ -408,7 +415,14 @@ public class BodenHouseStatementTemplateService {
 
         // Calculate rent due for THIS SPECIFIC LEASE
         // Returns £0 if lease is not active during the period
-        unit.rentDueAmount = rentCalculationService.calculateRentDueForPeriod(lease, fromDate, toDate);
+        BigDecimal calculatedRent = rentCalculationService.calculateRentDueForPeriod(lease, fromDate, toDate);
+        unit.rentDueAmount = calculatedRent;
+
+        System.out.println("DEBUG LEASE (with filter): " + lease.getLeaseReference() +
+            " | Period: " + fromDate + " to " + toDate +
+            " | Lease: " + lease.getStartDate() + " to " + lease.getEndDate() +
+            " | Amount: " + lease.getAmount() +
+            " | Calculated Rent Due: " + calculatedRent);
 
         // Rent due day from lease
         unit.rentDueDate = lease.getPaymentDay() != null ? lease.getPaymentDay() :
