@@ -7,6 +7,7 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
+import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.dto.StatementGenerationRequest;
 import site.easy.to.build.crm.dto.StatementTransactionDto;
 import site.easy.to.build.crm.enums.StatementDataSource;
@@ -46,6 +47,9 @@ public class BodenHouseStatementTemplateService {
 
     @Autowired
     private HistoricalTransactionRepository historicalTransactionRepository;
+
+    @Autowired
+    private InvoiceRepository invoiceRepository;
 
     @Autowired
     private TenantBalanceService tenantBalanceService;
@@ -104,6 +108,8 @@ public class BodenHouseStatementTemplateService {
 
     /**
      * Build the complete statement data following your Boden House structure
+     * UPDATED: Now LEASE-BASED - shows ALL leases for each property (not just active ones)
+     * Leases outside the statement period will show rent_due = £0
      */
     private BodenHouseStatementData buildStatementData(Customer propertyOwner, LocalDate fromDate, LocalDate toDate) {
         BodenHouseStatementData data = new BodenHouseStatementData();
@@ -124,15 +130,27 @@ public class BodenHouseStatementTemplateService {
         Map<String, List<Property>> propertiesByBuilding = properties.stream()
             .collect(Collectors.groupingBy(this::extractBuildingName));
 
-        // Build property groups
+        // Build property groups - NOW LEASE-BASED
         for (Map.Entry<String, List<Property>> entry : propertiesByBuilding.entrySet()) {
             PropertyGroup group = new PropertyGroup();
             group.propertyName = entry.getKey();
             group.units = new ArrayList<>();
 
             for (Property property : entry.getValue()) {
-                PropertyUnit unit = buildPropertyUnit(property, fromDate, toDate);
-                group.units.add(unit);
+                // Get ALL leases for this property (not filtered by date)
+                List<Invoice> leases = invoiceRepository.findAllLeasesByProperty(property);
+
+                if (leases.isEmpty()) {
+                    // No leases - still show property with empty data
+                    PropertyUnit unit = buildPropertyUnit(property, fromDate, toDate);
+                    group.units.add(unit);
+                } else {
+                    // Create one row per lease
+                    for (Invoice lease : leases) {
+                        PropertyUnit unit = buildPropertyUnitFromLease(property, lease, fromDate, toDate);
+                        group.units.add(unit);
+                    }
+                }
             }
 
             // Calculate group totals
@@ -148,6 +166,7 @@ public class BodenHouseStatementTemplateService {
 
     /**
      * Build statement data with data source filtering
+     * UPDATED: Now LEASE-BASED - shows ALL leases for each property
      */
     private BodenHouseStatementData buildStatementData(Customer propertyOwner, LocalDate fromDate, LocalDate toDate, Set<StatementDataSource> includedDataSources) {
         BodenHouseStatementData data = new BodenHouseStatementData();
@@ -164,15 +183,27 @@ public class BodenHouseStatementTemplateService {
         Map<String, List<Property>> propertiesByBuilding = properties.stream()
             .collect(Collectors.groupingBy(this::extractBuildingName));
 
-        // Build property groups with data source filtering
+        // Build property groups - NOW LEASE-BASED
         for (Map.Entry<String, List<Property>> entry : propertiesByBuilding.entrySet()) {
             PropertyGroup group = new PropertyGroup();
             group.propertyName = entry.getKey();
             group.units = new ArrayList<>();
 
             for (Property property : entry.getValue()) {
-                PropertyUnit unit = buildPropertyUnit(property, fromDate, toDate, includedDataSources);
-                group.units.add(unit);
+                // Get ALL leases for this property (not filtered by date)
+                List<Invoice> leases = invoiceRepository.findAllLeasesByProperty(property);
+
+                if (leases.isEmpty()) {
+                    // No leases - still show property with empty data
+                    PropertyUnit unit = buildPropertyUnit(property, fromDate, toDate, includedDataSources);
+                    group.units.add(unit);
+                } else {
+                    // Create one row per lease
+                    for (Invoice lease : leases) {
+                        PropertyUnit unit = buildPropertyUnitFromLease(property, lease, fromDate, toDate, includedDataSources);
+                        group.units.add(unit);
+                    }
+                }
             }
 
             // Calculate group totals
@@ -302,6 +333,119 @@ public class BodenHouseStatementTemplateService {
 
         // Set comments
         unit.comments = "";
+
+        return unit;
+    }
+
+    /**
+     * Build property unit from a specific LEASE
+     * This is the NEW lease-based approach - one row per lease
+     * Rent due is calculated only for periods when the lease is active
+     */
+    private PropertyUnit buildPropertyUnitFromLease(Property property, Invoice lease, LocalDate fromDate, LocalDate toDate) {
+        PropertyUnit unit = new PropertyUnit();
+
+        // Basic property info
+        unit.unitNumber = extractUnitNumber(property);
+        unit.propertyAddress = property.getPropertyName() != null ? property.getPropertyName() : "";
+
+        // Tenant information from LEASE (not property)
+        Customer tenant = lease.getCustomer();
+        unit.tenantName = tenant != null ? tenant.getName() : "";
+        unit.tenancyDates = lease.getStartDate() != null ?
+            lease.getStartDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) +
+            (lease.getEndDate() != null ? " - " + lease.getEndDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : " - ongoing")
+            : "";
+
+        // Calculate rent due for THIS SPECIFIC LEASE
+        // Returns £0 if lease is not active during the period
+        unit.rentDueAmount = rentCalculationService.calculateRentDueForPeriod(lease, fromDate, toDate);
+
+        // Rent due day from lease
+        unit.rentDueDate = lease.getPaymentDay() != null ? lease.getPaymentDay() :
+            (lease.getStartDate() != null ? lease.getStartDate().getDayOfMonth() : 1);
+
+        // Add tenant balance/arrears data
+        enhanceWithTenantBalanceData(unit, property);
+
+        // Get COMBINED transactions for this property (Historical + PayProp)
+        List<StatementTransactionDto> transactions = getCombinedTransactionsForProperty(property, fromDate, toDate);
+
+        // Determine payment routing (following your spreadsheet logic)
+        setPaymentRoutingDto(unit, transactions);
+
+        // Calculate amounts with combined data (Historical + PayProp)
+        calculateUnitAmountsDto(unit, property, transactions);
+        enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
+
+        // Get expenses for this property with enhanced data
+        unit.expenses = getExpensesForProperty(property, fromDate, toDate);
+        enhanceExpensesWithComments(unit, property, fromDate, toDate);
+
+        // Set comments - include lease reference
+        unit.comments = lease.getLeaseReference() != null ? lease.getLeaseReference() : "";
+
+        return unit;
+    }
+
+    /**
+     * Build property unit from lease with data source filtering
+     */
+    private PropertyUnit buildPropertyUnitFromLease(Property property, Invoice lease, LocalDate fromDate, LocalDate toDate, Set<StatementDataSource> includedDataSources) {
+        PropertyUnit unit = new PropertyUnit();
+
+        // Basic property info
+        unit.unitNumber = extractUnitNumber(property);
+        unit.propertyAddress = property.getPropertyName() != null ? property.getPropertyName() : "";
+
+        // Tenant information from LEASE (not property)
+        Customer tenant = lease.getCustomer();
+        unit.tenantName = tenant != null ? tenant.getName() : "";
+        unit.tenancyDates = lease.getStartDate() != null ?
+            lease.getStartDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) +
+            (lease.getEndDate() != null ? " - " + lease.getEndDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : " - ongoing")
+            : "";
+
+        // Calculate rent due for THIS SPECIFIC LEASE
+        // Returns £0 if lease is not active during the period
+        unit.rentDueAmount = rentCalculationService.calculateRentDueForPeriod(lease, fromDate, toDate);
+
+        // Rent due day from lease
+        unit.rentDueDate = lease.getPaymentDay() != null ? lease.getPaymentDay() :
+            (lease.getStartDate() != null ? lease.getStartDate().getDayOfMonth() : 1);
+
+        // Add tenant balance/arrears data
+        enhanceWithTenantBalanceData(unit, property);
+
+        // Check if using UNIFIED data source (new approach)
+        boolean useUnified = includedDataSources.stream().anyMatch(StatementDataSource::isUnified);
+
+        if (useUnified) {
+            // NEW: Use unified transaction model (Historical + PayProp combined)
+            List<StatementTransactionDto> combinedTransactions = getCombinedTransactionsForProperty(property, fromDate, toDate);
+
+            // Use DTO-based calculation methods
+            setPaymentRoutingDto(unit, combinedTransactions);
+            calculateUnitAmountsDto(unit, property, combinedTransactions);
+
+            // Get expenses from combined sources
+            unit.expenses = getExpensesFromDto(combinedTransactions);
+        } else {
+            // LEGACY: Old approach for HISTORICAL or PAYPROP only
+            List<HistoricalTransaction> allTransactions = getTransactionsForProperty(property, fromDate, toDate);
+            List<HistoricalTransaction> filteredTransactions = filterHistoricalTransactionsByAccountSource(allTransactions, includedDataSources);
+
+            setPaymentRouting(unit, filteredTransactions);
+            calculateUnitAmounts(unit, property, filteredTransactions);
+
+            unit.expenses = getFilteredExpensesForProperty(property, fromDate, toDate, includedDataSources);
+        }
+
+        enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
+        enhanceExpensesWithComments(unit, property, fromDate, toDate);
+
+        // Set comments - include lease reference
+        unit.comments = lease.getLeaseReference() != null ? lease.getLeaseReference() : "";
 
         return unit;
     }
