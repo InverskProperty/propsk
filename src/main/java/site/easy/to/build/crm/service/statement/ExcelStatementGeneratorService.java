@@ -1586,8 +1586,9 @@ public class ExcelStatementGeneratorService {
             if (leaseActiveInPeriod) {
                 // Use SUMPRODUCT to sum rent due for all periods that overlap with this billing period
                 // RENT_DUE columns: B=lease_reference, D=period_start, E=period_end, L=prorated_rent_due
+                // IMPORTANT: Use bounded ranges (B2:B1000) instead of full columns (B:B) - SUMPRODUCT fails with full columns
                 rentDueCell.setCellFormula(String.format(
-                    "IFERROR(SUMPRODUCT((RENT_DUE!B:B=\"%s\")*(RENT_DUE!D:D<=DATE(%d,%d,%d))*(RENT_DUE!E:E>=DATE(%d,%d,%d))*RENT_DUE!L:L), 0)",
+                    "IFERROR(SUMPRODUCT((RENT_DUE!$B$2:$B$1000=\"%s\")*(RENT_DUE!$D$2:$D$1000<=DATE(%d,%d,%d))*(RENT_DUE!$E$2:$E$1000>=DATE(%d,%d,%d))*RENT_DUE!$L$2:$L$1000), 0)",
                     lease.getLeaseReference(),
                     period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth(),  // period_start <= billing_end
                     period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()  // period_end >= billing_start
