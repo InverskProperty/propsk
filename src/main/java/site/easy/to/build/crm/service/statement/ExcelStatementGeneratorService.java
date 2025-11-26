@@ -1579,14 +1579,18 @@ public class ExcelStatementGeneratorService {
             row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
 
             // G: rent_due - If lease not active in period, show £0; otherwise use SUMIFS formula
+            // IMPORTANT: RENT_DUE now uses LEASE-BASED periods (e.g., Mar 6 - Apr 5), not billing periods (Feb 22 - Mar 21)
+            // So we need to sum all rent due periods that OVERLAP with this billing period
+            // A rent due period overlaps if: period_start <= billing_period_end AND period_end >= billing_period_start
             Cell rentDueCell = row.createCell(col++);
             if (leaseActiveInPeriod) {
+                // Use SUMPRODUCT to sum rent due for all periods that overlap with this billing period
+                // RENT_DUE columns: B=lease_reference, D=period_start, E=period_end, L=prorated_rent_due
                 rentDueCell.setCellFormula(String.format(
-                    "IFERROR(SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, \"%s\", RENT_DUE!D:D, DATE(%d,%d,%d)), 0)",
+                    "IFERROR(SUMPRODUCT((RENT_DUE!B:B=\"%s\")*(RENT_DUE!D:D<=DATE(%d,%d,%d))*(RENT_DUE!E:E>=DATE(%d,%d,%d))*RENT_DUE!L:L), 0)",
                     lease.getLeaseReference(),
-                    period.periodStart.getYear(),
-                    period.periodStart.getMonthValue(),
-                    period.periodStart.getDayOfMonth()
+                    period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth(),  // period_start <= billing_end
+                    period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()  // period_end >= billing_start
                 ));
             } else {
                 // Lease not active - rent due is £0
@@ -1606,13 +1610,13 @@ public class ExcelStatementGeneratorService {
             rentReceivedCell.setCellStyle(currencyStyle);
 
             // I: opening_balance (cumulative arrears BEFORE this period)
-            // Formula: SUM(all rent due before period start) - SUM(all rent received before period start)
-            // References RENT_DUE and RENT_RECEIVED sheets for full traceability
-            // RENT_DUE: B=lease_reference, D=period_start, L=prorated_rent_due
+            // Formula: SUM(all rent due for periods ending before this billing period start) - SUM(all rent received before period start)
+            // RENT_DUE now uses lease-based periods, so we sum where period_end < billing_period_start
+            // RENT_DUE: B=lease_reference, E=period_end, L=prorated_rent_due
             // RENT_RECEIVED: B=lease_reference, E=period_start, O=total_received
             Cell openingBalanceCell = row.createCell(col++);
             openingBalanceCell.setCellFormula(String.format(
-                "SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, A%d, RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, A%d, RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
+                "SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, A%d, RENT_DUE!E:E, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, A%d, RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
                 rowNum + 1,
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
                 rowNum + 1,
