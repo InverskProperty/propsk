@@ -1578,21 +1578,31 @@ public class ExcelStatementGeneratorService {
             // F: rent_due_day
             row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
 
-            // G: rent_due - If lease not active in period, show £0; otherwise use SUMIFS formula
-            // IMPORTANT: RENT_DUE now uses LEASE-BASED periods (e.g., Mar 6 - Apr 5), not billing periods (Feb 22 - Mar 21)
-            // So we need to sum all rent due periods that OVERLAP with this billing period
-            // A rent due period overlaps if: period_start <= billing_period_end AND period_end >= billing_period_start
+            // G: rent_due - If lease not active in period, show £0; otherwise calculate based on lease dates
+            // For each billing period, we want ONE month's rent (prorated if partial)
+            // Calculate directly in Java - simpler and more reliable than complex Excel formulas
             Cell rentDueCell = row.createCell(col++);
-            if (leaseActiveInPeriod) {
-                // Use SUMPRODUCT to sum rent due for all periods that overlap with this billing period
-                // RENT_DUE columns: B=lease_reference, D=period_start, E=period_end, L=prorated_rent_due
-                // IMPORTANT: Use bounded ranges (B2:B1000) instead of full columns (B:B) - SUMPRODUCT fails with full columns
-                rentDueCell.setCellFormula(String.format(
-                    "IFERROR(SUMPRODUCT((RENT_DUE!$B$2:$B$1000=\"%s\")*(RENT_DUE!$D$2:$D$1000<=DATE(%d,%d,%d))*(RENT_DUE!$E$2:$E$1000>=DATE(%d,%d,%d))*RENT_DUE!$L$2:$L$1000), 0)",
-                    lease.getLeaseReference(),
-                    period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth(),  // period_start <= billing_end
-                    period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()  // period_end >= billing_start
-                ));
+            if (leaseActiveInPeriod && lease.getMonthlyRent() != null) {
+                // Calculate active days in this billing period
+                LocalDate effectiveStart = (leaseStart != null && leaseStart.isAfter(period.periodStart))
+                    ? leaseStart : period.periodStart;
+                LocalDate effectiveEnd = (leaseEnd != null && leaseEnd.isBefore(period.periodEnd))
+                    ? leaseEnd : period.periodEnd;
+
+                long activeDays = ChronoUnit.DAYS.between(effectiveStart, effectiveEnd) + 1;
+
+                // If full period (or more), use full monthly rent
+                // If partial period, prorate
+                double rentDue;
+                if (activeDays >= period.periodDays) {
+                    rentDue = lease.getMonthlyRent().doubleValue();
+                } else {
+                    // Prorate: monthly_rent * (active_days / days_in_month)
+                    int daysInMonth = period.periodStart.lengthOfMonth();
+                    rentDue = lease.getMonthlyRent().doubleValue() * activeDays / daysInMonth;
+                    rentDue = Math.round(rentDue * 100.0) / 100.0; // Round to 2 decimal places
+                }
+                rentDueCell.setCellValue(rentDue);
             } else {
                 // Lease not active - rent due is £0
                 rentDueCell.setCellValue(0);
