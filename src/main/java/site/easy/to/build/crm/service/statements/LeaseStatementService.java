@@ -89,10 +89,10 @@ public class LeaseStatementService {
         logger.info("Generating lease rows for property {} from {} to {}",
                    property.getId(), periodStart, periodEnd);
 
-        // Get all leases (invoices) for this property
-        // Include leases that overlap with the statement period
-        List<Invoice> leases = invoiceRepository.findByPropertyAndDateRangeOverlap(
-            property, periodStart, periodEnd);
+        // Get ALL leases for this property (regardless of dates)
+        // Leases outside the period will have rent_due = £0
+        // This ensures late payments can still be applied to ended leases
+        List<Invoice> leases = invoiceRepository.findAllLeasesByProperty(property);
 
         logger.info("Found {} leases for property {}", leases.size(), property.getId());
 

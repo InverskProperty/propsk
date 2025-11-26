@@ -367,4 +367,15 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    /**
+     * Find ALL leases for a property regardless of dates
+     * Used for statement generation where all leases should be visible
+     * (rent_due will be £0 for leases not active in the period)
+     */
+    @Query("SELECT i FROM Invoice i WHERE i.property = :property " +
+           "AND i.invoiceType = 'lease' " +
+           "AND i.deletedAt IS NULL " +
+           "ORDER BY i.startDate, i.leaseReference")
+    List<Invoice> findAllLeasesByProperty(@Param("property") Property property);
 }
