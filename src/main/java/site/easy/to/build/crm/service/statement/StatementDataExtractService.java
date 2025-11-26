@@ -687,7 +687,17 @@ public class StatementDataExtractService {
         log.info("🔍 Extracting tenant name for invoice/lease ID: {} ({})",
             invoice.getId(), invoice.getLeaseReference());
 
-        // Try 1: Get tenant from letting instruction
+        // PRIORITY 1: Use the customer linked directly to the invoice/lease
+        // The invoice.customer IS the tenant for lease records (customer_type = TENANT)
+        // This is the most reliable source as it's directly linked to this specific lease
+        Customer invoiceCustomer = invoice.getCustomer();
+        if (invoiceCustomer != null && invoiceCustomer.getName() != null && !invoiceCustomer.getName().trim().isEmpty()) {
+            log.info("✓ Found tenant name from invoice customer: {} (type: {})",
+                invoiceCustomer.getName(), invoiceCustomer.getCustomerType());
+            return invoiceCustomer.getName().trim();
+        }
+
+        // FALLBACK 1: Get tenant from letting instruction
         if (invoice.getLettingInstruction() != null) {
             LettingInstruction instruction = invoice.getLettingInstruction();
             if (instruction.getTenant() != null) {
@@ -700,7 +710,7 @@ public class StatementDataExtractService {
             }
         }
 
-        // Try 2: Get tenant from PayProp tenant data via property's payprop_id
+        // FALLBACK 2: Get tenant from PayProp tenant data via property's payprop_id
         // This searches the payprop_export_tenants_complete table where properties_json contains the property ID
         // IMPORTANT: For properties with multiple leases, we match tenant based on overlapping dates
         Property property = invoice.getProperty();

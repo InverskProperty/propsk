@@ -434,8 +434,8 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month - ALWAYS show all leases regardless of active status
-        // Inactive leases will show rent_due = £0 but still appear for historical tracking
+        // Generate one row per lease per month that has started
+        // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
@@ -448,11 +448,17 @@ public class ExcelStatementGeneratorService {
                 LocalDate monthStart = currentMonth.atDay(1);
                 LocalDate monthEnd = currentMonth.atEndOfMonth();
 
-                // Check if lease is active in this month (used for rent calculation, NOT for filtering)
+                // Skip future leases that haven't started yet (lease start is after month end)
+                if (leaseStart != null && leaseStart.isAfter(monthEnd)) {
+                    currentMonth = currentMonth.plusMonths(1);
+                    continue; // Don't show leases that haven't started yet
+                }
+
+                // Check if lease is active in this month (used for rent calculation)
                 boolean leaseActiveInMonth = (leaseEnd == null || !monthEnd.isBefore(leaseStart))
                                    && !monthStart.isAfter(leaseEnd != null ? leaseEnd : monthEnd);
 
-                // ALWAYS create a row for every lease in every month - inactive leases show £0 rent due
+                // Create row for leases that have started (active or ended, but not future)
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
@@ -574,8 +580,8 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month - ALWAYS show all leases regardless of active status
-        // This ensures payments can be recorded even for inactive leases
+        // Generate one row per lease per month that has started
+        // Show active leases AND ended leases, but NOT future leases that haven't started
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
@@ -588,7 +594,13 @@ public class ExcelStatementGeneratorService {
                 LocalDate monthStart = currentMonth.atDay(1);
                 LocalDate monthEnd = currentMonth.atEndOfMonth();
 
-                // ALWAYS create a row for every lease in every month - payments can come in even for inactive leases
+                // Skip future leases that haven't started yet (lease start is after month end)
+                if (leaseStart != null && leaseStart.isAfter(monthEnd)) {
+                    currentMonth = currentMonth.plusMonths(1);
+                    continue; // Don't show leases that haven't started yet
+                }
+
+                // Create row for leases that have started (payments can come in even for ended leases)
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
@@ -1007,8 +1019,8 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month - ALWAYS show all leases regardless of active status
-        // Inactive leases will show rent_due = £0 but can still receive payments
+        // Generate one row per lease per month that has started
+        // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
@@ -1021,11 +1033,17 @@ public class ExcelStatementGeneratorService {
                 LocalDate monthStart = currentMonth.atDay(1);
                 LocalDate monthEnd = currentMonth.atEndOfMonth();
 
-                // Check if lease is active in this month (used for rent calculation, NOT for filtering)
+                // Skip future leases that haven't started yet (lease start is after month end)
+                if (leaseStart != null && leaseStart.isAfter(monthEnd)) {
+                    currentMonth = currentMonth.plusMonths(1);
+                    continue; // Don't show leases that haven't started yet
+                }
+
+                // Check if lease is active in this month (used for rent calculation)
                 boolean leaseActiveInMonth = (leaseEnd == null || !monthEnd.isBefore(leaseStart))
                                    && !monthStart.isAfter(leaseEnd != null ? leaseEnd : monthEnd);
 
-                // ALWAYS create a row for every lease in every month - inactive leases show £0 rent due
+                // Create row for leases that have started (active or ended, but not future)
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
@@ -1182,19 +1200,24 @@ public class ExcelStatementGeneratorService {
         // Generate custom periods
         List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
 
-        // Generate rows for each lease × custom period - ALWAYS show all leases regardless of active status
-        // Inactive leases will show rent_due = £0 but still appear for historical tracking
+        // Generate rows for each lease × custom period that has started
+        // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
             int rentDueDay = leaseStart != null ? leaseStart.getDayOfMonth() : periodStartDay;
 
             for (CustomPeriod period : periods) {
-                // Check if lease overlaps with this period (used for rent calculation, NOT for filtering)
+                // Skip future leases that haven't started yet (lease start is after period end)
+                if (leaseStart != null && leaseStart.isAfter(period.periodEnd)) {
+                    continue; // Don't show leases that haven't started yet
+                }
+
+                // Check if lease is active during this period (for rent calculation)
                 boolean leaseActiveInPeriod = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
                                    && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
 
-                // ALWAYS create a row for every lease in every period - inactive leases show £0 rent due
+                // Create row for leases that have started (active or ended, but not future)
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
@@ -1345,14 +1368,19 @@ public class ExcelStatementGeneratorService {
         // Generate custom periods
         List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
 
-        // Generate rows for each lease × custom period - ALWAYS show all leases regardless of active status
-        // This ensures payments can be recorded even for inactive leases
+        // Generate rows for each lease × custom period that has started
+        // Show active leases AND ended leases, but NOT future leases that haven't started
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
             for (CustomPeriod period : periods) {
-                // ALWAYS create a row for every lease in every period - payments can come in even for inactive leases
+                // Skip future leases that haven't started yet (lease start is after period end)
+                if (leaseStart != null && leaseStart.isAfter(period.periodEnd)) {
+                    continue; // Don't show leases that haven't started yet
+                }
+
+                // Create row for leases that have started (payments can come in even for ended leases)
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
@@ -1455,17 +1483,22 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate rows for each lease - ALWAYS show all leases regardless of active status
-        // Inactive leases will show rent_due = £0 but can still receive payments
+        // Generate rows for each lease that has started by this period
+        // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
-            // Check if lease overlaps with this period (used for rent calculation, NOT for filtering)
+            // Skip future leases that haven't started yet (lease start is after period end)
+            if (leaseStart != null && leaseStart.isAfter(period.periodEnd)) {
+                continue; // Don't show leases that haven't started yet
+            }
+
+            // Check if lease is active during this period (for rent calculation)
             boolean leaseActiveInPeriod = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
                                && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
 
-            // ALWAYS create a row for every lease - inactive leases show £0 rent due
+            // Create row for leases that have started (active or ended, but not future)
             Row row = sheet.createRow(rowNum);
             int col = 0;
 
