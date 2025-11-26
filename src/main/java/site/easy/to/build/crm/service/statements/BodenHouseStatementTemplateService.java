@@ -140,12 +140,16 @@ public class BodenHouseStatementTemplateService {
                 // Get ALL leases for this property (not filtered by date)
                 List<Invoice> leases = invoiceRepository.findAllLeasesByProperty(property);
 
+                System.out.println("DEBUG: Property " + property.getPropertyName() + " (ID: " + property.getId() + ") has " + leases.size() + " leases");
+
                 if (leases.isEmpty()) {
                     // No leases - still show property with empty data
+                    System.out.println("DEBUG: No leases found for property " + property.getPropertyName() + " - using buildPropertyUnit");
                     PropertyUnit unit = buildPropertyUnit(property, fromDate, toDate);
                     group.units.add(unit);
                 } else {
                     // Create one row per lease
+                    System.out.println("DEBUG: Found " + leases.size() + " leases for property " + property.getPropertyName() + " - using buildPropertyUnitFromLease");
                     for (Invoice lease : leases) {
                         PropertyUnit unit = buildPropertyUnitFromLease(property, lease, fromDate, toDate);
                         group.units.add(unit);
@@ -193,12 +197,16 @@ public class BodenHouseStatementTemplateService {
                 // Get ALL leases for this property (not filtered by date)
                 List<Invoice> leases = invoiceRepository.findAllLeasesByProperty(property);
 
+                System.out.println("DEBUG (with datasources): Property " + property.getPropertyName() + " (ID: " + property.getId() + ") has " + leases.size() + " leases");
+
                 if (leases.isEmpty()) {
                     // No leases - still show property with empty data
+                    System.out.println("DEBUG (with datasources): No leases for property " + property.getPropertyName() + " - using buildPropertyUnit");
                     PropertyUnit unit = buildPropertyUnit(property, fromDate, toDate, includedDataSources);
                     group.units.add(unit);
                 } else {
                     // Create one row per lease
+                    System.out.println("DEBUG (with datasources): Found " + leases.size() + " leases for property " + property.getPropertyName() + " - using buildPropertyUnitFromLease");
                     for (Invoice lease : leases) {
                         PropertyUnit unit = buildPropertyUnitFromLease(property, lease, fromDate, toDate, includedDataSources);
                         group.units.add(unit);
