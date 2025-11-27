@@ -13,6 +13,8 @@ import site.easy.to.build.crm.enums.StatementDataSource;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
+import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
+import site.easy.to.build.crm.entity.UnifiedTransaction;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod;
 
@@ -30,16 +32,19 @@ public class XLSXStatementService {
     private final CustomerService customerService;
     private final PropertyService propertyService;
     private final FinancialTransactionRepository financialTransactionRepository;
+    private final UnifiedTransactionRepository unifiedTransactionRepository;
     private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
     @Autowired
     public XLSXStatementService(CustomerService customerService,
                                PropertyService propertyService,
                                FinancialTransactionRepository financialTransactionRepository,
+                               UnifiedTransactionRepository unifiedTransactionRepository,
                                BodenHouseStatementTemplateService bodenHouseTemplateService) {
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.financialTransactionRepository = financialTransactionRepository;
+        this.unifiedTransactionRepository = unifiedTransactionRepository;
         this.bodenHouseTemplateService = bodenHouseTemplateService;
     }
 
@@ -1237,28 +1242,52 @@ public class XLSXStatementService {
         List<ExpenseItem> expenses = new ArrayList<>();
 
         try {
-            if (property.getPayPropId() != null) {
-                List<FinancialTransaction> expenseTransactions = financialTransactionRepository
-                    .findByPropertyAndDateRange(property.getPayPropId(), fromDate, toDate)
+            if (property.getId() != null) {
+                // ✅ Query UNIFIED_TRANSACTIONS for expense payments (same source as expenses page)
+                // This ensures consistency between the expenses page and monthly statement sheets
+                List<UnifiedTransaction> expenseTransactions = unifiedTransactionRepository
+                    .findByPropertyIdAndTransactionDateBetweenAndFlowDirection(
+                        property.getId(), fromDate, toDate, UnifiedTransaction.FlowDirection.OUTGOING)
                     .stream()
-                    .filter(this::isExpenseTransaction)
+                    .filter(this::isExpenseTransactionUnified)
                     .limit(4) // Maximum 4 expenses per property
                     .collect(Collectors.toList());
 
-                for (FinancialTransaction expense : expenseTransactions) {
-                    String label = expense.getCategoryName() != null ? expense.getCategoryName() :
+                for (UnifiedTransaction expense : expenseTransactions) {
+                    String label = expense.getCategory() != null ? expense.getCategory() :
                                   expense.getDescription() != null ? expense.getDescription() : "Expense";
-                    BigDecimal amount = expense.getAmount() != null ? expense.getAmount() : BigDecimal.ZERO;
+                    BigDecimal amount = expense.getAmount() != null ? expense.getAmount().abs() : BigDecimal.ZERO;
                     String comment = expense.getDescription() != null ? expense.getDescription() : "";
 
                     expenses.add(new ExpenseItem(label, amount, comment));
                 }
+
+                System.out.println("DEBUG: getExpensesForProperty (unified) found " + expenses.size() +
+                    " expenses for property ID " + property.getId());
             }
         } catch (Exception e) {
             System.err.println("Error getting expenses for property " + property.getId() + ": " + e.getMessage());
         }
 
         return expenses;
+    }
+
+    /**
+     * Check if a UnifiedTransaction is an expense (not Owner or Commission)
+     */
+    private boolean isExpenseTransactionUnified(UnifiedTransaction transaction) {
+        String category = transaction.getCategory();
+
+        // Exclude Owner payments and Commission - these are NOT expenses
+        if (category != null) {
+            String catLower = category.toLowerCase();
+            if (catLower.equals("owner") || catLower.equals("commission") ||
+                catLower.equals("rent") || catLower.contains("owner_payment")) {
+                return false;
+            }
+        }
+
+        return true; // OUTGOING transactions that aren't Owner/Commission are expenses
     }
 
     private String getExpenseLabel(List<ExpenseItem> expenses, int index) {
@@ -1534,6 +1563,15 @@ public class XLSXStatementService {
         String type = transaction.getTransactionType();
         String category = transaction.getCategoryName();
 
+        // ✅ FIRST: Exclude Owner payments and Commission - these are NOT expenses
+        if (category != null) {
+            String catLower = category.toLowerCase();
+            if (catLower.equals("owner") || catLower.equals("commission") ||
+                catLower.contains("owner_payment")) {
+                return false;
+            }
+        }
+
         if (type != null) {
             return type.equals("payment_to_contractor") ||
                    type.equals("payment_to_beneficiary") ||
@@ -1554,6 +1592,8 @@ public class XLSXStatementService {
                    catLower.contains("service") ||
                    catLower.contains("utilities") ||
                    catLower.contains("insurance") ||
+                   catLower.contains("council") ||
+                   catLower.contains("disbursement") ||
                    catLower.contains("management");
         }
 

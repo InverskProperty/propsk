@@ -206,4 +206,15 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
      * Delete by rebuild batch ID (for rollback)
      */
     void deleteByRebuildBatchId(String rebuildBatchId);
+
+    /**
+     * Find OUTGOING transactions (expenses) for a property within a date range
+     * Use this to get expenses for statement generation
+     */
+    List<UnifiedTransaction> findByPropertyIdAndTransactionDateBetweenAndFlowDirection(
+        Long propertyId,
+        LocalDate startDate,
+        LocalDate endDate,
+        UnifiedTransaction.FlowDirection flowDirection
+    );
 }

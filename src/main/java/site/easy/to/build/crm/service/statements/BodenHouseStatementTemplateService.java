@@ -975,9 +975,53 @@ public class BodenHouseStatementTemplateService {
     }
 
     private List<ExpenseItem> getExpensesForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
-        // Get expenses for property from transactions
         List<ExpenseItem> expenses = new ArrayList<>();
-        // Implementation would extract expenses from FinancialTransaction data
+
+        if (property.getId() == null) {
+            return expenses;
+        }
+
+        try {
+            // ✅ Query UNIFIED_TRANSACTIONS for expense payments (same source as expenses page)
+            // This ensures consistency between the expenses page and monthly statement sheets
+            // Exclude Owner payments (landlord payments) and Commission (agency fees)
+            String sql = """
+                SELECT description, category, amount, transaction_date
+                FROM unified_transactions
+                WHERE property_id = ?
+                AND transaction_date BETWEEN ? AND ?
+                AND flow_direction = 'OUTGOING'
+                AND category IS NOT NULL
+                AND LOWER(category) NOT IN ('owner', 'commission', 'rent')
+                AND LOWER(category) NOT LIKE '%owner_payment%'
+                AND amount IS NOT NULL
+                ORDER BY transaction_date
+                """;
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql,
+                property.getId(), fromDate, toDate);
+
+            for (Map<String, Object> row : results) {
+                ExpenseItem expense = new ExpenseItem();
+                expense.label = (String) row.get("category");
+                Object amountObj = row.get("amount");
+                if (amountObj != null) {
+                    expense.amount = new BigDecimal(amountObj.toString()).abs();
+                } else {
+                    expense.amount = BigDecimal.ZERO;
+                }
+                expense.comment = (String) row.get("description");
+                expenses.add(expense);
+            }
+
+            System.out.println("DEBUG: getExpensesForProperty (unified) found " + expenses.size() +
+                " expenses for property ID " + property.getId());
+
+        } catch (Exception e) {
+            System.err.println("Warning: Could not get expenses for property " +
+                             property.getId() + ": " + e.getMessage());
+        }
+
         return expenses;
     }
 

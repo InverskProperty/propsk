@@ -614,7 +614,9 @@ public class StatementDataExtractService {
             if (category != null) {
                 String lowerCategory = category.toLowerCase();
                 // Skip Owner payments (landlord payments) and Commission (agency fees)
-                if (lowerCategory.equals("owner") || lowerCategory.equals("commission")) {
+                // Note: PayProp uses both "owner" and "owner_payment" for landlord payments
+                if (lowerCategory.equals("owner") || lowerCategory.equals("commission") ||
+                    lowerCategory.contains("owner_payment")) {
                     log.debug("Skipping {} transaction {} (not an expense)", category, txn.getId());
                     continue;
                 }
