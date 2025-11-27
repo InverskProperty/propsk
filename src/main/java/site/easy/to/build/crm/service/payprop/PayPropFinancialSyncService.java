@@ -1173,19 +1173,47 @@ public class PayPropFinancialSyncService {
                 transaction.setDepositId((String) incomingTransaction.get("deposit_id"));
             }
             
+            // ✅ FIX: Extract and preserve category_name from PayProp
+            // This is critical for expense classification (Council, Disbursement, Owner, Commission)
+            String categoryName = extractCategorySafely(paymentData);
+            if (categoryName != null && !categoryName.trim().isEmpty()) {
+                transaction.setCategoryName(categoryName);
+                logger.debug("✅ Set category_name: {} for payment {}", categoryName, paymentId);
+            }
+
+            // ✅ FIX: Preserve original description from PayProp (e.g., "Flt 23 Council Tax")
+            // instead of overwriting with generic "Beneficiary: X (type)"
+            String originalDescription = (String) paymentData.get("description");
+
             // Beneficiary information
             Map<String, Object> beneficiary = (Map<String, Object>) paymentData.get("beneficiary");
+            String beneficiaryName = null;
+            String beneficiaryType = null;
             if (beneficiary != null) {
-                String beneficiaryName = (String) beneficiary.get("name");
-                String beneficiaryType = (String) beneficiary.get("type");
-                if (beneficiaryName != null || beneficiaryType != null) {
-                    String description = "Beneficiary: " + 
-                        (beneficiaryName != null ? beneficiaryName : "Unknown") + 
-                        " (" + (beneficiaryType != null ? beneficiaryType : "Unknown type") + ")";
-                    transaction.setDescription(description);
-                }
+                beneficiaryName = (String) beneficiary.get("name");
+                beneficiaryType = (String) beneficiary.get("type");
+
+                // Store beneficiary type for transaction type determination
+                transaction.setPaypropBeneficiaryType(beneficiaryType);
             }
-            
+
+            // ✅ Build description: prefer original PayProp description, fall back to beneficiary info
+            if (originalDescription != null && !originalDescription.trim().isEmpty()) {
+                // Use original description from PayProp (e.g., "Flt 23 Council Tax", "Management Fee For Flat 23")
+                String fullDescription = originalDescription;
+                if (beneficiaryName != null && !beneficiaryName.trim().isEmpty()) {
+                    fullDescription = beneficiaryName + " - " + originalDescription;
+                }
+                transaction.setDescription(fullDescription);
+                logger.debug("✅ Using original description: {} for payment {}", fullDescription, paymentId);
+            } else if (beneficiaryName != null || beneficiaryType != null) {
+                // Fallback to beneficiary info if no original description
+                String description = "Beneficiary: " +
+                    (beneficiaryName != null ? beneficiaryName : "Unknown") +
+                    " (" + (beneficiaryType != null ? beneficiaryType : "Unknown type") + ")";
+                transaction.setDescription(description);
+            }
+
             // Set transaction type
             String transactionType = determineTransactionTypeFromPayPropData(paymentData);
             if (transactionType == null) {

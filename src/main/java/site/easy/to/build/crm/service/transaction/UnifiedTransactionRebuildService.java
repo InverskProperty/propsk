@@ -207,7 +207,8 @@ public class UnifiedTransactionRebuildService {
                     WHEN ft.data_source = 'BATCH_PAYMENT' OR ft.data_source = 'COMMISSION_PAYMENT' THEN 'OUTGOING'
                     -- Then check category_name (like historical logic) - THIS IS THE FIX!
                     WHEN ft.category_name LIKE '%rent%' OR ft.category_name LIKE '%Rent%' THEN 'INCOMING'
-                    WHEN ft.category_name IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                    -- PayProp expense categories: Council, Disbursement, Contractor (NOT Owner, NOT Commission)
+                    WHEN ft.category_name IN ('Council', 'Disbursement', 'Contractor', 'cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
                         OR ft.category_name LIKE '%expense%' OR ft.category_name LIKE '%Expense%' THEN 'OUTGOING'
                     ELSE 'OUTGOING'
                 END as flow_direction,

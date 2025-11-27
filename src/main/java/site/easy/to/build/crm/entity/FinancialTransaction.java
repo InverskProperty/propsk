@@ -131,6 +131,13 @@ public class FinancialTransaction {
     @Column(name = "batch_sequence_number")
     private Integer batchSequenceNumber;
 
+    /**
+     * PayProp beneficiary type (agency, beneficiary, global_beneficiary, contractor, etc.)
+     * Used to classify payments for expense reporting
+     */
+    @Column(name = "payprop_beneficiary_type", length = 50)
+    private String paypropBeneficiaryType;
+
     // ===== LEASE REFERENCE =====
 
     /**
@@ -276,6 +283,9 @@ public class FinancialTransaction {
 
     public String getPayPropBatchId() { return payPropBatchId; }
     public void setPayPropBatchId(String payPropBatchId) { this.payPropBatchId = payPropBatchId; }
+
+    public String getPaypropBeneficiaryType() { return paypropBeneficiaryType; }
+    public void setPaypropBeneficiaryType(String paypropBeneficiaryType) { this.paypropBeneficiaryType = paypropBeneficiaryType; }
 
     public Integer getBatchSequenceNumber() { return batchSequenceNumber; }
     public void setBatchSequenceNumber(Integer batchSequenceNumber) { this.batchSequenceNumber = batchSequenceNumber; }

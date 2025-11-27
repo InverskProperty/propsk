@@ -598,15 +598,28 @@ public class StatementDataExtractService {
         log.info("Extracting expense details for lease {} from {} to {}",
             invoiceId, startDate, endDate);
 
+        // Get ALL outgoing transactions (expenses, beneficiary payments, etc.)
+        // Not filtering by transaction_type to include payment_to_beneficiary, expense, etc.
         List<UnifiedTransaction> transactions = unifiedTransactionRepository
-            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndTransactionType(
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
                 invoiceId, startDate, endDate,
-                UnifiedTransaction.FlowDirection.OUTGOING,
-                "expense");
+                UnifiedTransaction.FlowDirection.OUTGOING);
 
         List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenseDetails = new ArrayList<>();
 
         for (UnifiedTransaction txn : transactions) {
+            // ✅ FIX: Filter out Owner and Commission categories - these are NOT expenses
+            // Only include actual expenses: Council, Disbursement, Contractor, cleaning, furnishings, etc.
+            String category = txn.getCategory();
+            if (category != null) {
+                String lowerCategory = category.toLowerCase();
+                // Skip Owner payments (landlord payments) and Commission (agency fees)
+                if (lowerCategory.equals("owner") || lowerCategory.equals("commission")) {
+                    log.debug("Skipping {} transaction {} (not an expense)", category, txn.getId());
+                    continue;
+                }
+            }
+
             site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail =
                 new site.easy.to.build.crm.dto.statement.PaymentDetailDTO();
 
