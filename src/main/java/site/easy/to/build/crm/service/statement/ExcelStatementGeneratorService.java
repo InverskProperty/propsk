@@ -1660,11 +1660,12 @@ public class ExcelStatementGeneratorService {
             totalCommCell.setCellFormula(String.format("ABS(L%d + M%d)", rowNum + 1, rowNum + 1));
             totalCommCell.setCellStyle(currencyStyle);
 
-            // O: total_expenses (INDEX/MATCH to EXPENSES sheet)
+            // O: total_expenses (SUMIFS to EXPENSES sheet - more reliable than INDEX/MATCH array formula)
             // ✅ FIX: EXPENSES sheet uses month_start which is always 1st of month, not the period start date
+            // ✅ FIX: Use SUMIFS instead of INDEX/MATCH array formula for better Excel compatibility
             Cell expensesCell = row.createCell(col++);
             expensesCell.setCellFormula(String.format(
-                "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,1)), 0)), 0)",
+                "SUMIFS(EXPENSES!R:R, EXPENSES!B:B, \"%s\", EXPENSES!D:D, DATE(%d,%d,1))",
                 lease.getLeaseReference(),
                 period.periodStart.getYear(),
                 period.periodStart.getMonthValue()
@@ -2097,11 +2098,12 @@ public class ExcelStatementGeneratorService {
                     totalCommCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
                     totalCommCell.setCellStyle(currencyStyle);
 
-                    // M: total_expenses (INDEX/MATCH to EXPENSES sheet)
+                    // M: total_expenses (SUMIFS to EXPENSES sheet - more reliable than INDEX/MATCH array formula)
                     // ✅ FIX: EXPENSES sheet uses month_start which is always 1st of month, not the period start date
+                    // ✅ FIX: Use SUMIFS instead of INDEX/MATCH array formula for better Excel compatibility
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,1)), 0)), 0)",
+                        "SUMIFS(EXPENSES!R:R, EXPENSES!B:B, \"%s\", EXPENSES!D:D, DATE(%d,%d,1))",
                         lease.getLeaseReference(),
                         period.periodStart.getYear(),
                         period.periodStart.getMonthValue()
