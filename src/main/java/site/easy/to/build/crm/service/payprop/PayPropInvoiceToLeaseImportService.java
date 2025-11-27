@@ -198,7 +198,7 @@ public class PayPropInvoiceToLeaseImportService {
      * Returns null if already imported
      */
     private Invoice importInvoiceAsLease(PayPropInvoiceData data) {
-        // Check if already imported
+        // Check if already imported by PayProp ID
         if (invoiceRepository.findByPaypropId(data.paypropId).isPresent()) {
             log.debug("Invoice {} already imported, skipping", data.paypropId);
             return null;
@@ -218,6 +218,25 @@ public class PayPropInvoiceToLeaseImportService {
             log.warn("Cannot import invoice {}: Property not found for {}",
                     data.paypropId, data.propertyPayPropId);
             throw new RuntimeException("Property not found: " + data.propertyPayPropId);
+        }
+
+        // ✅ FIX: Check if there's an existing active lease for this property WITHOUT a PayProp ID
+        // This handles cases where a lease was manually created (like BODEN-BLOCK-2025) and now
+        // PayProp is sending an invoice for it. We should link to the existing lease, not create a duplicate.
+        List<Invoice> existingLeases = invoiceRepository.findByPropertyAndIsActiveTrue(property);
+        for (Invoice existingLease : existingLeases) {
+            if (existingLease.getPaypropId() == null) {
+                // Found an existing lease without PayProp ID - link it instead of creating new
+                log.info("✅ Found existing lease {} for property {} without PayProp ID. Linking to PayProp invoice {}",
+                        existingLease.getLeaseReference(), property.getPropertyName(), data.paypropId);
+
+                existingLease.setPaypropId(data.paypropId);
+                existingLease.setPaypropCustomerId(data.tenantPayPropId);
+                existingLease.setSyncStatus(SyncStatus.synced);
+                existingLease.setPaypropLastSync(LocalDateTime.now());
+
+                return invoiceRepository.save(existingLease);
+            }
         }
 
         // Create invoice (lease) record

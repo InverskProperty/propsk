@@ -39,7 +39,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
      * Find all invoices for a specific property
      */
     List<Invoice> findByProperty(Property property);
-    
+
+    /**
+     * Find all active invoices for a specific property
+     * Used to check for existing leases when importing from PayProp
+     */
+    List<Invoice> findByPropertyAndIsActiveTrue(Property property);
+
     /**
      * Find all invoices for a customer-property combination
      */
