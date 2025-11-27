@@ -751,20 +751,15 @@ public class ExcelStatementGeneratorService {
      */
     private void createExpensesSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                      LocalDate startDate, LocalDate endDate) {
-        log.info("Creating EXPENSES sheet with expense breakdown");
+        log.info("Creating EXPENSES sheet with flat structure (one row per expense)");
 
         Sheet sheet = workbook.createSheet("EXPENSES");
 
-        // Header row with expense breakdown columns
+        // ✅ RESTRUCTURED: Flat format with one row per expense for proper date range filtering
         Row header = sheet.createRow(0);
         String[] headers = {
             "lease_id", "lease_reference", "property_name",
-            "month_start", "month_end",
-            "expense_1_date", "expense_1_amount", "expense_1_category",
-            "expense_2_date", "expense_2_amount", "expense_2_category",
-            "expense_3_date", "expense_3_amount", "expense_3_category",
-            "expense_4_date", "expense_4_amount", "expense_4_category",
-            "total_expenses"
+            "expense_date", "expense_amount", "expense_category", "expense_description"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -780,89 +775,46 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month (from LEASE START for historical data)
+        // Generate one row per expense (flat structure)
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
-            LocalDate leaseEnd = lease.getEndDate();
 
-            // Start from lease start to capture all historical expenses
-            YearMonth currentMonth = leaseStart != null ? YearMonth.from(leaseStart) : YearMonth.from(startDate);
-            YearMonth endMonth = YearMonth.from(endDate);
+            // Get ALL expenses for this lease from lease start to statement end
+            LocalDate expenseStartDate = leaseStart != null ? leaseStart : startDate;
+            List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenses =
+                dataExtractService.extractExpenseDetails(lease.getLeaseId(), expenseStartDate, endDate);
 
-            while (!currentMonth.isAfter(endMonth)) {
-                LocalDate monthStart = currentMonth.atDay(1);
-                LocalDate monthEnd = currentMonth.atEndOfMonth();
+            // Create one row per expense
+            for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense : expenses) {
+                Row row = sheet.createRow(rowNum);
+                int col = 0;
 
-                boolean leaseActive = (leaseEnd == null || !monthEnd.isBefore(leaseStart))
-                                   && !monthStart.isAfter(leaseEnd != null ? leaseEnd : monthEnd);
+                // Column A: lease_id
+                row.createCell(col++).setCellValue(lease.getLeaseId());
 
-                if (leaseActive) {
-                    // Get expense details for this lease/month
-                    List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenses =
-                        dataExtractService.extractExpenseDetails(lease.getLeaseId(), monthStart, monthEnd);
+                // Column B: lease_reference
+                row.createCell(col++).setCellValue(lease.getLeaseReference());
 
-                    // Only create row if there are expenses for this month
-                    if (!expenses.isEmpty()) {
-                        Row row = sheet.createRow(rowNum);
-                        int col = 0;
+                // Column C: property_name
+                row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
 
-                        // Column A: lease_id
-                        row.createCell(col++).setCellValue(lease.getLeaseId());
+                // Column D: expense_date
+                Cell expenseDateCell = row.createCell(col++);
+                expenseDateCell.setCellValue(expense.getPaymentDate());
+                expenseDateCell.setCellStyle(dateStyle);
 
-                        // Column B: lease_reference
-                        row.createCell(col++).setCellValue(lease.getLeaseReference());
+                // Column E: expense_amount
+                Cell expenseAmountCell = row.createCell(col++);
+                expenseAmountCell.setCellValue(expense.getAmount().doubleValue());
+                expenseAmountCell.setCellStyle(currencyStyle);
 
-                        // Column C: property_name
-                        row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+                // Column F: expense_category
+                row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
 
-                        // Column D: month_start
-                        Cell monthStartCell = row.createCell(col++);
-                        monthStartCell.setCellValue(monthStart);
-                        monthStartCell.setCellStyle(dateStyle);
+                // Column G: expense_description
+                row.createCell(col++).setCellValue(expense.getDescription() != null ? expense.getDescription() : "");
 
-                        // Column E: month_end
-                        Cell monthEndCell = row.createCell(col++);
-                        monthEndCell.setCellValue(monthEnd);
-                        monthEndCell.setCellStyle(dateStyle);
-
-                        // Columns F-P: Expense breakdown (up to 4 expenses)
-                        BigDecimal total = BigDecimal.ZERO;
-                        for (int i = 0; i < 4; i++) {
-                            if (i < expenses.size()) {
-                                site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense = expenses.get(i);
-
-                                // Expense date
-                                Cell expenseDateCell = row.createCell(col++);
-                                expenseDateCell.setCellValue(expense.getPaymentDate());
-                                expenseDateCell.setCellStyle(dateStyle);
-
-                                // Expense amount
-                                Cell expenseAmountCell = row.createCell(col++);
-                                expenseAmountCell.setCellValue(expense.getAmount().doubleValue());
-                                expenseAmountCell.setCellStyle(currencyStyle);
-
-                                // Expense category
-                                row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
-
-                                total = total.add(expense.getAmount());
-                            } else {
-                                // Empty expense columns
-                                row.createCell(col++); // date
-                                row.createCell(col++); // amount
-                                row.createCell(col++); // category
-                            }
-                        }
-
-                        // Column Q: total_expenses
-                        Cell totalExpensesCell = row.createCell(col++);
-                        totalExpensesCell.setCellValue(total.doubleValue());
-                        totalExpensesCell.setCellStyle(currencyStyle);
-
-                        rowNum++;
-                    }
-                }
-
-                currentMonth = currentMonth.plusMonths(1);
+                rowNum++;
             }
         }
 
@@ -871,7 +823,7 @@ public class ExcelStatementGeneratorService {
             sheet.autoSizeColumn(i);
         }
 
-        log.info("EXPENSES sheet created with {} rows", rowNum - 1);
+        log.info("EXPENSES sheet created with {} expense rows", rowNum - 1);
     }
 
     /**
@@ -995,10 +947,11 @@ public class ExcelStatementGeneratorService {
                     totalCommCell.setCellStyle(currencyStyle);
 
                     // Column M: total_expenses (SUMIFS to EXPENSES sheet)
+                    // ✅ NEW: Flat EXPENSES sheet - sum expense_amount where expense_date is in this month
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
-                        "SUMIFS(EXPENSES!R:R, EXPENSES!A:A, %d, EXPENSES!D:D, F%d)",
-                        lease.getLeaseId(), rowNum + 1
+                        "SUMIFS(EXPENSES!E:E, EXPENSES!B:B, A%d, EXPENSES!D:D, \">=\"&F%d, EXPENSES!D:D, \"<\"&EOMONTH(F%d,0)+1)",
+                        rowNum + 1, rowNum + 1, rowNum + 1
                     ));
                     expensesCell.setCellStyle(currencyStyle);
 
@@ -1179,10 +1132,13 @@ public class ExcelStatementGeneratorService {
                 totalCommissionCell.setCellStyle(currencyStyle);
 
                 // Column M: total_expenses (SUMIFS to EXPENSES sheet)
+                // ✅ NEW: Flat EXPENSES sheet - sum expenses where expense_date falls within the period
                 Cell expensesCell = row.createCell(col++);
                 expensesCell.setCellFormula(String.format(
-                    "SUMIFS(EXPENSES!R:R, EXPENSES!A:A, %d, EXPENSES!D:D, F%d)",
-                    lease.getLeaseId(), rowNum + 1
+                    "SUMIFS(EXPENSES!E:E, EXPENSES!B:B, A%d, EXPENSES!D:D, \">=\"&DATE(%d,%d,%d), EXPENSES!D:D, \"<=\"&DATE(%d,%d,%d))",
+                    rowNum + 1,
+                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
+                    endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
                 ));
                 expensesCell.setCellStyle(currencyStyle);
 
@@ -1660,15 +1616,14 @@ public class ExcelStatementGeneratorService {
             totalCommCell.setCellFormula(String.format("ABS(L%d + M%d)", rowNum + 1, rowNum + 1));
             totalCommCell.setCellStyle(currencyStyle);
 
-            // O: total_expenses (SUMIFS to EXPENSES sheet - more reliable than INDEX/MATCH array formula)
-            // ✅ FIX: EXPENSES sheet uses month_start which is always 1st of month, not the period start date
-            // ✅ FIX: Use SUMIFS instead of INDEX/MATCH array formula for better Excel compatibility
+            // O: total_expenses (SUMIFS to EXPENSES sheet)
+            // ✅ NEW: Flat EXPENSES sheet - sum expenses where expense_date falls within the period
             Cell expensesCell = row.createCell(col++);
             expensesCell.setCellFormula(String.format(
-                "SUMIFS(EXPENSES!R:R, EXPENSES!B:B, \"%s\", EXPENSES!D:D, DATE(%d,%d,1))",
+                "SUMIFS(EXPENSES!E:E, EXPENSES!B:B, \"%s\", EXPENSES!D:D, \">=\"&DATE(%d,%d,%d), EXPENSES!D:D, \"<=\"&DATE(%d,%d,%d))",
                 lease.getLeaseReference(),
-                period.periodStart.getYear(),
-                period.periodStart.getMonthValue()
+                period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
+                period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
             ));
             expensesCell.setCellStyle(currencyStyle);
 
@@ -1872,9 +1827,10 @@ public class ExcelStatementGeneratorService {
                 totalCommCell.setCellStyle(currencyStyle);
 
                 // M: total_expenses (SUM all expenses for this lease in the period)
+                // ✅ NEW: Flat EXPENSES sheet - sum expenses where expense_date falls within the statement period
                 Cell totalExpensesCell = row.createCell(col++);
                 totalExpensesCell.setCellFormula(String.format(
-                    "SUMIFS(EXPENSES!R:R, EXPENSES!B:B, \"%s\", EXPENSES!D:D, \">=\"&DATE(%d,%d,%d), EXPENSES!D:D, \"<=\"&DATE(%d,%d,%d))",
+                    "SUMIFS(EXPENSES!E:E, EXPENSES!B:B, \"%s\", EXPENSES!D:D, \">=\"&DATE(%d,%d,%d), EXPENSES!D:D, \"<=\"&DATE(%d,%d,%d))",
                     lease.getLeaseReference(),
                     startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
                     endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
@@ -2098,15 +2054,14 @@ public class ExcelStatementGeneratorService {
                     totalCommCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
                     totalCommCell.setCellStyle(currencyStyle);
 
-                    // M: total_expenses (SUMIFS to EXPENSES sheet - more reliable than INDEX/MATCH array formula)
-                    // ✅ FIX: EXPENSES sheet uses month_start which is always 1st of month, not the period start date
-                    // ✅ FIX: Use SUMIFS instead of INDEX/MATCH array formula for better Excel compatibility
+                    // M: total_expenses (SUMIFS to EXPENSES sheet)
+                    // ✅ NEW: Flat EXPENSES sheet - sum expenses where expense_date falls within the period
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
-                        "SUMIFS(EXPENSES!R:R, EXPENSES!B:B, \"%s\", EXPENSES!D:D, DATE(%d,%d,1))",
+                        "SUMIFS(EXPENSES!E:E, EXPENSES!B:B, \"%s\", EXPENSES!D:D, \">=\"&DATE(%d,%d,%d), EXPENSES!D:D, \"<=\"&DATE(%d,%d,%d))",
                         lease.getLeaseReference(),
-                        period.periodStart.getYear(),
-                        period.periodStart.getMonthValue()
+                        period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
+                        period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
                     ));
                     expensesCell.setCellStyle(currencyStyle);
 
