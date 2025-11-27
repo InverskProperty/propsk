@@ -1661,13 +1661,13 @@ public class ExcelStatementGeneratorService {
             totalCommCell.setCellStyle(currencyStyle);
 
             // O: total_expenses (INDEX/MATCH to EXPENSES sheet)
+            // ✅ FIX: EXPENSES sheet uses month_start which is always 1st of month, not the period start date
             Cell expensesCell = row.createCell(col++);
             expensesCell.setCellFormula(String.format(
-                "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,1)), 0)), 0)",
                 lease.getLeaseReference(),
                 period.periodStart.getYear(),
-                period.periodStart.getMonthValue(),
-                period.periodStart.getDayOfMonth()
+                period.periodStart.getMonthValue()
             ));
             expensesCell.setCellStyle(currencyStyle);
 
@@ -2098,13 +2098,13 @@ public class ExcelStatementGeneratorService {
                     totalCommCell.setCellStyle(currencyStyle);
 
                     // M: total_expenses (INDEX/MATCH to EXPENSES sheet)
+                    // ✅ FIX: EXPENSES sheet uses month_start which is always 1st of month, not the period start date
                     Cell expensesCell = row.createCell(col++);
                     expensesCell.setCellFormula(String.format(
-                        "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,%d)), 0)), 0)",
+                        "IFERROR(INDEX(EXPENSES!R:R, MATCH(1, (EXPENSES!B:B=\"%s\") * (EXPENSES!D:D=DATE(%d,%d,1)), 0)), 0)",
                         lease.getLeaseReference(),
                         period.periodStart.getYear(),
-                        period.periodStart.getMonthValue(),
-                        period.periodStart.getDayOfMonth()
+                        period.periodStart.getMonthValue()
                     ));
                     expensesCell.setCellStyle(currencyStyle);
 
