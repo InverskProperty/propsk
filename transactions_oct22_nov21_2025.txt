@@ -1,0 +1,151 @@
+id	transaction_date	transaction_type	amount	property_name	tenant_name	category_name	description
+15476	2025-10-22	invoice	775.00	Flat 25 - 3 West Gate	Beatriz Silva	Rent	 (22 Oct - 21 Nov '25)
+15481	2025-10-22	commission_payment	116.25	Flat 25 - 3 West Gate	Beatriz Silva	Commission	Commission (15.00%)
+15571	2025-10-23	payment_to_beneficiary	675.75	Flat 23 - 3 West Gate	Mark Tennick	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15572	2025-10-23	payment_to_agency	119.25	Flat 23 - 3 West Gate	Mark Tennick	Commission	Management Fee For Flat 23 - 3 West Gate
+15573	2025-10-23	payment_to_beneficiary	1012.50	Apartment F - Knighton Hayes Manor	Mr Riaz Hamid, Ismat Tarr-Hamid	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15574	2025-10-23	payment_to_agency	112.50	Apartment F - Knighton Hayes Manor	Mr Riaz Hamid, Ismat Tarr-Hamid	Commission	Management Fee For Apartment F - Knighton Hayes Manor
+15575	2025-10-23	payment_to_beneficiary	595.00	Flat 17 - 3 West Gate	Mr Harsh Patel	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15576	2025-10-23	payment_to_agency	105.00	Flat 17 - 3 West Gate	Mr Harsh Patel	Commission	Management Fee For Flat 17 - 3 West Gate
+15577	2025-10-23	payment_to_beneficiary	629.00	Flat 15 - 3 West Gate	Ms Lucy Cassell	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15578	2025-10-23	payment_to_agency	111.00	Flat 15 - 3 West Gate	Ms Lucy Cassell	Commission	Management Fee For Flat 15 - 3 West Gate
+15579	2025-10-23	payment_to_beneficiary	629.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15580	2025-10-23	payment_to_agency	111.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Commission	Management Fee For Flat 5 - 3 West Gate
+15581	2025-10-23	payment_to_beneficiary	675.75	Flat 21 - 3 West Gate	Mr Felwin Francis	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15582	2025-10-23	payment_to_agency	119.25	Flat 21 - 3 West Gate	Mr Felwin Francis	Commission	Management Fee For Flat 21 - 3 West Gate
+15583	2025-10-23	payment_to_beneficiary	688.50	Flat 24 - 3 West Gate	Mr Ethan Maloney, Miss Soraya Fearon	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15584	2025-10-23	payment_to_agency	121.50	Flat 24 - 3 West Gate	Mr Ethan Maloney, Miss Soraya Fearon	Commission	Management Fee For Flat 24 - 3 West Gate
+15585	2025-10-23	payment_to_beneficiary	650.25	Flat 25 - 3 West Gate	Beatriz Silva	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15586	2025-10-23	payment_to_agency	114.75	Flat 25 - 3 West Gate	Beatriz Silva	Commission	Management Fee For Flat 25 - 3 West Gate
+15587	2025-10-23	payment_to_beneficiary	667.25	Flat 10 - 3 West Gate	Anna Stoliarchuk and Octavian Nagalisov	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15588	2025-10-23	payment_to_agency	117.75	Flat 10 - 3 West Gate	Anna Stoliarchuk and Octavian Nagalisov	Commission	Management Fee For Flat 10 - 3 West Gate
+15589	2025-10-23	payment_to_beneficiary	675.75	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15590	2025-10-23	payment_to_agency	119.25	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Commission	Management Fee For Flat 12 - 3 West Gate
+15591	2025-10-23	payment_to_beneficiary	51.00	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15592	2025-10-23	payment_to_agency	9.00	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Commission	Management Fee For Flat 18 - 3 West Gate
+15593	2025-10-23	payment_to_beneficiary	675.75	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15594	2025-10-23	payment_to_agency	119.25	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Commission	Management Fee For Flat 18 - 3 West Gate
+15595	2025-10-23	incoming_payment	795.00	Flat 23 - 3 West Gate	Mark Tennick	Rent	Tenant Payment - Mark Tennick - Flat 23 - 3 West Gate (Tenant ID: qv1pmBppZd, Deposit: YTP33)
+15596	2025-10-23	incoming_payment	740.00	Flat 15 - 3 West Gate	Ms Lucy Cassell	Rent	Tenant Payment - Ms Lucy Cassell - Flat 15 - 3 West Gate (Tenant ID: WzJBEL9RZQ, Deposit: YTP24)
+15597	2025-10-23	incoming_payment	795.00	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Rent	Tenant Payment - Jemimah\tNallarajah & Arulnesan Anthony - Flat 12 - 3 West Gate (Tenant ID: KV1z40RlJO, Deposit: YTP37)
+15598	2025-10-23	incoming_payment	795.00	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Rent	Tenant Payment - Nirmali Gedara and Janith Hetti Arachchilage - Flat 18 - 3 West Gate (Tenant ID: rp19gkVoJA, Deposit: YTP31)
+15599	2025-10-23	incoming_payment	740.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Rent	Tenant Payment - Mr Amos Blyth - Flat 5 - 3 West Gate (Tenant ID: qv1pdwLB1d, Deposit: YTP4)
+15600	2025-10-23	incoming_payment	795.00	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Rent	Tenant Payment - Jemimah\tNallarajah & Arulnesan Anthony - Flat 12 - 3 West Gate (Tenant ID: KV1z40RlJO, Deposit: YTP37)
+15601	2025-10-23	incoming_payment	785.00	Flat 10 - 3 West Gate	Anna Stoliarchuk	Rent	Tenant Payment - Anna Stoliarchuk and Octavian Nagalisov - Flat 10 - 3 West Gate (Tenant ID: z2JkaRAN1b, Deposit: YTP35)
+15602	2025-10-23	incoming_payment	810.00	Flat 24 - 3 West Gate	Mr Ethan Maloney, Miss Soraya Fearon	Rent	Tenant Payment - Mr Ethan Maloney, Miss Soraya Fearon - Flat 24 - 3 West Gate (Tenant ID: ge1aWLDpJE, Deposit: YTP7)
+15603	2025-10-23	incoming_payment	795.00	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Rent	Tenant Payment - Jemimah\tNallarajah & Arulnesan Anthony - Flat 12 - 3 West Gate (Tenant ID: KV1z40RlJO, Deposit: YTP37)
+15604	2025-10-23	incoming_payment	60.00	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Rent	Tenant Payment - Nirmali Gedara and Janith Hetti Arachchilage - Flat 18 - 3 West Gate (Tenant ID: rp19gkVoJA, Deposit: YTP31)
+15605	2025-10-23	incoming_payment	795.00	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Rent	Tenant Payment - Jemimah\tNallarajah & Arulnesan Anthony - Flat 12 - 3 West Gate (Tenant ID: KV1z40RlJO, Deposit: YTP37)
+15606	2025-10-23	incoming_payment	700.00	Flat 17 - 3 West Gate	Mr Harsh Patel	Rent	Tenant Payment - Mr Harsh Patel - Flat 17 - 3 West Gate (Tenant ID: 7nZ3YqvrXN, Deposit: YTP10)
+15607	2025-10-23	incoming_payment	795.00	Flat 21 - 3 West Gate	Mr Felwin Francis	Rent	Tenant Payment - Mr Felwin Francis - Flat 21 - 3 West Gate (Tenant ID: B6XKzLmzJW, Deposit: YTP8)
+15608	2025-10-23	incoming_payment	795.00	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Rent	Tenant Payment - Jemimah\tNallarajah & Arulnesan Anthony - Flat 12 - 3 West Gate (Tenant ID: KV1z40RlJO, Deposit: YTP37)
+15609	2025-10-23	incoming_payment	1125.00	Apartment F - Knighton Hayes Manor	Mr Riaz Hamid, Ismat Tarr-Hamid	Rent	Tenant Payment - Mr Riaz Hamid, Ismat Tarr-Hamid - Apartment F - Knighton Hayes Manor (Tenant ID: D6JmW6jr1v, Deposit: YTP17)
+15610	2025-10-23	incoming_payment	765.00	Flat 25 - 3 West Gate	Beatriz Silva	Rent	Tenant Payment - Beatriz Silva - Flat 25 - 3 West Gate (Tenant ID: mLZdAw6wJn, Deposit: YTP36)
+15611	2025-10-23	incoming_payment	795.00	Flat 12 - 3 West Gate	Jemimah\tNallarajah & Arulnesan Anthony	Rent	Tenant Payment - Jemimah\tNallarajah & Arulnesan Anthony - Flat 12 - 3 West Gate (Tenant ID: KV1z40RlJO, Deposit: YTP37)
+15691	2025-11-15	payment_to_beneficiary	810.00	Apartment 40 - 31 Watkin Road	Neha Minocha	Owner	Beneficiary: Mr Rama Talluri (beneficiary)
+15692	2025-11-15	payment_to_agency	90.00	Apartment 40 - 31 Watkin Road	Neha Minocha	Commission	Management Fee For Apartment 40 - 31 Watkin Road
+15693	2025-11-15	payment_to_beneficiary	936.00	Apartment 40 - 31 Watkin Road	Michel Mabondo Mbuti & Sandra Boadi	Owner	Beneficiary: Mr Rama Talluri (beneficiary)
+15694	2025-11-15	payment_to_agency	104.00	Apartment 40 - 31 Watkin Road	Michel Mabondo Mbuti & Sandra Boadi	Commission	Management Fee For Apartment 40 - 31 Watkin Road
+15695	2025-11-15	payment_to_beneficiary	18.00	Apartment 40 - 31 Watkin Road	Neha Minocha	Owner	Beneficiary: Mr Rama Talluri (beneficiary)
+15696	2025-11-15	payment_to_agency	2.00	Apartment 40 - 31 Watkin Road	Neha Minocha	Commission	Management Fee For Apartment 40 - 31 Watkin Road
+15697	2025-11-15	payment_to_beneficiary	810.00	Apartment 40 - 31 Watkin Road	Jason Barclay	Owner	Beneficiary: Mr Rama Talluri (beneficiary)
+15698	2025-11-15	payment_to_agency	90.00	Apartment 40 - 31 Watkin Road	Jason Barclay	Commission	Management Fee For Apartment 40 - 31 Watkin Road
+15699	2025-11-15	incoming_payment	900.00	Apartment 40 - 31 Watkin Road	Jason Barclay	Rent	Tenant Payment - Jason Barclay - Apartment 40 - 31 Watkin Road (Tenant ID: oRZQdmMW1m, Deposit: YTP28)
+15700	2025-11-15	incoming_payment	900.00	Apartment 40 - 31 Watkin Road	Neha Minocha	Rent	Tenant Payment - Neha Minocha - Apartment 40 - 31 Watkin Road (Tenant ID: KAXNqLgAJk, Deposit: YTP29)
+15701	2025-11-15	incoming_payment	150.00	Apartment 40 - 31 Watkin Road	Jason Barclay	Rent	Tenant Payment - Jason Barclay - Apartment 40 - 31 Watkin Road (Tenant ID: oRZQdmMW1m, Deposit: YTP28)
+15702	2025-11-15	incoming_payment	1040.00	Apartment 40 - 31 Watkin Road	Michel Mabondo Mbuti & Sandra Boadi	Rent	Tenant Payment - Michel Mabondo Mbuti & Sandra Boadi - Apartment 40 - 31 Watkin Road (Tenant ID: 8b1gv23aXG, Deposit: YTP30)
+15703	2025-11-15	incoming_payment	20.00	Apartment 40 - 31 Watkin Road	Neha Minocha	Rent	Tenant Payment - Neha Minocha - Apartment 40 - 31 Watkin Road (Tenant ID: KAXNqLgAJk, Deposit: YTP29)
+15683	2025-11-20	payment_to_beneficiary	573.75	Flat 11 - 3 West Gate	Mr Richard Perrotta	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15684	2025-11-20	payment_to_agency	101.25	Flat 11 - 3 West Gate	Mr Richard Perrotta	Commission	Management Fee For Flat 11 - 3 West Gate
+15685	2025-11-20	payment_to_beneficiary	120.00	Flat 11 - 3 West Gate	Mr Richard Perrotta	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15686	2025-11-20	payment_to_beneficiary	150.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15687	2025-11-20	payment_to_beneficiary	-150.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15688	2025-11-20	payment_to_beneficiary	479.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15689	2025-11-20	payment_to_agency	111.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Commission	Management Fee For Flat 5 - 3 West Gate
+15690	2025-11-20	payment_to_beneficiary	150.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15704	2025-11-20	incoming_payment	740.00	Flat 5 - 3 West Gate	Mr Amos Blyth	Rent	Tenant Payment - Mr Amos Blyth - Flat 5 - 3 West Gate (Tenant ID: qv1pdwLB1d, Deposit: YTP4)
+15705	2025-11-20	incoming_payment	795.00	Flat 11 - 3 West Gate	Mr Richard Perrotta	Rent	Tenant Payment - Mr Richard Perrotta - Flat 11 - 3 West Gate (Tenant ID: GvJDKLmVZz, Deposit: YTP18)
+15620	2025-11-21	payment_to_beneficiary	555.75	Flat 21 - 3 West Gate	Mr Felwin Francis	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15621	2025-11-21	payment_to_agency	119.25	Flat 21 - 3 West Gate	Mr Felwin Francis	Commission	Management Fee For Flat 21 - 3 West Gate
+15622	2025-11-21	payment_to_beneficiary	120.00	Flat 21 - 3 West Gate	Mr Felwin Francis	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15623	2025-11-21	payment_to_beneficiary	522.36	Flat 19 - 3 West Gate	Charanya Kaliamoorthy	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15624	2025-11-21	payment_to_agency	92.18	Flat 19 - 3 West Gate	Charanya Kaliamoorthy	Commission	Management Fee For Flat 19 - 3 West Gate
+15625	2025-11-21	payment_to_agency	170.46	Flat 19 - 3 West Gate	Charanya Kaliamoorthy	Council	Vacant Council Tax Flt19
+15626	2025-11-21	payment_to_beneficiary	419.55	Flat 23 - 3 West Gate	Mark Tennick	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15627	2025-11-21	payment_to_agency	119.25	Flat 23 - 3 West Gate	Mark Tennick	Commission	Management Fee For Flat 23 - 3 West Gate
+15628	2025-11-21	payment_to_agency	106.20	Flat 23 - 3 West Gate	Mark Tennick	Council	Flt 23 Council Tax
+15629	2025-11-21	payment_to_beneficiary	150.00	Flat 23 - 3 West Gate	Mark Tennick	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15630	2025-11-21	payment_to_beneficiary	1012.50	Apartment F - Knighton Hayes Manor	Mr Riaz Hamid, Ismat Tarr-Hamid	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15631	2025-11-21	payment_to_agency	112.50	Apartment F - Knighton Hayes Manor	Mr Riaz Hamid, Ismat Tarr-Hamid	Commission	Management Fee For Apartment F - Knighton Hayes Manor
+15632	2025-11-21	payment_to_beneficiary	445.00	Flat 17 - 3 West Gate	Mr Harsh Patel	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15633	2025-11-21	payment_to_agency	105.00	Flat 17 - 3 West Gate	Mr Harsh Patel	Commission	Management Fee For Flat 17 - 3 West Gate
+15634	2025-11-21	payment_to_beneficiary	150.00	Flat 17 - 3 West Gate	Mr Harsh Patel	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15635	2025-11-21	payment_to_beneficiary	509.00	Flat 15 - 3 West Gate	Ms Lucy Cassell	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15636	2025-11-21	payment_to_agency	111.00	Flat 15 - 3 West Gate	Ms Lucy Cassell	Commission	Management Fee For Flat 15 - 3 West Gate
+15637	2025-11-21	payment_to_beneficiary	120.00	Flat 15 - 3 West Gate	Ms Lucy Cassell	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15638	2025-11-21	payment_to_beneficiary	568.50	Flat 24 - 3 West Gate	Mr Ethan Maloney, Miss Soraya Fearon	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15639	2025-11-21	payment_to_agency	121.50	Flat 24 - 3 West Gate	Mr Ethan Maloney, Miss Soraya Fearon	Commission	Management Fee For Flat 24 - 3 West Gate
+15640	2025-11-21	payment_to_beneficiary	120.00	Flat 24 - 3 West Gate	Mr Ethan Maloney, Miss Soraya Fearon	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15641	2025-11-21	payment_to_beneficiary	629.00	Flat 3 - 3 West Gate	Mr Tracy Whyte	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15642	2025-11-21	payment_to_agency	111.00	Flat 3 - 3 West Gate	Mr Tracy Whyte	Commission	Management Fee For Flat 3 - 3 West Gate
+15643	2025-11-21	payment_to_beneficiary	375.86	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15644	2025-11-21	payment_to_agency	128.25	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Commission	Management Fee For Flat 18 - 3 West Gate
+15645	2025-11-21	payment_to_beneficiary	120.00	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15646	2025-11-21	payment_to_beneficiary	230.89	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Council	Beneficiary: EREWASH COUNCIL (beneficiary)
+15647	2025-11-21	payment_to_beneficiary	524.75	Flat 8 - 3 West Gate	Mr Shermal Wijesinghage, Mrs Udeshika Dona	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15648	2025-11-21	payment_to_agency	110.25	Flat 8 - 3 West Gate	Mr Shermal Wijesinghage, Mrs Udeshika Dona	Commission	Management Fee For Flat 8 - 3 West Gate
+15649	2025-11-21	payment_to_beneficiary	100.00	Flat 8 - 3 West Gate	Mr Shermal Wijesinghage, Mrs Udeshika Dona	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15650	2025-11-21	payment_to_beneficiary	546.83	Flat 10 - 3 West Gate	Anna Stoliarchuk and Octavian Nagalisov	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15651	2025-11-21	payment_to_agency	117.75	Flat 10 - 3 West Gate	Anna Stoliarchuk and Octavian Nagalisov	Commission	Management Fee For Flat 10 - 3 West Gate
+15652	2025-11-21	payment_to_beneficiary	100.00	Flat 10 - 3 West Gate	Anna Stoliarchuk and Octavian Nagalisov	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15653	2025-11-21	payment_to_beneficiary	20.42	Flat 10 - 3 West Gate	Anna Stoliarchuk and Octavian Nagalisov	Council	Beneficiary: EREWASH COUNCIL (beneficiary)
+15654	2025-11-21	payment_to_beneficiary	321.50	Flat 25 - 3 West Gate	Beatriz Silva	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15655	2025-11-21	payment_to_agency	114.75	Flat 25 - 3 West Gate	Beatriz Silva	Commission	Management Fee For Flat 25 - 3 West Gate
+15656	2025-11-21	payment_to_agency	208.75	Flat 25 - 3 West Gate	Beatriz Silva	Other	Octupus Energy used while vacant
+15657	2025-11-21	payment_to_beneficiary	120.00	Flat 25 - 3 West Gate	Beatriz Silva	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15658	2025-11-21	payment_to_beneficiary	595.00	Flat 27 - 3 West Gate	Miss Sophie Murray	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15659	2025-11-21	payment_to_agency	105.00	Flat 27 - 3 West Gate	Miss Sophie Murray	Commission	Management Fee For Flat 27 - 3 West Gate
+15660	2025-11-21	payment_to_beneficiary	495.00	Flat 20 - 3 West Gate	Mr James Kay	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15661	2025-11-21	payment_to_agency	105.00	Flat 20 - 3 West Gate	Mr James Kay	Commission	Management Fee For Flat 20 - 3 West Gate
+15662	2025-11-21	payment_to_beneficiary	100.00	Flat 20 - 3 West Gate	Mr James Kay	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15663	2025-11-21	payment_to_beneficiary	495.00	Flat 9 - 3 West Gate	Mr Scott Warner	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15664	2025-11-21	payment_to_agency	105.00	Flat 9 - 3 West Gate	Mr Scott Warner	Commission	Management Fee For Flat 9 - 3 West Gate
+15665	2025-11-21	payment_to_beneficiary	100.00	Flat 9 - 3 West Gate	Mr Scott Warner	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15666	2025-11-21	payment_to_beneficiary	576.75	Flat 4 - 3 West Gate	Miss Megan Delaney, Mr Joseph Williams	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15667	2025-11-21	payment_to_agency	128.25	Flat 4 - 3 West Gate	Miss Megan Delaney, Mr Joseph Williams	Commission	Management Fee For Flat 4 - 3 West Gate
+15668	2025-11-21	payment_to_beneficiary	150.00	Flat 4 - 3 West Gate	Miss Megan Delaney, Mr Joseph Williams	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15669	2025-11-21	payment_to_beneficiary	509.00	Flat 29 - 3 West Gate	Mrs Margaret Fritchley	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15670	2025-11-21	payment_to_agency	111.00	Flat 29 - 3 West Gate	Mrs Margaret Fritchley	Commission	Management Fee For Flat 29 - 3 West Gate
+15671	2025-11-21	payment_to_beneficiary	120.00	Flat 29 - 3 West Gate	Mrs Margaret Fritchley	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15672	2025-11-21	payment_to_beneficiary	403.13	Flat 28 - 3 West Gate	Masie Van	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15673	2025-11-21	payment_to_agency	112.50	Flat 28 - 3 West Gate	Masie Van	Commission	Management Fee For Flat 28 - 3 West Gate
+15674	2025-11-21	payment_to_agency	114.37	Flat 28 - 3 West Gate	Masie Van	Council	Council Tax 
+15675	2025-11-21	payment_to_beneficiary	120.00	Flat 28 - 3 West Gate	Masie Van	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15676	2025-11-21	payment_to_beneficiary	479.00	Flat 6 - 3 West Gate	Miss Shelley Lees	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15677	2025-11-21	payment_to_agency	111.00	Flat 6 - 3 West Gate	Miss Shelley Lees	Commission	Management Fee For Flat 6 - 3 West Gate
+15678	2025-11-21	payment_to_beneficiary	150.00	Flat 6 - 3 West Gate	Miss Shelley Lees	Disbursement	Beneficiary: BODEN HOUSE BLOCK PROPERTY (beneficiary)
+15679	2025-11-21	payment_to_beneficiary	629.00	Flat 22 - 3 West Gate	Mr Brian Lowe	Owner	Beneficiary: Udayan Bhardwaj (beneficiary)
+15680	2025-11-21	payment_to_agency	111.00	Flat 22 - 3 West Gate	Mr Brian Lowe	Commission	Management Fee For Flat 22 - 3 West Gate
+15681	2025-11-21	payment_to_beneficiary	120.00	Boden House Block - Block Property	Prestvale Properties Limited	NULL	Beneficiary: PayProp property account (global_beneficiary)
+15682	2025-11-21	payment_to_agency	0.00	Boden House Block - Block Property	Prestvale Properties Limited	NULL	Beneficiary: Unknown (agency)
+15706	2025-11-21	incoming_payment	740.00	Flat 3 - 3 West Gate	Mr Tracy Whyte	Rent	Tenant Payment - Mr Tracy Whyte - Flat 3 - 3 West Gate (Tenant ID: 7QZGajgnX9, Deposit: YTP22)
+15707	2025-11-21	incoming_payment	785.00	Flat 10 - 3 West Gate	Anna Stoliarchuk	Rent	Tenant Payment - Anna Stoliarchuk and Octavian Nagalisov - Flat 10 - 3 West Gate (Tenant ID: z2JkaRAN1b, Deposit: YTP35)
+15708	2025-11-21	incoming_payment	740.00	Flat 15 - 3 West Gate	Ms Lucy Cassell	Rent	Tenant Payment - Ms Lucy Cassell - Flat 15 - 3 West Gate (Tenant ID: WzJBEL9RZQ, Deposit: YTP24)
+15709	2025-11-21	incoming_payment	740.00	Flat 22 - 3 West Gate	Mr Brian Lowe	Rent	Tenant Payment - Mr Brian Lowe - Flat 22 - 3 West Gate (Tenant ID: 90JYRLmPXo, Deposit: YTP5)
+15710	2025-11-21	incoming_payment	765.00	Flat 25 - 3 West Gate	Beatriz Silva	Rent	Tenant Payment - Beatriz Silva - Flat 25 - 3 West Gate (Tenant ID: mLZdAw6wJn, Deposit: YTP36)
+15711	2025-11-21	incoming_payment	785.00	Flat 19 - 3 West Gate	Charanya Kaliamoorthy	Rent	Tenant Payment - Charanya Kaliamoorthy - Flat 19 - 3 West Gate (Tenant ID: lMZnal7717, Deposit: YTP34)
+15712	2025-11-21	incoming_payment	120.00	Boden House Block - Block Property	Prestvale Properties Limited	Rent	Tenant Payment - Prestvale Properties Limited - Boden House Block - Block Property (Tenant ID: D6JmvOjPXv, Deposit: YTP38)
+15713	2025-11-21	incoming_payment	810.00	Flat 24 - 3 West Gate	Mr Ethan Maloney, Miss Soraya Fearon	Rent	Tenant Payment - Mr Ethan Maloney, Miss Soraya Fearon - Flat 24 - 3 West Gate (Tenant ID: ge1aWLDpJE, Deposit: YTP7)
+15714	2025-11-21	incoming_payment	795.00	Flat 21 - 3 West Gate	Mr Felwin Francis	Rent	Tenant Payment - Mr Felwin Francis - Flat 21 - 3 West Gate (Tenant ID: B6XKzLmzJW, Deposit: YTP8)
+15715	2025-11-21	incoming_payment	855.00	Flat 4 - 3 West Gate	Miss Megan Delaney, Mr Joseph Williams	Rent	Tenant Payment - Miss Megan Delaney, Mr Joseph Williams - Flat 4 - 3 West Gate (Tenant ID: 8b1gv7LNXG, Deposit: YTP1)
+15716	2025-11-21	incoming_payment	700.00	Flat 20 - 3 West Gate	Mr James Kay	Rent	Tenant Payment - Mr James Kay - Flat 20 - 3 West Gate (Tenant ID: lMZnW5L6J7, Deposit: YTP11)
+15717	2025-11-21	incoming_payment	700.00	Flat 17 - 3 West Gate	Mr Harsh Patel	Rent	Tenant Payment - Mr Harsh Patel - Flat 17 - 3 West Gate (Tenant ID: 7nZ3YqvrXN, Deposit: YTP10)
+15718	2025-11-21	incoming_payment	795.00	Flat 23 - 3 West Gate	Mark Tennick	Rent	Tenant Payment - Mark Tennick - Flat 23 - 3 West Gate (Tenant ID: qv1pmBppZd, Deposit: YTP33)
+15719	2025-11-21	incoming_payment	1125.00	Apartment F - Knighton Hayes Manor	Mr Riaz Hamid, Ismat Tarr-Hamid	Rent	Tenant Payment - Mr Riaz Hamid, Ismat Tarr-Hamid - Apartment F - Knighton Hayes Manor (Tenant ID: D6JmW6jr1v, Deposit: YTP17)
+15720	2025-11-21	incoming_payment	735.00	Flat 8 - 3 West Gate	Mr Shermal Wijesinghage, Mrs Udeshika Dona	Rent	Tenant Payment - Mr Shermal Wijesinghage, Mrs Udeshika Dona - Flat 8 - 3 West Gate (Tenant ID: 8EJA83o9Zj, Deposit: YTP21)
+15721	2025-11-21	incoming_payment	700.00	Flat 27 - 3 West Gate	Miss Sophie Murray	Rent	Tenant Payment - Miss Sophie Murray - Flat 27 - 3 West Gate (Tenant ID: rp19gojwJA, Deposit: YTP3)
+15722	2025-11-21	incoming_payment	740.00	Flat 6 - 3 West Gate	Miss Shelley Lees	Rent	Tenant Payment - Miss Shelley Lees - Flat 6 - 3 West Gate (Tenant ID: v0Zo3zLVZD, Deposit: YTP2)
+15723	2025-11-21	incoming_payment	855.00	Flat 18 - 3 West Gate	Nirmali Gedara and Janith Hetti Arachchilage	Rent	Tenant Payment - Nirmali Gedara and Janith Hetti Arachchilage - Flat 18 - 3 West Gate (Tenant ID: rp19gkVoJA, Deposit: YTP31)
+15724	2025-11-21	incoming_payment	700.00	Flat 9 - 3 West Gate	Mr Scott Warner	Rent	Tenant Payment - Mr Scott Warner - Flat 9 - 3 West Gate (Tenant ID: mn184gvb19, Deposit: YTP20)
+15725	2025-11-21	incoming_payment	750.00	Flat 28 - 3 West Gate	Masie Van	Rent	Tenant Payment - Masie Van - Flat 28 - 3 West Gate (Tenant ID: WzJB7nN3XQ, Deposit: YTP39)
+15726	2025-11-21	incoming_payment	740.00	Flat 29 - 3 West Gate	Mrs Margaret Fritchley	Rent	Tenant Payment - Mrs Margaret Fritchley - Flat 29 - 3 West Gate (Tenant ID: v2XljeLxZe, Deposit: YTP23)

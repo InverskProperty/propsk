@@ -275,6 +275,9 @@ public class BodenHouseStatementTemplateService {
         unit.expenses = getExpensesForProperty(property, fromDate, toDate);
         enhanceExpensesWithComments(unit, property, fromDate, toDate);
 
+        // Enhance with allocation batch ID and payment status
+        enhanceWithAllocationData(unit, property, fromDate, toDate);
+
         // Set comments
         unit.comments = determineComments(unit, property);
 
@@ -339,6 +342,9 @@ public class BodenHouseStatementTemplateService {
         enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
         enhanceExpensesWithComments(unit, property, fromDate, toDate);
 
+        // Enhance with allocation batch ID and payment status
+        enhanceWithAllocationData(unit, property, fromDate, toDate);
+
         // Set comments
         unit.comments = "";
 
@@ -396,6 +402,9 @@ public class BodenHouseStatementTemplateService {
         // Get expenses for this property with enhanced data
         unit.expenses = getExpensesForProperty(property, fromDate, toDate);
         enhanceExpensesWithComments(unit, property, fromDate, toDate);
+
+        // Enhance with allocation batch ID and payment status
+        enhanceWithAllocationData(unit, property, fromDate, toDate);
 
         // Set comments - include lease reference
         unit.comments = lease.getLeaseReference() != null ? lease.getLeaseReference() : "";
@@ -465,6 +474,9 @@ public class BodenHouseStatementTemplateService {
 
         enhanceWithOwnerPaymentData(unit, property, fromDate, toDate);
         enhanceExpensesWithComments(unit, property, fromDate, toDate);
+
+        // Enhance with allocation batch ID and payment status
+        enhanceWithAllocationData(unit, property, fromDate, toDate);
 
         // Set comments - include lease reference
         unit.comments = lease.getLeaseReference() != null ? lease.getLeaseReference() : "";
@@ -556,8 +568,8 @@ public class BodenHouseStatementTemplateService {
     private List<List<Object>> buildBodenHouseStatementValues(BodenHouseStatementData data) {
         List<List<Object>> values = new ArrayList<>();
 
-        // Create empty row template (38 columns like your spreadsheet)
-        Object[] emptyRow = new Object[38];
+        // Create empty row template (40 columns - added Batch ID and Payment Status)
+        Object[] emptyRow = new Object[40];
         Arrays.fill(emptyRow, "");
 
         // PROPSK LTD Header (matching your exact format)
@@ -636,6 +648,7 @@ public class BodenHouseStatementTemplateService {
 
     /**
      * Add column headers (your exact spreadsheet structure)
+     * UPDATED: Added Batch ID and Payment Status columns for allocation tracking
      */
     private void addColumnHeaders(List<List<Object>> values) {
         List<Object> headers = Arrays.asList(
@@ -651,6 +664,7 @@ public class BodenHouseStatementTemplateService {
             "Expense 4 Label", "Expense 4 Amount", "Expense 4 Comment",
             "Total Expenses", "Total Expenses and Commission",
             "Net\nDue to\nPrestvale", "Net Due from Propsk After Expenses and Commissions",
+            "Batch ID", "Payment\nStatus",  // NEW: Allocation tracking columns
             "Date\nPaid", "Rent\nDue less\nReceived", "Tenant Balance", "Comments"
         );
         values.add(headers);
@@ -681,9 +695,10 @@ public class BodenHouseStatementTemplateService {
 
     /**
      * Add individual unit row with all data and formulas
+     * UPDATED: Added Batch ID and Payment Status columns (indices 35-36)
      */
     private void addUnitRow(List<List<Object>> values, PropertyUnit unit) {
-        Object[] row = new Object[38];
+        Object[] row = new Object[40];  // Increased from 38 to 40 for new columns
         Arrays.fill(row, "");
 
         // Calculate current row number for formulas (Excel rows are 1-based)
@@ -728,12 +743,18 @@ public class BodenHouseStatementTemplateService {
         row[32] = "=AF" + currentRow + "+S" + currentRow; // Total Expenses and Commission (Total Expenses + Total Fees)
         row[33] = "=K" + currentRow + "-S" + currentRow + "-AF" + currentRow; // Net Due to Owner (Rent Received - Total Commission - Total Expenses)
         row[34] = "=AH" + currentRow; // Net Due from Propsk (same as Net Due to Owner for now)
-        row[35] = unit.datePaid;
-        row[36] = "=F" + currentRow + "-K" + currentRow; // Rent Due less Received (F=rentDueAmount, K=rentReceivedAmount)
+
+        // NEW: Batch ID and Payment Status columns
+        row[35] = unit.batchId != null ? unit.batchId : "";  // Batch ID (Column AJ)
+        row[36] = unit.paymentStatus != null ? unit.paymentStatus : "PENDING";  // Payment Status (Column AK)
+
+        // Shifted columns (was 35-37, now 37-39)
+        row[37] = unit.datePaid;  // Date Paid (Column AL, was AJ)
+        row[38] = "=F" + currentRow + "-K" + currentRow; // Rent Due less Received (Column AM, was AK)
 
         // Generate cross-sheet reference for running tenant balance (like your spreadsheet)
         String tenantBalanceFormula = generateTenantBalanceFormula(unit, currentRow);
-        row[37] = tenantBalanceFormula; // Tenant Balance with cross-sheet reference
+        row[39] = tenantBalanceFormula; // Tenant Balance with cross-sheet reference (Column AN, was AL)
 
         values.add(Arrays.asList(row));
     }
@@ -741,7 +762,8 @@ public class BodenHouseStatementTemplateService {
     // ===== HELPER METHODS =====
 
     private void addGroupTotals(List<List<Object>> values, PropertyGroup group, Object[] emptyRow) {
-        Object[] totalRow = emptyRow.clone();
+        Object[] totalRow = new Object[40];  // Match new array size
+        Arrays.fill(totalRow, "");
 
         // Calculate the range for SUM formulas
         int currentRow = values.size() + 1;
@@ -762,7 +784,7 @@ public class BodenHouseStatementTemplateService {
         totalRow[31] = "=SUM(AF" + startDataRow + ":AF" + endDataRow + ")"; // Total Expenses (Column AF, index 31)
         totalRow[32] = "=SUM(AG" + startDataRow + ":AG" + endDataRow + ")"; // Total Expenses and Commission (Column AG, index 32)
         totalRow[33] = "=SUM(AH" + startDataRow + ":AH" + endDataRow + ")"; // Net Due (Column AH, index 33)
-        totalRow[36] = "=SUM(AK" + startDataRow + ":AK" + endDataRow + ")"; // Rent Due less Received (Column AK, index 36)
+        totalRow[38] = "=SUM(AM" + startDataRow + ":AM" + endDataRow + ")"; // Rent Due less Received (Column AM, index 38 - shifted from 36)
 
         values.add(Arrays.asList(totalRow));
     }
@@ -1298,6 +1320,10 @@ public class BodenHouseStatementTemplateService {
         public BigDecimal payment1PayPropAccount = BigDecimal.ZERO;  // Owner payments
         public BigDecimal payment1OldAccount = BigDecimal.ZERO;
         public BigDecimal totalOwnerPayments = BigDecimal.ZERO;
+
+        // NEW: Allocation tracking fields
+        public String batchId;  // Payment batch ID (PayProp or manual)
+        public String paymentStatus = "PENDING";  // PENDING, BATCHED, PAID
     }
 
     public static class ExpenseItem {
@@ -1661,6 +1687,56 @@ public class BodenHouseStatementTemplateService {
         } catch (Exception e) {
             System.err.println("Warning: Could not enhance expenses with comments for property " +
                              property.getPayPropId() + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Enhance unit with allocation batch ID and payment status from unified_allocations
+     * This shows the payment tracking information for owner payments
+     */
+    private void enhanceWithAllocationData(PropertyUnit unit, Property property, LocalDate fromDate, LocalDate toDate) {
+        try {
+            // Query unified_allocations for OWNER type allocations for this property in the period
+            // We look up by property_id and find allocations linked to incoming transactions in this period
+            String sql = """
+                SELECT ua.payment_batch_id, ua.payment_status, ua.paid_date, ua.amount
+                FROM unified_allocations ua
+                INNER JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
+                WHERE ua.property_id = ?
+                AND ua.allocation_type = 'OWNER'
+                AND uit.transaction_date BETWEEN ? AND ?
+                ORDER BY uit.transaction_date DESC
+                LIMIT 1
+                """;
+
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql,
+                property.getId(), fromDate, toDate);
+
+            if (!results.isEmpty()) {
+                Map<String, Object> allocation = results.get(0);
+
+                // Set batch ID
+                Object batchId = allocation.get("payment_batch_id");
+                if (batchId != null) {
+                    unit.batchId = batchId.toString();
+                }
+
+                // Set payment status
+                Object status = allocation.get("payment_status");
+                if (status != null) {
+                    unit.paymentStatus = status.toString();
+                }
+
+                // Set paid date if available
+                Object paidDate = allocation.get("paid_date");
+                if (paidDate != null && unit.datePaid == null) {
+                    unit.datePaid = paidDate.toString();
+                }
+            }
+        } catch (Exception e) {
+            // Don't fail if allocation data is not available - this is optional enhancement
+            System.err.println("Warning: Could not enhance with allocation data for property " +
+                             property.getId() + ": " + e.getMessage());
         }
     }
 

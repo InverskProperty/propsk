@@ -160,6 +160,7 @@ public class UnifiedTransactionRebuildService {
             WHERE ht.invoice_id IS NOT NULL
                OR active_lease.id IS NOT NULL
                OR (p.property_type = 'BLOCK' AND ht.property_id IS NOT NULL)
+               OR ht.category = 'owner_payment'
         """;
 
         return jdbcTemplate.update(sql, batchId);
@@ -374,7 +375,8 @@ public class UnifiedTransactionRebuildService {
                 AND ht.invoice_id IS NULL
             WHERE (ht.invoice_id IS NOT NULL
                OR active_lease.id IS NOT NULL
-               OR (p.property_type = 'BLOCK' AND ht.property_id IS NOT NULL))
+               OR (p.property_type = 'BLOCK' AND ht.property_id IS NOT NULL)
+               OR ht.category = 'owner_payment')
               AND ht.updated_at > ?
         """;
 

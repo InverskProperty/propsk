@@ -1272,6 +1272,17 @@ public class PayPropFinancialSyncService {
                 }
             }
 
+            // ✅ FIX: Extract payment_batch information for proper batch tracking
+            // This enables grouping of multiple flat payments that were paid in one bank transfer
+            Map<String, Object> paymentBatch = (Map<String, Object>) paymentData.get("payment_batch");
+            if (paymentBatch != null) {
+                String batchId = (String) paymentBatch.get("id");
+                if (batchId != null && !batchId.trim().isEmpty()) {
+                    transaction.setPayPropBatchId(batchId);
+                    logger.debug("✅ Set payment_batch_id: {} for payment {}", batchId, paymentId);
+                }
+            }
+
             // Set audit fields
             transaction.setCreatedAt(LocalDateTime.now());
             transaction.setUpdatedAt(LocalDateTime.now());
