@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-exchange-alt text-info"></i> Transfer to Block
+                    </h4>
+                    <p class="text-muted">Transfer funds from <span th:text="${fromProperty.propertyName}">Property</span></p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/property-balances}">Property Balances</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/property-balances/{id}(id=${fromProperty.id})}" th:text="${fromProperty.propertyName}">Property</a></li>
+                        <li class="breadcrumb-item active">Transfer</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Available Balance Info -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">Available Balance</h5>
+                            <h2 class="mb-0" th:text="${#numbers.formatCurrency(availableBalance)}">0.00</h2>
+                            <small>Maximum transfer amount</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- No block properties warning -->
+            <div th:if="${#lists.isEmpty(blockProperties)}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>No Block Properties Available</strong>
+                        <p class="mb-0">There are no block properties configured in the system. Transfers are only available to block properties.</p>
+                    </div>
+                    <a th:href="@{/property-balances/{id}(id=${fromProperty.id})}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+
+            <!-- Transfer Form -->
+            <div th:unless="${#lists.isEmpty(blockProperties)}" class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">Transfer Funds</h4>
+                            <p class="text-muted">
+                                Transfer funds from this property to a block property.
+                                This is typically used to accumulate funds for large building payments.
+                            </p>
+
+                            <form th:action="@{/property-balances/{id}/transfer(id=${fromProperty.id})}" method="post">
+                                <div class="form-group row">
+                                    <label class="col-md-3 col-form-label">From Property</label>
+                                    <div class="col-md-9">
+                                        <input type="text" class="form-control-plaintext font-weight-bold"
+                                               th:value="${fromProperty.propertyName}" readonly>
+                                        <small class="text-muted" th:text="${fromProperty.address}">Address</small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="toPropertyId" class="col-md-3 col-form-label">To Block Property</label>
+                                    <div class="col-md-9">
+                                        <select class="form-control" id="toPropertyId" name="toPropertyId" required>
+                                            <option value="">-- Select Block Property --</option>
+                                            <option th:each="block : ${blockProperties}"
+                                                    th:value="${block.id}"
+                                                    th:text="${block.propertyName + ' - ' + block.address}">
+                                                Block Property
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="amount" class="col-md-3 col-form-label">Amount</label>
+                                    <div class="col-md-9">
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">£</span>
+                                            </div>
+                                            <input type="number" class="form-control" id="amount" name="amount"
+                                                   step="0.01" min="0.01" th:max="${availableBalance}"
+                                                   required placeholder="0.00">
+                                            <div class="input-group-append">
+                                                <button type="button" class="btn btn-outline-secondary" id="useMaxBtn">
+                                                    Use Max
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Maximum: <span th:text="${#numbers.formatCurrency(availableBalance)}">0.00</span>
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="description" class="col-md-3 col-form-label">Description</label>
+                                    <div class="col-md-9">
+                                        <input type="text" class="form-control" id="description" name="description"
+                                               required placeholder="e.g., Contribution for Q1 service charge">
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <div class="col-md-9 offset-md-3">
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle"></i>
+                                            <strong>Note:</strong> This transfer will:
+                                            <ul class="mb-0 mt-2">
+                                                <li>Debit (decrease) the balance of <strong th:text="${fromProperty.propertyName}">From</strong></li>
+                                                <li>Credit (increase) the balance of the selected block property</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <div class="col-md-9 offset-md-3">
+                                        <button type="submit" class="btn btn-info">
+                                            <i class="fas fa-exchange-alt"></i> Process Transfer
+                                        </button>
+                                        <a th:href="@{/property-balances/{id}(id=${fromProperty.id})}" class="btn btn-outline-secondary">
+                                            <i class="fas fa-times"></i> Cancel
+                                        </a>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Help Panel -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-building text-info"></i> Block Transfers</h5>
+                            <p class="text-muted">
+                                Block properties are used to accumulate funds from multiple unit properties
+                                for large building expenses.
+                            </p>
+                            <h6>Common Uses:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-tools text-warning"></i>
+                                    Major repairs fund
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-broom text-warning"></i>
+                                    Service charge collection
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-bolt text-warning"></i>
+                                    Utility payments
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-shield-alt text-warning"></i>
+                                    Insurance contributions
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Block Properties Summary -->
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-list text-primary"></i> Block Properties</h5>
+                            <div class="list-group list-group-flush">
+                                <div th:each="block : ${blockProperties}" class="list-group-item px-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong th:text="${block.propertyName}">Block Name</strong>
+                                            <br>
+                                            <small class="text-muted" th:text="${block.address}">Address</small>
+                                        </div>
+                                        <span class="badge badge-info">Block</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/general-scripts.html}"></div>
+
+<script th:inline="javascript">
+    $(document).ready(function() {
+        var maxAmount = [[${availableBalance}]];
+
+        $('#useMaxBtn').click(function() {
+            $('#amount').val(maxAmount.toFixed(2));
+        });
+
+        // Validate amount doesn't exceed available
+        $('#amount').on('change', function() {
+            var val = parseFloat($(this).val());
+            if (val > maxAmount) {
+                $(this).val(maxAmount.toFixed(2));
+                alert('Amount cannot exceed available balance of £' + maxAmount.toFixed(2));
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

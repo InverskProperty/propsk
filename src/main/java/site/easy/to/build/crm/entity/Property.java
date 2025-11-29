@@ -130,6 +130,14 @@ public class Property {
     @Column(name = "is_block_property")
     private Boolean isBlockProperty = false;
 
+    // NEW: Block Balance Contribution
+    // When true, owner payments are routed through the block property balance
+    @Column(name = "use_block_balance")
+    private Boolean useBlockBalance = false;
+
+    @Column(name = "balance_contribution_percentage", precision = 5, scale = 2)
+    private BigDecimal balanceContributionPercentage = BigDecimal.ZERO; // Percentage of owner payment held as balance
+
     // NEW: PayProp Financial Tracking Date Range
     // Tracks the period during which PayProp managed financials for this property
     // This solves the problem of overlapping financial data from historical_transactions and PayProp
@@ -479,6 +487,16 @@ public class Property {
 
     public Boolean getIsBlockProperty() { return isBlockProperty; }
     public void setIsBlockProperty(Boolean isBlockProperty) { this.isBlockProperty = isBlockProperty; }
+
+    public Boolean getUseBlockBalance() { return useBlockBalance; }
+    public void setUseBlockBalance(Boolean useBlockBalance) { this.useBlockBalance = useBlockBalance; }
+
+    public BigDecimal getBalanceContributionPercentage() { return balanceContributionPercentage; }
+    public void setBalanceContributionPercentage(BigDecimal balanceContributionPercentage) { this.balanceContributionPercentage = balanceContributionPercentage; }
+
+    public boolean isUsingBlockBalance() {
+        return useBlockBalance != null && useBlockBalance;
+    }
 
     // PayProp Financial Tracking Date Range Getters/Setters
     public Boolean getPayPropManagesFinancials() { return payPropManagesFinancials; }

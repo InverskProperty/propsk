@@ -29,6 +29,8 @@ import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.PaymentSourceRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
+import site.easy.to.build.crm.repository.UnifiedAllocationRepository;
+import site.easy.to.build.crm.entity.UnifiedAllocation;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.payprop.PayPropInvoiceLinkingService;
@@ -93,6 +95,9 @@ public class HistoricalTransactionImportService {
 
     @Autowired
     private PayPropInvoiceLinkingService payPropInvoiceLinkingService;
+
+    @Autowired
+    private UnifiedAllocationRepository unifiedAllocationRepository;
 
     private final ObjectMapper objectMapper;
     
@@ -540,8 +545,11 @@ public class HistoricalTransactionImportService {
         ownerAllocation.setAccountSource(incomingTransaction.getAccountSource());
         ownerAllocation.setPaymentSource(incomingTransaction.getPaymentSource());
 
-        historicalTransactionRepository.save(ownerAllocation);
+        HistoricalTransaction savedAllocation = historicalTransactionRepository.save(ownerAllocation);
         log.debug("Created owner allocation: {} - £{}", owner.getName(), netDueToOwner);
+
+        // Create UnifiedAllocation record for payment tracking
+        createUnifiedAllocationFromSplit(savedAllocation, property, owner, netDueToOwner);
 
         // 2. Create AGENCY FEE transaction (agency income)
         HistoricalTransaction agencyFee = new HistoricalTransaction();
@@ -569,6 +577,47 @@ public class HistoricalTransactionImportService {
 
         log.info("✅ Split incoming £{} → Owner allocation £{} + Agency fee £{}",
                 incomingAmount, netDueToOwner, commissionAmount);
+    }
+
+    /**
+     * Create UnifiedAllocation record from split transaction
+     */
+    private void createUnifiedAllocationFromSplit(HistoricalTransaction txn, Property property,
+                                                   Customer owner, BigDecimal amount) {
+        try {
+            UnifiedAllocation allocation = new UnifiedAllocation();
+
+            // Link to historical transaction
+            allocation.setHistoricalTransactionId(txn.getId());
+
+            // Allocation details
+            allocation.setAllocationType(UnifiedAllocation.AllocationType.OWNER);
+            allocation.setAmount(amount.abs()); // Always positive
+            allocation.setCategory(txn.getCategory());
+            allocation.setDescription(txn.getDescription());
+
+            // Property info
+            allocation.setPropertyId(property.getId());
+            allocation.setPropertyName(property.getPropertyName());
+
+            // Beneficiary info
+            allocation.setBeneficiaryType("OWNER");
+            allocation.setBeneficiaryId(owner.getCustomerId());
+            allocation.setBeneficiaryName(owner.getName());
+
+            // Status - pending until paid
+            allocation.setPaymentStatus(UnifiedAllocation.PaymentStatus.PENDING);
+
+            // Source tracking
+            allocation.setSource(UnifiedAllocation.AllocationSource.HISTORICAL);
+            allocation.setSourceRecordId(txn.getId());
+
+            unifiedAllocationRepository.save(allocation);
+            log.debug("Created UnifiedAllocation for split transaction: {}", property.getPropertyName());
+
+        } catch (Exception e) {
+            log.warn("Could not create UnifiedAllocation: {}", e.getMessage());
+        }
     }
 
     /**

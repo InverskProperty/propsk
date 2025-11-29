@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-edit text-warning"></i> Manual Adjustment
+                    </h4>
+                    <p class="text-muted" th:text="${property.propertyName}">Property Name</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/property-balances}">Property Balances</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/property-balances/{id}(id=${property.id})}" th:text="${property.propertyName}">Property</a></li>
+                        <li class="breadcrumb-item active">Adjust</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Current Balance Info -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">Current Balance</h5>
+                            <h2 class="mb-0" th:text="${#numbers.formatCurrency(currentBalance)}">0.00</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Adjustment Form -->
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">Make Adjustment</h4>
+                            <p class="text-muted">
+                                Use this form to manually adjust the property balance.
+                                This should be used for corrections, reconciliation adjustments, or other manual entries.
+                            </p>
+
+                            <form th:action="@{/property-balances/{id}/adjust(id=${property.id})}" method="post">
+                                <div class="form-group row">
+                                    <label class="col-md-3 col-form-label">Adjustment Type</label>
+                                    <div class="col-md-9">
+                                        <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                                            <label class="btn btn-outline-success active">
+                                                <input type="radio" name="adjustmentType" value="credit" checked>
+                                                <i class="fas fa-plus"></i> Credit (Add)
+                                            </label>
+                                            <label class="btn btn-outline-danger">
+                                                <input type="radio" name="adjustmentType" value="debit">
+                                                <i class="fas fa-minus"></i> Debit (Subtract)
+                                            </label>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Credit increases the balance, Debit decreases it
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="amount" class="col-md-3 col-form-label">Amount</label>
+                                    <div class="col-md-9">
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">£</span>
+                                            </div>
+                                            <input type="number" class="form-control" id="amount" name="amount"
+                                                   step="0.01" min="0.01" required placeholder="0.00">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="description" class="col-md-3 col-form-label">Description</label>
+                                    <div class="col-md-9">
+                                        <input type="text" class="form-control" id="description" name="description"
+                                               required placeholder="e.g., Reconciliation adjustment, Correction for...">
+                                        <small class="form-text text-muted">
+                                            Brief description of the adjustment reason
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="notes" class="col-md-3 col-form-label">Notes (Optional)</label>
+                                    <div class="col-md-9">
+                                        <textarea class="form-control" id="notes" name="notes" rows="3"
+                                                  placeholder="Additional details about this adjustment..."></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <div class="col-md-9 offset-md-3">
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            <strong>Note:</strong> This adjustment will be recorded in the ledger and cannot be undone.
+                                            To reverse an adjustment, create a new opposing adjustment.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <div class="col-md-9 offset-md-3">
+                                        <button type="submit" class="btn btn-warning">
+                                            <i class="fas fa-check"></i> Apply Adjustment
+                                        </button>
+                                        <a th:href="@{/property-balances/{id}(id=${property.id})}" class="btn btn-outline-secondary">
+                                            <i class="fas fa-times"></i> Cancel
+                                        </a>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Help Panel -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-info-circle text-info"></i> When to Use</h5>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success"></i>
+                                    Reconciliation differences
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success"></i>
+                                    Correction of errors
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success"></i>
+                                    Bank fee adjustments
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success"></i>
+                                    Interest credits
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check text-success"></i>
+                                    Manual balance corrections
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/general-scripts.html}"></div>
+
+</body>
+</html>

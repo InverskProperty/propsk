@@ -47,6 +47,21 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      */
     List<UnifiedAllocation> findByBeneficiaryId(Long beneficiaryId);
 
+    /**
+     * Find allocations for a beneficiary by payment status
+     */
+    List<UnifiedAllocation> findByBeneficiaryIdAndPaymentStatus(Long beneficiaryId, PaymentStatus paymentStatus);
+
+    /**
+     * Find allocation by historical transaction ID and type
+     */
+    Optional<UnifiedAllocation> findByHistoricalTransactionIdAndAllocationType(Long historicalTransactionId, AllocationType allocationType);
+
+    /**
+     * Find allocation by historical transaction ID
+     */
+    Optional<UnifiedAllocation> findByHistoricalTransactionId(Long historicalTransactionId);
+
     // ===== PENDING ALLOCATIONS =====
 
     /**
@@ -146,4 +161,11 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
            "WHERE ua.beneficiaryId = :beneficiaryId " +
            "AND ua.allocationType = 'OWNER' AND ua.paymentStatus = 'PENDING'")
     BigDecimal sumPendingOwnerAmountForBeneficiary(@Param("beneficiaryId") Long beneficiaryId);
+
+    /**
+     * Sum pending amounts for a property
+     */
+    @Query("SELECT SUM(ua.amount) FROM UnifiedAllocation ua " +
+           "WHERE ua.propertyId = :propertyId AND ua.paymentStatus = 'PENDING'")
+    BigDecimal sumPendingAmountByPropertyId(@Param("propertyId") Long propertyId);
 }

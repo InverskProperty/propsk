@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-list text-info"></i> Owner Payment Transactions
+                    </h4>
+                    <p class="text-muted">View and manage owner payment transactions</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <a href="/owner-payments" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div th:if="${success}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-check-circle"></i> <span th:text="${success}">Success</span>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-exclamation-triangle"></i> <span th:text="${error}">Error</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title mb-0"><i class="fas fa-filter"></i> Filters</h4>
+                        </div>
+                        <div class="card-body">
+                            <form method="get" action="/owner-payments/transactions">
+                                <div class="row">
+                                    <div class="col-md-2">
+                                        <div class="form-group">
+                                            <label>Owner</label>
+                                            <select name="ownerId" class="form-control">
+                                                <option value="">All Owners</option>
+                                                <option th:each="owner : ${owners}"
+                                                        th:value="${owner.id}"
+                                                        th:text="${owner.name}"
+                                                        th:selected="${owner.id == selectedOwnerId}">Owner</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-group">
+                                            <label>Property</label>
+                                            <select name="propertyId" class="form-control">
+                                                <option value="">All Properties</option>
+                                                <option th:each="prop : ${properties}"
+                                                        th:value="${prop.id}"
+                                                        th:text="${prop.name}"
+                                                        th:selected="${prop.id == selectedPropertyId}">Property</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-group">
+                                            <label>From Date</label>
+                                            <input type="date" name="fromDate" class="form-control" th:value="${fromDate}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-group">
+                                            <label>To Date</label>
+                                            <input type="date" name="toDate" class="form-control" th:value="${toDate}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-group">
+                                            <label>Status</label>
+                                            <select name="status" class="form-control">
+                                                <option value="">All</option>
+                                                <option value="unallocated" th:selected="${status == 'unallocated'}">Unallocated</option>
+                                                <option value="pending" th:selected="${status == 'pending'}">Pending</option>
+                                                <option value="batched" th:selected="${status == 'batched'}">Batched</option>
+                                                <option value="paid" th:selected="${status == 'paid'}">Paid</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="form-group">
+                                            <label>&nbsp;</label>
+                                            <button type="submit" class="btn btn-primary btn-block">
+                                                <i class="fas fa-search"></i> Filter
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transactions Table -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-exchange-alt"></i> Transactions
+                                <span class="badge badge-info" th:text="${#lists.size(transactions)}">0</span>
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <form id="batchForm" method="get" action="/owner-payments/create-batch">
+                                <div class="mb-3">
+                                    <button type="button" id="selectAll" class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-check-square"></i> Select All
+                                    </button>
+                                    <button type="submit" class="btn btn-sm btn-success" id="createBatchBtn" disabled>
+                                        <i class="fas fa-layer-group"></i> Create Batch from Selected
+                                    </button>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover" id="transactionsTable">
+                                        <thead class="thead-dark">
+                                            <tr>
+                                                <th width="30"><input type="checkbox" id="checkAll"></th>
+                                                <th>Date</th>
+                                                <th>Property</th>
+                                                <th>Owner</th>
+                                                <th>Amount</th>
+                                                <th>Description</th>
+                                                <th>Category</th>
+                                                <th>Status</th>
+                                                <th>Batch ID</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="txn : ${transactions}">
+                                                <td>
+                                                    <input type="checkbox" name="transactionIds" th:value="${txn.id}"
+                                                           class="txn-checkbox"
+                                                           th:disabled="${txn.allocation_id != null}">
+                                                </td>
+                                                <td th:text="${txn.transaction_date}">2025-01-01</td>
+                                                <td th:text="${txn.property_name}">Property</td>
+                                                <td th:text="${txn.owner_name}">Owner</td>
+                                                <td class="font-weight-bold" th:text="${txn.amount}">100.00</td>
+                                                <td th:text="${#strings.abbreviate(txn.description, 30)}">Description</td>
+                                                <td>
+                                                    <span class="badge badge-secondary" th:text="${txn.category}">category</span>
+                                                </td>
+                                                <td>
+                                                    <span th:if="${txn.allocation_id == null}" class="badge badge-warning">Unallocated</span>
+                                                    <span th:if="${txn.payment_status == 'PENDING'}" class="badge badge-info">Pending</span>
+                                                    <span th:if="${txn.payment_status == 'BATCHED'}" class="badge badge-primary">Batched</span>
+                                                    <span th:if="${txn.payment_status == 'PAID'}" class="badge badge-success">Paid</span>
+                                                </td>
+                                                <td>
+                                                    <a th:if="${txn.payment_batch_id != null}"
+                                                       th:href="@{/owner-payments/batch/{id}(id=${txn.payment_batch_id})}"
+                                                       th:text="${txn.payment_batch_id}">BATCH-001</a>
+                                                    <span th:if="${txn.payprop_batch_id != null}" class="text-muted small">
+                                                        (PayProp: <span th:text="${txn.payprop_batch_id}"></span>)
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div th:if="${txn.allocation_id == null}">
+                                                        <form th:action="@{/owner-payments/create-single}" method="post" class="d-inline">
+                                                            <input type="hidden" name="transactionId" th:value="${txn.id}">
+                                                            <button type="submit" class="btn btn-xs btn-primary" title="Create Single Payment">
+                                                                <i class="fas fa-plus"></i>
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                    <div th:if="${txn.payment_status == 'PENDING'}">
+                                                        <a th:href="@{/owner-payments/create-batch(allocationIds=${txn.allocation_id})}"
+                                                           class="btn btn-xs btn-success" title="Add to Batch">
+                                                            <i class="fas fa-layer-group"></i>
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/custom.js}"></script>
+<script>
+    $(document).ready(function() {
+        // Check all functionality
+        $('#checkAll').on('change', function() {
+            $('.txn-checkbox:not(:disabled)').prop('checked', this.checked);
+            updateBatchButton();
+        });
+
+        $('#selectAll').on('click', function() {
+            $('.txn-checkbox:not(:disabled)').prop('checked', true);
+            updateBatchButton();
+        });
+
+        $('.txn-checkbox').on('change', function() {
+            updateBatchButton();
+        });
+
+        function updateBatchButton() {
+            var checked = $('.txn-checkbox:checked').length;
+            $('#createBatchBtn').prop('disabled', checked === 0);
+            if (checked > 0) {
+                $('#createBatchBtn').text('Create Batch from ' + checked + ' Selected');
+            } else {
+                $('#createBatchBtn').text('Create Batch from Selected');
+            }
+        }
+    });
+</script>
+</body>
+</html>

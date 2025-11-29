@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-money-bill-wave text-success"></i> Owner Payments
+                    </h4>
+                    <p class="text-muted">Manage owner payment batches and allocations</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item active">Owner Payments</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${success}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-check-circle"></i> <span th:text="${success}">Success</span>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-exclamation-triangle"></i> <span th:text="${error}">Error</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="row">
+                <div class="col-lg-4 col-md-6">
+                    <div class="card border-left-primary">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="mr-3">
+                                    <i class="fas fa-clock fa-3x text-warning"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted mb-1">Pending Allocations</h6>
+                                    <h3 class="mb-0" th:text="${pendingCount}">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
+                    <div class="card border-left-success">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="mr-3">
+                                    <i class="fas fa-pound-sign fa-3x text-success"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted mb-1">Pending Amount</h6>
+                                    <h3 class="mb-0" th:text="${#numbers.formatDecimal(pendingTotal, 1, 'COMMA', 2, 'POINT')}">0.00</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
+                    <div class="card border-left-info">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center">
+                                <div class="mr-3">
+                                    <i class="fas fa-layer-group fa-3x text-info"></i>
+                                </div>
+                                <div>
+                                    <h6 class="text-muted mb-1">Pending Batches</h6>
+                                    <h3 class="mb-0" th:text="${#lists.size(pendingBatches)}">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="card-title text-white mb-0">
+                                <i class="fas fa-bolt"></i> Quick Actions
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="btn-group">
+                                <a href="/owner-payments/transactions" class="btn btn-info">
+                                    <i class="fas fa-list"></i> View Transactions
+                                </a>
+                                <a href="/owner-payments/create-batch" class="btn btn-success">
+                                    <i class="fas fa-plus"></i> Create Batch Payment
+                                </a>
+                                <a href="/owner-payments/transactions?status=unallocated" class="btn btn-warning">
+                                    <i class="fas fa-exclamation-circle"></i> Unallocated Transactions
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pending Batches -->
+            <div class="row" th:if="${not #lists.isEmpty(pendingBatches)}">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-warning">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-hourglass-half"></i> Pending Payment Batches
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Batch ID</th>
+                                            <th>Beneficiary</th>
+                                            <th>Allocations</th>
+                                            <th>Adjustment</th>
+                                            <th>Total Payment</th>
+                                            <th>Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="batch : ${pendingBatches}">
+                                            <td>
+                                                <a th:href="@{/owner-payments/batch/{id}(id=${batch.batchId})}" th:text="${batch.batchId}">BATCH-001</a>
+                                            </td>
+                                            <td th:text="${batch.beneficiaryName}">Owner Name</td>
+                                            <td th:text="${batch.totalAllocations}">100.00</td>
+                                            <td th:text="${batch.balanceAdjustment}">0.00</td>
+                                            <td class="font-weight-bold" th:text="${batch.totalPayment}">100.00</td>
+                                            <td th:text="${batch.paymentDate}">2025-01-01</td>
+                                            <td>
+                                                <form th:action="@{/owner-payments/batch/{id}/pay(id=${batch.batchId})}" method="post" class="d-inline">
+                                                    <input type="hidden" name="paidDate" th:value="${#temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}">
+                                                    <button type="submit" class="btn btn-sm btn-success">
+                                                        <i class="fas fa-check"></i> Mark Paid
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Unallocated Transactions -->
+            <div class="row" th:if="${not #lists.isEmpty(unallocatedTransactions)}">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header bg-secondary text-white">
+                            <h4 class="card-title text-white mb-0">
+                                <i class="fas fa-exclamation-circle"></i> Recent Unallocated Transactions
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Property</th>
+                                            <th>Owner</th>
+                                            <th>Amount</th>
+                                            <th>Description</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="txn : ${unallocatedTransactions}">
+                                            <td th:text="${txn.transaction_date}">2025-01-01</td>
+                                            <td th:text="${txn.property_name}">Property</td>
+                                            <td th:text="${txn.owner_name}">Owner</td>
+                                            <td th:text="${txn.amount}">100.00</td>
+                                            <td th:text="${#strings.abbreviate(txn.description, 40)}">Description</td>
+                                            <td>
+                                                <form th:action="@{/owner-payments/create-single}" method="post" class="d-inline">
+                                                    <input type="hidden" name="transactionId" th:value="${txn.id}">
+                                                    <button type="submit" class="btn btn-sm btn-primary">
+                                                        <i class="fas fa-plus"></i> Create Payment
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <a href="/owner-payments/transactions?status=unallocated" class="btn btn-outline-primary">
+                                View All Unallocated <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/custom.js}"></script>
+</body>
+</html>

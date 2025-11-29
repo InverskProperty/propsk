@@ -364,6 +364,25 @@
                         <li th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}"><a th:href="${home + 'admin/enhanced-statements'}"><i class="fas fa-chart-line text-primary"></i> Enhanced Statements</a></li>
                     </ul>
                 </li>
+
+                <!-- OWNER PAYMENTS & BALANCES -->
+                <li>
+                    <a class="has-arrow waves-effect waves-dark" href="javascript:void(0)">
+                        <i class="fas fa-wallet"></i>
+                        <span class="hide-menu">Owner Payments</span>
+                    </a>
+                    <ul class="collapse">
+                        <!-- Owner Payment Management -->
+                        <li><a th:href="${home + 'owner-payments'}"><i class="fas fa-tachometer-alt"></i> Payment Dashboard</a></li>
+                        <li><a th:href="${home + 'owner-payments/transactions'}"><i class="fas fa-list"></i> View Transactions</a></li>
+                        <li><a th:href="${home + 'owner-payments/create-batch'}"><i class="fas fa-plus-circle text-success"></i> Create Batch Payment</a></li>
+
+                        <!-- Property Balances -->
+                        <li><a th:href="${home + 'property-balances'}"><i class="fas fa-balance-scale text-info"></i> Property Balances</a></li>
+                        <li><a th:href="${home + 'property-balances?filter=with-balance'}"><i class="fas fa-pound-sign text-success"></i> Properties With Balance</a></li>
+                        <li><a th:href="${home + 'property-balances?filter=block'}"><i class="fas fa-building text-primary"></i> Block Properties</a></li>
+                    </ul>
+                </li>
                 
                 <!-- TICKETS - Enhanced with maintenance features -->
                 <li class="nav-small-cap">--- Tickets</li>

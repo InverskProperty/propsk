@@ -77,7 +77,7 @@ public class LeaseTransactionReportController {
             if (lease.getProperty() != null) {
                 leaseReport.put("propertyId", lease.getProperty().getId());
                 leaseReport.put("propertyName", lease.getProperty().getPropertyName());
-                leaseReport.put("propertyAddress", lease.getProperty().getAddress());
+                leaseReport.put("propertyAddress", lease.getProperty().getAddressLine1());
             }
 
             // Get all transactions for this property in the date range

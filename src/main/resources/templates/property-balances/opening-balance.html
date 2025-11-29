@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-flag text-secondary"></i> Set Opening Balance
+                    </h4>
+                    <p class="text-muted" th:text="${property.propertyName}">Property Name</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/property-balances}">Property Balances</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/property-balances/{id}(id=${property.id})}" th:text="${property.propertyName}">Property</a></li>
+                        <li class="breadcrumb-item active">Opening Balance</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Warning if entries exist -->
+            <div th:if="${hasEntries}" class="row mb-3">
+                <div class="col-12">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warning:</strong> This property already has ledger entries.
+                        Setting an opening balance will add a new entry but will not replace existing history.
+                        Current balance is <strong th:text="${#numbers.formatCurrency(currentBalance)}">0.00</strong>.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Current Balance Info -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">Current Balance</h5>
+                            <h2 class="mb-0" th:text="${#numbers.formatCurrency(currentBalance)}">0.00</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Opening Balance Form -->
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">Set Opening Balance</h4>
+                            <p class="text-muted">
+                                Use this form to establish an opening balance for the property.
+                                This is typically used when migrating from another system or starting fresh tracking.
+                            </p>
+
+                            <form th:action="@{/property-balances/{id}/opening-balance(id=${property.id})}" method="post">
+                                <div class="form-group row">
+                                    <label for="amount" class="col-md-3 col-form-label">Opening Balance</label>
+                                    <div class="col-md-9">
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <span class="input-group-text">£</span>
+                                            </div>
+                                            <input type="number" class="form-control" id="amount" name="amount"
+                                                   step="0.01" required placeholder="0.00">
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Enter the balance as of the specified date. Can be positive or negative.
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="asOfDate" class="col-md-3 col-form-label">As Of Date</label>
+                                    <div class="col-md-9">
+                                        <input type="date" class="form-control" id="asOfDate" name="asOfDate"
+                                               required th:value="${#temporals.format(T(java.time.LocalDate).now(), 'yyyy-MM-dd')}">
+                                        <small class="form-text text-muted">
+                                            The date this balance was effective
+                                        </small>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <label for="notes" class="col-md-3 col-form-label">Notes (Optional)</label>
+                                    <div class="col-md-9">
+                                        <textarea class="form-control" id="notes" name="notes" rows="3"
+                                                  placeholder="e.g., Migrated from PayProp, Starting balance from Q4 2024..."></textarea>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row" th:if="${!hasEntries}">
+                                    <div class="col-md-9 offset-md-3">
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle"></i>
+                                            This property has no existing ledger entries.
+                                            The opening balance will be the first entry.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group row">
+                                    <div class="col-md-9 offset-md-3">
+                                        <button type="submit" class="btn btn-secondary">
+                                            <i class="fas fa-flag"></i> Set Opening Balance
+                                        </button>
+                                        <a th:href="@{/property-balances/{id}(id=${property.id})}" class="btn btn-outline-secondary">
+                                            <i class="fas fa-times"></i> Cancel
+                                        </a>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Help Panel -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-info-circle text-info"></i> About Opening Balances</h5>
+                            <p class="text-muted">
+                                An opening balance establishes the starting point for balance tracking.
+                            </p>
+                            <h6>Common Use Cases:</h6>
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <i class="fas fa-database text-primary"></i>
+                                    System migration
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-calendar-alt text-primary"></i>
+                                    New fiscal year start
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-sync text-primary"></i>
+                                    PayProp reconciliation
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-history text-primary"></i>
+                                    Historical data import
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/general-scripts.html}"></div>
+
+</body>
+</html>

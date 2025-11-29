@@ -27,6 +27,9 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     // ✅ Block relationship queries
     List<Property> findByBlockId(Long blockId);
     List<Property> findByBlockIdAndIsArchived(Long blockId, String isArchived);
+
+    // ✅ Block property queries
+    List<Property> findByIsBlockProperty(Boolean isBlockProperty);
     
     // ✅ Property characteristics (PayProp compatible)
     List<Property> findByPropertyType(String propertyType);

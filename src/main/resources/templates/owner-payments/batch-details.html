@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-layer-group text-primary"></i> Batch Details
+                    </h4>
+                    <p class="text-muted" th:text="${batch.batchId}">BATCH-001</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <a href="/owner-payments" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div th:if="${success}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-check-circle"></i> <span th:text="${success}">Success</span>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-exclamation-triangle"></i> <span th:text="${error}">Error</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Batch Info Card -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header" th:classappend="${batch.status.name() == 'PAID'} ? 'bg-success text-white' : 'bg-warning'">
+                            <h4 class="card-title mb-0" th:classappend="${batch.status.name() == 'PAID'} ? 'text-white' : ''">
+                                <i class="fas fa-info-circle"></i> Batch Information
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th>Batch ID:</th>
+                                    <td th:text="${batch.batchId}">BATCH-001</td>
+                                </tr>
+                                <tr>
+                                    <th>Status:</th>
+                                    <td>
+                                        <span th:if="${batch.status.name() == 'DRAFT'}" class="badge badge-secondary">Draft</span>
+                                        <span th:if="${batch.status.name() == 'PENDING'}" class="badge badge-warning">Pending</span>
+                                        <span th:if="${batch.status.name() == 'PAID'}" class="badge badge-success">Paid</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Beneficiary:</th>
+                                    <td th:text="${batch.beneficiaryName}">Owner Name</td>
+                                </tr>
+                                <tr>
+                                    <th>Payment Date:</th>
+                                    <td th:text="${batch.paymentDate}">2025-01-01</td>
+                                </tr>
+                                <tr th:if="${batch.paymentReference != null}">
+                                    <th>Reference:</th>
+                                    <td th:text="${batch.paymentReference}">REF-001</td>
+                                </tr>
+                                <tr th:if="${batch.paypropBatchId != null}">
+                                    <th>PayProp Batch:</th>
+                                    <td th:text="${batch.paypropBatchId}">PP-001</td>
+                                </tr>
+                            </table>
+
+                            <hr>
+
+                            <table class="table table-sm">
+                                <tr>
+                                    <td>Allocations Total:</td>
+                                    <td class="text-right" th:text="${batch.totalAllocations}">100.00</td>
+                                </tr>
+                                <tr th:if="${batch.balanceAdjustment != null and batch.balanceAdjustment != 0}">
+                                    <td>Balance Adjustment:</td>
+                                    <td class="text-right" th:text="${batch.balanceAdjustment}">0.00</td>
+                                </tr>
+                                <tr class="font-weight-bold border-top">
+                                    <td>Total Payment:</td>
+                                    <td class="text-right text-success" th:text="${batch.totalPayment}">100.00</td>
+                                </tr>
+                            </table>
+
+                            <div th:if="${batch.adjustmentNotes != null}" class="alert alert-info">
+                                <small><strong>Adjustment Notes:</strong> <span th:text="${batch.adjustmentNotes}">Notes</span></small>
+                            </div>
+
+                            <!-- Mark as Paid Form -->
+                            <div th:if="${batch.status.name() != 'PAID'}" class="mt-4">
+                                <form th:action="@{/owner-payments/batch/{id}/pay(id=${batch.batchId})}" method="post">
+                                    <div class="form-group">
+                                        <label>Paid Date</label>
+                                        <input type="date" name="paidDate" class="form-control"
+                                               th:value="${#temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Payment Reference</label>
+                                        <input type="text" name="paymentReference" class="form-control"
+                                               placeholder="BACS ref, bank transfer ref">
+                                    </div>
+                                    <button type="submit" class="btn btn-success btn-block">
+                                        <i class="fas fa-check"></i> Mark as Paid
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div th:if="${batch.status.name() == 'PAID'}" class="text-center py-3">
+                                <i class="fas fa-check-circle fa-3x text-success"></i>
+                                <h5 class="mt-2 text-success">Payment Complete</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Allocations List -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h4 class="card-title text-white mb-0">
+                                <i class="fas fa-list"></i> Allocations in this Batch
+                                <span class="badge badge-light" th:text="${#lists.size(allocations)}">0</span>
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead class="thead-dark">
+                                        <tr>
+                                            <th>Property</th>
+                                            <th>Amount</th>
+                                            <th>Category</th>
+                                            <th>Status</th>
+                                            <th>Paid Date</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="alloc : ${allocations}">
+                                            <td th:text="${alloc.propertyName}">Property</td>
+                                            <td class="font-weight-bold" th:text="${alloc.amount}">100.00</td>
+                                            <td th:text="${alloc.category}">Category</td>
+                                            <td>
+                                                <span th:if="${alloc.paymentStatus.name() == 'PENDING'}" class="badge badge-warning">Pending</span>
+                                                <span th:if="${alloc.paymentStatus.name() == 'BATCHED'}" class="badge badge-info">Batched</span>
+                                                <span th:if="${alloc.paymentStatus.name() == 'PAID'}" class="badge badge-success">Paid</span>
+                                            </td>
+                                            <td th:text="${alloc.paidDate}">-</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="font-weight-bold bg-light">
+                                            <td>Total</td>
+                                            <td th:text="${batch.totalAllocations}">0.00</td>
+                                            <td colspan="3"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/custom.js}"></script>
+</body>
+</html>

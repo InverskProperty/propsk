@@ -51,6 +51,13 @@ public class PaymentBatch {
     @Column(name = "total_payment", precision = 12, scale = 2, nullable = false)
     private BigDecimal totalPayment;
 
+    // Block contribution tracking
+    @Column(name = "block_id")
+    private Long blockId;
+
+    @Column(name = "block_contribution_amount", precision = 12, scale = 2)
+    private BigDecimal blockContributionAmount = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private BatchStatus status = BatchStatus.DRAFT;
@@ -130,6 +137,12 @@ public class PaymentBatch {
 
     public BigDecimal getTotalPayment() { return totalPayment; }
     public void setTotalPayment(BigDecimal totalPayment) { this.totalPayment = totalPayment; }
+
+    public Long getBlockId() { return blockId; }
+    public void setBlockId(Long blockId) { this.blockId = blockId; }
+
+    public BigDecimal getBlockContributionAmount() { return blockContributionAmount; }
+    public void setBlockContributionAmount(BigDecimal blockContributionAmount) { this.blockContributionAmount = blockContributionAmount; }
 
     public BatchStatus getStatus() { return status; }
     public void setStatus(BatchStatus status) { this.status = status; }

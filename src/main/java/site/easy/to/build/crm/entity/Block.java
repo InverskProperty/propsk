@@ -100,6 +100,16 @@ public class Block {
     @Column(name = "service_charge_account")
     private String serviceChargeAccount; // Dedicated service charge bank account
 
+    // Balance Management (for block property account)
+    @Column(name = "hold_balance_before_payout")
+    private Boolean holdBalanceBeforePayout = true; // If true, block property holds balance rather than auto-paying owners
+
+    @Column(name = "minimum_balance_threshold")
+    private BigDecimal minimumBalanceThreshold = BigDecimal.ZERO; // Minimum balance to maintain in block account
+
+    @Column(name = "auto_payout_day")
+    private Integer autoPayoutDay; // Day of month for auto payout (null = manual only)
+
     // Ownership and Access
     @Column(name = "property_owner_id")
     private Integer propertyOwnerId;
@@ -331,6 +341,20 @@ public class Block {
 
     public String getServiceChargeAccount() { return serviceChargeAccount; }
     public void setServiceChargeAccount(String serviceChargeAccount) { this.serviceChargeAccount = serviceChargeAccount; }
+
+    // Balance Management Getters/Setters
+    public Boolean getHoldBalanceBeforePayout() { return holdBalanceBeforePayout; }
+    public void setHoldBalanceBeforePayout(Boolean holdBalanceBeforePayout) { this.holdBalanceBeforePayout = holdBalanceBeforePayout; }
+
+    public BigDecimal getMinimumBalanceThreshold() { return minimumBalanceThreshold; }
+    public void setMinimumBalanceThreshold(BigDecimal minimumBalanceThreshold) { this.minimumBalanceThreshold = minimumBalanceThreshold; }
+
+    public Integer getAutoPayoutDay() { return autoPayoutDay; }
+    public void setAutoPayoutDay(Integer autoPayoutDay) { this.autoPayoutDay = autoPayoutDay; }
+
+    public boolean isHoldBalance() {
+        return holdBalanceBeforePayout != null && holdBalanceBeforePayout;
+    }
 
     // Enums
     public enum ServiceChargeFrequency {

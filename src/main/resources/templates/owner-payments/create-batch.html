@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-layer-group text-success"></i> Create Batch Payment
+                    </h4>
+                    <p class="text-muted">Create a batch payment for owner allocations</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <a href="/owner-payments" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-exclamation-triangle"></i> <span th:text="${error}">Error</span>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" action="/owner-payments/create-batch">
+                <div class="row">
+                    <!-- Left Column: Allocations -->
+                    <div class="col-lg-8">
+                        <!-- Selected Transactions (if coming from transaction selection) -->
+                        <div class="card" th:if="${selectedTransactions != null and not #lists.isEmpty(selectedTransactions)}">
+                            <div class="card-header bg-info text-white">
+                                <h4 class="card-title text-white mb-0">
+                                    <i class="fas fa-list"></i> Selected Transactions
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Property</th>
+                                                <th>Amount</th>
+                                                <th>Description</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="txn : ${selectedTransactions}">
+                                                <td th:text="${txn.transactionDate}">2025-01-01</td>
+                                                <td th:text="${txn.property?.name}">Property</td>
+                                                <td class="font-weight-bold" th:text="${txn.amount}">100.00</td>
+                                                <td th:text="${#strings.abbreviate(txn.description, 40)}">Description</td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="font-weight-bold bg-light">
+                                                <td colspan="2">Total</td>
+                                                <td th:text="${totalAmount}">0.00</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pending Allocations -->
+                        <div class="card" th:if="${pendingAllocations != null and not #lists.isEmpty(pendingAllocations)}">
+                            <div class="card-header bg-warning">
+                                <h4 class="card-title mb-0">
+                                    <i class="fas fa-clock"></i> Pending Allocations for <span th:text="${owner?.name}">Owner</span>
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th><input type="checkbox" id="selectAllAllocations" checked></th>
+                                                <th>Property</th>
+                                                <th>Amount</th>
+                                                <th>Category</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="alloc : ${pendingAllocations}">
+                                                <td>
+                                                    <input type="checkbox" name="allocationIds" th:value="${alloc.id}" checked class="alloc-checkbox">
+                                                </td>
+                                                <td th:text="${alloc.propertyName}">Property</td>
+                                                <td class="font-weight-bold" th:text="${alloc.amount}">100.00</td>
+                                                <td th:text="${alloc.category}">Category</td>
+                                                <td>
+                                                    <span class="badge badge-warning">Pending</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="font-weight-bold bg-light">
+                                                <td></td>
+                                                <td>Total Selected</td>
+                                                <td id="selectedTotal" th:text="${pendingTotal}">0.00</td>
+                                                <td colspan="2"></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- No Allocations Message -->
+                        <div class="card" th:if="${(pendingAllocations == null or #lists.isEmpty(pendingAllocations)) and (selectedTransactions == null or #lists.isEmpty(selectedTransactions))}">
+                            <div class="card-body text-center py-5">
+                                <i class="fas fa-info-circle fa-3x text-muted mb-3"></i>
+                                <h5>No Allocations Selected</h5>
+                                <p class="text-muted">Please select an owner to view their pending allocations, or select transactions from the transactions page.</p>
+                                <a href="/owner-payments/transactions?status=pending" class="btn btn-primary">
+                                    <i class="fas fa-list"></i> View Pending Allocations
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Batch Details -->
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h4 class="card-title text-white mb-0">
+                                    <i class="fas fa-cog"></i> Batch Details
+                                </h4>
+                            </div>
+                            <div class="card-body">
+                                <!-- Owner -->
+                                <div class="form-group">
+                                    <label>Owner / Beneficiary *</label>
+                                    <input type="hidden" name="ownerId" th:value="${owner?.id}">
+                                    <input type="text" class="form-control" th:value="${owner?.name}" readonly th:if="${owner != null}">
+                                    <div th:if="${owner == null}" class="alert alert-warning">
+                                        <small>Please select transactions or an owner first</small>
+                                    </div>
+                                </div>
+
+                                <!-- Payment Date -->
+                                <div class="form-group">
+                                    <label>Payment Date *</label>
+                                    <input type="date" name="paymentDate" class="form-control"
+                                           th:value="${#temporals.format(#temporals.createNow(), 'yyyy-MM-dd')}" required>
+                                </div>
+
+                                <!-- Balance Contribution -->
+                                <div class="form-group">
+                                    <label>
+                                        <i class="fas fa-piggy-bank text-info"></i> Balance Contribution
+                                    </label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">£</span>
+                                        </div>
+                                        <input type="number" step="0.01" name="balanceContribution"
+                                               class="form-control" value="0.00" id="balanceContribution">
+                                    </div>
+                                    <small class="text-muted">Amount to add from block/owner balance</small>
+                                </div>
+
+                                <!-- Block Selection (for balance contribution) -->
+                                <div class="form-group">
+                                    <label>From Block Account</label>
+                                    <select name="blockId" class="form-control" id="blockSelect">
+                                        <option value="">-- None (Owner Balance) --</option>
+                                        <option th:each="block : ${blocks}" th:value="${block.id}" th:text="${block.name}">Block</option>
+                                    </select>
+                                    <small class="text-muted">Select block if contribution is from block account</small>
+                                </div>
+
+                                <!-- Notes -->
+                                <div class="form-group">
+                                    <label>Notes</label>
+                                    <textarea name="notes" class="form-control" rows="2" placeholder="Optional notes about this batch"></textarea>
+                                </div>
+
+                                <hr>
+
+                                <!-- Payment Summary -->
+                                <div class="bg-light p-3 rounded">
+                                    <h6><i class="fas fa-calculator"></i> Payment Summary</h6>
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td>Allocations Total:</td>
+                                            <td class="text-right" id="allocationsTotal" th:text="${pendingTotal ?: totalAmount ?: '0.00'}">0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Balance Contribution:</td>
+                                            <td class="text-right" id="contributionDisplay">0.00</td>
+                                        </tr>
+                                        <tr class="font-weight-bold border-top">
+                                            <td>Total Payment:</td>
+                                            <td class="text-right text-success" id="totalPayment" th:text="${pendingTotal ?: totalAmount ?: '0.00'}">0.00</td>
+                                        </tr>
+                                    </table>
+                                </div>
+
+                                <hr>
+
+                                <!-- Payment Reference -->
+                                <div class="form-group">
+                                    <label>Payment Reference</label>
+                                    <input type="text" name="paymentReference" class="form-control"
+                                           placeholder="BACS ref, bank transfer ref, etc.">
+                                </div>
+
+                                <!-- Mark as Paid Checkbox -->
+                                <div class="form-check mb-3">
+                                    <input type="checkbox" name="markAsPaid" value="true" class="form-check-input" id="markAsPaid">
+                                    <label class="form-check-label" for="markAsPaid">
+                                        <strong>Mark as Paid Immediately</strong>
+                                    </label>
+                                    <small class="text-muted d-block">Check if payment has already been made</small>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <button type="submit" class="btn btn-success btn-lg btn-block" th:disabled="${owner == null}">
+                                    <i class="fas fa-check"></i> Create Batch Payment
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/custom.js}"></script>
+<script>
+    $(document).ready(function() {
+        // Select all allocations
+        $('#selectAllAllocations').on('change', function() {
+            $('.alloc-checkbox').prop('checked', this.checked);
+            updateTotals();
+        });
+
+        // Update totals when allocation selection changes
+        $('.alloc-checkbox').on('change', function() {
+            updateTotals();
+        });
+
+        // Update totals when balance contribution changes
+        $('#balanceContribution').on('input', function() {
+            updateTotals();
+        });
+
+        function updateTotals() {
+            var allocTotal = 0;
+            $('.alloc-checkbox:checked').each(function() {
+                var row = $(this).closest('tr');
+                var amount = parseFloat(row.find('td:eq(2)').text()) || 0;
+                allocTotal += amount;
+            });
+
+            var contribution = parseFloat($('#balanceContribution').val()) || 0;
+            var total = allocTotal + contribution;
+
+            $('#selectedTotal').text(allocTotal.toFixed(2));
+            $('#allocationsTotal').text(allocTotal.toFixed(2));
+            $('#contributionDisplay').text(contribution.toFixed(2));
+            $('#totalPayment').text(total.toFixed(2));
+        }
+    });
+</script>
+</body>
+</html>

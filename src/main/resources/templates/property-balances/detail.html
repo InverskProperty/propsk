@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-wallet text-info"></i>
+                        <span th:text="${property.propertyName}">Property Name</span>
+                        <span th:if="${isBlockProperty}" class="badge badge-info ml-2">Block Property</span>
+                    </h4>
+                    <p class="text-muted" th:text="${property.address}">Address</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/">Home</a></li>
+                        <li class="breadcrumb-item"><a th:href="@{/property-balances}">Property Balances</a></li>
+                        <li class="breadcrumb-item active" th:text="${property.propertyName}">Property</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            <div th:if="${successMessage}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-success alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-check-circle"></i> <span th:text="${successMessage}">Success</span>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${errorMessage}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-exclamation-triangle"></i> <span th:text="${errorMessage}">Error</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Balance Summary Cards -->
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">Current Balance</h5>
+                            <h2 class="mb-0" th:text="${#numbers.formatCurrency(currentBalance)}">0.00</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">Available Balance</h5>
+                            <h2 class="mb-0" th:text="${#numbers.formatCurrency(availableBalance)}">0.00</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-secondary text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">Minimum Balance</h5>
+                            <h2 class="mb-0" th:text="${#numbers.formatCurrency(property.propertyAccountMinimumBalance ?: 0)}">0.00</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <a th:href="@{/property-balances/{id}/adjust(id=${property.id})}" class="btn btn-warning">
+                        <i class="fas fa-edit"></i> Manual Adjustment
+                    </a>
+                    <a th:if="${!isBlockProperty}" th:href="@{/property-balances/{id}/transfer(id=${property.id})}" class="btn btn-info">
+                        <i class="fas fa-exchange-alt"></i> Transfer to Block
+                    </a>
+                    <a th:href="@{/property-balances/{id}/opening-balance(id=${property.id})}" class="btn btn-secondary">
+                        <i class="fas fa-flag"></i> Set Opening Balance
+                    </a>
+                    <a th:href="@{/property-balances}" class="btn btn-outline-secondary float-right">
+                        <i class="fas fa-arrow-left"></i> Back to List
+                    </a>
+                </div>
+            </div>
+
+            <!-- Date Range Filter -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <form th:action="@{/property-balances/{id}(id=${property.id})}" method="get" class="form-inline">
+                                <label class="mr-2">Date Range:</label>
+                                <input type="date" name="fromDate" class="form-control mr-2"
+                                       th:value="${fromDate}">
+                                <span class="mr-2">to</span>
+                                <input type="date" name="toDate" class="form-control mr-2"
+                                       th:value="${toDate}">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter"></i> Filter
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Balance Ledger History -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4 class="card-title">Balance History</h4>
+
+                            <div class="table-responsive">
+                                <table id="ledgerTable" class="table table-striped table-bordered">
+                                    <thead class="thead-dark">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th class="text-right">Amount</th>
+                                            <th class="text-right">Balance</th>
+                                            <th>Description</th>
+                                            <th>Reference</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="entry : ${ledgerEntries}"
+                                            th:classappend="${entry.entryType.name() == 'DEPOSIT' or entry.entryType.name() == 'TRANSFER_IN'} ? 'table-success' : (${entry.entryType.name() == 'WITHDRAWAL' or entry.entryType.name() == 'TRANSFER_OUT'} ? 'table-warning' : '')">
+                                            <td th:text="${#temporals.format(entry.entryDate, 'dd/MM/yyyy')}">01/01/2024</td>
+                                            <td>
+                                                <span th:switch="${entry.entryType.name()}">
+                                                    <span th:case="'DEPOSIT'" class="badge badge-success">
+                                                        <i class="fas fa-arrow-down"></i> Deposit
+                                                    </span>
+                                                    <span th:case="'WITHDRAWAL'" class="badge badge-warning">
+                                                        <i class="fas fa-arrow-up"></i> Withdrawal
+                                                    </span>
+                                                    <span th:case="'TRANSFER_IN'" class="badge badge-info">
+                                                        <i class="fas fa-arrow-right"></i> Transfer In
+                                                    </span>
+                                                    <span th:case="'TRANSFER_OUT'" class="badge badge-secondary">
+                                                        <i class="fas fa-arrow-left"></i> Transfer Out
+                                                    </span>
+                                                    <span th:case="'ADJUSTMENT'" class="badge badge-primary">
+                                                        <i class="fas fa-edit"></i> Adjustment
+                                                    </span>
+                                                    <span th:case="'OPENING_BALANCE'" class="badge badge-dark">
+                                                        <i class="fas fa-flag"></i> Opening
+                                                    </span>
+                                                </span>
+                                            </td>
+                                            <td class="text-right">
+                                                <span th:classappend="${entry.entryType.name() == 'DEPOSIT' or entry.entryType.name() == 'TRANSFER_IN' or entry.entryType.name() == 'OPENING_BALANCE'} ? 'text-success' : 'text-danger'">
+                                                    <span th:if="${entry.entryType.name() == 'DEPOSIT' or entry.entryType.name() == 'TRANSFER_IN' or entry.entryType.name() == 'OPENING_BALANCE'}">+</span>
+                                                    <span th:if="${entry.entryType.name() == 'WITHDRAWAL' or entry.entryType.name() == 'TRANSFER_OUT'}">-</span>
+                                                    <span th:text="${#numbers.formatCurrency(entry.amount)}">0.00</span>
+                                                </span>
+                                            </td>
+                                            <td class="text-right font-weight-bold" th:text="${#numbers.formatCurrency(entry.runningBalance)}">0.00</td>
+                                            <td>
+                                                <span th:text="${entry.description}">Description</span>
+                                                <br th:if="${entry.relatedPropertyName != null}">
+                                                <small th:if="${entry.relatedPropertyName != null}" class="text-muted">
+                                                    <span th:if="${entry.entryType.name() == 'TRANSFER_IN'}">From: </span>
+                                                    <span th:if="${entry.entryType.name() == 'TRANSFER_OUT'}">To: </span>
+                                                    <span th:text="${entry.relatedPropertyName}">Related Property</span>
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <span th:if="${entry.paymentBatchId != null}" class="badge badge-light">
+                                                    <span th:text="${entry.paymentBatchId}">BATCH-001</span>
+                                                </span>
+                                                <span th:if="${entry.reference != null}" th:text="${entry.reference}">REF</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div th:if="${#lists.isEmpty(ledgerEntries)}" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-3x mb-3"></i>
+                                <p>No balance history found for the selected date range.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/general-scripts.html}"></div>
+<script th:src="@{/js/jquery.dataTables.js}"></script>
+<script th:src="@{/js/dataTables.bootstrap4.js}"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#ledgerTable').DataTable({
+            pageLength: 25,
+            order: [[0, 'desc']], // Sort by date descending
+            columnDefs: [
+                { type: 'date', targets: 0 }
+            ]
+        });
+    });
+</script>
+
+</body>
+</html>

@@ -1,5 +1,7 @@
 package site.easy.to.build.crm.service.statements;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.*;
@@ -35,6 +37,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class BodenHouseStatementTemplateService {
+
+    private static final Logger log = LoggerFactory.getLogger(BodenHouseStatementTemplateService.class);
 
     @Autowired
     private PropertyService propertyService;
@@ -1696,9 +1700,8 @@ public class BodenHouseStatementTemplateService {
      */
     private void enhanceWithAllocationData(PropertyUnit unit, Property property, LocalDate fromDate, LocalDate toDate) {
         try {
-            // Query unified_allocations for OWNER type allocations for this property in the period
-            // We look up by property_id and find allocations linked to incoming transactions in this period
-            String sql = """
+            // First try: Query with join to unified_incoming_transactions for date filtering
+            String sqlWithJoin = """
                 SELECT ua.payment_batch_id, ua.payment_status, ua.paid_date, ua.amount
                 FROM unified_allocations ua
                 INNER JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
@@ -1709,8 +1712,35 @@ public class BodenHouseStatementTemplateService {
                 LIMIT 1
                 """;
 
-            List<Map<String, Object>> results = jdbcTemplate.queryForList(sql,
+            List<Map<String, Object>> results = jdbcTemplate.queryForList(sqlWithJoin,
                 property.getId(), fromDate, toDate);
+
+            // Fallback: If no results from join, try direct query on paid_date
+            if (results.isEmpty()) {
+                String sqlDirect = """
+                    SELECT ua.payment_batch_id, ua.payment_status, ua.paid_date, ua.amount
+                    FROM unified_allocations ua
+                    WHERE ua.property_id = ?
+                    AND ua.allocation_type = 'OWNER'
+                    AND (ua.paid_date BETWEEN ? AND ? OR ua.paid_date IS NULL)
+                    ORDER BY ua.paid_date DESC, ua.created_at DESC
+                    LIMIT 1
+                    """;
+                results = jdbcTemplate.queryForList(sqlDirect, property.getId(), fromDate, toDate);
+            }
+
+            // Second fallback: Get the most recent allocation for this property regardless of date
+            if (results.isEmpty()) {
+                String sqlLatest = """
+                    SELECT ua.payment_batch_id, ua.payment_status, ua.paid_date, ua.amount
+                    FROM unified_allocations ua
+                    WHERE ua.property_id = ?
+                    AND ua.allocation_type = 'OWNER'
+                    ORDER BY ua.created_at DESC
+                    LIMIT 1
+                    """;
+                results = jdbcTemplate.queryForList(sqlLatest, property.getId());
+            }
 
             if (!results.isEmpty()) {
                 Map<String, Object> allocation = results.get(0);
@@ -1735,8 +1765,8 @@ public class BodenHouseStatementTemplateService {
             }
         } catch (Exception e) {
             // Don't fail if allocation data is not available - this is optional enhancement
-            System.err.println("Warning: Could not enhance with allocation data for property " +
-                             property.getId() + ": " + e.getMessage());
+            log.warn("Could not enhance with allocation data for property {}: {}",
+                     property.getId(), e.getMessage());
         }
     }
 

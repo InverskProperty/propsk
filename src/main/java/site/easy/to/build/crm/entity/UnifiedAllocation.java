@@ -22,6 +22,9 @@ public class UnifiedAllocation {
     @Column(name = "incoming_transaction_id")
     private Long incomingTransactionId;
 
+    @Column(name = "historical_transaction_id")
+    private Long historicalTransactionId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "allocation_type", nullable = false)
     private AllocationType allocationType;
@@ -89,7 +92,7 @@ public class UnifiedAllocation {
     }
 
     public enum AllocationSource {
-        HISTORICAL, PAYPROP
+        HISTORICAL, PAYPROP, MANUAL, CSV_IMPORT
     }
 
     // Getters and Setters
@@ -98,6 +101,9 @@ public class UnifiedAllocation {
 
     public Long getIncomingTransactionId() { return incomingTransactionId; }
     public void setIncomingTransactionId(Long incomingTransactionId) { this.incomingTransactionId = incomingTransactionId; }
+
+    public Long getHistoricalTransactionId() { return historicalTransactionId; }
+    public void setHistoricalTransactionId(Long historicalTransactionId) { this.historicalTransactionId = historicalTransactionId; }
 
     public AllocationType getAllocationType() { return allocationType; }
     public void setAllocationType(AllocationType allocationType) { this.allocationType = allocationType; }
