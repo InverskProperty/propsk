@@ -167,4 +167,16 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
         ORDER BY a.propertyName
     """)
     List<Object[]> getPropertySummaryForBatch(@Param("batchReference") String batchReference);
+
+    /**
+     * Find distinct batch references for a beneficiary (owner)
+     */
+    @Query("SELECT DISTINCT a.batchReference FROM TransactionBatchAllocation a WHERE a.beneficiaryId = :beneficiaryId ORDER BY a.batchReference DESC")
+    List<String> findDistinctBatchReferencesByBeneficiaryId(@Param("beneficiaryId") Long beneficiaryId);
+
+    /**
+     * Find all distinct batch references
+     */
+    @Query("SELECT DISTINCT a.batchReference FROM TransactionBatchAllocation a ORDER BY a.batchReference DESC")
+    List<String> findAllDistinctBatchReferences();
 }

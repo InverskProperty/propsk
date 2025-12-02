@@ -665,9 +665,9 @@
 
     // Payments
     async function loadPayments() {
-        // For now, we'll need to fetch batch summaries
-        // This needs a new endpoint - placeholder for now
-        ownerPayments = [];
+        // Fetch batch summaries for this owner
+        const data = await apiCall(`${API_BASE}/batches/owner/${currentOwnerId}`);
+        ownerPayments = data || [];
         renderPaymentsList();
     }
 
@@ -684,25 +684,29 @@
             return;
         }
 
-        container.innerHTML = ownerPayments.map(payment => `
-            <div class="payment-card ${payment.status} ${selectedPayment === payment.batchReference ? 'selected' : ''}"
+        container.innerHTML = ownerPayments.map(payment => {
+            const netTotal = payment.netTotal || 0;
+            const status = payment.status || 'draft';
+            const paymentDate = payment.paymentDate || '';
+            return `
+            <div class="payment-card ${status} ${selectedPayment === payment.batchReference ? 'selected' : ''}"
                  onclick="selectPayment('${payment.batchReference}')">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <strong>${payment.batchReference}</strong>
                         <div class="text-muted small">
-                            ${payment.allocationCount} items | ${payment.created}
+                            ${payment.allocationCount || 0} items | ${paymentDate}
                         </div>
                     </div>
                     <div class="text-right">
-                        <div class="amount-positive">£${payment.netTotal.toFixed(2)}</div>
-                        <span class="badge badge-${payment.status === 'paid' ? 'success' : 'warning'}">
-                            ${payment.status}
+                        <div class="amount-positive">£${parseFloat(netTotal).toFixed(2)}</div>
+                        <span class="badge badge-${status === 'paid' ? 'success' : 'warning'}">
+                            ${status}
                         </span>
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
 
     async function selectPayment(batchRef) {

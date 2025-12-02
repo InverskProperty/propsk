@@ -234,6 +234,38 @@ public class TransactionAllocationController {
     // ===== BATCH MANAGEMENT =====
 
     /**
+     * Get all batches/payments for an owner
+     * GET /api/transaction-allocations/batches/owner/{ownerId}
+     */
+    @GetMapping("/batches/owner/{ownerId}")
+    public ResponseEntity<List<Map<String, Object>>> getBatchesForOwner(@PathVariable Long ownerId) {
+        List<TransactionBatchAllocationService.BatchSummaryDTO> summaries =
+            allocationService.getBatchSummariesForOwner(ownerId);
+
+        List<Map<String, Object>> result = summaries.stream()
+            .map(this::mapBatchSummary)
+            .toList();
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Get all batches/payments
+     * GET /api/transaction-allocations/batches
+     */
+    @GetMapping("/batches")
+    public ResponseEntity<List<Map<String, Object>>> getAllBatches() {
+        List<TransactionBatchAllocationService.BatchSummaryDTO> summaries =
+            allocationService.getAllBatchSummaries();
+
+        List<Map<String, Object>> result = summaries.stream()
+            .map(this::mapBatchSummary)
+            .toList();
+
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Generate a new batch reference
      * GET /api/transaction-allocations/batch/generate-reference?prefix=OWNER
      */
@@ -358,6 +390,20 @@ public class TransactionAllocationController {
         map.put("beneficiaryId", allocation.getBeneficiaryId());
         map.put("beneficiaryName", allocation.getBeneficiaryName());
         map.put("createdAt", allocation.getCreatedAt());
+        return map;
+    }
+
+    private Map<String, Object> mapBatchSummary(TransactionBatchAllocationService.BatchSummaryDTO summary) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("batchReference", summary.getBatchReference());
+        map.put("allocationCount", summary.getAllocationCount());
+        map.put("transactionCount", summary.getTransactionCount());
+        map.put("propertyCount", summary.getPropertyCount());
+        map.put("totalIncome", summary.getTotalIncome());
+        map.put("totalExpenses", summary.getTotalExpenses());
+        map.put("netTotal", summary.getNetTotal());
+        map.put("status", summary.getStatus());
+        map.put("paymentDate", summary.getPaymentDate());
         return map;
     }
 

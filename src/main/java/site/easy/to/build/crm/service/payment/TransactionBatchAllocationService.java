@@ -7,9 +7,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
+import site.easy.to.build.crm.entity.PaymentBatch;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.TransactionBatchAllocation;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
+import site.easy.to.build.crm.repository.PaymentBatchRepository;
 import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
 
 import java.math.BigDecimal;
@@ -44,6 +46,9 @@ public class TransactionBatchAllocationService {
 
     @Autowired
     private HistoricalTransactionRepository transactionRepository;
+
+    @Autowired
+    private PaymentBatchRepository paymentBatchRepository;
 
     // ===== ALLOCATION CREATION =====
 
@@ -394,6 +399,82 @@ public class TransactionBatchAllocationService {
         );
     }
 
+    // ===== LIST BATCHES =====
+
+    /**
+     * Get all batch summaries for an owner (combines PaymentBatch and TransactionBatchAllocation)
+     */
+    public List<BatchSummaryDTO> getBatchSummariesForOwner(Long ownerId) {
+        Map<String, BatchSummaryDTO> batchMap = new LinkedHashMap<>();
+
+        // First, get existing PaymentBatch records for this owner
+        List<PaymentBatch> paymentBatches = paymentBatchRepository.findByBeneficiaryId(ownerId);
+        for (PaymentBatch pb : paymentBatches) {
+            BatchSummaryDTO dto = new BatchSummaryDTO(
+                    pb.getBatchId(),
+                    0, // Will update if allocations exist
+                    0,
+                    0,
+                    pb.getTotalAllocations() != null ? pb.getTotalAllocations() : BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    pb.getTotalPayment() != null ? pb.getTotalPayment() : BigDecimal.ZERO,
+                    pb.getStatus() != null ? pb.getStatus().name().toLowerCase() : "draft",
+                    pb.getPaymentDate()
+            );
+            batchMap.put(pb.getBatchId(), dto);
+        }
+
+        // Then, get batches from TransactionBatchAllocation (may overlap or be new)
+        List<String> batchRefs = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
+        for (String batchRef : batchRefs) {
+            if (!batchMap.containsKey(batchRef)) {
+                BatchSummaryDTO summary = getBatchSummary(batchRef);
+                if (summary != null) {
+                    batchMap.put(batchRef, summary);
+                }
+            }
+        }
+
+        return new ArrayList<>(batchMap.values());
+    }
+
+    /**
+     * Get all batch summaries
+     */
+    public List<BatchSummaryDTO> getAllBatchSummaries() {
+        Map<String, BatchSummaryDTO> batchMap = new LinkedHashMap<>();
+
+        // First, get all PaymentBatch records
+        List<PaymentBatch> paymentBatches = paymentBatchRepository.findAll();
+        for (PaymentBatch pb : paymentBatches) {
+            BatchSummaryDTO dto = new BatchSummaryDTO(
+                    pb.getBatchId(),
+                    0,
+                    0,
+                    0,
+                    pb.getTotalAllocations() != null ? pb.getTotalAllocations() : BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    pb.getTotalPayment() != null ? pb.getTotalPayment() : BigDecimal.ZERO,
+                    pb.getStatus() != null ? pb.getStatus().name().toLowerCase() : "draft",
+                    pb.getPaymentDate()
+            );
+            batchMap.put(pb.getBatchId(), dto);
+        }
+
+        // Then add any from TransactionBatchAllocation not already in map
+        List<String> batchRefs = allocationRepository.findAllDistinctBatchReferences();
+        for (String batchRef : batchRefs) {
+            if (!batchMap.containsKey(batchRef)) {
+                BatchSummaryDTO summary = getBatchSummary(batchRef);
+                if (summary != null) {
+                    batchMap.put(batchRef, summary);
+                }
+            }
+        }
+
+        return new ArrayList<>(batchMap.values());
+    }
+
     // ===== HELPER METHODS =====
 
     private HistoricalTransaction getTransaction(Long transactionId) {
@@ -473,10 +554,19 @@ public class TransactionBatchAllocationService {
         private final BigDecimal totalIncome;
         private final BigDecimal totalExpenses;
         private final BigDecimal netTotal;
+        private final String status;
+        private final LocalDate paymentDate;
 
         public BatchSummaryDTO(String batchReference, int allocationCount, int transactionCount,
                                int propertyCount, BigDecimal totalIncome, BigDecimal totalExpenses,
                                BigDecimal netTotal) {
+            this(batchReference, allocationCount, transactionCount, propertyCount,
+                 totalIncome, totalExpenses, netTotal, "draft", null);
+        }
+
+        public BatchSummaryDTO(String batchReference, int allocationCount, int transactionCount,
+                               int propertyCount, BigDecimal totalIncome, BigDecimal totalExpenses,
+                               BigDecimal netTotal, String status, LocalDate paymentDate) {
             this.batchReference = batchReference;
             this.allocationCount = allocationCount;
             this.transactionCount = transactionCount;
@@ -484,6 +574,8 @@ public class TransactionBatchAllocationService {
             this.totalIncome = totalIncome;
             this.totalExpenses = totalExpenses;
             this.netTotal = netTotal;
+            this.status = status;
+            this.paymentDate = paymentDate;
         }
 
         public String getBatchReference() { return batchReference; }
@@ -493,5 +585,7 @@ public class TransactionBatchAllocationService {
         public BigDecimal getTotalIncome() { return totalIncome; }
         public BigDecimal getTotalExpenses() { return totalExpenses; }
         public BigDecimal getNetTotal() { return netTotal; }
+        public String getStatus() { return status; }
+        public LocalDate getPaymentDate() { return paymentDate; }
     }
 }
