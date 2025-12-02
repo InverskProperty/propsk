@@ -790,23 +790,26 @@
         unallocatedTransactions.forEach(txn => {
             const amount = parseFloat(txn.remainingUnallocated);
             const isPositive = amount >= 0;
+            const isPartial = Math.abs(txn.netToOwner - txn.remainingUnallocated) > 0.01;
             html += `
-                <div class="transaction-item">
-                    <label class="d-flex align-items-start w-100">
-                        <input type="checkbox" class="available-txn-checkbox mr-2 mt-1"
-                               value="${txn.transactionId}"
-                               data-amount="${amount}"
-                               onchange="updateAllocateButton()">
-                        <div class="flex-grow-1">
-                            <div class="d-flex justify-content-between">
-                                <span>${txn.category || 'Unknown'}</span>
-                                <span class="${isPositive ? 'amount-positive' : 'amount-negative'}">
-                                    £${Math.abs(amount).toFixed(2)}
-                                </span>
-                            </div>
-                            <small class="text-muted">${txn.transactionDate} | ${txn.propertyName || 'No property'}</small>
+                <div class="transaction-item d-flex align-items-start">
+                    <input type="checkbox" class="available-txn-checkbox mr-2 mt-1"
+                           value="${txn.transactionId}"
+                           data-amount="${amount}"
+                           onchange="updateAllocateButton()">
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between">
+                            <span>${txn.category || 'Unknown'}</span>
+                            <span class="${isPositive ? 'amount-positive' : 'amount-negative'}">
+                                £${Math.abs(amount).toFixed(2)}
+                                ${isPartial ? '<span class="badge badge-partial ml-1">Partial</span>' : ''}
+                            </span>
                         </div>
-                    </label>
+                        <small class="text-muted">${txn.transactionDate} | ${txn.propertyName || 'No property'}</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary ml-2" onclick="showSplitModal(${txn.transactionId})" title="Split allocation">
+                        <i class="fas fa-divide"></i>
+                    </button>
                 </div>
             `;
         });
