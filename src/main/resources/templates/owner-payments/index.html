@@ -605,9 +605,9 @@
         const helpDiv = document.getElementById('noTransactionsHelp');
         const selectedProps = getSelectedPropertyIds();
 
-        const filtered = unallocatedTransactions.filter(t =>
-            !t.propertyId || selectedProps.includes(t.propertyId)
-        );
+        const filtered = unallocatedTransactions
+            .filter(t => !t.propertyId || selectedProps.includes(t.propertyId))
+            .sort((a, b) => new Date(a.transactionDate) - new Date(b.transactionDate));
 
         if (filtered.length === 0) {
             // Check if we have NO transactions at all (need backfill) vs all allocated
@@ -787,7 +787,12 @@
             </div>
         `;
 
-        unallocatedTransactions.forEach(txn => {
+        // Sort by date (oldest first)
+        const sortedTransactions = [...unallocatedTransactions].sort((a, b) =>
+            new Date(a.transactionDate) - new Date(b.transactionDate)
+        );
+
+        sortedTransactions.forEach(txn => {
             const amount = parseFloat(txn.remainingUnallocated);
             const isPositive = amount >= 0;
             const isPartial = Math.abs(txn.netToOwner - txn.remainingUnallocated) > 0.01;
