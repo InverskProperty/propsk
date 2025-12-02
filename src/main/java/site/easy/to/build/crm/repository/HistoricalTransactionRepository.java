@@ -648,6 +648,14 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
     List<HistoricalTransaction> findByOwnerIdWithNetToOwner(@Param("ownerId") Long ownerId);
 
     /**
+     * Find ALL transactions for an owner (regardless of net_to_owner status)
+     * Used for backfilling net_to_owner amounts
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.beneficiary.customerId = :ownerId " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate")
+    List<HistoricalTransaction> findAllByOwnerId(@Param("ownerId") Long ownerId);
+
+    /**
      * Find transactions with net_to_owner_amount for a property within date range
      */
     @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.property.id = :propertyId " +

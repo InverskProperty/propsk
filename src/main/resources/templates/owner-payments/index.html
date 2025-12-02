@@ -214,6 +214,12 @@
                                         <p>Select an owner to view transactions</p>
                                     </div>
                                 </div>
+                                <div id="noTransactionsHelp" style="display: none;" class="p-3 bg-warning-light border-top">
+                                    <p class="mb-2"><i class="fas fa-exclamation-triangle text-warning"></i> No transactions with net-to-owner calculated.</p>
+                                    <button class="btn btn-sm btn-warning" onclick="backfillTransactions()">
+                                        <i class="fas fa-calculator"></i> Calculate Net-to-Owner for All Transactions
+                                    </button>
+                                </div>
 
                                 <div class="action-bar">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -577,6 +583,7 @@
 
     function renderTransactionsList() {
         const container = document.getElementById('transactionsList');
+        const helpDiv = document.getElementById('noTransactionsHelp');
         const selectedProps = getSelectedPropertyIds();
 
         const filtered = unallocatedTransactions.filter(t =>
@@ -584,14 +591,28 @@
         );
 
         if (filtered.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-check-circle text-success"></i>
-                    <p>All transactions allocated!</p>
-                </div>
-            `;
+            // Check if we have NO transactions at all (need backfill) vs all allocated
+            if (unallocatedTransactions.length === 0 && currentOwnerId) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>No transactions with net-to-owner amount found.</p>
+                    </div>
+                `;
+                helpDiv.style.display = 'block';
+            } else {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle text-success"></i>
+                        <p>All transactions allocated!</p>
+                    </div>
+                `;
+                helpDiv.style.display = 'none';
+            }
             return;
         }
+
+        helpDiv.style.display = 'none';
 
         let total = 0;
         container.innerHTML = filtered.map(txn => {
@@ -925,6 +946,25 @@
     function refreshData() {
         if (currentOwnerId) {
             loadOwnerData();
+        }
+    }
+
+    // Backfill net-to-owner for all transactions
+    async function backfillTransactions() {
+        if (!confirm('This will calculate net-to-owner amounts for all transactions. Continue?')) {
+            return;
+        }
+
+        try {
+            const result = await apiCall(`${API_BASE}/backfill/all`, 'POST');
+            if (result.success) {
+                alert(`Updated ${result.updated} transactions. Refreshing...`);
+                await loadOwnerData();
+            } else {
+                alert('Error: ' + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Failed to backfill: ' + e.message);
         }
     }
 

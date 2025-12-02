@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -360,43 +361,61 @@ public class TransactionBatchAllocationService {
     // ===== BATCH SUMMARY =====
 
     /**
-     * Get summary of a batch
+     * Get summary of a batch (checks both TransactionBatchAllocation and PaymentBatch)
      */
     public BatchSummaryDTO getBatchSummary(String batchReference) {
         List<TransactionBatchAllocation> allocations = allocationRepository.findByBatchReference(batchReference);
 
-        if (allocations.isEmpty()) {
-            return null;
+        // If we have allocations, build summary from them
+        if (!allocations.isEmpty()) {
+            BigDecimal totalIncome = BigDecimal.ZERO;
+            BigDecimal totalExpenses = BigDecimal.ZERO;
+            Set<Long> propertyIds = new HashSet<>();
+            Set<Long> transactionIds = new HashSet<>();
+
+            for (TransactionBatchAllocation alloc : allocations) {
+                if (alloc.getAllocatedAmount().compareTo(BigDecimal.ZERO) > 0) {
+                    totalIncome = totalIncome.add(alloc.getAllocatedAmount());
+                } else {
+                    totalExpenses = totalExpenses.add(alloc.getAllocatedAmount());
+                }
+                if (alloc.getPropertyId() != null) {
+                    propertyIds.add(alloc.getPropertyId());
+                }
+                if (alloc.getTransactionId() != null) {
+                    transactionIds.add(alloc.getTransactionId());
+                }
+            }
+
+            return new BatchSummaryDTO(
+                    batchReference,
+                    allocations.size(),
+                    transactionIds.size(),
+                    propertyIds.size(),
+                    totalIncome,
+                    totalExpenses,
+                    totalIncome.add(totalExpenses)  // net total
+            );
         }
 
-        BigDecimal totalIncome = BigDecimal.ZERO;
-        BigDecimal totalExpenses = BigDecimal.ZERO;
-        Set<Long> propertyIds = new HashSet<>();
-        Set<Long> transactionIds = new HashSet<>();
-
-        for (TransactionBatchAllocation alloc : allocations) {
-            if (alloc.getAllocatedAmount().compareTo(BigDecimal.ZERO) > 0) {
-                totalIncome = totalIncome.add(alloc.getAllocatedAmount());
-            } else {
-                totalExpenses = totalExpenses.add(alloc.getAllocatedAmount());
-            }
-            if (alloc.getPropertyId() != null) {
-                propertyIds.add(alloc.getPropertyId());
-            }
-            if (alloc.getTransactionId() != null) {
-                transactionIds.add(alloc.getTransactionId());
-            }
+        // No allocations - check if this batch exists in PaymentBatch table
+        Optional<PaymentBatch> paymentBatch = paymentBatchRepository.findByBatchId(batchReference);
+        if (paymentBatch.isPresent()) {
+            PaymentBatch pb = paymentBatch.get();
+            return new BatchSummaryDTO(
+                    batchReference,
+                    0, // no allocations yet
+                    0,
+                    0,
+                    pb.getTotalAllocations() != null ? pb.getTotalAllocations() : BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    pb.getTotalPayment() != null ? pb.getTotalPayment() : BigDecimal.ZERO,
+                    pb.getStatus() != null ? pb.getStatus().name().toLowerCase() : "draft",
+                    pb.getPaymentDate()
+            );
         }
 
-        return new BatchSummaryDTO(
-                batchReference,
-                allocations.size(),
-                transactionIds.size(),
-                propertyIds.size(),
-                totalIncome,
-                totalExpenses,
-                totalIncome.add(totalExpenses)  // net total
-        );
+        return null;
     }
 
     // ===== LIST BATCHES =====

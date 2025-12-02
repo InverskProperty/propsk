@@ -14,6 +14,10 @@ import site.easy.to.build.crm.util.AuthenticationUtils;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import site.easy.to.build.crm.entity.HistoricalTransaction;
+import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
+
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +44,9 @@ public class TransactionAllocationController {
 
     @Autowired
     private AuthenticationUtils authenticationUtils;
+
+    @Autowired
+    private HistoricalTransactionRepository transactionRepository;
 
     // ===== UNALLOCATED TRANSACTIONS =====
 
@@ -363,6 +370,118 @@ public class TransactionAllocationController {
         response.put("transactionId", transactionId);
 
         return ResponseEntity.ok(response);
+    }
+
+    // ===== BACKFILL NET TO OWNER =====
+
+    /**
+     * Recalculate net_to_owner_amount for all transactions of an owner
+     * POST /api/transaction-allocations/backfill/owner/{ownerId}
+     */
+    @PostMapping("/backfill/owner/{ownerId}")
+    public ResponseEntity<Map<String, Object>> backfillNetToOwnerForOwner(@PathVariable Long ownerId) {
+        try {
+            List<HistoricalTransaction> transactions = transactionRepository.findAllByOwnerId(ownerId);
+            int updated = 0;
+
+            for (HistoricalTransaction txn : transactions) {
+                if (txn.getNetToOwnerAmount() == null && txn.getAmount() != null) {
+                    calculateAndSetNetToOwner(txn);
+                    if (txn.getNetToOwnerAmount() != null) {
+                        transactionRepository.save(txn);
+                        updated++;
+                    }
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("totalTransactions", transactions.size());
+            response.put("updated", updated);
+            response.put("message", "Updated " + updated + " transactions with net_to_owner_amount");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to backfill net_to_owner: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Recalculate net_to_owner_amount for ALL transactions
+     * POST /api/transaction-allocations/backfill/all
+     */
+    @PostMapping("/backfill/all")
+    public ResponseEntity<Map<String, Object>> backfillNetToOwnerAll() {
+        try {
+            List<HistoricalTransaction> transactions = transactionRepository.findAll();
+            int updated = 0;
+
+            for (HistoricalTransaction txn : transactions) {
+                if (txn.getNetToOwnerAmount() == null && txn.getAmount() != null) {
+                    calculateAndSetNetToOwner(txn);
+                    if (txn.getNetToOwnerAmount() != null) {
+                        transactionRepository.save(txn);
+                        updated++;
+                    }
+                }
+            }
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("totalTransactions", transactions.size());
+            response.put("updated", updated);
+            response.put("message", "Updated " + updated + " transactions with net_to_owner_amount");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to backfill net_to_owner: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    private void calculateAndSetNetToOwner(HistoricalTransaction txn) {
+        String category = txn.getCategory();
+        if (category == null) return;
+        category = category.toLowerCase().trim();
+
+        BigDecimal amount = txn.getAmount();
+        if (amount == null) return;
+
+        // Skip owner_payment category
+        if (category.equals("owner_payment")) {
+            return;
+        }
+
+        // RENT: Calculate commission and net
+        if (category.equals("rent") && amount.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal commissionRate = BigDecimal.ZERO;
+            Property property = txn.getProperty();
+            if (property != null && property.getCommissionPercentage() != null) {
+                commissionRate = property.getCommissionPercentage();
+            }
+
+            BigDecimal commissionAmount = amount.multiply(commissionRate).divide(new BigDecimal("100"), 2, BigDecimal.ROUND_HALF_UP);
+            BigDecimal netToOwner = amount.subtract(commissionAmount);
+
+            txn.setCommissionRate(commissionRate);
+            txn.setCommissionAmount(commissionAmount);
+            txn.setNetToOwnerAmount(netToOwner);
+            return;
+        }
+
+        // EXPENSES: Full amount as negative
+        if (amount.compareTo(BigDecimal.ZERO) < 0) {
+            txn.setCommissionRate(BigDecimal.ZERO);
+            txn.setCommissionAmount(BigDecimal.ZERO);
+            txn.setNetToOwnerAmount(amount);
+        }
     }
 
     // ===== HELPER METHODS =====
