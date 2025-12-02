@@ -621,6 +621,7 @@ public class TransactionAllocationController {
         map.put("totalIncome", summary.getTotalIncome());
         map.put("totalExpenses", summary.getTotalExpenses());
         map.put("netTotal", summary.getNetTotal());
+        map.put("originalPaymentAmount", summary.getOriginalPaymentAmount());
         map.put("status", summary.getStatus());
         map.put("paymentDate", summary.getPaymentDate());
         return map;

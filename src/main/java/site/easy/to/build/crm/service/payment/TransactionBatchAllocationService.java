@@ -389,26 +389,39 @@ public class TransactionBatchAllocationService {
     public BatchSummaryDTO getBatchSummary(String batchReference) {
         List<TransactionBatchAllocation> allocations = allocationRepository.findByBatchReference(batchReference);
 
-        // If we have allocations, build summary from them
-        if (!allocations.isEmpty()) {
-            BigDecimal totalIncome = BigDecimal.ZERO;
-            BigDecimal totalExpenses = BigDecimal.ZERO;
-            Set<Long> propertyIds = new HashSet<>();
-            Set<Long> transactionIds = new HashSet<>();
+        // Always try to get the PaymentBatch for original payment amount
+        Optional<PaymentBatch> paymentBatchOpt = paymentBatchRepository.findByBatchId(batchReference);
+        PaymentBatch pb = paymentBatchOpt.orElse(null);
 
-            for (TransactionBatchAllocation alloc : allocations) {
-                if (alloc.getAllocatedAmount().compareTo(BigDecimal.ZERO) > 0) {
-                    totalIncome = totalIncome.add(alloc.getAllocatedAmount());
-                } else {
-                    totalExpenses = totalExpenses.add(alloc.getAllocatedAmount());
-                }
-                if (alloc.getPropertyId() != null) {
-                    propertyIds.add(alloc.getPropertyId());
-                }
-                if (alloc.getTransactionId() != null) {
-                    transactionIds.add(alloc.getTransactionId());
-                }
+        // Calculate allocation totals
+        BigDecimal totalIncome = BigDecimal.ZERO;
+        BigDecimal totalExpenses = BigDecimal.ZERO;
+        Set<Long> propertyIds = new HashSet<>();
+        Set<Long> transactionIds = new HashSet<>();
+
+        for (TransactionBatchAllocation alloc : allocations) {
+            if (alloc.getAllocatedAmount().compareTo(BigDecimal.ZERO) > 0) {
+                totalIncome = totalIncome.add(alloc.getAllocatedAmount());
+            } else {
+                totalExpenses = totalExpenses.add(alloc.getAllocatedAmount());
             }
+            if (alloc.getPropertyId() != null) {
+                propertyIds.add(alloc.getPropertyId());
+            }
+            if (alloc.getTransactionId() != null) {
+                transactionIds.add(alloc.getTransactionId());
+            }
+        }
+
+        BigDecimal allocatedTotal = totalIncome.add(totalExpenses);
+
+        // If we have a PaymentBatch, use its payment amount as original
+        if (pb != null) {
+            // Payment amounts in PaymentBatch are stored as negative (payment to owner)
+            // We want to show the absolute value as the original payment
+            BigDecimal originalPayment = pb.getTotalPayment() != null
+                ? pb.getTotalPayment().abs()
+                : BigDecimal.ZERO;
 
             return new BatchSummaryDTO(
                     batchReference,
@@ -417,24 +430,23 @@ public class TransactionBatchAllocationService {
                     propertyIds.size(),
                     totalIncome,
                     totalExpenses,
-                    totalIncome.add(totalExpenses)  // net total
+                    allocatedTotal,
+                    originalPayment,
+                    pb.getStatus() != null ? pb.getStatus().name().toLowerCase() : "draft",
+                    pb.getPaymentDate()
             );
         }
 
-        // No allocations - check if this batch exists in PaymentBatch table
-        Optional<PaymentBatch> paymentBatch = paymentBatchRepository.findByBatchId(batchReference);
-        if (paymentBatch.isPresent()) {
-            PaymentBatch pb = paymentBatch.get();
+        // No PaymentBatch found - this might be a new batch being created
+        if (!allocations.isEmpty()) {
             return new BatchSummaryDTO(
                     batchReference,
-                    0, // no allocations yet
-                    0,
-                    0,
-                    pb.getTotalAllocations() != null ? pb.getTotalAllocations() : BigDecimal.ZERO,
-                    BigDecimal.ZERO,
-                    pb.getTotalPayment() != null ? pb.getTotalPayment() : BigDecimal.ZERO,
-                    pb.getStatus() != null ? pb.getStatus().name().toLowerCase() : "draft",
-                    pb.getPaymentDate()
+                    allocations.size(),
+                    transactionIds.size(),
+                    propertyIds.size(),
+                    totalIncome,
+                    totalExpenses,
+                    allocatedTotal
             );
         }
 
@@ -596,6 +608,7 @@ public class TransactionBatchAllocationService {
         private final BigDecimal totalIncome;
         private final BigDecimal totalExpenses;
         private final BigDecimal netTotal;
+        private final BigDecimal originalPaymentAmount;  // Actual payment from PaymentBatch
         private final String status;
         private final LocalDate paymentDate;
 
@@ -603,12 +616,20 @@ public class TransactionBatchAllocationService {
                                int propertyCount, BigDecimal totalIncome, BigDecimal totalExpenses,
                                BigDecimal netTotal) {
             this(batchReference, allocationCount, transactionCount, propertyCount,
-                 totalIncome, totalExpenses, netTotal, "draft", null);
+                 totalIncome, totalExpenses, netTotal, null, "draft", null);
         }
 
         public BatchSummaryDTO(String batchReference, int allocationCount, int transactionCount,
                                int propertyCount, BigDecimal totalIncome, BigDecimal totalExpenses,
                                BigDecimal netTotal, String status, LocalDate paymentDate) {
+            this(batchReference, allocationCount, transactionCount, propertyCount,
+                 totalIncome, totalExpenses, netTotal, null, status, paymentDate);
+        }
+
+        public BatchSummaryDTO(String batchReference, int allocationCount, int transactionCount,
+                               int propertyCount, BigDecimal totalIncome, BigDecimal totalExpenses,
+                               BigDecimal netTotal, BigDecimal originalPaymentAmount,
+                               String status, LocalDate paymentDate) {
             this.batchReference = batchReference;
             this.allocationCount = allocationCount;
             this.transactionCount = transactionCount;
@@ -616,6 +637,7 @@ public class TransactionBatchAllocationService {
             this.totalIncome = totalIncome;
             this.totalExpenses = totalExpenses;
             this.netTotal = netTotal;
+            this.originalPaymentAmount = originalPaymentAmount;
             this.status = status;
             this.paymentDate = paymentDate;
         }
@@ -627,6 +649,7 @@ public class TransactionBatchAllocationService {
         public BigDecimal getTotalIncome() { return totalIncome; }
         public BigDecimal getTotalExpenses() { return totalExpenses; }
         public BigDecimal getNetTotal() { return netTotal; }
+        public BigDecimal getOriginalPaymentAmount() { return originalPaymentAmount; }
         public String getStatus() { return status; }
         public LocalDate getPaymentDate() { return paymentDate; }
     }

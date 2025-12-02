@@ -869,8 +869,8 @@
         const summary = data.summary;
         const allocations = data.allocations || [];
 
-        // Calculate totals
-        const originalAmount = parseFloat(summary.netTotal) || 0;
+        // Calculate totals - use originalPaymentAmount from PaymentBatch, fallback to netTotal
+        const originalAmount = parseFloat(summary.originalPaymentAmount) || parseFloat(summary.netTotal) || 0;
         const allocatedAmount = allocations.reduce((sum, a) => sum + parseFloat(a.allocatedAmount || 0), 0);
         const remaining = originalAmount - allocatedAmount;
 
