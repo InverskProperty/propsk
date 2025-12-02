@@ -287,6 +287,21 @@
                                         <p>Select a payment to view details</p>
                                     </div>
                                 </div>
+
+                                <!-- Available Transactions for Payment First Mode -->
+                                <div id="paymentFirstTransactions" style="display: none;">
+                                    <div class="panel-header d-flex justify-content-between align-items-center mt-3">
+                                        <span><i class="fas fa-list"></i> Available Transactions</span>
+                                        <button class="btn btn-sm btn-success" id="btnAllocateToPayment" disabled onclick="allocateSelectedToPayment()">
+                                            <i class="fas fa-plus"></i> Allocate Selected
+                                        </button>
+                                    </div>
+                                    <div class="panel-body" id="availableTransactionsList">
+                                        <div class="empty-state">
+                                            <p>Loading transactions...</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -514,6 +529,10 @@
         document.getElementById('paymentsPanel').style.display = mode === 'payments' ? 'block' : 'none';
         document.getElementById('paymentDetailsPanel').style.display = mode === 'payments' ? 'block' : 'none';
 
+        // Hide payment first transactions panel when switching modes
+        document.getElementById('paymentFirstTransactions').style.display = 'none';
+        selectedPayment = null;
+
         if (currentOwnerId) loadOwnerData();
     }
 
@@ -737,6 +756,105 @@
         // Load payment details
         const data = await apiCall(`${API_BASE}/batch/${batchRef}`);
         renderPaymentDetails(data);
+
+        // Show available transactions panel in Payment First mode
+        if (currentMode === 'payments') {
+            document.getElementById('paymentFirstTransactions').style.display = 'block';
+            renderAvailableTransactionsForPayment();
+        }
+    }
+
+    // Render available transactions for allocation in Payment First mode
+    function renderAvailableTransactionsForPayment() {
+        const container = document.getElementById('availableTransactionsList');
+
+        if (unallocatedTransactions.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-check-circle text-success"></i>
+                    <p>All transactions allocated!</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = `
+            <div class="mb-2">
+                <label class="d-flex align-items-center">
+                    <input type="checkbox" id="selectAllAvailable" onchange="toggleAllAvailable(this.checked)" class="mr-2">
+                    <strong>Select All</strong>
+                </label>
+            </div>
+        `;
+
+        unallocatedTransactions.forEach(txn => {
+            const amount = parseFloat(txn.remainingUnallocated);
+            const isPositive = amount >= 0;
+            html += `
+                <div class="transaction-item">
+                    <label class="d-flex align-items-start w-100">
+                        <input type="checkbox" class="available-txn-checkbox mr-2 mt-1"
+                               value="${txn.transactionId}"
+                               data-amount="${amount}"
+                               onchange="updateAllocateButton()">
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between">
+                                <span>${txn.category || 'Unknown'}</span>
+                                <span class="${isPositive ? 'amount-positive' : 'amount-negative'}">
+                                    £${Math.abs(amount).toFixed(2)}
+                                </span>
+                            </div>
+                            <small class="text-muted">${txn.transactionDate} | ${txn.propertyName || 'No property'}</small>
+                        </div>
+                    </label>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function toggleAllAvailable(checked) {
+        document.querySelectorAll('.available-txn-checkbox').forEach(cb => cb.checked = checked);
+        updateAllocateButton();
+    }
+
+    function updateAllocateButton() {
+        const selected = document.querySelectorAll('.available-txn-checkbox:checked');
+        document.getElementById('btnAllocateToPayment').disabled = selected.length === 0;
+    }
+
+    async function allocateSelectedToPayment() {
+        if (!selectedPayment) {
+            alert('Please select a payment first');
+            return;
+        }
+
+        const selectedIds = Array.from(document.querySelectorAll('.available-txn-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+
+        if (selectedIds.length === 0) {
+            alert('Please select transactions to allocate');
+            return;
+        }
+
+        try {
+            const result = await apiCall(`${API_BASE}/allocate/bulk`, 'POST', {
+                transactionIds: selectedIds,
+                batchReference: selectedPayment
+            });
+
+            if (result.success) {
+                alert(`Allocated ${result.allocatedCount} transactions to ${selectedPayment}`);
+                await loadOwnerData();
+                // Re-select the payment to refresh details
+                await selectPayment(selectedPayment);
+            } else {
+                alert('Error: ' + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Failed to allocate: ' + e.message);
+        }
     }
 
     function renderPaymentDetails(data) {
