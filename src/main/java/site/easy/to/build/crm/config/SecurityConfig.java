@@ -248,6 +248,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/payprop/webhook/**").permitAll() // Webhooks need public access
                         .requestMatchers("/api/payprop/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
 
+                        // Transaction allocation API routes
+                        .requestMatchers("/api/transaction-allocations/**").hasAnyRole("MANAGER", "EMPLOYEE", "OIDC_USER")
+
                         // CRITICAL FIX: Portfolio specific routes - MUST come BEFORE general /portfolio/**
                         .requestMatchers("/portfolio/actions/pull-payprop-tags").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_EMPLOYEE")
                         .requestMatchers("/portfolio/payprop-tags").hasAnyAuthority("OIDC_USER", "ROLE_MANAGER", "ROLE_ADMIN", "ROLE_SUPER_ADMIN", "ROLE_PROPERTY_OWNER")

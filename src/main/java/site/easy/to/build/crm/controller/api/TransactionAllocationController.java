@@ -372,6 +372,78 @@ public class TransactionAllocationController {
         return ResponseEntity.ok(response);
     }
 
+    // ===== DEBUG ENDPOINT =====
+
+    /**
+     * Debug endpoint to check transaction data
+     * GET /api/transaction-allocations/debug/owner/{ownerId}
+     */
+    @GetMapping("/debug/owner/{ownerId}")
+    public ResponseEntity<Map<String, Object>> debugOwnerTransactions(@PathVariable Long ownerId) {
+        Map<String, Object> debug = new HashMap<>();
+
+        // Count all transactions
+        List<HistoricalTransaction> allTxns = transactionRepository.findAll();
+        debug.put("totalTransactionsInSystem", allTxns.size());
+
+        // Count with net_to_owner
+        long withNetToOwner = allTxns.stream()
+            .filter(t -> t.getNetToOwnerAmount() != null)
+            .count();
+        debug.put("transactionsWithNetToOwner", withNetToOwner);
+
+        // Check transactions for this owner using beneficiary
+        List<HistoricalTransaction> ownerTxnsByBeneficiary = transactionRepository.findAllByOwnerId(ownerId);
+        debug.put("transactionsForOwnerByBeneficiary", ownerTxnsByBeneficiary.size());
+
+        // Check how many have net_to_owner
+        long ownerWithNet = ownerTxnsByBeneficiary.stream()
+            .filter(t -> t.getNetToOwnerAmount() != null)
+            .count();
+        debug.put("ownerTransactionsWithNetToOwner", ownerWithNet);
+
+        // Sample: show first 5 transactions with their beneficiary info
+        List<Map<String, Object>> samples = allTxns.stream()
+            .limit(5)
+            .map(t -> {
+                Map<String, Object> m = new HashMap<>();
+                m.put("id", t.getId());
+                m.put("category", t.getCategory());
+                m.put("amount", t.getAmount());
+                m.put("netToOwner", t.getNetToOwnerAmount());
+                m.put("status", t.getStatus());
+                m.put("beneficiaryId", t.getBeneficiary() != null ? t.getBeneficiary().getCustomerId() : null);
+                m.put("beneficiaryName", t.getBeneficiary() != null ? t.getBeneficiary().getName() : null);
+                m.put("propertyId", t.getProperty() != null ? t.getProperty().getId() : null);
+                return m;
+            })
+            .toList();
+        debug.put("sampleTransactions", samples);
+
+        // Check if any transactions have this owner as beneficiary
+        long matchingBeneficiary = allTxns.stream()
+            .filter(t -> t.getBeneficiary() != null && t.getBeneficiary().getCustomerId() == ownerId.intValue())
+            .count();
+        debug.put("transactionsWithMatchingBeneficiaryId", matchingBeneficiary);
+
+        // Check owner field
+        long matchingOwner = allTxns.stream()
+            .filter(t -> t.getOwner() != null && t.getOwner().getCustomerId() == ownerId.intValue())
+            .count();
+        debug.put("transactionsWithMatchingOwnerId", matchingOwner);
+
+        // Check via property ownership
+        List<HistoricalTransaction> viaProperty = transactionRepository.findByPropertyOwnerIdWithNetToOwner(ownerId);
+        debug.put("transactionsViaPropertyOwnership", viaProperty.size());
+
+        // Final check - what the service will return
+        List<TransactionBatchAllocationService.UnallocatedTransactionDTO> unallocated =
+            allocationService.getUnallocatedTransactionsForOwner(ownerId);
+        debug.put("unallocatedTransactionsReturned", unallocated.size());
+
+        return ResponseEntity.ok(debug);
+    }
+
     // ===== BACKFILL NET TO OWNER =====
 
     /**

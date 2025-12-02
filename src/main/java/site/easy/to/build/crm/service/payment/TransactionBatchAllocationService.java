@@ -264,9 +264,19 @@ public class TransactionBatchAllocationService {
 
     /**
      * Find all unallocated transactions for an owner (across all their properties)
+     * Tries multiple approaches: beneficiary/owner field first, then property ownership
      */
     public List<UnallocatedTransactionDTO> getUnallocatedTransactionsForOwner(Long ownerId) {
+        // First try direct owner/beneficiary link
         List<HistoricalTransaction> transactions = transactionRepository.findByOwnerIdWithNetToOwner(ownerId);
+
+        // If no results, try via property ownership
+        if (transactions.isEmpty()) {
+            log.debug("No transactions found via beneficiary/owner for owner {}, trying property ownership", ownerId);
+            transactions = transactionRepository.findByPropertyOwnerIdWithNetToOwner(ownerId);
+        }
+
+        log.debug("Found {} transactions for owner {}", transactions.size(), ownerId);
 
         return transactions.stream()
                 .map(t -> {

@@ -642,7 +642,8 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
      * Find transactions with net_to_owner_amount for an owner (beneficiary)
      * Used for allocation to payment batches
      */
-    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.beneficiary.customerId = :ownerId " +
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE " +
+           "(ht.beneficiary.customerId = :ownerId OR ht.owner.customerId = :ownerId) " +
            "AND ht.netToOwnerAmount IS NOT NULL " +
            "AND ht.status = 'active' ORDER BY ht.transactionDate")
     List<HistoricalTransaction> findByOwnerIdWithNetToOwner(@Param("ownerId") Long ownerId);
@@ -650,10 +651,26 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
     /**
      * Find ALL transactions for an owner (regardless of net_to_owner status)
      * Used for backfilling net_to_owner amounts
+     * Checks both beneficiary and owner fields
      */
-    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.beneficiary.customerId = :ownerId " +
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE " +
+           "(ht.beneficiary.customerId = :ownerId OR ht.owner.customerId = :ownerId) " +
            "AND ht.status = 'active' ORDER BY ht.transactionDate")
     List<HistoricalTransaction> findAllByOwnerId(@Param("ownerId") Long ownerId);
+
+    /**
+     * Find transactions for an owner via their properties
+     * This finds transactions linked to properties owned by this customer
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht " +
+           "JOIN ht.property p " +
+           "JOIN CustomerPropertyAssignment cpa ON cpa.property.id = p.id " +
+           "WHERE cpa.customer.customerId = :ownerId " +
+           "AND cpa.assignmentType = 'PROPERTY_OWNER' " +
+           "AND ht.netToOwnerAmount IS NOT NULL " +
+           "AND ht.status = 'active' " +
+           "ORDER BY ht.transactionDate")
+    List<HistoricalTransaction> findByPropertyOwnerIdWithNetToOwner(@Param("ownerId") Long ownerId);
 
     /**
      * Find transactions with net_to_owner_amount for a property within date range
