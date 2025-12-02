@@ -980,12 +980,46 @@
             return;
         }
 
-        // This would need a new endpoint to add to property balance
-        alert('Property account allocation coming soon!\nWould add £' + amount.toFixed(2) + ' to property ' + propertyId);
+        if (!confirm(`Allocate £${amount.toFixed(2)} remaining balance to property account?`)) {
+            return;
+        }
+
+        try {
+            const result = await apiCall(`${API_BASE}/batch/${batchRef}/allocate-to-property`, 'POST', {
+                propertyId: parseInt(propertyId),
+                amount: amount
+            });
+
+            if (result.success) {
+                alert(`Successfully allocated £${amount.toFixed(2)} to property account`);
+                await loadOwnerData();
+                await selectPayment(batchRef);
+            } else {
+                alert('Error: ' + (result.error || 'Failed to allocate to property account'));
+            }
+        } catch (e) {
+            alert('Failed to allocate to property account: ' + e.message);
+        }
     }
 
-    function markPaymentPaid(batchRef) {
-        alert('Mark as paid coming soon for: ' + batchRef);
+    async function markPaymentPaid(batchRef) {
+        if (!confirm(`Mark payment ${batchRef} as paid?`)) {
+            return;
+        }
+
+        try {
+            const result = await apiCall(`${API_BASE}/batch/${batchRef}/mark-paid`, 'POST');
+
+            if (result.success) {
+                alert('Payment marked as paid');
+                await loadOwnerData();
+                await selectPayment(batchRef);
+            } else {
+                alert('Error: ' + (result.error || 'Failed to mark as paid'));
+            }
+        } catch (e) {
+            alert('Failed to mark as paid: ' + e.message);
+        }
     }
 
     // Modals

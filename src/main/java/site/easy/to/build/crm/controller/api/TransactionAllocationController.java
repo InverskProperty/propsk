@@ -335,6 +335,70 @@ public class TransactionAllocationController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Mark a payment batch as paid
+     * POST /api/transaction-allocations/batch/{batchReference}/mark-paid
+     */
+    @PostMapping("/batch/{batchReference}/mark-paid")
+    public ResponseEntity<Map<String, Object>> markBatchAsPaid(@PathVariable String batchReference) {
+        try {
+            boolean updated = allocationService.markBatchAsPaid(batchReference);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", updated);
+            response.put("batchReference", batchReference);
+            response.put("status", "paid");
+
+            if (updated) {
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("error", "Payment batch not found");
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            log.error("Failed to mark batch as paid: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Allocate remaining balance to a property account
+     * POST /api/transaction-allocations/batch/{batchReference}/allocate-to-property
+     * Body: { "propertyId": 123, "amount": 177.25 }
+     */
+    @PostMapping("/batch/{batchReference}/allocate-to-property")
+    public ResponseEntity<Map<String, Object>> allocateToPropertyAccount(
+            @PathVariable String batchReference,
+            @RequestBody PropertyAccountAllocationRequest request) {
+        try {
+            Long userId = getCurrentUserId();
+            allocationService.allocateRemainingToPropertyAccount(
+                    batchReference,
+                    request.getPropertyId(),
+                    request.getAmount(),
+                    userId
+            );
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("batchReference", batchReference);
+            response.put("propertyId", request.getPropertyId());
+            response.put("amount", request.getAmount());
+            response.put("message", "Remaining balance allocated to property account");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Failed to allocate to property account: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
     // ===== TRANSACTION ALLOCATION QUERIES =====
 
     /**
@@ -653,5 +717,16 @@ public class TransactionAllocationController {
 
         public String getBatchReference() { return batchReference; }
         public void setBatchReference(String batchReference) { this.batchReference = batchReference; }
+    }
+
+    public static class PropertyAccountAllocationRequest {
+        private Long propertyId;
+        private BigDecimal amount;
+
+        public Long getPropertyId() { return propertyId; }
+        public void setPropertyId(Long propertyId) { this.propertyId = propertyId; }
+
+        public BigDecimal getAmount() { return amount; }
+        public void setAmount(BigDecimal amount) { this.amount = amount; }
     }
 }

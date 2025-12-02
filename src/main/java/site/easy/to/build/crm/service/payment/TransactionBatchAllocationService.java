@@ -9,9 +9,12 @@ import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.PaymentBatch;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.PropertyBalanceLedger;
 import site.easy.to.build.crm.entity.TransactionBatchAllocation;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.PaymentBatchRepository;
+import site.easy.to.build.crm.repository.PropertyBalanceLedgerRepository;
+import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
 
 import java.math.BigDecimal;
@@ -50,6 +53,12 @@ public class TransactionBatchAllocationService {
 
     @Autowired
     private PaymentBatchRepository paymentBatchRepository;
+
+    @Autowired
+    private PropertyBalanceLedgerRepository ledgerRepository;
+
+    @Autowired
+    private PropertyRepository propertyRepository;
 
     // ===== ALLOCATION CREATION =====
 
@@ -379,6 +388,67 @@ public class TransactionBatchAllocationService {
         }
         log.warn("Allocation {} not found for removal", allocationId);
         return false;
+    }
+
+    // ===== PAYMENT STATUS MANAGEMENT =====
+
+    /**
+     * Mark a payment batch as paid
+     */
+    public boolean markBatchAsPaid(String batchReference) {
+        Optional<PaymentBatch> batchOpt = paymentBatchRepository.findByBatchId(batchReference);
+        if (batchOpt.isPresent()) {
+            PaymentBatch batch = batchOpt.get();
+            batch.setStatus(PaymentBatch.BatchStatus.PAID);
+            paymentBatchRepository.save(batch);
+            log.info("Marked batch {} as paid", batchReference);
+            return true;
+        }
+        log.warn("Payment batch {} not found", batchReference);
+        return false;
+    }
+
+    /**
+     * Allocate remaining balance to a property account
+     * Creates a ledger entry to record the deposit to the property's balance
+     */
+    public void allocateRemainingToPropertyAccount(String batchReference, Long propertyId, BigDecimal amount, Long userId) {
+        // Validate property exists
+        Property property = propertyRepository.findById(propertyId)
+                .orElseThrow(() -> new IllegalArgumentException("Property not found: " + propertyId));
+
+        // Get current balance
+        BigDecimal currentBalance = property.getAccountBalance() != null ? property.getAccountBalance() : BigDecimal.ZERO;
+        BigDecimal newBalance = currentBalance.add(amount);
+
+        // Create ledger entry
+        PropertyBalanceLedger ledgerEntry = new PropertyBalanceLedger();
+        ledgerEntry.setPropertyId(propertyId);
+        ledgerEntry.setPropertyName(property.getPropertyName());
+        ledgerEntry.setEntryType(PropertyBalanceLedger.EntryType.DEPOSIT);
+        ledgerEntry.setAmount(amount);
+        ledgerEntry.setRunningBalance(newBalance);
+        ledgerEntry.setDescription("Remaining balance from payment batch " + batchReference);
+        ledgerEntry.setPaymentBatchId(batchReference);
+        ledgerEntry.setSource(PropertyBalanceLedger.Source.PAYMENT_BATCH);
+        ledgerEntry.setEntryDate(LocalDate.now());
+        ledgerEntry.setCreatedBy(userId);
+
+        // Set owner info if available
+        if (property.getPropertyOwnerId() != null) {
+            ledgerEntry.setOwnerId(property.getPropertyOwnerId());
+            // Owner name would require a lookup - leave blank for now
+        }
+
+        // Save ledger entry
+        ledgerRepository.save(ledgerEntry);
+
+        // Update property balance
+        property.setAccountBalance(newBalance);
+        propertyRepository.save(property);
+
+        log.info("Allocated £{} to property {} account from batch {}. New balance: £{}",
+                amount, property.getPropertyName(), batchReference, newBalance);
     }
 
     // ===== BATCH SUMMARY =====
