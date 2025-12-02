@@ -15,6 +15,7 @@ import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.payment.PaymentBatchService;
 import site.easy.to.build.crm.service.payment.UnifiedAllocationService;
 import site.easy.to.build.crm.service.customer.CustomerService;
+import site.easy.to.build.crm.service.payment.TransactionBatchAllocationService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -61,6 +62,9 @@ public class OwnerPaymentController {
     @Autowired
     private PaymentBatchRepository batchRepository;
 
+    @Autowired
+    private TransactionBatchAllocationService transactionAllocationService;
+
     // ===== MAIN DASHBOARD =====
 
     /**
@@ -83,6 +87,47 @@ public class OwnerPaymentController {
         model.addAttribute("unallocatedTransactions", unallocatedTransactions);
 
         return "owner-payments/dashboard";
+    }
+
+    // ===== NEW SIMPLIFIED ALLOCATION UI =====
+
+    /**
+     * New simplified transaction allocation UI
+     * Uses TransactionBatchAllocation system with net_to_owner amounts
+     * Supports both "Transactions First" and "Payment First" workflows
+     */
+    @GetMapping("/allocations")
+    public String allocationsUI(Model model) {
+        // Get owners for filter dropdown
+        List<Customer> owners = customerRepository.findByCustomerType(CustomerType.PROPERTY_OWNER);
+        model.addAttribute("owners", owners);
+
+        // Get properties for filter dropdown (all properties with owners)
+        List<Property> properties = propertyRepository.findAll();
+        model.addAttribute("properties", properties);
+
+        // Get blocks for filtering block properties
+        List<Block> blocks = blockRepository.findAll();
+        model.addAttribute("blocks", blocks);
+
+        // Summary statistics using new allocation service
+        BigDecimal totalUnallocated = BigDecimal.ZERO;
+        int unallocatedCount = 0;
+        for (Customer owner : owners) {
+            BigDecimal ownerUnallocated = transactionAllocationService.getTotalUnallocatedForOwner(owner.getCustomerId());
+            if (ownerUnallocated != null) {
+                totalUnallocated = totalUnallocated.add(ownerUnallocated);
+            }
+            List<TransactionBatchAllocationService.UnallocatedTransactionDTO> txns =
+                transactionAllocationService.getUnallocatedTransactionsForOwner(owner.getCustomerId());
+            if (txns != null) {
+                unallocatedCount += txns.size();
+            }
+        }
+        model.addAttribute("totalUnallocated", totalUnallocated);
+        model.addAttribute("unallocatedCount", unallocatedCount);
+
+        return "owner-payments/index";
     }
 
     // ===== TRANSACTION SELECTION =====

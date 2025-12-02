@@ -626,4 +626,54 @@ public interface HistoricalTransactionRepository extends JpaRepository<Historica
     List<HistoricalTransaction> findExpensesByInvoiceIdAndDateRange(@Param("invoiceId") Long invoiceId,
                                                                      @Param("startDate") LocalDate startDate,
                                                                      @Param("endDate") LocalDate endDate);
+
+    // ===== NET TO OWNER ALLOCATION QUERIES =====
+
+    /**
+     * Find transactions with net_to_owner_amount for a property
+     * Used for allocation to payment batches
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.property.id = :propertyId " +
+           "AND ht.netToOwnerAmount IS NOT NULL " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate")
+    List<HistoricalTransaction> findByPropertyIdWithNetToOwner(@Param("propertyId") Long propertyId);
+
+    /**
+     * Find transactions with net_to_owner_amount for an owner (beneficiary)
+     * Used for allocation to payment batches
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.beneficiary.customerId = :ownerId " +
+           "AND ht.netToOwnerAmount IS NOT NULL " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate")
+    List<HistoricalTransaction> findByOwnerIdWithNetToOwner(@Param("ownerId") Long ownerId);
+
+    /**
+     * Find transactions with net_to_owner_amount for a property within date range
+     */
+    @Query("SELECT ht FROM HistoricalTransaction ht WHERE ht.property.id = :propertyId " +
+           "AND ht.netToOwnerAmount IS NOT NULL " +
+           "AND ht.transactionDate BETWEEN :startDate AND :endDate " +
+           "AND ht.status = 'active' ORDER BY ht.transactionDate")
+    List<HistoricalTransaction> findByPropertyIdWithNetToOwnerAndDateRange(
+            @Param("propertyId") Long propertyId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
+    /**
+     * Get total net_to_owner_amount for a property
+     */
+    @Query("SELECT COALESCE(SUM(ht.netToOwnerAmount), 0) FROM HistoricalTransaction ht " +
+           "WHERE ht.property.id = :propertyId " +
+           "AND ht.netToOwnerAmount IS NOT NULL " +
+           "AND ht.status = 'active'")
+    BigDecimal getTotalNetToOwnerForProperty(@Param("propertyId") Long propertyId);
+
+    /**
+     * Get total net_to_owner_amount for an owner across all properties
+     */
+    @Query("SELECT COALESCE(SUM(ht.netToOwnerAmount), 0) FROM HistoricalTransaction ht " +
+           "WHERE ht.beneficiary.customerId = :ownerId " +
+           "AND ht.netToOwnerAmount IS NOT NULL " +
+           "AND ht.status = 'active'")
+    BigDecimal getTotalNetToOwnerForOwner(@Param("ownerId") Long ownerId);
 }

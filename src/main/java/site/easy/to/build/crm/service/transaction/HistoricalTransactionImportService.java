@@ -317,9 +317,12 @@ public class HistoricalTransactionImportService {
             transaction.setIncomingTransactionAmount(new BigDecimal(node.get("incoming_transaction_amount").asText()));
         }
 
+        // Calculate net-to-owner for rent transactions
+        calculateAndSetNetToOwner(transaction);
+
         return transaction;
     }
-    
+
     // ===== CSV IMPORT =====
     
     /**
@@ -1042,9 +1045,12 @@ public class HistoricalTransactionImportService {
             log.debug("Set PayProp transaction ID: {}", paypropTransactionId);
         }
 
+        // Calculate net-to-owner for rent transactions
+        calculateAndSetNetToOwner(transaction);
+
         return transaction;
     }
-    
+
     // ===== UTILITY METHODS =====
     
     /**
@@ -1112,6 +1118,87 @@ public class HistoricalTransactionImportService {
             value = value.substring(1, value.length() - 1);
         }
         return value.trim();
+    }
+
+    /**
+     * Calculate and set net-to-owner amount for transactions.
+     *
+     * For RENT (positive amounts):
+     *   Formula: netToOwner = rentAmount - (rentAmount × commissionRate / 100)
+     *   Uses commission rate from property.
+     *
+     * For EXPENSES (negative amounts):
+     *   Formula: netToOwner = amount (full expense reduces owner's net)
+     *   No commission applied to expenses.
+     *
+     * Excluded categories: owner_payment (already a payment to owner), agency_fee (commission)
+     */
+    private void calculateAndSetNetToOwner(HistoricalTransaction transaction) {
+        if (transaction.getAmount() == null || transaction.getCategory() == null) {
+            return;
+        }
+
+        String category = transaction.getCategory().toLowerCase().trim();
+        BigDecimal amount = transaction.getAmount();
+
+        // Skip categories that don't affect net-to-owner calculation
+        // owner_payment is a payment TO the owner, not an expense
+        if (category.equals("owner_payment")) {
+            log.debug("Skipping net-to-owner for category '{}' - payment to owner", category);
+            return;
+        }
+
+        // RENT: Positive amount with commission
+        if (category.equals("rent") && amount.compareTo(BigDecimal.ZERO) > 0) {
+            calculateNetToOwnerForRent(transaction);
+            return;
+        }
+
+        // EXPENSES: Negative amounts - full amount impacts owner
+        if (amount.compareTo(BigDecimal.ZERO) < 0 && isExpenseCategory(category)) {
+            // No commission on expenses - net to owner is the full expense amount
+            transaction.setCommissionRate(BigDecimal.ZERO);
+            transaction.setCommissionAmount(BigDecimal.ZERO);
+            transaction.setNetToOwnerAmount(amount);  // Already negative
+            log.debug("Set net-to-owner for expense '{}': £{}", category, amount);
+        }
+    }
+
+    /**
+     * Calculate net-to-owner for rent with commission
+     */
+    private void calculateNetToOwnerForRent(HistoricalTransaction transaction) {
+        Property property = transaction.getProperty();
+        if (property == null) {
+            log.debug("Cannot calculate net-to-owner: no property linked to transaction");
+            return;
+        }
+
+        BigDecimal commissionRate = property.getCommissionPercentage();
+        if (commissionRate == null || commissionRate.compareTo(BigDecimal.ZERO) <= 0) {
+            // No commission - net to owner equals full amount
+            transaction.setCommissionRate(BigDecimal.ZERO);
+            transaction.setCommissionAmount(BigDecimal.ZERO);
+            transaction.setNetToOwnerAmount(transaction.getAmount());
+            log.debug("No commission rate on property {} - net to owner = full amount £{}",
+                     property.getPropertyName(), transaction.getAmount());
+            return;
+        }
+
+        // Calculate commission amount and net to owner
+        BigDecimal rentAmount = transaction.getAmount();
+        BigDecimal commissionAmount = rentAmount
+            .multiply(commissionRate)
+            .divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+        BigDecimal netToOwner = rentAmount.subtract(commissionAmount);
+
+        // Set values on transaction
+        transaction.setCommissionRate(commissionRate);
+        transaction.setCommissionAmount(commissionAmount);
+        transaction.setNetToOwnerAmount(netToOwner);
+
+        log.debug("Calculated net-to-owner for rent £{}: commission {}% = £{}, net = £{}",
+                 rentAmount, commissionRate, commissionAmount, netToOwner);
     }
 
     /**

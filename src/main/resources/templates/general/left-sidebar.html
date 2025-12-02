@@ -372,10 +372,8 @@
                         <span class="hide-menu">Owner Payments</span>
                     </a>
                     <ul class="collapse">
-                        <!-- Owner Payment Management -->
-                        <li><a th:href="${home + 'owner-payments'}"><i class="fas fa-tachometer-alt"></i> Payment Dashboard</a></li>
-                        <li><a th:href="${home + 'owner-payments/transactions'}"><i class="fas fa-list"></i> View Transactions</a></li>
-                        <li><a th:href="${home + 'owner-payments/create-batch'}"><i class="fas fa-plus-circle text-success"></i> Create Batch Payment</a></li>
+                        <!-- Owner Payment Management (New System) -->
+                        <li><a th:href="${home + 'owner-payments/allocations'}"><i class="fas fa-money-check-alt text-primary"></i> Payment Allocations</a></li>
 
                         <!-- Property Balances -->
                         <li><a th:href="${home + 'property-balances'}"><i class="fas fa-balance-scale text-info"></i> Property Balances</a></li>
