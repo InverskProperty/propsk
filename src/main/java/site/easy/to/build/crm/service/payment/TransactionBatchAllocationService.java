@@ -368,6 +368,19 @@ public class TransactionBatchAllocationService {
         return deleted;
     }
 
+    /**
+     * Remove a single allocation by ID
+     */
+    public boolean removeAllocation(Long allocationId) {
+        if (allocationRepository.existsById(allocationId)) {
+            allocationRepository.deleteById(allocationId);
+            log.info("Removed allocation {}", allocationId);
+            return true;
+        }
+        log.warn("Allocation {} not found for removal", allocationId);
+        return false;
+    }
+
     // ===== BATCH SUMMARY =====
 
     /**

@@ -866,10 +866,32 @@
             return;
         }
 
+        const summary = data.summary;
         const allocations = data.allocations || [];
+
+        // Calculate totals
+        const originalAmount = parseFloat(summary.netTotal) || 0;
+        const allocatedAmount = allocations.reduce((sum, a) => sum + parseFloat(a.allocatedAmount || 0), 0);
+        const remaining = originalAmount - allocatedAmount;
+
         let html = `
+            <div class="summary-box mb-3">
+                <div class="summary-row">
+                    <span>Original Payment:</span>
+                    <span class="font-weight-bold">£${originalAmount.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span>Allocated:</span>
+                    <span class="amount-positive">£${allocatedAmount.toFixed(2)}</span>
+                </div>
+                <div class="summary-row ${remaining > 0 ? 'text-warning' : 'text-success'}">
+                    <span>Remaining:</span>
+                    <span class="font-weight-bold">£${remaining.toFixed(2)}</span>
+                </div>
+            </div>
+
             <div class="mb-3">
-                <strong>Allocations:</strong>
+                <strong>Allocated Transactions:</strong>
             </div>
         `;
 
@@ -883,7 +905,7 @@
                     </div>
                     <div class="${a.allocatedAmount >= 0 ? 'amount-positive' : 'amount-negative'}">
                         £${Math.abs(a.allocatedAmount).toFixed(2)}
-                        <button class="btn btn-sm btn-link text-danger p-0 ml-2" onclick="removeAllocation(${a.id})">
+                        <button class="btn btn-sm btn-link text-danger p-0 ml-2" onclick="removeAllocation(${a.id}, '${summary.batchReference}')" title="Remove allocation">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
@@ -891,30 +913,79 @@
             `).join('');
         }
 
-        html += `
-            <div class="summary-box">
-                <div class="summary-row">
-                    <span>Income:</span>
-                    <span class="amount-positive">£${data.summary.totalIncome?.toFixed(2) || '0.00'}</span>
+        // Show option to allocate remaining to property account
+        if (remaining > 0.01) {
+            html += `
+                <div class="alert alert-warning mt-3">
+                    <strong>£${remaining.toFixed(2)} remaining</strong>
+                    <p class="mb-2 small">Allocate remaining to property account?</p>
+                    <select class="form-control form-control-sm mb-2" id="propertyAccountSelect">
+                        <option value="">-- Select Property --</option>
+                    </select>
+                    <button class="btn btn-sm btn-warning" onclick="allocateToPropertyAccount('${summary.batchReference}', ${remaining})">
+                        <i class="fas fa-piggy-bank"></i> Add to Property Account
+                    </button>
                 </div>
-                <div class="summary-row">
-                    <span>Expenses:</span>
-                    <span class="amount-negative">£${Math.abs(data.summary.totalExpenses || 0).toFixed(2)}</span>
-                </div>
-                <div class="summary-row total">
-                    <span>Net Total:</span>
-                    <span>£${data.summary.netTotal?.toFixed(2) || '0.00'}</span>
-                </div>
-            </div>
+            `;
+        }
 
+        html += `
             <div class="mt-3">
-                <button class="btn btn-success btn-block" onclick="markPaymentPaid('${data.summary.batchReference}')">
+                <button class="btn btn-outline-secondary btn-block" onclick="markPaymentPaid('${summary.batchReference}')">
                     <i class="fas fa-check"></i> Mark as Paid
                 </button>
             </div>
         `;
 
         container.innerHTML = html;
+
+        // Populate property account dropdown
+        populatePropertyAccountSelect();
+    }
+
+    function populatePropertyAccountSelect() {
+        const select = document.getElementById('propertyAccountSelect');
+        if (!select) return;
+
+        // Use owner properties from loaded data
+        ownerProperties.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p.id;
+            option.textContent = p.name;
+            select.appendChild(option);
+        });
+    }
+
+    async function removeAllocation(allocationId, batchRef) {
+        if (!confirm('Remove this allocation?')) return;
+
+        try {
+            // We need an endpoint to remove a single allocation
+            const result = await apiCall(`${API_BASE}/allocation/${allocationId}`, 'DELETE');
+            if (result.success !== false) {
+                await loadOwnerData();
+                if (batchRef) await selectPayment(batchRef);
+            } else {
+                alert('Error: ' + (result.error || 'Failed to remove'));
+            }
+        } catch (e) {
+            alert('Failed to remove allocation: ' + e.message);
+        }
+    }
+
+    async function allocateToPropertyAccount(batchRef, amount) {
+        const propertyId = document.getElementById('propertyAccountSelect').value;
+        if (!propertyId) {
+            alert('Please select a property');
+            return;
+        }
+
+        // This would need a new endpoint to add to property balance
+        alert('Property account allocation coming soon!\nWould add £' + amount.toFixed(2) + ' to property ' + propertyId);
+    }
+
+    function markPaymentPaid(batchRef) {
+        alert('Mark as paid coming soon for: ' + batchRef);
     }
 
     // Modals

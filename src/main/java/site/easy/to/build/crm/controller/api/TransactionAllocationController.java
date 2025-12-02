@@ -372,6 +372,34 @@ public class TransactionAllocationController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Remove a single allocation by ID
+     * DELETE /api/transaction-allocations/allocation/{allocationId}
+     */
+    @DeleteMapping("/allocation/{allocationId}")
+    public ResponseEntity<Map<String, Object>> removeAllocation(@PathVariable Long allocationId) {
+        try {
+            boolean deleted = allocationService.removeAllocation(allocationId);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", deleted);
+            response.put("allocationId", allocationId);
+
+            if (deleted) {
+                return ResponseEntity.ok(response);
+            } else {
+                response.put("error", "Allocation not found");
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            log.error("Failed to remove allocation: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
     // ===== DEBUG ENDPOINT =====
 
     /**
