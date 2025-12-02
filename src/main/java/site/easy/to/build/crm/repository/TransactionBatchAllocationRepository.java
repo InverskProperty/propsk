@@ -68,9 +68,9 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
                COALESCE(SUM(a.allocatedAmount), 0) as totalAllocated
         FROM HistoricalTransaction t
         LEFT JOIN TransactionBatchAllocation a ON t.id = a.transactionId
-        WHERE t.property.propertyId = :propertyId
+        WHERE t.property.id = :propertyId
         AND t.netToOwnerAmount IS NOT NULL
-        GROUP BY t.id
+        GROUP BY t.id, t.transactionDate, t.amount, t.netToOwnerAmount, t.category, t.description
         HAVING COALESCE(SUM(a.allocatedAmount), 0) < t.netToOwnerAmount
         OR (t.netToOwnerAmount < 0 AND COALESCE(SUM(a.allocatedAmount), 0) > t.netToOwnerAmount)
         ORDER BY t.transactionDate
