@@ -533,7 +533,8 @@ public class TransactionBatchAllocationService {
         Map<String, BatchSummaryDTO> batchMap = new LinkedHashMap<>();
 
         // First, get existing PaymentBatch records for this owner (excluding PayProp)
-        List<PaymentBatch> paymentBatches = paymentBatchRepository.findByBeneficiaryIdExcludingPayprop(ownerId);
+        List<PaymentBatch> paymentBatches = paymentBatchRepository.findByBeneficiaryIdAndSourceNotOrderByPaymentDateDesc(
+                ownerId, PaymentBatch.BatchSource.PAYPROP);
         for (PaymentBatch pb : paymentBatches) {
             BatchSummaryDTO dto = new BatchSummaryDTO(
                     pb.getBatchId(),
