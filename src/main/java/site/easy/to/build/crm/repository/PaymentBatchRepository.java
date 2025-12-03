@@ -52,6 +52,14 @@ public interface PaymentBatchRepository extends JpaRepository<PaymentBatch, Long
      */
     List<PaymentBatch> findByBeneficiaryId(Long beneficiaryId);
 
+    /**
+     * Find batches for a beneficiary excluding PayProp source
+     * Used for the allocations UI which only shows historical/manual transactions
+     */
+    @Query("SELECT pb FROM PaymentBatch pb WHERE pb.beneficiaryId = :beneficiaryId " +
+           "AND pb.source != 'PAYPROP' ORDER BY pb.paymentDate DESC")
+    List<PaymentBatch> findByBeneficiaryIdExcludingPayprop(@Param("beneficiaryId") Long beneficiaryId);
+
     // ===== DATE RANGE QUERIES =====
 
     /**

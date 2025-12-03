@@ -527,12 +527,13 @@ public class TransactionBatchAllocationService {
 
     /**
      * Get all batch summaries for an owner (combines PaymentBatch and TransactionBatchAllocation)
+     * Excludes PayProp batches as those are managed separately
      */
     public List<BatchSummaryDTO> getBatchSummariesForOwner(Long ownerId) {
         Map<String, BatchSummaryDTO> batchMap = new LinkedHashMap<>();
 
-        // First, get existing PaymentBatch records for this owner
-        List<PaymentBatch> paymentBatches = paymentBatchRepository.findByBeneficiaryId(ownerId);
+        // First, get existing PaymentBatch records for this owner (excluding PayProp)
+        List<PaymentBatch> paymentBatches = paymentBatchRepository.findByBeneficiaryIdExcludingPayprop(ownerId);
         for (PaymentBatch pb : paymentBatches) {
             BatchSummaryDTO dto = new BatchSummaryDTO(
                     pb.getBatchId(),
