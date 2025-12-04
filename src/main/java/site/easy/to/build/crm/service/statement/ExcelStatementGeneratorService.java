@@ -2158,7 +2158,7 @@ public class ExcelStatementGeneratorService {
      * Create Income Allocations sheet showing all income transactions allocated to payment batches
      */
     private void createIncomeAllocationsSheet(Workbook workbook, Long ownerId) {
-        log.info("Creating Income Allocations sheet for owner {}", ownerId);
+        log.error("🔍 DEBUG: Creating Income Allocations sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Income Allocations");
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -2178,7 +2178,11 @@ public class ExcelStatementGeneratorService {
 
         // Get income allocations from repository
         List<Object[]> allocations = allocationRepository.getIncomeAllocationsForOwner(ownerId);
-        log.info("Found {} income allocations for owner {}", allocations.size(), ownerId);
+        log.error("🔍 DEBUG: Found {} income allocations for owner {}", allocations.size(), ownerId);
+
+        // Debug: Check if there are ANY allocations in the system for this owner
+        List<String> allBatches = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
+        log.error("🔍 DEBUG: Found {} batch references for owner {}: {}", allBatches.size(), ownerId, allBatches);
 
         int rowNum = 1;
         BigDecimal totalAllocated = BigDecimal.ZERO;
@@ -2280,7 +2284,7 @@ public class ExcelStatementGeneratorService {
      * Create Expense Allocations sheet showing all expense transactions allocated to payment batches
      */
     private void createExpenseAllocationsSheet(Workbook workbook, Long ownerId) {
-        log.info("Creating Expense Allocations sheet for owner {}", ownerId);
+        log.error("🔍 DEBUG: Creating Expense Allocations sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Expense Allocations");
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -2300,7 +2304,7 @@ public class ExcelStatementGeneratorService {
 
         // Get expense allocations from repository
         List<Object[]> allocations = allocationRepository.getExpenseAllocationsForOwner(ownerId);
-        log.info("Found {} expense allocations for owner {}", allocations.size(), ownerId);
+        log.error("🔍 DEBUG: Found {} expense allocations for owner {}", allocations.size(), ownerId);
 
         int rowNum = 1;
         BigDecimal totalAllocated = BigDecimal.ZERO;
@@ -2386,7 +2390,7 @@ public class ExcelStatementGeneratorService {
      * Create Owner Payments Summary sheet showing all payment batches for this owner
      */
     private void createOwnerPaymentsSummarySheet(Workbook workbook, Long ownerId) {
-        log.info("Creating Owner Payments Summary sheet for owner {}", ownerId);
+        log.error("🔍 DEBUG: Creating Owner Payments Summary sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Owner Payments Summary");
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -2406,7 +2410,11 @@ public class ExcelStatementGeneratorService {
 
         // Get all batch references for this owner
         List<String> batchRefs = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
-        log.info("Found {} payment batches for owner {}", batchRefs.size(), ownerId);
+        log.error("🔍 DEBUG: Found {} payment batches for owner {}: {}", batchRefs.size(), ownerId, batchRefs);
+
+        // Debug: Check all batch references in the system
+        List<String> allBatchRefs = allocationRepository.findAllDistinctBatchReferences();
+        log.error("🔍 DEBUG: All batch references in system: {}", allBatchRefs);
 
         int rowNum = 1;
         BigDecimal totalPayments = BigDecimal.ZERO;
