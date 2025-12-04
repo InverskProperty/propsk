@@ -179,4 +179,75 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
      */
     @Query("SELECT DISTINCT a.batchReference FROM TransactionBatchAllocation a ORDER BY a.batchReference DESC")
     List<String> findAllDistinctBatchReferences();
+
+    // ===== XLSX STATEMENT QUERIES =====
+
+    /**
+     * Get income allocations for an owner with transaction details
+     * Returns: transactionId, transactionDate, propertyName, category, amount, netToOwner, batchReference, allocatedAmount
+     */
+    @Query("""
+        SELECT a.transactionId, t.transactionDate, a.propertyName, t.category,
+               t.amount, t.netToOwnerAmount, t.commissionAmount,
+               a.batchReference, a.allocatedAmount,
+               t.description,
+               (SELECT c.name FROM Customer c WHERE c.customerId = t.tenant.customerId) as tenantName
+        FROM TransactionBatchAllocation a
+        JOIN HistoricalTransaction t ON a.transactionId = t.id
+        WHERE a.beneficiaryId = :ownerId
+        AND a.allocatedAmount > 0
+        ORDER BY t.transactionDate, a.propertyName
+    """)
+    List<Object[]> getIncomeAllocationsForOwner(@Param("ownerId") Long ownerId);
+
+    /**
+     * Get expense allocations for an owner with transaction details
+     * Returns: transactionId, transactionDate, propertyName, category, amount, batchReference, allocatedAmount, description
+     */
+    @Query("""
+        SELECT a.transactionId, t.transactionDate, a.propertyName, t.category,
+               t.amount, a.batchReference, a.allocatedAmount,
+               t.description
+        FROM TransactionBatchAllocation a
+        JOIN HistoricalTransaction t ON a.transactionId = t.id
+        WHERE a.beneficiaryId = :ownerId
+        AND a.allocatedAmount < 0
+        ORDER BY t.transactionDate, a.propertyName
+    """)
+    List<Object[]> getExpenseAllocationsForOwner(@Param("ownerId") Long ownerId);
+
+    /**
+     * Get all allocations for a batch with full details for Owner Payments Summary
+     * Returns: transactionId, transactionDate, propertyName, category, allocatedAmount, description, isIncome
+     */
+    @Query("""
+        SELECT a.transactionId, t.transactionDate, a.propertyName, t.category,
+               a.allocatedAmount, t.description,
+               CASE WHEN a.allocatedAmount > 0 THEN true ELSE false END as isIncome
+        FROM TransactionBatchAllocation a
+        JOIN HistoricalTransaction t ON a.transactionId = t.id
+        WHERE a.batchReference = :batchReference
+        ORDER BY CASE WHEN a.allocatedAmount > 0 THEN 0 ELSE 1 END, t.transactionDate, a.propertyName
+    """)
+    List<Object[]> getAllocationsForBatchWithDetails(@Param("batchReference") String batchReference);
+
+    /**
+     * Get split allocation info - transactions allocated to multiple batches
+     * Returns: transactionId, netToOwnerAmount, batchCount, batchReferences (comma-separated)
+     */
+    @Query("""
+        SELECT a.transactionId, t.netToOwnerAmount, COUNT(DISTINCT a.batchReference) as batchCount
+        FROM TransactionBatchAllocation a
+        JOIN HistoricalTransaction t ON a.transactionId = t.id
+        WHERE a.beneficiaryId = :ownerId
+        GROUP BY a.transactionId, t.netToOwnerAmount
+        HAVING COUNT(DISTINCT a.batchReference) > 1
+    """)
+    List<Object[]> getSplitAllocationsForOwner(@Param("ownerId") Long ownerId);
+
+    /**
+     * Get all batch references for a specific transaction (for split display)
+     */
+    @Query("SELECT a.batchReference, a.allocatedAmount FROM TransactionBatchAllocation a WHERE a.transactionId = :transactionId ORDER BY a.batchReference")
+    List<Object[]> getBatchReferencesForTransaction(@Param("transactionId") Long transactionId);
 }

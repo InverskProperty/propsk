@@ -14,7 +14,10 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.property.PropertyService;
 import site.easy.to.build.crm.repository.FinancialTransactionRepository;
 import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
+import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
+import site.easy.to.build.crm.repository.PaymentBatchRepository;
 import site.easy.to.build.crm.entity.UnifiedTransaction;
+import site.easy.to.build.crm.entity.PaymentBatch;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator;
 import site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod;
 
@@ -33,6 +36,8 @@ public class XLSXStatementService {
     private final PropertyService propertyService;
     private final FinancialTransactionRepository financialTransactionRepository;
     private final UnifiedTransactionRepository unifiedTransactionRepository;
+    private final TransactionBatchAllocationRepository transactionBatchAllocationRepository;
+    private final PaymentBatchRepository paymentBatchRepository;
     private final BodenHouseStatementTemplateService bodenHouseTemplateService;
 
     @Autowired
@@ -40,11 +45,15 @@ public class XLSXStatementService {
                                PropertyService propertyService,
                                FinancialTransactionRepository financialTransactionRepository,
                                UnifiedTransactionRepository unifiedTransactionRepository,
+                               TransactionBatchAllocationRepository transactionBatchAllocationRepository,
+                               PaymentBatchRepository paymentBatchRepository,
                                BodenHouseStatementTemplateService bodenHouseTemplateService) {
         this.customerService = customerService;
         this.propertyService = propertyService;
         this.financialTransactionRepository = financialTransactionRepository;
         this.unifiedTransactionRepository = unifiedTransactionRepository;
+        this.transactionBatchAllocationRepository = transactionBatchAllocationRepository;
+        this.paymentBatchRepository = paymentBatchRepository;
         this.bodenHouseTemplateService = bodenHouseTemplateService;
     }
 
@@ -103,6 +112,11 @@ public class XLSXStatementService {
 
         // Create summary sheet
         createPeriodSummarySheetXLSX(workbook, propertyOwner, periods);
+
+        // Create allocation tracking sheets
+        createIncomeAllocationsSheet(workbook, propertyOwner);
+        createExpenseAllocationsSheet(workbook, propertyOwner);
+        createOwnerPaymentsSummarySheet(workbook, propertyOwner);
 
         // Force formula evaluation
         workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
@@ -2021,5 +2035,372 @@ public class XLSXStatementService {
 
         String[] nameParts = name.trim().split("\\s+");
         return nameParts.length > 0 ? nameParts[0] : "Owner";
+    }
+
+    // ===== ALLOCATION TRACKING SHEETS =====
+
+    /**
+     * Create Income Allocations Sheet - shows how each rent/income was allocated to owner payments
+     */
+    private void createIncomeAllocationsSheet(XSSFWorkbook workbook, Customer propertyOwner) {
+        System.out.println("📊 Creating Income Allocations sheet");
+
+        XSSFSheet sheet = workbook.createSheet("Income Allocations");
+        List<List<Object>> data = new ArrayList<>();
+
+        // Header
+        data.add(Arrays.asList("INCOME ALLOCATIONS"));
+        data.add(Arrays.asList("Shows how each rent payment was allocated to owner payment batches"));
+        data.add(Arrays.asList(""));
+
+        // Column headers
+        data.add(Arrays.asList(
+            "Trans ID", "Date", "Property", "Tenant", "Category",
+            "Rent Amount", "Commission", "Net to Owner",
+            "Batch Ref 1", "Amount 1", "Batch Ref 2", "Amount 2",
+            "Total Allocated", "Remaining", "Fully Allocated"
+        ));
+
+        // Get income allocations from repository
+        Long ownerId = propertyOwner.getCustomerId();
+        List<Object[]> incomeAllocations = transactionBatchAllocationRepository.getIncomeAllocationsForOwner(ownerId);
+
+        // Group by transaction ID to handle splits
+        Map<Long, List<Object[]>> groupedAllocations = new LinkedHashMap<>();
+        for (Object[] alloc : incomeAllocations) {
+            Long transId = ((Number) alloc[0]).longValue();
+            groupedAllocations.computeIfAbsent(transId, k -> new ArrayList<>()).add(alloc);
+        }
+
+        // Build rows
+        for (Map.Entry<Long, List<Object[]>> entry : groupedAllocations.entrySet()) {
+            List<Object[]> allocsForTrans = entry.getValue();
+            Object[] first = allocsForTrans.get(0);
+
+            Long transId = ((Number) first[0]).longValue();
+            LocalDate transDate = first[1] != null ? (LocalDate) first[1] : null;
+            String propertyName = first[2] != null ? first[2].toString() : "";
+            String category = first[3] != null ? first[3].toString() : "";
+            BigDecimal amount = first[4] != null ? (BigDecimal) first[4] : BigDecimal.ZERO;
+            BigDecimal netToOwner = first[5] != null ? (BigDecimal) first[5] : BigDecimal.ZERO;
+            BigDecimal commission = first[6] != null ? (BigDecimal) first[6] : BigDecimal.ZERO;
+            String tenantName = first[10] != null ? first[10].toString() : "";
+
+            // Get batch references and amounts
+            String batchRef1 = "", batchRef2 = "";
+            BigDecimal amount1 = BigDecimal.ZERO, amount2 = BigDecimal.ZERO;
+
+            if (allocsForTrans.size() >= 1) {
+                batchRef1 = allocsForTrans.get(0)[7] != null ? allocsForTrans.get(0)[7].toString() : "";
+                amount1 = allocsForTrans.get(0)[8] != null ? (BigDecimal) allocsForTrans.get(0)[8] : BigDecimal.ZERO;
+            }
+            if (allocsForTrans.size() >= 2) {
+                batchRef2 = allocsForTrans.get(1)[7] != null ? allocsForTrans.get(1)[7].toString() : "";
+                amount2 = allocsForTrans.get(1)[8] != null ? (BigDecimal) allocsForTrans.get(1)[8] : BigDecimal.ZERO;
+            }
+
+            // Calculate totals
+            BigDecimal totalAllocated = allocsForTrans.stream()
+                .map(a -> a[8] != null ? (BigDecimal) a[8] : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal remaining = netToOwner.subtract(totalAllocated);
+            boolean fullyAllocated = remaining.abs().compareTo(new BigDecimal("0.01")) < 0;
+
+            data.add(Arrays.asList(
+                transId,
+                transDate != null ? transDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "",
+                propertyName,
+                tenantName,
+                category,
+                amount,
+                commission,
+                netToOwner,
+                batchRef1,
+                amount1,
+                batchRef2,
+                amount2,
+                totalAllocated,
+                remaining,
+                fullyAllocated ? "YES" : "NO"
+            ));
+        }
+
+        // Populate sheet
+        populateSheetWithData(sheet, data);
+        applyAllocationSheetFormatting(workbook, sheet, data.size());
+
+        System.out.println("✅ Income Allocations sheet created with " + (data.size() - 4) + " records");
+    }
+
+    /**
+     * Create Expense Allocations Sheet - shows how each expense was allocated to owner payments
+     */
+    private void createExpenseAllocationsSheet(XSSFWorkbook workbook, Customer propertyOwner) {
+        System.out.println("📊 Creating Expense Allocations sheet");
+
+        XSSFSheet sheet = workbook.createSheet("Expense Allocations");
+        List<List<Object>> data = new ArrayList<>();
+
+        // Header
+        data.add(Arrays.asList("EXPENSE ALLOCATIONS"));
+        data.add(Arrays.asList("Shows how each expense was deducted from owner payment batches"));
+        data.add(Arrays.asList(""));
+
+        // Column headers
+        data.add(Arrays.asList(
+            "Trans ID", "Date", "Property", "Category", "Description",
+            "Expense Amount", "Batch Ref", "Allocated Amount", "Payment Date"
+        ));
+
+        // Get expense allocations from repository
+        Long ownerId = propertyOwner.getCustomerId();
+        List<Object[]> expenseAllocations = transactionBatchAllocationRepository.getExpenseAllocationsForOwner(ownerId);
+
+        // Build rows
+        for (Object[] alloc : expenseAllocations) {
+            Long transId = ((Number) alloc[0]).longValue();
+            LocalDate transDate = alloc[1] != null ? (LocalDate) alloc[1] : null;
+            String propertyName = alloc[2] != null ? alloc[2].toString() : "";
+            String category = alloc[3] != null ? alloc[3].toString() : "";
+            BigDecimal amount = alloc[4] != null ? (BigDecimal) alloc[4] : BigDecimal.ZERO;
+            String batchRef = alloc[5] != null ? alloc[5].toString() : "";
+            BigDecimal allocatedAmount = alloc[6] != null ? (BigDecimal) alloc[6] : BigDecimal.ZERO;
+            String description = alloc[7] != null ? alloc[7].toString() : "";
+
+            // Get payment date from batch
+            LocalDate paymentDate = null;
+            if (batchRef != null && !batchRef.isEmpty()) {
+                PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
+                if (batch != null) {
+                    paymentDate = batch.getPaymentDate();
+                }
+            }
+
+            data.add(Arrays.asList(
+                transId,
+                transDate != null ? transDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "",
+                propertyName,
+                category,
+                description.length() > 50 ? description.substring(0, 50) + "..." : description,
+                amount,
+                batchRef,
+                allocatedAmount,
+                paymentDate != null ? paymentDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : ""
+            ));
+        }
+
+        // Add totals row
+        data.add(Arrays.asList(""));
+        BigDecimal totalExpenses = expenseAllocations.stream()
+            .map(a -> a[6] != null ? (BigDecimal) a[6] : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        data.add(Arrays.asList("TOTAL", "", "", "", "", "", "", totalExpenses, ""));
+
+        // Populate sheet
+        populateSheetWithData(sheet, data);
+        applyAllocationSheetFormatting(workbook, sheet, data.size());
+
+        System.out.println("✅ Expense Allocations sheet created with " + (data.size() - 6) + " records");
+    }
+
+    /**
+     * Create Owner Payments Summary Sheet - shows each payment batch with its breakdown
+     */
+    private void createOwnerPaymentsSummarySheet(XSSFWorkbook workbook, Customer propertyOwner) {
+        System.out.println("📊 Creating Owner Payments Summary sheet");
+
+        XSSFSheet sheet = workbook.createSheet("Owner Payments Summary");
+        List<List<Object>> data = new ArrayList<>();
+
+        // Header
+        data.add(Arrays.asList("OWNER PAYMENTS SUMMARY"));
+        data.add(Arrays.asList("Detailed breakdown of each payment batch to owner"));
+        data.add(Arrays.asList(""));
+
+        // Get all batch references for this owner
+        Long ownerId = propertyOwner.getCustomerId();
+        List<String> batchRefs = transactionBatchAllocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
+
+        for (String batchRef : batchRefs) {
+            // Get batch details
+            PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
+
+            // Batch header
+            String batchHeader = batchRef;
+            if (batch != null) {
+                batchHeader += " | Paid: " + batch.getPaymentDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                batchHeader += " | Total: £" + batch.getTotalPayment().abs();
+                batchHeader += " | Status: " + batch.getStatus();
+            }
+            data.add(Arrays.asList(batchHeader));
+            data.add(Arrays.asList("─────────────────────────────────────────────────────────────────"));
+
+            // Get allocations for this batch
+            List<Object[]> batchAllocations = transactionBatchAllocationRepository.getAllocationsForBatchWithDetails(batchRef);
+
+            // Separate income and expenses
+            List<Object[]> incomeItems = new ArrayList<>();
+            List<Object[]> expenseItems = new ArrayList<>();
+
+            for (Object[] alloc : batchAllocations) {
+                BigDecimal allocAmount = alloc[4] != null ? (BigDecimal) alloc[4] : BigDecimal.ZERO;
+                if (allocAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    incomeItems.add(alloc);
+                } else {
+                    expenseItems.add(alloc);
+                }
+            }
+
+            // Income section
+            if (!incomeItems.isEmpty()) {
+                data.add(Arrays.asList("INCOME ALLOCATED:"));
+                BigDecimal incomeTotal = BigDecimal.ZERO;
+                for (Object[] item : incomeItems) {
+                    LocalDate transDate = item[1] != null ? (LocalDate) item[1] : null;
+                    String propertyName = item[2] != null ? item[2].toString() : "";
+                    String category = item[3] != null ? item[3].toString() : "";
+                    BigDecimal amount = item[4] != null ? (BigDecimal) item[4] : BigDecimal.ZERO;
+                    incomeTotal = incomeTotal.add(amount);
+
+                    String dateStr = transDate != null ? transDate.format(DateTimeFormatter.ofPattern("dd/MM")) : "";
+                    data.add(Arrays.asList("  " + propertyName + " " + category + " (" + dateStr + ")", "", "", "", "", amount));
+                }
+                data.add(Arrays.asList("  Subtotal Income:", "", "", "", "", incomeTotal));
+            }
+
+            // Expense section
+            if (!expenseItems.isEmpty()) {
+                data.add(Arrays.asList("EXPENSES DEDUCTED:"));
+                BigDecimal expenseTotal = BigDecimal.ZERO;
+                for (Object[] item : expenseItems) {
+                    LocalDate transDate = item[1] != null ? (LocalDate) item[1] : null;
+                    String propertyName = item[2] != null ? item[2].toString() : "";
+                    String category = item[3] != null ? item[3].toString() : "";
+                    BigDecimal amount = item[4] != null ? (BigDecimal) item[4] : BigDecimal.ZERO;
+                    expenseTotal = expenseTotal.add(amount);
+
+                    String dateStr = transDate != null ? transDate.format(DateTimeFormatter.ofPattern("dd/MM")) : "";
+                    data.add(Arrays.asList("  " + propertyName + " " + category + " (" + dateStr + ")", "", "", "", "", amount));
+                }
+                data.add(Arrays.asList("  Subtotal Expenses:", "", "", "", "", expenseTotal));
+            }
+
+            // Net payment
+            BigDecimal netPayment = batchAllocations.stream()
+                .map(a -> a[4] != null ? (BigDecimal) a[4] : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            data.add(Arrays.asList("─────────────────────────────────────────────────────────────────"));
+            data.add(Arrays.asList("NET PAID TO OWNER:", "", "", "", "", netPayment));
+            data.add(Arrays.asList(""));
+            data.add(Arrays.asList(""));
+        }
+
+        // Grand totals
+        data.add(Arrays.asList("═══════════════════════════════════════════════════════════════════"));
+        data.add(Arrays.asList("GRAND TOTALS"));
+
+        BigDecimal grandTotalPayments = BigDecimal.ZERO;
+        for (String batchRef : batchRefs) {
+            PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
+            if (batch != null) {
+                grandTotalPayments = grandTotalPayments.add(batch.getTotalPayment().abs());
+            }
+        }
+        data.add(Arrays.asList("Total Owner Payments:", "", "", "", "", grandTotalPayments));
+        data.add(Arrays.asList("Number of Batches:", "", "", "", "", batchRefs.size()));
+
+        // Populate sheet
+        populateSheetWithData(sheet, data);
+        applyOwnerPaymentsSummaryFormatting(workbook, sheet);
+
+        System.out.println("✅ Owner Payments Summary sheet created with " + batchRefs.size() + " batches");
+    }
+
+    /**
+     * Apply formatting to allocation sheets
+     */
+    private void applyAllocationSheetFormatting(XSSFWorkbook workbook, XSSFSheet sheet, int dataRows) {
+        // Header style
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setFontHeightInPoints((short) 14);
+        headerStyle.setFont(headerFont);
+
+        // Column header style
+        CellStyle columnHeaderStyle = workbook.createCellStyle();
+        Font columnHeaderFont = workbook.createFont();
+        columnHeaderFont.setBold(true);
+        columnHeaderStyle.setFont(columnHeaderFont);
+        columnHeaderStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        columnHeaderStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        // Currency style
+        CellStyle currencyStyle = workbook.createCellStyle();
+        currencyStyle.setDataFormat(workbook.createDataFormat().getFormat("£#,##0.00"));
+
+        // Apply header formatting
+        Row titleRow = sheet.getRow(0);
+        if (titleRow != null && titleRow.getCell(0) != null) {
+            titleRow.getCell(0).setCellStyle(headerStyle);
+        }
+
+        // Apply column header formatting (row 3)
+        Row colHeaderRow = sheet.getRow(3);
+        if (colHeaderRow != null) {
+            for (int i = 0; i < 15; i++) {
+                Cell cell = colHeaderRow.getCell(i);
+                if (cell != null) {
+                    cell.setCellStyle(columnHeaderStyle);
+                }
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < 15; i++) {
+            try {
+                sheet.autoSizeColumn(i);
+                if (sheet.getColumnWidth(i) > 8000) {
+                    sheet.setColumnWidth(i, 8000);
+                }
+            } catch (Exception e) {
+                // Continue if auto-sizing fails
+            }
+        }
+    }
+
+    /**
+     * Apply formatting to Owner Payments Summary sheet
+     */
+    private void applyOwnerPaymentsSummaryFormatting(XSSFWorkbook workbook, XSSFSheet sheet) {
+        // Header style
+        CellStyle headerStyle = workbook.createCellStyle();
+        Font headerFont = workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setFontHeightInPoints((short) 14);
+        headerStyle.setFont(headerFont);
+
+        // Batch header style
+        CellStyle batchHeaderStyle = workbook.createCellStyle();
+        Font batchHeaderFont = workbook.createFont();
+        batchHeaderFont.setBold(true);
+        batchHeaderFont.setFontHeightInPoints((short) 11);
+        batchHeaderStyle.setFont(batchHeaderFont);
+        batchHeaderStyle.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
+        batchHeaderStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        // Currency style
+        CellStyle currencyStyle = workbook.createCellStyle();
+        currencyStyle.setDataFormat(workbook.createDataFormat().getFormat("£#,##0.00"));
+
+        // Apply title formatting
+        Row titleRow = sheet.getRow(0);
+        if (titleRow != null && titleRow.getCell(0) != null) {
+            titleRow.getCell(0).setCellStyle(headerStyle);
+        }
+
+        // Set column widths
+        sheet.setColumnWidth(0, 15000); // Description column
+        sheet.setColumnWidth(5, 4000);  // Amount column
     }
 }
