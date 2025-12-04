@@ -168,4 +168,17 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     @Query("SELECT SUM(ua.amount) FROM UnifiedAllocation ua " +
            "WHERE ua.propertyId = :propertyId AND ua.paymentStatus = 'PENDING'")
     BigDecimal sumPendingAmountByPropertyId(@Param("propertyId") Long propertyId);
+
+    // ===== XLSX STATEMENT QUERIES =====
+
+    /**
+     * Find all OWNER allocations for a beneficiary (for income allocations sheet)
+     */
+    @Query("SELECT ua FROM UnifiedAllocation ua WHERE ua.beneficiaryId = :beneficiaryId AND ua.allocationType = 'OWNER' ORDER BY ua.createdAt DESC")
+    List<UnifiedAllocation> findOwnerAllocationsByBeneficiaryId(@Param("beneficiaryId") Long beneficiaryId);
+
+    /**
+     * Find allocations for a beneficiary by type
+     */
+    List<UnifiedAllocation> findByBeneficiaryIdAndAllocationType(Long beneficiaryId, AllocationType allocationType);
 }
