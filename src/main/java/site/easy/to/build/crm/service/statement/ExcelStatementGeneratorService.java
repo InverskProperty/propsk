@@ -2362,7 +2362,7 @@ public class ExcelStatementGeneratorService {
      * Create Expense Allocations sheet showing all expense transactions allocated to payment batches
      */
     private void createExpenseAllocationsSheet(Workbook workbook, Long ownerId) {
-        log.error("🔍 DEBUG: Creating Expense Allocations sheet for owner {}", ownerId);
+        log.info("Creating Expense Allocations sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Expense Allocations");
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -2370,8 +2370,8 @@ public class ExcelStatementGeneratorService {
         CellStyle currencyStyle = createCurrencyStyle(workbook);
 
         // Headers
-        String[] headers = {"Date", "Property", "Category", "Description", "Amount",
-                           "Batch Ref", "Allocated Amount", "Payment Date", "Payment Status"};
+        String[] headers = {"Date", "Property", "Category", "Description", "Source",
+                           "Amount", "Batch Ref", "Payment Date", "Payment Status"};
 
         Row headerRow = sheet.createRow(0);
         for (int i = 0; i < headers.length; i++) {
@@ -2380,22 +2380,68 @@ public class ExcelStatementGeneratorService {
             cell.setCellStyle(headerStyle);
         }
 
-        // Get expense allocations from repository
-        List<Object[]> allocations = allocationRepository.getExpenseAllocationsForOwner(ownerId);
-        log.error("🔍 DEBUG: Found {} expense allocations for owner {}", allocations.size(), ownerId);
-
         int rowNum = 1;
         BigDecimal totalAllocated = BigDecimal.ZERO;
 
-        for (Object[] allocation : allocations) {
+        // === SOURCE 1: Unified Allocations (EXPENSE type) - from PayProp/historical imports ===
+        List<UnifiedAllocation> unifiedExpenses = unifiedAllocationRepository
+            .findByBeneficiaryIdAndAllocationType(ownerId, UnifiedAllocation.AllocationType.EXPENSE);
+        log.info("Found {} unified EXPENSE allocations for owner {}", unifiedExpenses.size(), ownerId);
+
+        for (UnifiedAllocation ua : unifiedExpenses) {
+            Row row = sheet.createRow(rowNum++);
+
+            // Date
+            Cell dateCell = row.createCell(0);
+            if (ua.getCreatedAt() != null) {
+                dateCell.setCellValue(java.sql.Date.valueOf(ua.getCreatedAt().toLocalDate()));
+                dateCell.setCellStyle(dateStyle);
+            }
+
+            // Property
+            row.createCell(1).setCellValue(ua.getPropertyName() != null ? ua.getPropertyName() : "");
+
+            // Category
+            row.createCell(2).setCellValue(ua.getCategory() != null ? ua.getCategory() : "Expense");
+
+            // Description
+            row.createCell(3).setCellValue(ua.getDescription() != null ? ua.getDescription() : "");
+
+            // Source
+            row.createCell(4).setCellValue(ua.getSource() != null ? ua.getSource().toString() : "UNIFIED");
+
+            // Amount (expenses are negative, unified stores as positive so negate)
+            Cell amountCell = row.createCell(5);
+            BigDecimal amount = ua.getAmount() != null ? ua.getAmount().negate() : BigDecimal.ZERO;
+            amountCell.setCellValue(amount.doubleValue());
+            amountCell.setCellStyle(currencyStyle);
+            totalAllocated = totalAllocated.add(amount);
+
+            // Batch Ref
+            row.createCell(6).setCellValue(ua.getPaymentBatchId() != null ? ua.getPaymentBatchId() : "");
+
+            // Payment Date
+            Cell payDateCell = row.createCell(7);
+            if (ua.getPaidDate() != null) {
+                payDateCell.setCellValue(java.sql.Date.valueOf(ua.getPaidDate()));
+                payDateCell.setCellStyle(dateStyle);
+            }
+
+            // Payment Status
+            row.createCell(8).setCellValue(ua.getPaymentStatus() != null ? ua.getPaymentStatus().toString() : "PENDING");
+        }
+
+        // === SOURCE 2: Transaction Batch Allocations (negative allocatedAmount) - manual allocations ===
+        List<Object[]> manualExpenses = allocationRepository.getExpenseAllocationsForOwner(ownerId);
+        log.info("Found {} manual expense allocations (allocatedAmount < 0) for owner {}", manualExpenses.size(), ownerId);
+
+        for (Object[] allocation : manualExpenses) {
             Row row = sheet.createRow(rowNum++);
 
             // Parse allocation data
-            // Returns: transactionId, transactionDate, propertyName, category, amount, batchRef, allocatedAmount, description
             java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
             String propertyName = allocation[2] != null ? allocation[2].toString() : "";
             String category = allocation[3] != null ? allocation[3].toString() : "";
-            BigDecimal amount = allocation[4] != null ? new BigDecimal(allocation[4].toString()) : BigDecimal.ZERO;
             String batchRef = allocation[5] != null ? allocation[5].toString() : "";
             BigDecimal allocatedAmount = allocation[6] != null ? new BigDecimal(allocation[6].toString()) : BigDecimal.ZERO;
             String description = allocation[7] != null ? allocation[7].toString() : "";
@@ -2421,19 +2467,17 @@ public class ExcelStatementGeneratorService {
             // Description
             row.createCell(3).setCellValue(description);
 
-            // Amount
-            Cell amountCell = row.createCell(4);
-            amountCell.setCellValue(amount.doubleValue());
+            // Source
+            row.createCell(4).setCellValue("MANUAL");
+
+            // Amount (already negative for expenses)
+            Cell amountCell = row.createCell(5);
+            amountCell.setCellValue(allocatedAmount.doubleValue());
             amountCell.setCellStyle(currencyStyle);
+            totalAllocated = totalAllocated.add(allocatedAmount);
 
             // Batch Ref
-            row.createCell(5).setCellValue(batchRef);
-
-            // Allocated Amount
-            Cell allocCell = row.createCell(6);
-            allocCell.setCellValue(allocatedAmount.doubleValue());
-            allocCell.setCellStyle(currencyStyle);
-            totalAllocated = totalAllocated.add(allocatedAmount);
+            row.createCell(6).setCellValue(batchRef);
 
             // Payment Date
             Cell payDateCell = row.createCell(7);
@@ -2456,19 +2500,21 @@ public class ExcelStatementGeneratorService {
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
+        log.info("Expense Allocations sheet created with {} rows (unified: {}, manual: {}), total: {}",
+            rowNum - 1, unifiedExpenses.size(), manualExpenses.size(), totalAllocated);
+
         // Auto-size columns
         for (int i = 0; i < headers.length; i++) {
             sheet.autoSizeColumn(i);
         }
 
-        log.info("Expense Allocations sheet created with {} rows, total: {}", allocations.size(), totalAllocated);
     }
 
     /**
      * Create Owner Payments Summary sheet showing all payment batches for this owner
      */
     private void createOwnerPaymentsSummarySheet(Workbook workbook, Long ownerId) {
-        log.error("🔍 DEBUG: Creating Owner Payments Summary sheet for owner {}", ownerId);
+        log.info("Creating Owner Payments Summary sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Owner Payments Summary");
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -2486,13 +2532,26 @@ public class ExcelStatementGeneratorService {
             cell.setCellStyle(headerStyle);
         }
 
-        // Get all batch references for this owner
-        List<String> batchRefs = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
-        log.error("🔍 DEBUG: Found {} payment batches for owner {}: {}", batchRefs.size(), ownerId, batchRefs);
+        // Get batch references from both sources
+        // SOURCE 1: Manual allocations from transaction_batch_allocations
+        List<String> manualBatchRefs = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
 
-        // Debug: Check all batch references in the system
-        List<String> allBatchRefs = allocationRepository.findAllDistinctBatchReferences();
-        log.error("🔍 DEBUG: All batch references in system: {}", allBatchRefs);
+        // SOURCE 2: Unified allocations - get distinct payment batch IDs
+        List<UnifiedAllocation> unifiedAllocations = unifiedAllocationRepository.findByBeneficiaryId(ownerId);
+        java.util.Set<String> unifiedBatchRefs = new java.util.HashSet<>();
+        for (UnifiedAllocation ua : unifiedAllocations) {
+            if (ua.getPaymentBatchId() != null && !ua.getPaymentBatchId().isEmpty()) {
+                unifiedBatchRefs.add(ua.getPaymentBatchId());
+            }
+        }
+
+        // Combine both sources (avoiding duplicates)
+        java.util.Set<String> allBatchRefsSet = new java.util.LinkedHashSet<>(manualBatchRefs);
+        allBatchRefsSet.addAll(unifiedBatchRefs);
+        List<String> batchRefs = new ArrayList<>(allBatchRefsSet);
+
+        log.info("Found {} total payment batches for owner {} (manual: {}, unified: {})",
+            batchRefs.size(), ownerId, manualBatchRefs.size(), unifiedBatchRefs.size());
 
         int rowNum = 1;
         BigDecimal totalPayments = BigDecimal.ZERO;
