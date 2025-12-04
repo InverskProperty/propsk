@@ -14,6 +14,8 @@ import site.easy.to.build.crm.entity.PaymentBatch;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.PaymentBatchRepository;
 import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
+import site.easy.to.build.crm.repository.UnifiedAllocationRepository;
+import site.easy.to.build.crm.entity.UnifiedAllocation;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -50,6 +52,9 @@ public class ExcelStatementGeneratorService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private UnifiedAllocationRepository unifiedAllocationRepository;
 
     /**
      * Generate complete statement workbook
@@ -2206,18 +2211,7 @@ public class ExcelStatementGeneratorService {
      * Create Income Allocations sheet showing all income transactions allocated to payment batches
      */
     private void createIncomeAllocationsSheet(Workbook workbook, Long ownerId) {
-        log.error("🔍 DEBUG: Creating Income Allocations sheet for owner {}", ownerId);
-
-        // FORENSIC: Get ALL allocations for this owner to understand the data
-        List<site.easy.to.build.crm.entity.TransactionBatchAllocation> allAllocations =
-            allocationRepository.findByBeneficiaryId(ownerId);
-        log.error("🔍 FORENSIC: Found {} TOTAL allocations for owner {}", allAllocations.size(), ownerId);
-
-        for (site.easy.to.build.crm.entity.TransactionBatchAllocation alloc : allAllocations) {
-            log.error("🔍 FORENSIC: Allocation id={}, txnId={}, batch={}, allocatedAmount={}, property={}",
-                alloc.getId(), alloc.getTransactionId(), alloc.getBatchReference(),
-                alloc.getAllocatedAmount(), alloc.getPropertyName());
-        }
+        log.info("Creating Income Allocations sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Income Allocations");
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -2225,8 +2219,8 @@ public class ExcelStatementGeneratorService {
         CellStyle currencyStyle = createCurrencyStyle(workbook);
 
         // Headers
-        String[] headers = {"Date", "Property", "Category", "Description", "Tenant", "Gross Amount",
-                           "Commission", "Net To Owner", "Batch Ref", "Allocated Amount", "Payment Date", "Payment Status"};
+        String[] headers = {"Date", "Property", "Category", "Description", "Source",
+                           "Amount", "Batch Ref", "Payment Date", "Payment Status"};
 
         Row headerRow = sheet.createRow(0);
         for (int i = 0; i < headers.length; i++) {
@@ -2235,32 +2229,71 @@ public class ExcelStatementGeneratorService {
             cell.setCellStyle(headerStyle);
         }
 
-        // Get income allocations from repository (allocatedAmount > 0)
-        List<Object[]> allocations = allocationRepository.getIncomeAllocationsForOwner(ownerId);
-        log.error("🔍 DEBUG: Found {} income allocations (allocatedAmount > 0) for owner {}", allocations.size(), ownerId);
-
-        // Debug: Check if there are ANY allocations in the system for this owner
-        List<String> allBatches = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
-        log.error("🔍 DEBUG: Found {} batch references for owner {}: {}", allBatches.size(), ownerId, allBatches);
-
         int rowNum = 1;
         BigDecimal totalAllocated = BigDecimal.ZERO;
 
-        for (Object[] allocation : allocations) {
+        // === SOURCE 1: Unified Allocations (OWNER type) - from PayProp/historical imports ===
+        List<UnifiedAllocation> unifiedAllocations = unifiedAllocationRepository
+            .findByBeneficiaryIdAndAllocationType(ownerId, UnifiedAllocation.AllocationType.OWNER);
+        log.info("Found {} unified OWNER allocations for owner {}", unifiedAllocations.size(), ownerId);
+
+        for (UnifiedAllocation ua : unifiedAllocations) {
+            Row row = sheet.createRow(rowNum++);
+
+            // Date (use createdAt as transaction date proxy)
+            Cell dateCell = row.createCell(0);
+            if (ua.getCreatedAt() != null) {
+                dateCell.setCellValue(java.sql.Date.valueOf(ua.getCreatedAt().toLocalDate()));
+                dateCell.setCellStyle(dateStyle);
+            }
+
+            // Property
+            row.createCell(1).setCellValue(ua.getPropertyName() != null ? ua.getPropertyName() : "");
+
+            // Category
+            row.createCell(2).setCellValue(ua.getCategory() != null ? ua.getCategory() : "Owner Payment");
+
+            // Description
+            row.createCell(3).setCellValue(ua.getDescription() != null ? ua.getDescription() : "");
+
+            // Source
+            row.createCell(4).setCellValue(ua.getSource() != null ? ua.getSource().toString() : "UNIFIED");
+
+            // Amount (unified allocations always positive for OWNER type)
+            Cell amountCell = row.createCell(5);
+            BigDecimal amount = ua.getAmount() != null ? ua.getAmount() : BigDecimal.ZERO;
+            amountCell.setCellValue(amount.doubleValue());
+            amountCell.setCellStyle(currencyStyle);
+            totalAllocated = totalAllocated.add(amount);
+
+            // Batch Ref
+            row.createCell(6).setCellValue(ua.getPaymentBatchId() != null ? ua.getPaymentBatchId() : "");
+
+            // Payment Date
+            Cell payDateCell = row.createCell(7);
+            if (ua.getPaidDate() != null) {
+                payDateCell.setCellValue(java.sql.Date.valueOf(ua.getPaidDate()));
+                payDateCell.setCellStyle(dateStyle);
+            }
+
+            // Payment Status
+            row.createCell(8).setCellValue(ua.getPaymentStatus() != null ? ua.getPaymentStatus().toString() : "PENDING");
+        }
+
+        // === SOURCE 2: Transaction Batch Allocations (positive allocatedAmount) - manual allocations ===
+        List<Object[]> manualAllocations = allocationRepository.getIncomeAllocationsForOwner(ownerId);
+        log.info("Found {} manual income allocations (allocatedAmount > 0) for owner {}", manualAllocations.size(), ownerId);
+
+        for (Object[] allocation : manualAllocations) {
             Row row = sheet.createRow(rowNum++);
 
             // Parse allocation data
-            // Returns: transactionId, transactionDate, propertyName, category, amount, netToOwner, commission, batchRef, allocatedAmount, description, tenantName
             java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
             String propertyName = allocation[2] != null ? allocation[2].toString() : "";
             String category = allocation[3] != null ? allocation[3].toString() : "";
-            BigDecimal amount = allocation[4] != null ? new BigDecimal(allocation[4].toString()) : BigDecimal.ZERO;
-            BigDecimal netToOwner = allocation[5] != null ? new BigDecimal(allocation[5].toString()) : BigDecimal.ZERO;
-            BigDecimal commission = allocation[6] != null ? new BigDecimal(allocation[6].toString()) : BigDecimal.ZERO;
             String batchRef = allocation[7] != null ? allocation[7].toString() : "";
             BigDecimal allocatedAmount = allocation[8] != null ? new BigDecimal(allocation[8].toString()) : BigDecimal.ZERO;
             String description = allocation[9] != null ? allocation[9].toString() : "";
-            String tenantName = allocation[10] != null ? allocation[10].toString() : "";
 
             // Get payment batch details
             PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
@@ -2283,51 +2316,36 @@ public class ExcelStatementGeneratorService {
             // Description
             row.createCell(3).setCellValue(description);
 
-            // Tenant
-            row.createCell(4).setCellValue(tenantName);
+            // Source
+            row.createCell(4).setCellValue("MANUAL");
 
-            // Gross Amount
+            // Amount
             Cell amountCell = row.createCell(5);
-            amountCell.setCellValue(amount.doubleValue());
+            amountCell.setCellValue(allocatedAmount.doubleValue());
             amountCell.setCellStyle(currencyStyle);
-
-            // Commission
-            Cell commCell = row.createCell(6);
-            commCell.setCellValue(commission.doubleValue());
-            commCell.setCellStyle(currencyStyle);
-
-            // Net To Owner
-            Cell netCell = row.createCell(7);
-            netCell.setCellValue(netToOwner.doubleValue());
-            netCell.setCellStyle(currencyStyle);
-
-            // Batch Ref
-            row.createCell(8).setCellValue(batchRef);
-
-            // Allocated Amount
-            Cell allocCell = row.createCell(9);
-            allocCell.setCellValue(allocatedAmount.doubleValue());
-            allocCell.setCellStyle(currencyStyle);
             totalAllocated = totalAllocated.add(allocatedAmount);
 
+            // Batch Ref
+            row.createCell(6).setCellValue(batchRef);
+
             // Payment Date
-            Cell payDateCell = row.createCell(10);
+            Cell payDateCell = row.createCell(7);
             if (paymentDate != null) {
                 payDateCell.setCellValue(java.sql.Date.valueOf(paymentDate));
                 payDateCell.setCellStyle(dateStyle);
             }
 
             // Payment Status
-            row.createCell(11).setCellValue(paymentStatus);
+            row.createCell(8).setCellValue(paymentStatus);
         }
 
         // Total row
         Row totalRow = sheet.createRow(rowNum);
-        Cell totalLabel = totalRow.createCell(8);
+        Cell totalLabel = totalRow.createCell(5);
         totalLabel.setCellValue("TOTAL:");
         totalLabel.setCellStyle(headerStyle);
 
-        Cell totalCell = totalRow.createCell(9);
+        Cell totalCell = totalRow.createCell(6);
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
@@ -2336,7 +2354,8 @@ public class ExcelStatementGeneratorService {
             sheet.autoSizeColumn(i);
         }
 
-        log.info("Income Allocations sheet created with {} rows, total: {}", allocations.size(), totalAllocated);
+        log.info("Income Allocations sheet created with {} rows (unified: {}, manual: {}), total: {}",
+            rowNum - 1, unifiedAllocations.size(), manualAllocations.size(), totalAllocated);
     }
 
     /**
