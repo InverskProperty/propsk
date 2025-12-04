@@ -9,6 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
 import site.easy.to.build.crm.dto.statement.TransactionDTO;
+import site.easy.to.build.crm.entity.PaymentBatch;
+import site.easy.to.build.crm.repository.PaymentBatchRepository;
+import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,6 +39,12 @@ public class ExcelStatementGeneratorService {
 
     @Autowired
     private site.easy.to.build.crm.config.CommissionConfig commissionConfig;
+
+    @Autowired
+    private TransactionBatchAllocationRepository allocationRepository;
+
+    @Autowired
+    private PaymentBatchRepository paymentBatchRepository;
 
     /**
      * Generate complete statement workbook
@@ -194,6 +203,11 @@ public class ExcelStatementGeneratorService {
 
         // Create summary sheet (totals across all periods)
         createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate);
+
+        // Create allocation tracking sheets for this owner
+        createIncomeAllocationsSheet(workbook, customerId);
+        createExpenseAllocationsSheet(workbook, customerId);
+        createOwnerPaymentsSummarySheet(workbook, customerId);
 
         log.info("Customer statement workbook with custom periods created successfully with {} monthly sheets", periods.size());
         return workbook;
@@ -2136,5 +2150,333 @@ public class ExcelStatementGeneratorService {
         DataFormat format = workbook.createDataFormat();
         style.setDataFormat(format.getFormat("£#,##0.00"));
         return style;
+    }
+
+    // ===== ALLOCATION TRACKING SHEETS =====
+
+    /**
+     * Create Income Allocations sheet showing all income transactions allocated to payment batches
+     */
+    private void createIncomeAllocationsSheet(Workbook workbook, Long ownerId) {
+        log.info("Creating Income Allocations sheet for owner {}", ownerId);
+
+        Sheet sheet = workbook.createSheet("Income Allocations");
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        // Headers
+        String[] headers = {"Date", "Property", "Category", "Description", "Tenant", "Gross Amount",
+                           "Commission", "Net To Owner", "Batch Ref", "Allocated Amount", "Payment Date", "Payment Status"};
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Get income allocations from repository
+        List<Object[]> allocations = allocationRepository.getIncomeAllocationsForOwner(ownerId);
+        log.info("Found {} income allocations for owner {}", allocations.size(), ownerId);
+
+        int rowNum = 1;
+        BigDecimal totalAllocated = BigDecimal.ZERO;
+
+        for (Object[] allocation : allocations) {
+            Row row = sheet.createRow(rowNum++);
+
+            // Parse allocation data
+            // Returns: transactionId, transactionDate, propertyName, category, amount, netToOwner, commission, batchRef, allocatedAmount, description, tenantName
+            java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
+            String propertyName = allocation[2] != null ? allocation[2].toString() : "";
+            String category = allocation[3] != null ? allocation[3].toString() : "";
+            BigDecimal amount = allocation[4] != null ? new BigDecimal(allocation[4].toString()) : BigDecimal.ZERO;
+            BigDecimal netToOwner = allocation[5] != null ? new BigDecimal(allocation[5].toString()) : BigDecimal.ZERO;
+            BigDecimal commission = allocation[6] != null ? new BigDecimal(allocation[6].toString()) : BigDecimal.ZERO;
+            String batchRef = allocation[7] != null ? allocation[7].toString() : "";
+            BigDecimal allocatedAmount = allocation[8] != null ? new BigDecimal(allocation[8].toString()) : BigDecimal.ZERO;
+            String description = allocation[9] != null ? allocation[9].toString() : "";
+            String tenantName = allocation[10] != null ? allocation[10].toString() : "";
+
+            // Get payment batch details
+            PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
+            LocalDate paymentDate = batch != null ? batch.getPaymentDate() : null;
+            String paymentStatus = batch != null ? batch.getStatus().toString() : "Unknown";
+
+            // Date
+            Cell dateCell = row.createCell(0);
+            if (transactionDate != null) {
+                dateCell.setCellValue(transactionDate);
+                dateCell.setCellStyle(dateStyle);
+            }
+
+            // Property
+            row.createCell(1).setCellValue(propertyName);
+
+            // Category
+            row.createCell(2).setCellValue(category);
+
+            // Description
+            row.createCell(3).setCellValue(description);
+
+            // Tenant
+            row.createCell(4).setCellValue(tenantName);
+
+            // Gross Amount
+            Cell amountCell = row.createCell(5);
+            amountCell.setCellValue(amount.doubleValue());
+            amountCell.setCellStyle(currencyStyle);
+
+            // Commission
+            Cell commCell = row.createCell(6);
+            commCell.setCellValue(commission.doubleValue());
+            commCell.setCellStyle(currencyStyle);
+
+            // Net To Owner
+            Cell netCell = row.createCell(7);
+            netCell.setCellValue(netToOwner.doubleValue());
+            netCell.setCellStyle(currencyStyle);
+
+            // Batch Ref
+            row.createCell(8).setCellValue(batchRef);
+
+            // Allocated Amount
+            Cell allocCell = row.createCell(9);
+            allocCell.setCellValue(allocatedAmount.doubleValue());
+            allocCell.setCellStyle(currencyStyle);
+            totalAllocated = totalAllocated.add(allocatedAmount);
+
+            // Payment Date
+            Cell payDateCell = row.createCell(10);
+            if (paymentDate != null) {
+                payDateCell.setCellValue(java.sql.Date.valueOf(paymentDate));
+                payDateCell.setCellStyle(dateStyle);
+            }
+
+            // Payment Status
+            row.createCell(11).setCellValue(paymentStatus);
+        }
+
+        // Total row
+        Row totalRow = sheet.createRow(rowNum);
+        Cell totalLabel = totalRow.createCell(8);
+        totalLabel.setCellValue("TOTAL:");
+        totalLabel.setCellStyle(headerStyle);
+
+        Cell totalCell = totalRow.createCell(9);
+        totalCell.setCellValue(totalAllocated.doubleValue());
+        totalCell.setCellStyle(currencyStyle);
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("Income Allocations sheet created with {} rows, total: {}", allocations.size(), totalAllocated);
+    }
+
+    /**
+     * Create Expense Allocations sheet showing all expense transactions allocated to payment batches
+     */
+    private void createExpenseAllocationsSheet(Workbook workbook, Long ownerId) {
+        log.info("Creating Expense Allocations sheet for owner {}", ownerId);
+
+        Sheet sheet = workbook.createSheet("Expense Allocations");
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        // Headers
+        String[] headers = {"Date", "Property", "Category", "Description", "Amount",
+                           "Batch Ref", "Allocated Amount", "Payment Date", "Payment Status"};
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Get expense allocations from repository
+        List<Object[]> allocations = allocationRepository.getExpenseAllocationsForOwner(ownerId);
+        log.info("Found {} expense allocations for owner {}", allocations.size(), ownerId);
+
+        int rowNum = 1;
+        BigDecimal totalAllocated = BigDecimal.ZERO;
+
+        for (Object[] allocation : allocations) {
+            Row row = sheet.createRow(rowNum++);
+
+            // Parse allocation data
+            // Returns: transactionId, transactionDate, propertyName, category, amount, batchRef, allocatedAmount, description
+            java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
+            String propertyName = allocation[2] != null ? allocation[2].toString() : "";
+            String category = allocation[3] != null ? allocation[3].toString() : "";
+            BigDecimal amount = allocation[4] != null ? new BigDecimal(allocation[4].toString()) : BigDecimal.ZERO;
+            String batchRef = allocation[5] != null ? allocation[5].toString() : "";
+            BigDecimal allocatedAmount = allocation[6] != null ? new BigDecimal(allocation[6].toString()) : BigDecimal.ZERO;
+            String description = allocation[7] != null ? allocation[7].toString() : "";
+
+            // Get payment batch details
+            PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
+            LocalDate paymentDate = batch != null ? batch.getPaymentDate() : null;
+            String paymentStatus = batch != null ? batch.getStatus().toString() : "Unknown";
+
+            // Date
+            Cell dateCell = row.createCell(0);
+            if (transactionDate != null) {
+                dateCell.setCellValue(transactionDate);
+                dateCell.setCellStyle(dateStyle);
+            }
+
+            // Property
+            row.createCell(1).setCellValue(propertyName);
+
+            // Category
+            row.createCell(2).setCellValue(category);
+
+            // Description
+            row.createCell(3).setCellValue(description);
+
+            // Amount
+            Cell amountCell = row.createCell(4);
+            amountCell.setCellValue(amount.doubleValue());
+            amountCell.setCellStyle(currencyStyle);
+
+            // Batch Ref
+            row.createCell(5).setCellValue(batchRef);
+
+            // Allocated Amount
+            Cell allocCell = row.createCell(6);
+            allocCell.setCellValue(allocatedAmount.doubleValue());
+            allocCell.setCellStyle(currencyStyle);
+            totalAllocated = totalAllocated.add(allocatedAmount);
+
+            // Payment Date
+            Cell payDateCell = row.createCell(7);
+            if (paymentDate != null) {
+                payDateCell.setCellValue(java.sql.Date.valueOf(paymentDate));
+                payDateCell.setCellStyle(dateStyle);
+            }
+
+            // Payment Status
+            row.createCell(8).setCellValue(paymentStatus);
+        }
+
+        // Total row
+        Row totalRow = sheet.createRow(rowNum);
+        Cell totalLabel = totalRow.createCell(5);
+        totalLabel.setCellValue("TOTAL:");
+        totalLabel.setCellStyle(headerStyle);
+
+        Cell totalCell = totalRow.createCell(6);
+        totalCell.setCellValue(totalAllocated.doubleValue());
+        totalCell.setCellStyle(currencyStyle);
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("Expense Allocations sheet created with {} rows, total: {}", allocations.size(), totalAllocated);
+    }
+
+    /**
+     * Create Owner Payments Summary sheet showing all payment batches for this owner
+     */
+    private void createOwnerPaymentsSummarySheet(Workbook workbook, Long ownerId) {
+        log.info("Creating Owner Payments Summary sheet for owner {}", ownerId);
+
+        Sheet sheet = workbook.createSheet("Owner Payments Summary");
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        // Headers
+        String[] headers = {"Batch Reference", "Payment Date", "Total Allocations", "Balance Adjustment",
+                           "Total Payment", "Status", "Payment Method", "Notes"};
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Get all batch references for this owner
+        List<String> batchRefs = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
+        log.info("Found {} payment batches for owner {}", batchRefs.size(), ownerId);
+
+        int rowNum = 1;
+        BigDecimal totalPayments = BigDecimal.ZERO;
+
+        for (String batchRef : batchRefs) {
+            PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
+            if (batch == null) {
+                log.warn("Payment batch not found for reference: {}", batchRef);
+                continue;
+            }
+
+            Row row = sheet.createRow(rowNum++);
+
+            // Batch Reference
+            row.createCell(0).setCellValue(batchRef);
+
+            // Payment Date
+            Cell dateCell = row.createCell(1);
+            if (batch.getPaymentDate() != null) {
+                dateCell.setCellValue(java.sql.Date.valueOf(batch.getPaymentDate()));
+                dateCell.setCellStyle(dateStyle);
+            }
+
+            // Total Allocations
+            Cell allocCell = row.createCell(2);
+            if (batch.getTotalAllocations() != null) {
+                allocCell.setCellValue(batch.getTotalAllocations().doubleValue());
+                allocCell.setCellStyle(currencyStyle);
+            }
+
+            // Balance Adjustment
+            Cell adjCell = row.createCell(3);
+            if (batch.getBalanceAdjustment() != null) {
+                adjCell.setCellValue(batch.getBalanceAdjustment().doubleValue());
+                adjCell.setCellStyle(currencyStyle);
+            }
+
+            // Total Payment
+            Cell payCell = row.createCell(4);
+            if (batch.getTotalPayment() != null) {
+                payCell.setCellValue(batch.getTotalPayment().doubleValue());
+                payCell.setCellStyle(currencyStyle);
+                totalPayments = totalPayments.add(batch.getTotalPayment());
+            }
+
+            // Status
+            row.createCell(5).setCellValue(batch.getStatus() != null ? batch.getStatus().toString() : "");
+
+            // Payment Method
+            row.createCell(6).setCellValue(batch.getPaymentMethod() != null ? batch.getPaymentMethod() : "");
+
+            // Notes
+            row.createCell(7).setCellValue(batch.getNotes() != null ? batch.getNotes() : "");
+        }
+
+        // Total row
+        Row totalRow = sheet.createRow(rowNum);
+        Cell totalLabel = totalRow.createCell(3);
+        totalLabel.setCellValue("TOTAL:");
+        totalLabel.setCellStyle(headerStyle);
+
+        Cell totalCell = totalRow.createCell(4);
+        totalCell.setCellValue(totalPayments.doubleValue());
+        totalCell.setCellStyle(currencyStyle);
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("Owner Payments Summary sheet created with {} batches, total: {}", batchRefs.size(), totalPayments);
     }
 }
