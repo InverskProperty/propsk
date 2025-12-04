@@ -56,20 +56,10 @@ public class UnifiedAllocationService {
             throw new IllegalArgumentException("Transaction and owner are required");
         }
 
-        // Check if allocation already exists for this transaction
-        Optional<UnifiedAllocation> existing = allocationRepository
-            .findByHistoricalTransactionIdAndAllocationType(
-                transaction.getId(), AllocationType.OWNER);
-
-        if (existing.isPresent()) {
-            log.debug("Allocation already exists for transaction {}", transaction.getId());
-            return existing.get();
-        }
+        // Note: No duplicate check - historical transactions don't have a link column in unified_allocations
+        // The sourceRecordId is used to track the original transaction
 
         UnifiedAllocation allocation = new UnifiedAllocation();
-
-        // Link to transaction
-        allocation.setHistoricalTransactionId(transaction.getId());
 
         // Set allocation details
         allocation.setAllocationType(AllocationType.OWNER);

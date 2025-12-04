@@ -52,15 +52,6 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      */
     List<UnifiedAllocation> findByBeneficiaryIdAndPaymentStatus(Long beneficiaryId, PaymentStatus paymentStatus);
 
-    /**
-     * Find allocation by historical transaction ID and type
-     */
-    Optional<UnifiedAllocation> findByHistoricalTransactionIdAndAllocationType(Long historicalTransactionId, AllocationType allocationType);
-
-    /**
-     * Find allocation by historical transaction ID
-     */
-    Optional<UnifiedAllocation> findByHistoricalTransactionId(Long historicalTransactionId);
 
     // ===== PENDING ALLOCATIONS =====
 

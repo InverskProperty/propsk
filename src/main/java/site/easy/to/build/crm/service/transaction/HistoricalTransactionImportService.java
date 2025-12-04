@@ -590,8 +590,7 @@ public class HistoricalTransactionImportService {
         try {
             UnifiedAllocation allocation = new UnifiedAllocation();
 
-            // Link to historical transaction
-            allocation.setHistoricalTransactionId(txn.getId());
+            // Note: incomingTransactionId is for unified_incoming_transactions, not historical
 
             // Allocation details
             allocation.setAllocationType(UnifiedAllocation.AllocationType.OWNER);
