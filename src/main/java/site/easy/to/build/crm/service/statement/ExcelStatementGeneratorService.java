@@ -2218,8 +2218,8 @@ public class ExcelStatementGeneratorService {
         CellStyle dateStyle = createDateStyle(workbook);
         CellStyle currencyStyle = createCurrencyStyle(workbook);
 
-        // Headers
-        String[] headers = {"Date", "Property", "Category", "Description", "Source",
+        // Headers - Transaction ID links to the Transactions sheet
+        String[] headers = {"Transaction ID", "Date", "Property", "Category", "Description", "Source",
                            "Amount", "Batch Ref", "Payment Date", "Payment Status"};
 
         Row headerRow = sheet.createRow(0);
@@ -2240,7 +2240,8 @@ public class ExcelStatementGeneratorService {
         for (Object[] allocation : incomeAllocations) {
             Row row = sheet.createRow(rowNum++);
 
-            // Parse allocation data
+            // Parse allocation data - allocation[0] is transaction_id linking to historical_transactions
+            Long transactionId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
             java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
             String propertyName = allocation[2] != null ? allocation[2].toString() : "";
             String category = allocation[3] != null ? allocation[3].toString() : "";
@@ -2253,52 +2254,59 @@ public class ExcelStatementGeneratorService {
             LocalDate paymentDate = batch != null ? batch.getPaymentDate() : null;
             String paymentStatus = batch != null ? batch.getStatus().toString() : "Unknown";
 
+            // Transaction ID - links to Transactions sheet
+            if (transactionId != null) {
+                row.createCell(0).setCellValue(transactionId);
+            } else {
+                row.createCell(0).setCellValue("");
+            }
+
             // Date
-            Cell dateCell = row.createCell(0);
+            Cell dateCell = row.createCell(1);
             if (transactionDate != null) {
                 dateCell.setCellValue(transactionDate);
                 dateCell.setCellStyle(dateStyle);
             }
 
             // Property
-            row.createCell(1).setCellValue(propertyName);
+            row.createCell(2).setCellValue(propertyName);
 
             // Category
-            row.createCell(2).setCellValue(category);
+            row.createCell(3).setCellValue(category);
 
             // Description
-            row.createCell(3).setCellValue(description);
+            row.createCell(4).setCellValue(description);
 
             // Source
-            row.createCell(4).setCellValue("ALLOCATED");
+            row.createCell(5).setCellValue("ALLOCATED");
 
             // Amount
-            Cell amountCell = row.createCell(5);
+            Cell amountCell = row.createCell(6);
             amountCell.setCellValue(allocatedAmount.doubleValue());
             amountCell.setCellStyle(currencyStyle);
             totalAllocated = totalAllocated.add(allocatedAmount);
 
             // Batch Ref
-            row.createCell(6).setCellValue(batchRef);
+            row.createCell(7).setCellValue(batchRef);
 
             // Payment Date
-            Cell payDateCell = row.createCell(7);
+            Cell payDateCell = row.createCell(8);
             if (paymentDate != null) {
                 payDateCell.setCellValue(java.sql.Date.valueOf(paymentDate));
                 payDateCell.setCellStyle(dateStyle);
             }
 
             // Payment Status
-            row.createCell(8).setCellValue(paymentStatus);
+            row.createCell(9).setCellValue(paymentStatus);
         }
 
         // Total row
         Row totalRow = sheet.createRow(rowNum);
-        Cell totalLabel = totalRow.createCell(5);
+        Cell totalLabel = totalRow.createCell(6);
         totalLabel.setCellValue("TOTAL:");
         totalLabel.setCellStyle(headerStyle);
 
-        Cell totalCell = totalRow.createCell(6);
+        Cell totalCell = totalRow.createCell(7);
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
@@ -2321,8 +2329,8 @@ public class ExcelStatementGeneratorService {
         CellStyle dateStyle = createDateStyle(workbook);
         CellStyle currencyStyle = createCurrencyStyle(workbook);
 
-        // Headers
-        String[] headers = {"Date", "Property", "Category", "Description", "Source",
+        // Headers - Transaction ID links to the Transactions sheet
+        String[] headers = {"Transaction ID", "Date", "Property", "Category", "Description", "Source",
                            "Amount", "Batch Ref", "Payment Date", "Payment Status"};
 
         Row headerRow = sheet.createRow(0);
@@ -2343,7 +2351,8 @@ public class ExcelStatementGeneratorService {
         for (Object[] allocation : expenseAllocations) {
             Row row = sheet.createRow(rowNum++);
 
-            // Parse allocation data
+            // Parse allocation data - allocation[0] is transaction_id linking to historical_transactions
+            Long transactionId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
             java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
             String propertyName = allocation[2] != null ? allocation[2].toString() : "";
             String category = allocation[3] != null ? allocation[3].toString() : "";
@@ -2356,52 +2365,59 @@ public class ExcelStatementGeneratorService {
             LocalDate paymentDate = batch != null ? batch.getPaymentDate() : null;
             String paymentStatus = batch != null ? batch.getStatus().toString() : "Unknown";
 
+            // Transaction ID - links to Transactions sheet
+            if (transactionId != null) {
+                row.createCell(0).setCellValue(transactionId);
+            } else {
+                row.createCell(0).setCellValue("");
+            }
+
             // Date
-            Cell dateCell = row.createCell(0);
+            Cell dateCell = row.createCell(1);
             if (transactionDate != null) {
                 dateCell.setCellValue(transactionDate);
                 dateCell.setCellStyle(dateStyle);
             }
 
             // Property
-            row.createCell(1).setCellValue(propertyName);
+            row.createCell(2).setCellValue(propertyName);
 
             // Category
-            row.createCell(2).setCellValue(category);
+            row.createCell(3).setCellValue(category);
 
             // Description
-            row.createCell(3).setCellValue(description);
+            row.createCell(4).setCellValue(description);
 
             // Source
-            row.createCell(4).setCellValue("ALLOCATED");
+            row.createCell(5).setCellValue("ALLOCATED");
 
             // Amount (already negative for expenses)
-            Cell amountCell = row.createCell(5);
+            Cell amountCell = row.createCell(6);
             amountCell.setCellValue(allocatedAmount.doubleValue());
             amountCell.setCellStyle(currencyStyle);
             totalAllocated = totalAllocated.add(allocatedAmount);
 
             // Batch Ref
-            row.createCell(6).setCellValue(batchRef);
+            row.createCell(7).setCellValue(batchRef);
 
             // Payment Date
-            Cell payDateCell = row.createCell(7);
+            Cell payDateCell = row.createCell(8);
             if (paymentDate != null) {
                 payDateCell.setCellValue(java.sql.Date.valueOf(paymentDate));
                 payDateCell.setCellStyle(dateStyle);
             }
 
             // Payment Status
-            row.createCell(8).setCellValue(paymentStatus);
+            row.createCell(9).setCellValue(paymentStatus);
         }
 
         // Total row
         Row totalRow = sheet.createRow(rowNum);
-        Cell totalLabel = totalRow.createCell(5);
+        Cell totalLabel = totalRow.createCell(6);
         totalLabel.setCellValue("TOTAL:");
         totalLabel.setCellStyle(headerStyle);
 
-        Cell totalCell = totalRow.createCell(6);
+        Cell totalCell = totalRow.createCell(7);
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
