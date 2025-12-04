@@ -2208,6 +2208,17 @@ public class ExcelStatementGeneratorService {
     private void createIncomeAllocationsSheet(Workbook workbook, Long ownerId) {
         log.error("🔍 DEBUG: Creating Income Allocations sheet for owner {}", ownerId);
 
+        // FORENSIC: Get ALL allocations for this owner to understand the data
+        List<site.easy.to.build.crm.entity.TransactionBatchAllocation> allAllocations =
+            allocationRepository.findByBeneficiaryId(ownerId);
+        log.error("🔍 FORENSIC: Found {} TOTAL allocations for owner {}", allAllocations.size(), ownerId);
+
+        for (site.easy.to.build.crm.entity.TransactionBatchAllocation alloc : allAllocations) {
+            log.error("🔍 FORENSIC: Allocation id={}, txnId={}, batch={}, allocatedAmount={}, property={}",
+                alloc.getId(), alloc.getTransactionId(), alloc.getBatchReference(),
+                alloc.getAllocatedAmount(), alloc.getPropertyName());
+        }
+
         Sheet sheet = workbook.createSheet("Income Allocations");
         CellStyle headerStyle = createHeaderStyle(workbook);
         CellStyle dateStyle = createDateStyle(workbook);
@@ -2224,9 +2235,9 @@ public class ExcelStatementGeneratorService {
             cell.setCellStyle(headerStyle);
         }
 
-        // Get income allocations from repository
+        // Get income allocations from repository (allocatedAmount > 0)
         List<Object[]> allocations = allocationRepository.getIncomeAllocationsForOwner(ownerId);
-        log.error("🔍 DEBUG: Found {} income allocations for owner {}", allocations.size(), ownerId);
+        log.error("🔍 DEBUG: Found {} income allocations (allocatedAmount > 0) for owner {}", allocations.size(), ownerId);
 
         // Debug: Check if there are ANY allocations in the system for this owner
         List<String> allBatches = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
