@@ -2384,9 +2384,29 @@ public class ExcelStatementGeneratorService {
         BigDecimal totalAllocated = BigDecimal.ZERO;
 
         // === SOURCE 1: Unified Allocations (EXPENSE type) - from PayProp/historical imports ===
-        List<UnifiedAllocation> unifiedExpenses = unifiedAllocationRepository
-            .findByBeneficiaryIdAndAllocationType(ownerId, UnifiedAllocation.AllocationType.EXPENSE);
-        log.info("Found {} unified EXPENSE allocations for owner {}", unifiedExpenses.size(), ownerId);
+        // Note: Expenses have vendor as beneficiary, not owner. Query by property IDs owned by this owner.
+        // First, get all property IDs from this owner's OWNER allocations
+        List<UnifiedAllocation> ownerAllocations = unifiedAllocationRepository
+            .findByBeneficiaryIdAndAllocationType(ownerId, UnifiedAllocation.AllocationType.OWNER);
+        java.util.Set<Long> ownerPropertyIds = new java.util.HashSet<>();
+        for (UnifiedAllocation ua : ownerAllocations) {
+            if (ua.getPropertyId() != null) {
+                ownerPropertyIds.add(ua.getPropertyId());
+            }
+        }
+        log.info("Owner {} has {} properties from OWNER allocations: {}", ownerId, ownerPropertyIds.size(), ownerPropertyIds);
+
+        // Now get all EXPENSE allocations for those properties
+        List<UnifiedAllocation> unifiedExpenses = new ArrayList<>();
+        for (Long propertyId : ownerPropertyIds) {
+            List<UnifiedAllocation> propertyAllocations = unifiedAllocationRepository.findByPropertyId(propertyId);
+            for (UnifiedAllocation ua : propertyAllocations) {
+                if (ua.getAllocationType() == UnifiedAllocation.AllocationType.EXPENSE) {
+                    unifiedExpenses.add(ua);
+                }
+            }
+        }
+        log.info("Found {} unified EXPENSE allocations for owner {}'s properties", unifiedExpenses.size(), ownerId);
 
         for (UnifiedAllocation ua : unifiedExpenses) {
             Row row = sheet.createRow(rowNum++);
