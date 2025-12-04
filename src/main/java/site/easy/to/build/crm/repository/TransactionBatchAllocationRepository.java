@@ -171,14 +171,15 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
     /**
      * Find distinct batch references for an owner
      * Note: Uses payment_batches join since beneficiaryId in allocations is often NULL
+     * Uses native query with COLLATE to handle collation mismatch between tables
      */
-    @Query("""
-        SELECT DISTINCT a.batchReference
-        FROM TransactionBatchAllocation a
-        JOIN PaymentBatch pb ON a.batchReference = pb.batchId
-        WHERE pb.beneficiaryId = :beneficiaryId
-        ORDER BY a.batchReference DESC
-    """)
+    @Query(value = """
+        SELECT DISTINCT a.batch_reference
+        FROM transaction_batch_allocations a
+        JOIN payment_batches pb ON a.batch_reference COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
+        WHERE pb.beneficiary_id = :beneficiaryId
+        ORDER BY a.batch_reference DESC
+    """, nativeQuery = true)
     List<String> findDistinctBatchReferencesByBeneficiaryId(@Param("beneficiaryId") Long beneficiaryId);
 
     /**
@@ -192,39 +193,41 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
     /**
      * Get income allocations for an owner with transaction details
      * Note: Owner is determined via payment_batches join, NOT via beneficiaryId (which is often NULL)
+     * Uses native query with COLLATE to handle collation mismatch between tables
      * Returns: transactionId, transactionDate, propertyName, category, amount, netToOwner, commission, batchReference, allocatedAmount, description, tenantName
      */
-    @Query("""
-        SELECT a.transactionId, t.transactionDate, a.propertyName, t.category,
-               t.amount, t.netToOwnerAmount, t.commissionAmount,
-               a.batchReference, a.allocatedAmount,
+    @Query(value = """
+        SELECT a.transaction_id, t.transaction_date, a.property_name, t.category,
+               t.amount, t.net_to_owner_amount, t.commission_amount,
+               a.batch_reference, a.allocated_amount,
                t.description,
-               (SELECT c.name FROM Customer c WHERE c.customerId = t.tenant.customerId) as tenantName
-        FROM TransactionBatchAllocation a
-        JOIN HistoricalTransaction t ON a.transactionId = t.id
-        JOIN PaymentBatch pb ON a.batchReference = pb.batchId
-        WHERE pb.beneficiaryId = :ownerId
-        AND a.allocatedAmount > 0
-        ORDER BY t.transactionDate, a.propertyName
-    """)
+               (SELECT c.name FROM customers c WHERE c.customer_id = t.tenant_id) as tenant_name
+        FROM transaction_batch_allocations a
+        JOIN historical_transactions t ON a.transaction_id = t.id
+        JOIN payment_batches pb ON a.batch_reference COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
+        WHERE pb.beneficiary_id = :ownerId
+        AND a.allocated_amount > 0
+        ORDER BY t.transaction_date, a.property_name
+    """, nativeQuery = true)
     List<Object[]> getIncomeAllocationsForOwner(@Param("ownerId") Long ownerId);
 
     /**
      * Get expense allocations for an owner with transaction details
      * Note: Owner is determined via payment_batches join, NOT via beneficiaryId (which is often NULL)
+     * Uses native query with COLLATE to handle collation mismatch between tables
      * Returns: transactionId, transactionDate, propertyName, category, amount, batchReference, allocatedAmount, description
      */
-    @Query("""
-        SELECT a.transactionId, t.transactionDate, a.propertyName, t.category,
-               t.amount, a.batchReference, a.allocatedAmount,
+    @Query(value = """
+        SELECT a.transaction_id, t.transaction_date, a.property_name, t.category,
+               t.amount, a.batch_reference, a.allocated_amount,
                t.description
-        FROM TransactionBatchAllocation a
-        JOIN HistoricalTransaction t ON a.transactionId = t.id
-        JOIN PaymentBatch pb ON a.batchReference = pb.batchId
-        WHERE pb.beneficiaryId = :ownerId
-        AND a.allocatedAmount < 0
-        ORDER BY t.transactionDate, a.propertyName
-    """)
+        FROM transaction_batch_allocations a
+        JOIN historical_transactions t ON a.transaction_id = t.id
+        JOIN payment_batches pb ON a.batch_reference COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
+        WHERE pb.beneficiary_id = :ownerId
+        AND a.allocated_amount < 0
+        ORDER BY t.transaction_date, a.property_name
+    """, nativeQuery = true)
     List<Object[]> getExpenseAllocationsForOwner(@Param("ownerId") Long ownerId);
 
     /**
