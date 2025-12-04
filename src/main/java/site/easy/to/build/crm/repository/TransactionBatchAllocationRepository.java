@@ -169,9 +169,16 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
     List<Object[]> getPropertySummaryForBatch(@Param("batchReference") String batchReference);
 
     /**
-     * Find distinct batch references for a beneficiary (owner)
+     * Find distinct batch references for an owner
+     * Note: Uses payment_batches join since beneficiaryId in allocations is often NULL
      */
-    @Query("SELECT DISTINCT a.batchReference FROM TransactionBatchAllocation a WHERE a.beneficiaryId = :beneficiaryId ORDER BY a.batchReference DESC")
+    @Query("""
+        SELECT DISTINCT a.batchReference
+        FROM TransactionBatchAllocation a
+        JOIN PaymentBatch pb ON a.batchReference = pb.batchId
+        WHERE pb.beneficiaryId = :beneficiaryId
+        ORDER BY a.batchReference DESC
+    """)
     List<String> findDistinctBatchReferencesByBeneficiaryId(@Param("beneficiaryId") Long beneficiaryId);
 
     /**
@@ -184,7 +191,8 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
 
     /**
      * Get income allocations for an owner with transaction details
-     * Returns: transactionId, transactionDate, propertyName, category, amount, netToOwner, batchReference, allocatedAmount
+     * Note: Owner is determined via payment_batches join, NOT via beneficiaryId (which is often NULL)
+     * Returns: transactionId, transactionDate, propertyName, category, amount, netToOwner, commission, batchReference, allocatedAmount, description, tenantName
      */
     @Query("""
         SELECT a.transactionId, t.transactionDate, a.propertyName, t.category,
@@ -194,7 +202,8 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
                (SELECT c.name FROM Customer c WHERE c.customerId = t.tenant.customerId) as tenantName
         FROM TransactionBatchAllocation a
         JOIN HistoricalTransaction t ON a.transactionId = t.id
-        WHERE a.beneficiaryId = :ownerId
+        JOIN PaymentBatch pb ON a.batchReference = pb.batchId
+        WHERE pb.beneficiaryId = :ownerId
         AND a.allocatedAmount > 0
         ORDER BY t.transactionDate, a.propertyName
     """)
@@ -202,6 +211,7 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
 
     /**
      * Get expense allocations for an owner with transaction details
+     * Note: Owner is determined via payment_batches join, NOT via beneficiaryId (which is often NULL)
      * Returns: transactionId, transactionDate, propertyName, category, amount, batchReference, allocatedAmount, description
      */
     @Query("""
@@ -210,7 +220,8 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
                t.description
         FROM TransactionBatchAllocation a
         JOIN HistoricalTransaction t ON a.transactionId = t.id
-        WHERE a.beneficiaryId = :ownerId
+        JOIN PaymentBatch pb ON a.batchReference = pb.batchId
+        WHERE pb.beneficiaryId = :ownerId
         AND a.allocatedAmount < 0
         ORDER BY t.transactionDate, a.propertyName
     """)
