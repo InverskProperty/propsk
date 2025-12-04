@@ -9,7 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
 import site.easy.to.build.crm.dto.statement.TransactionDTO;
+import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.PaymentBatch;
+import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.PaymentBatchRepository;
 import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
 
@@ -45,6 +47,9 @@ public class ExcelStatementGeneratorService {
 
     @Autowired
     private PaymentBatchRepository paymentBatchRepository;
+
+    @Autowired
+    private CustomerRepository customerRepository;
 
     /**
      * Generate complete statement workbook
@@ -205,9 +210,13 @@ public class ExcelStatementGeneratorService {
         createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate);
 
         // Create allocation tracking sheets for this owner
-        createIncomeAllocationsSheet(workbook, customerId);
-        createExpenseAllocationsSheet(workbook, customerId);
-        createOwnerPaymentsSummarySheet(workbook, customerId);
+        // Resolve the actual owner ID (handles delegated users who manage another owner's properties)
+        Long resolvedOwnerId = resolveActualOwnerId(customerId);
+        log.error("🔍 DEBUG: Resolved owner ID {} -> {} for allocation sheets", customerId, resolvedOwnerId);
+
+        createIncomeAllocationsSheet(workbook, resolvedOwnerId);
+        createExpenseAllocationsSheet(workbook, resolvedOwnerId);
+        createOwnerPaymentsSummarySheet(workbook, resolvedOwnerId);
 
         log.info("Customer statement workbook with custom periods created successfully with {} monthly sheets", periods.size());
         return workbook;
@@ -2150,6 +2159,45 @@ public class ExcelStatementGeneratorService {
         DataFormat format = workbook.createDataFormat();
         style.setDataFormat(format.getFormat("£#,##0.00"));
         return style;
+    }
+
+    // ===== OWNER ID RESOLUTION =====
+
+    /**
+     * Resolve the actual owner ID for allocation lookups.
+     * For DELEGATED_USER or MANAGER types, returns the manages_owner_id.
+     * For PROPERTY_OWNER, returns the same customerId.
+     * This ensures allocation sheets show data for the actual property owner,
+     * not the delegated user who is viewing the statement.
+     */
+    private Long resolveActualOwnerId(Long customerId) {
+        try {
+            Customer customer = customerRepository.findById(customerId).orElse(null);
+            if (customer == null) {
+                log.error("🔍 DEBUG: Customer {} not found, returning same ID", customerId);
+                return customerId;
+            }
+
+            log.error("🔍 DEBUG: Customer {} type={}, managesOwnerId={}",
+                    customerId, customer.getCustomerType(), customer.getManagesOwnerId());
+
+            // If delegated user or manager with an assigned owner, return the owner they manage
+            if ((customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER ||
+                 customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.MANAGER) &&
+                customer.getManagesOwnerId() != null) {
+
+                log.error("🔍 DEBUG: Delegated user/manager {} manages owner {}, using that ID",
+                        customerId, customer.getManagesOwnerId());
+                return customer.getManagesOwnerId();
+            }
+
+            // Otherwise return the same ID (it's already the owner)
+            return customerId;
+
+        } catch (Exception e) {
+            log.error("Error resolving owner ID for customer {}: {}", customerId, e.getMessage());
+            return customerId;
+        }
     }
 
     // ===== ALLOCATION TRACKING SHEETS =====
