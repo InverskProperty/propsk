@@ -55,11 +55,14 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
      * Find invoice by property and PayProp customer ID
      * Used for robust invoice linking when customer entity matching fails
      * but we have the PayProp tenant ID from the payment
+     *
+     * Note: Uses CASE to put ongoing leases (null end_date) first, then by end_date DESC
+     * JPQL doesn't support NULLS FIRST syntax
      */
     @Query("SELECT i FROM Invoice i WHERE i.property = :property " +
            "AND i.paypropCustomerId = :paypropCustomerId " +
            "AND i.deletedAt IS NULL " +
-           "ORDER BY i.endDate DESC NULLS FIRST")
+           "ORDER BY CASE WHEN i.endDate IS NULL THEN 0 ELSE 1 END, i.endDate DESC")
     List<Invoice> findByPropertyAndPaypropCustomerId(
         @Param("property") Property property,
         @Param("paypropCustomerId") String paypropCustomerId
