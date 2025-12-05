@@ -205,11 +205,11 @@ public class UnifiedTransactionRebuildService {
                 CASE
                     -- First check data_source (PayProp specific)
                     WHEN ft.data_source = 'INCOMING_PAYMENT' THEN 'INCOMING'
-                    WHEN ft.data_source = 'BATCH_PAYMENT' OR ft.data_source = 'COMMISSION_PAYMENT' THEN 'OUTGOING'
-                    -- Then check category_name (like historical logic) - THIS IS THE FIX!
+                    WHEN ft.data_source IN ('BATCH_PAYMENT', 'COMMISSION_PAYMENT', 'EXPENSE_PAYMENT') THEN 'OUTGOING'
+                    -- Then check category_name (like historical logic)
                     WHEN ft.category_name LIKE '%rent%' OR ft.category_name LIKE '%Rent%' THEN 'INCOMING'
-                    -- PayProp expense categories: Council, Disbursement, Contractor (NOT Owner, NOT Commission)
-                    WHEN ft.category_name IN ('Council', 'Disbursement', 'Contractor', 'cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
+                    -- PayProp expense categories: Council, Disbursement, Contractor, Other (NOT Owner, NOT Commission)
+                    WHEN ft.category_name IN ('Council', 'Disbursement', 'Contractor', 'Other', 'cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
                         OR ft.category_name LIKE '%expense%' OR ft.category_name LIKE '%Expense%' THEN 'OUTGOING'
                     ELSE 'OUTGOING'
                 END as flow_direction,
@@ -218,7 +218,7 @@ public class UnifiedTransactionRebuildService {
             FROM financial_transactions ft
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
-            WHERE (ft.invoice_id IS NOT NULL OR ft.data_source = 'INCOMING_PAYMENT')
+            WHERE (ft.invoice_id IS NOT NULL OR ft.data_source IN ('INCOMING_PAYMENT', 'EXPENSE_PAYMENT'))
               AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
         """;
 
@@ -392,7 +392,6 @@ public class UnifiedTransactionRebuildService {
                 lease_reference, property_name,
                 payprop_transaction_id, payprop_data_source,
                 transaction_type, flow_direction,
-                transaction_type, flow_direction,
                 rebuilt_at, rebuild_batch_id
             )
             SELECT
@@ -412,14 +411,16 @@ public class UnifiedTransactionRebuildService {
                 ft.transaction_type,
                 CASE
                     WHEN ft.data_source = 'INCOMING_PAYMENT' THEN 'INCOMING'
-                    WHEN ft.data_source = 'BATCH_PAYMENT' OR ft.data_source = 'COMMISSION_PAYMENT' THEN 'OUTGOING'
+                    WHEN ft.data_source IN ('BATCH_PAYMENT', 'COMMISSION_PAYMENT', 'EXPENSE_PAYMENT') THEN 'OUTGOING'
+                    -- PayProp expense categories
+                    WHEN ft.category_name IN ('Council', 'Disbursement', 'Contractor', 'Other') THEN 'OUTGOING'
                     ELSE 'OUTGOING'
                 END,
                 NOW(), ?
             FROM financial_transactions ft
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
-            WHERE (ft.invoice_id IS NOT NULL OR ft.data_source = 'INCOMING_PAYMENT')
+            WHERE (ft.invoice_id IS NOT NULL OR ft.data_source IN ('INCOMING_PAYMENT', 'EXPENSE_PAYMENT'))
               AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
               AND ft.updated_at > ?
         """;

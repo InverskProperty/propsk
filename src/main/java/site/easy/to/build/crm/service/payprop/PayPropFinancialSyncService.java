@@ -215,7 +215,11 @@ public class PayPropFinancialSyncService {
             Map<String, Object> ownerPaymentsResult = syncOwnerPaymentsToFinancialTransactions();
             syncResults.put("owner_payments", ownerPaymentsResult);
 
-            // 14. 🚨 CRITICAL: Validate instruction vs completion data integrity
+            // 14. 🚨 NEW: Sync expense payments (Council, Disbursement, Other) from payprop_report_all_payments
+            Map<String, Object> expensePaymentsResult = syncExpensePaymentsToFinancialTransactions();
+            syncResults.put("expense_payments", expensePaymentsResult);
+
+            // 15. 🚨 CRITICAL: Validate instruction vs completion data integrity
             Map<String, Object> validationResult = validateInstructionCompletionIntegrity();
             syncResults.put("data_integrity", validationResult);
 
@@ -2750,6 +2754,168 @@ public class PayPropFinancialSyncService {
 
         } catch (Exception e) {
             logger.error("❌ Failed to sync owner payments", e);
+            result.put("status", "FAILED");
+            result.put("error", e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
+     * Sync expense payments (Council, Disbursement, Other) from payprop_report_all_payments to financial_transactions
+     * These are outgoing payments for council tax, service charges, utilities, etc.
+     */
+    @Transactional
+    public Map<String, Object> syncExpensePaymentsToFinancialTransactions() {
+        Map<String, Object> result = new HashMap<>();
+
+        try {
+            logger.info("💸 Starting expense payment sync from payprop_report_all_payments to financial_transactions");
+
+            // Query expense payments from payprop_report_all_payments
+            // Categories: Council (council tax), Disbursement (service charges), Other (utilities)
+            // Exclude Owner and Commission which are handled separately
+            String query = """
+                SELECT
+                    payprop_id, amount, description, due_date, reference,
+                    beneficiary_payprop_id, beneficiary_name, beneficiary_type,
+                    category_payprop_id, category_name,
+                    incoming_property_payprop_id, incoming_property_name,
+                    payment_batch_id, payment_batch_transfer_date,
+                    reconciliation_date
+                FROM payprop_report_all_payments
+                WHERE category_name IN ('Council', 'Disbursement', 'Other')
+                AND amount != 0
+                ORDER BY due_date DESC
+                """;
+
+            List<Map<String, Object>> expensePayments = new ArrayList<>();
+
+            try (Connection conn = dataSource.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(query);
+                 ResultSet rs = stmt.executeQuery()) {
+
+                while (rs.next()) {
+                    Map<String, Object> payment = new HashMap<>();
+                    payment.put("payprop_id", rs.getString("payprop_id"));
+                    payment.put("amount", rs.getBigDecimal("amount"));
+                    payment.put("description", rs.getString("description"));
+                    payment.put("due_date", rs.getDate("due_date") != null ? rs.getDate("due_date").toLocalDate() : null);
+                    payment.put("reference", rs.getString("reference"));
+                    payment.put("beneficiary_payprop_id", rs.getString("beneficiary_payprop_id"));
+                    payment.put("beneficiary_name", rs.getString("beneficiary_name"));
+                    payment.put("beneficiary_type", rs.getString("beneficiary_type"));
+                    payment.put("category_name", rs.getString("category_name"));
+                    payment.put("incoming_property_payprop_id", rs.getString("incoming_property_payprop_id"));
+                    payment.put("incoming_property_name", rs.getString("incoming_property_name"));
+                    payment.put("payment_batch_id", rs.getString("payment_batch_id"));
+                    payment.put("payment_batch_transfer_date", rs.getDate("payment_batch_transfer_date") != null ?
+                        rs.getDate("payment_batch_transfer_date").toLocalDate() : null);
+                    payment.put("reconciliation_date", rs.getDate("reconciliation_date") != null ?
+                        rs.getDate("reconciliation_date").toLocalDate() : null);
+                    expensePayments.add(payment);
+                }
+            }
+
+            logger.info("Found {} expense payments in payprop_report_all_payments", expensePayments.size());
+
+            int processed = 0;
+            int created = 0;
+            int skipped = 0;
+            int errors = 0;
+            BigDecimal totalAmount = BigDecimal.ZERO;
+            Map<String, BigDecimal> amountByCategory = new HashMap<>();
+
+            for (Map<String, Object> payment : expensePayments) {
+                try {
+                    processed++;
+                    String payPropId = (String) payment.get("payprop_id");
+
+                    // Check if already exists in financial_transactions
+                    FinancialTransaction existingTransaction = financialTransactionRepository
+                        .findByPayPropTransactionId(payPropId);
+
+                    if (existingTransaction != null) {
+                        skipped++;
+                        continue;
+                    }
+
+                    // Create new financial transaction
+                    FinancialTransaction transaction = new FinancialTransaction();
+
+                    // PayProp integration fields
+                    transaction.setPayPropTransactionId(payPropId);
+
+                    // Financial details - store amount as positive for consistency
+                    BigDecimal amount = (BigDecimal) payment.get("amount");
+                    transaction.setAmount(amount.abs());
+                    transaction.setMatchedAmount(amount.abs());
+
+                    // Use due_date as transaction date (reconciliation_date may be null for pending expenses)
+                    LocalDate transactionDate = (LocalDate) payment.get("due_date");
+                    if (transactionDate == null) {
+                        transactionDate = (LocalDate) payment.get("reconciliation_date");
+                    }
+                    if (transactionDate == null) {
+                        transactionDate = LocalDate.now();
+                    }
+                    transaction.setTransactionDate(transactionDate);
+
+                    // Set transaction type based on category
+                    String categoryName = (String) payment.get("category_name");
+                    transaction.setTransactionType("expense");
+                    transaction.setDescription((String) payment.get("description"));
+                    transaction.setHasTax(false);
+
+                    // Property information
+                    transaction.setPropertyId((String) payment.get("incoming_property_payprop_id"));
+                    transaction.setPropertyName((String) payment.get("incoming_property_name"));
+
+                    // Category information - preserve the actual PayProp category
+                    transaction.setCategoryName(categoryName);
+
+                    // Data source tracking - EXPENSE_PAYMENT for expenses
+                    transaction.setDataSource("EXPENSE_PAYMENT");
+                    transaction.setInstructionId((String) payment.get("payment_batch_id"));
+                    transaction.setReconciliationDate((LocalDate) payment.get("reconciliation_date"));
+                    transaction.setInstructionDate((LocalDate) payment.get("payment_batch_transfer_date"));
+
+                    // Additional PayProp batch tracking
+                    transaction.setPayPropBatchId((String) payment.get("payment_batch_id"));
+
+                    // Save transaction
+                    financialTransactionRepository.save(transaction);
+                    created++;
+                    totalAmount = totalAmount.add(amount.abs());
+
+                    // Track by category
+                    amountByCategory.merge(categoryName, amount.abs(), BigDecimal::add);
+
+                    logger.debug("Created expense transaction: {} ({}) for £{} - {}",
+                        payPropId, categoryName, amount.abs(), payment.get("description"));
+
+                } catch (Exception e) {
+                    errors++;
+                    logger.error("Error processing expense payment {}: {}",
+                        payment.get("payprop_id"), e.getMessage(), e);
+                }
+            }
+
+            result.put("status", "SUCCESS");
+            result.put("total_found", expensePayments.size());
+            result.put("processed", processed);
+            result.put("created", created);
+            result.put("skipped", skipped);
+            result.put("errors", errors);
+            result.put("total_amount", totalAmount);
+            result.put("by_category", amountByCategory);
+
+            logger.info("✅ Expense payment sync completed: {} created, {} skipped, {} errors, £{} total",
+                created, skipped, errors, totalAmount);
+            logger.info("📊 Breakdown by category: {}", amountByCategory);
+
+        } catch (Exception e) {
+            logger.error("❌ Failed to sync expense payments", e);
             result.put("status", "FAILED");
             result.put("error", e.getMessage());
         }
