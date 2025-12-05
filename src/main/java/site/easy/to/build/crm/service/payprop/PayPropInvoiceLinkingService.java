@@ -33,23 +33,35 @@ public class PayPropInvoiceLinkingService {
 
     /**
      * Find the most appropriate invoice (lease) for a transaction
+     * Delegates to the full method with null tenantPayPropId
+     */
+    public Invoice findInvoiceForTransaction(Property property,
+                                            Customer customer,
+                                            String payPropInvoiceId,
+                                            LocalDate transactionDate) {
+        return findInvoiceForTransaction(property, customer, payPropInvoiceId, null, transactionDate);
+    }
+
+    /**
+     * Find the most appropriate invoice (lease) for a transaction
      *
-     * NEW Matching Strategy (flexible, no date constraints):
-     * 1. Try PayProp invoice ID match (if available)
-     * 2. Try property + customer match (strongest identifiers)
-     *    - If multiple matches: pick most recent lease by end_date
-     * 3. Fallback to property-only match
-     * 4. Date is informational only, not a hard constraint
+     * Matching Strategy (priority order):
+     * 1. PayProp invoice ID match (exact - if available)
+     * 2. Property + PayProp tenant ID match (robust ID-based matching)
+     * 3. Property + Customer entity match (entity-based matching)
+     * 4. Property-only fallback (weakest - picks ongoing lease)
      *
      * @param property The property
-     * @param customer The customer (tenant/beneficiary)
+     * @param customer The customer (tenant/beneficiary) - may be null
      * @param payPropInvoiceId PayProp invoice ID (may be null)
+     * @param tenantPayPropId PayProp tenant ID from the payment (may be null)
      * @param transactionDate Date of the transaction (informational)
      * @return Best matching invoice, or null if no match found
      */
     public Invoice findInvoiceForTransaction(Property property,
                                             Customer customer,
                                             String payPropInvoiceId,
+                                            String tenantPayPropId,
                                             LocalDate transactionDate) {
 
         if (property == null) {
@@ -67,7 +79,33 @@ public class PayPropInvoiceLinkingService {
             }
         }
 
-        // PRIORITY 2: Property + Customer match (strong identifiers, no date constraint)
+        // PRIORITY 2: Property + PayProp tenant ID match (robust ID-based matching)
+        // This is MORE RELIABLE than customer entity matching because it uses the
+        // PayProp tenant ID stored on the invoice (payprop_customer_id field)
+        if (tenantPayPropId != null && !tenantPayPropId.trim().isEmpty()) {
+            List<Invoice> tenantLeases = invoiceRepository.findByPropertyAndPaypropCustomerId(
+                property, tenantPayPropId);
+
+            if (tenantLeases.size() == 1) {
+                Invoice invoice = tenantLeases.get(0);
+                log.info("✅ Found single lease for property {} + PayProp tenant {}: invoice {}",
+                        property.getId(), tenantPayPropId, invoice.getId());
+                return invoice;
+            }
+
+            if (tenantLeases.size() > 1) {
+                // Multiple leases: query already ordered by end_date DESC NULLS FIRST (ongoing first)
+                Invoice invoice = tenantLeases.get(0);
+                log.info("✅ Found {} leases for property {} + PayProp tenant {}, using most recent: invoice {}",
+                        tenantLeases.size(), property.getId(), tenantPayPropId, invoice.getId());
+                return invoice;
+            }
+
+            log.debug("No leases found for property {} + PayProp tenant {}",
+                    property.getId(), tenantPayPropId);
+        }
+
+        // PRIORITY 3: Property + Customer entity match (fallback if PayProp ID not on invoice)
         if (customer != null) {
             List<Invoice> customerLeases = invoiceRepository.findByCustomerAndProperty(
                 customer, property);
@@ -81,9 +119,10 @@ public class PayPropInvoiceLinkingService {
 
             if (customerLeases.size() > 1) {
                 // Multiple leases: Pick most recent by end_date
+                // nullsFirst = ongoing leases (null end_date) are preferred over ended leases
                 Invoice invoice = customerLeases.stream()
                     .sorted(Comparator.comparing(Invoice::getEndDate,
-                                               Comparator.nullsLast(Comparator.reverseOrder())))
+                                               Comparator.nullsFirst(Comparator.reverseOrder())))
                     .findFirst()
                     .orElse(null);
 
@@ -97,7 +136,7 @@ public class PayPropInvoiceLinkingService {
                     property.getId(), customer.getCustomerId());
         }
 
-        // PRIORITY 3: Property-only fallback (weakest)
+        // PRIORITY 4: Property-only fallback (weakest)
         List<Invoice> propertyLeases = invoiceRepository.findByProperty(property);
 
         if (propertyLeases.isEmpty()) {
@@ -113,9 +152,10 @@ public class PayPropInvoiceLinkingService {
         }
 
         // Multiple leases: Pick most recent by end_date
+        // nullsFirst = ongoing leases (null end_date) are preferred over ended leases
         Invoice invoice = propertyLeases.stream()
             .sorted(Comparator.comparing(Invoice::getEndDate,
-                                       Comparator.nullsLast(Comparator.reverseOrder())))
+                                       Comparator.nullsFirst(Comparator.reverseOrder())))
             .findFirst()
             .orElse(null);
 

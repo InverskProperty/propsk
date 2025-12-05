@@ -173,26 +173,11 @@ public class PayPropFinancialSyncService {
             // - 89 records totaling £10,601.26
             // - Links to incoming_transaction_id for proper association
 
-            // 11. 🚨 NEW: Sync incoming tenant payments from payprop_export_incoming_payments
-            if (incomingPaymentSyncService != null) {
-                logger.info("💰 Syncing incoming tenant payments to financial_transactions");
-                PayPropIncomingPaymentFinancialSyncService.IncomingPaymentSyncResult incomingResult =
-                    incomingPaymentSyncService.syncIncomingPaymentsToFinancialTransactions();
-                Map<String, Object> incomingPaymentsMap = new HashMap<>();
-                incomingPaymentsMap.put("success", incomingResult.success);
-                incomingPaymentsMap.put("total", incomingResult.totalIncomingPayments);
-                incomingPaymentsMap.put("imported", incomingResult.imported);
-                incomingPaymentsMap.put("skipped", incomingResult.skipped);
-                incomingPaymentsMap.put("errors", incomingResult.errors);
-                syncResults.put("incoming_payments", incomingPaymentsMap);
-            } else {
-                logger.warn("⚠️ IncomingPaymentSyncService not available - skipping");
-                syncResults.put("incoming_payments", Map.of("status", "UNAVAILABLE", "reason", "Service not autowired"));
-            }
-
-            // 12. 🚨 NEW: Enrich local leases with PayProp invoice instruction IDs
+            // 11. 🚨 CRITICAL: Enrich local leases with PayProp invoice instruction IDs FIRST
+            // This MUST happen BEFORE incoming payment sync so that leases have payprop_customer_id set
+            // for proper invoice linking during payment import
             if (invoiceInstructionEnrichmentService != null) {
-                logger.info("🔗 Enriching local leases with PayProp invoice instruction IDs");
+                logger.info("🔗 Step 11: Enriching local leases with PayProp invoice instruction IDs (BEFORE payment sync)");
                 PayPropInvoiceInstructionEnrichmentService.EnrichmentResult enrichmentResult =
                     invoiceInstructionEnrichmentService.enrichLocalLeasesWithPayPropIds();
                 Map<String, Object> enrichmentMap = new HashMap<>();
@@ -206,6 +191,24 @@ public class PayPropFinancialSyncService {
             } else {
                 logger.warn("⚠️ InvoiceInstructionEnrichmentService not available - skipping");
                 syncResults.put("lease_enrichment", Map.of("status", "UNAVAILABLE", "reason", "Service not autowired"));
+            }
+
+            // 12. Sync incoming tenant payments from payprop_export_incoming_payments
+            // Now leases have payprop_customer_id set from Step 11, enabling proper invoice linking
+            if (incomingPaymentSyncService != null) {
+                logger.info("💰 Step 12: Syncing incoming tenant payments to financial_transactions");
+                PayPropIncomingPaymentFinancialSyncService.IncomingPaymentSyncResult incomingResult =
+                    incomingPaymentSyncService.syncIncomingPaymentsToFinancialTransactions();
+                Map<String, Object> incomingPaymentsMap = new HashMap<>();
+                incomingPaymentsMap.put("success", incomingResult.success);
+                incomingPaymentsMap.put("total", incomingResult.totalIncomingPayments);
+                incomingPaymentsMap.put("imported", incomingResult.imported);
+                incomingPaymentsMap.put("skipped", incomingResult.skipped);
+                incomingPaymentsMap.put("errors", incomingResult.errors);
+                syncResults.put("incoming_payments", incomingPaymentsMap);
+            } else {
+                logger.warn("⚠️ IncomingPaymentSyncService not available - skipping");
+                syncResults.put("incoming_payments", Map.of("status", "UNAVAILABLE", "reason", "Service not autowired"));
             }
 
             // 13. 🚨 NEW: Sync owner payments from payprop_report_all_payments to financial_transactions

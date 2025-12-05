@@ -192,10 +192,12 @@ public class PayPropIncomingPaymentImportService {
         }
 
         // Find and link the appropriate lease (invoice) for this payment
+        // Pass tenantPayPropId for robust ID-based matching via payprop_customer_id on invoice
         Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
             property,
             customer,
             null, // No PayProp invoice ID for incoming payments
+            payment.tenantPayPropId, // Use PayProp tenant ID for reliable matching
             payment.reconciliationDate
         );
 

@@ -50,7 +50,21 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
      * Find all invoices for a customer-property combination
      */
     List<Invoice> findByCustomerAndProperty(Customer customer, Property property);
-    
+
+    /**
+     * Find invoice by property and PayProp customer ID
+     * Used for robust invoice linking when customer entity matching fails
+     * but we have the PayProp tenant ID from the payment
+     */
+    @Query("SELECT i FROM Invoice i WHERE i.property = :property " +
+           "AND i.paypropCustomerId = :paypropCustomerId " +
+           "AND i.deletedAt IS NULL " +
+           "ORDER BY i.endDate DESC NULLS FIRST")
+    List<Invoice> findByPropertyAndPaypropCustomerId(
+        @Param("property") Property property,
+        @Param("paypropCustomerId") String paypropCustomerId
+    );
+
     // ===== SYNC STATUS FINDERS =====
     
     /**

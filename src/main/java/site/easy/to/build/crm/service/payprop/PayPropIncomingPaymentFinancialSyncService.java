@@ -115,22 +115,48 @@ public class PayPropIncomingPaymentFinancialSyncService {
 
                     if (existingTransaction != null) {
                         // UPDATE existing record - re-link invoice if needed
-                        if (existingTransaction.getInvoice() == null) {
-                            Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
-                                property, tenant, null, payment.reconciliationDate);
+                        Invoice currentInvoice = existingTransaction.getInvoice();
+                        boolean needsRelink = false;
+                        String relinkReason = null;
 
-                            if (invoice != null) {
-                                existingTransaction.setInvoice(invoice);
+                        if (currentInvoice == null) {
+                            // No invoice linked - needs linking
+                            needsRelink = true;
+                            relinkReason = "no invoice linked";
+                        } else if (payment.tenantPaypropId != null && !payment.tenantPaypropId.isEmpty()) {
+                            // REVALIDATION: Check if current invoice matches the payment's tenant
+                            // Compare payment's tenantPaypropId with invoice's payprop_customer_id
+                            String invoiceTenantId = currentInvoice.getPaypropCustomerId();
+                            if (invoiceTenantId == null || !invoiceTenantId.equals(payment.tenantPaypropId)) {
+                                // Mismatch! The payment is linked to the wrong tenant's lease
+                                needsRelink = true;
+                                relinkReason = String.format("tenant mismatch (payment tenant: %s, invoice tenant: %s)",
+                                    payment.tenantPaypropId, invoiceTenantId != null ? invoiceTenantId : "NULL");
+                                log.warn("⚠️ Payment {} linked to wrong lease! {} - will re-link",
+                                    payment.paypropId, relinkReason);
+                            }
+                        }
+
+                        if (needsRelink) {
+                            // Pass tenantPaypropId for robust ID-based matching
+                            Invoice correctInvoice = invoiceLinkingService.findInvoiceForTransaction(
+                                property, tenant, null, payment.tenantPaypropId, payment.reconciliationDate);
+
+                            if (correctInvoice != null) {
+                                Long oldInvoiceId = currentInvoice != null ? currentInvoice.getId() : null;
+                                existingTransaction.setInvoice(correctInvoice);
                                 financialTransactionRepository.save(existingTransaction);
-                                log.info("✅ Re-linked existing payment {} to invoice {} (lease: {})",
-                                    payment.paypropId, invoice.getId(), invoice.getLeaseReference());
+                                log.info("✅ Re-linked payment {} from invoice {} to invoice {} (lease: {}) - reason: {}",
+                                    payment.paypropId, oldInvoiceId, correctInvoice.getId(),
+                                    correctInvoice.getLeaseReference(), relinkReason);
                                 imported++; // Count as updated
                             } else {
-                                log.debug("⏭️ Skipping already imported (no invoice found): {}", payment.paypropId);
+                                log.debug("⏭️ Skipping payment {} ({}): no correct invoice found",
+                                    payment.paypropId, relinkReason);
                                 skipped++;
                             }
                         } else {
-                            log.debug("⏭️ Skipping already imported and linked: {}", payment.paypropId);
+                            log.debug("⏭️ Skipping already correctly linked: {}", payment.paypropId);
                             skipped++;
                         }
                         continue;
@@ -282,10 +308,12 @@ public class PayPropIncomingPaymentFinancialSyncService {
         }
 
         // 🔗 CRITICAL FIX: Link to invoice (lease) for statement generation
+        // Pass tenantPaypropId for robust ID-based matching via payprop_customer_id on invoice
         Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
             property,
             tenant,
             null, // Incoming payments don't have PayProp invoice ID
+            payment.tenantPaypropId, // Use PayProp tenant ID for reliable matching
             payment.reconciliationDate
         );
 
