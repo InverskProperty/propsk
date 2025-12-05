@@ -6,11 +6,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
+import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.User;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionSource;
 import site.easy.to.build.crm.entity.HistoricalTransaction.TransactionType;
+import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.service.transaction.HistoricalTransactionSplitService;
@@ -56,6 +59,12 @@ public class PayPropIncomingPaymentImportService {
 
     @Autowired
     private PropertyRepository propertyRepository;
+
+    @Autowired
+    private CustomerRepository customerRepository;
+
+    @Autowired
+    private PayPropInvoiceLinkingService invoiceLinkingService;
 
     @Autowired
     private HistoricalTransactionSplitService transactionSplitService;
@@ -176,6 +185,27 @@ public class PayPropIncomingPaymentImportService {
         Property property = propertyRepository.findByPayPropId(payment.propertyPayPropId)
             .orElseThrow(() -> new RuntimeException("Property not found: " + payment.propertyPayPropId));
 
+        // Find tenant/customer (optional - used for better lease matching)
+        Customer customer = null;
+        if (payment.tenantPayPropId != null && !payment.tenantPayPropId.isEmpty()) {
+            customer = customerRepository.findByPayPropEntityId(payment.tenantPayPropId);
+        }
+
+        // Find and link the appropriate lease (invoice) for this payment
+        Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
+            property,
+            customer,
+            null, // No PayProp invoice ID for incoming payments
+            payment.reconciliationDate
+        );
+
+        if (invoice != null) {
+            log.debug("  ✓ Linked to lease: {} (invoice ID: {})", invoice.getLeaseReference(), invoice.getId());
+        } else {
+            log.warn("  ⚠️ No lease found for property {} - payment will rely on active_lease JOIN during rebuild",
+                payment.propertyName);
+        }
+
         // Check for duplicate (source_reference based)
         String sourceRef = "PAYPROP-INCOMING-" + payment.incomingTransactionId;
         if (historicalTransactionRepository.findBySourceReference(sourceRef).isPresent()) {
@@ -198,6 +228,14 @@ public class PayPropIncomingPaymentImportService {
         // Link to property
         txn.setProperty(property);
         txn.setCreatedByUser(currentUser);
+
+        // Link to lease (invoice) - CRITICAL for unified_transactions rebuild
+        if (invoice != null) {
+            txn.setInvoice(invoice);
+            txn.setLeaseStartDate(invoice.getStartDate());
+            txn.setLeaseEndDate(invoice.getEndDate());
+            txn.setRentAmountAtTransaction(invoice.getAmount());
+        }
 
         // PayProp tracking
         txn.setPaypropTransactionId(payment.incomingTransactionId);
