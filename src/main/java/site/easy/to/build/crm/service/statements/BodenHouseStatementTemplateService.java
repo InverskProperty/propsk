@@ -553,9 +553,9 @@ public class BodenHouseStatementTemplateService {
 
         unit.totalFeesChargedByPropsk = unit.managementFeeAmount.add(unit.serviceFeeAmount);
 
-        // Calculate total expenses
+        // Calculate total expenses (use abs to ensure positive values)
         unit.totalExpenses = unit.expenses.stream()
-            .map(expense -> expense.amount)
+            .map(expense -> expense.amount != null ? expense.amount.abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Net calculations
@@ -1187,9 +1187,9 @@ public class BodenHouseStatementTemplateService {
 
         unit.totalFeesChargedByPropsk = unit.managementFeeAmount.add(unit.serviceFeeAmount);
 
-        // Calculate total expenses
+        // Calculate total expenses (use abs to ensure positive values)
         unit.totalExpenses = unit.expenses.stream()
-            .map(expense -> expense.amount)
+            .map(expense -> expense.amount != null ? expense.amount.abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Net calculations
@@ -1453,7 +1453,7 @@ public class BodenHouseStatementTemplateService {
     private ExpenseItem convertToExpenseItem(HistoricalTransaction transaction) {
         ExpenseItem expense = new ExpenseItem();
         expense.label = transaction.getCategory() != null ? transaction.getCategory() : transaction.getDescription();
-        expense.amount = transaction.getAmount();
+        expense.amount = transaction.getAmount() != null ? transaction.getAmount().abs() : BigDecimal.ZERO;
         expense.comment = transaction.getDescription();
         return expense;
     }
