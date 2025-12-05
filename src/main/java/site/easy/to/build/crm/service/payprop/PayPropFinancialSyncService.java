@@ -1048,9 +1048,64 @@ public class PayPropFinancialSyncService {
                     transaction.getCategoryName());
             }
             
-            // Check for duplicate
-            if (financialTransactionRepository.existsByPayPropTransactionId(transaction.getPayPropTransactionId())) {
-                logger.debug("ℹ️ SKIPPED: Transaction {} already exists", transaction.getPayPropTransactionId());
+            // Check for existing transaction and revalidate invoice linkage
+            FinancialTransaction existingTransaction = financialTransactionRepository
+                .findByPayPropTransactionId(transaction.getPayPropTransactionId());
+
+            if (existingTransaction != null) {
+                // REVALIDATION: Check if existing invoice link is correct
+                Invoice currentInvoice = existingTransaction.getInvoice();
+                String txnTenantId = transaction.getTenantId();
+                boolean needsRelink = false;
+                String relinkReason = null;
+
+                if (currentInvoice == null) {
+                    // No invoice linked - needs linking
+                    needsRelink = true;
+                    relinkReason = "no invoice linked";
+                } else if (txnTenantId != null && !txnTenantId.isEmpty()) {
+                    // Check if current invoice matches the transaction's tenant
+                    String invoiceTenantId = currentInvoice.getPaypropCustomerId();
+                    if (invoiceTenantId == null || !invoiceTenantId.equals(txnTenantId)) {
+                        // Mismatch! The transaction is linked to the wrong tenant's lease
+                        needsRelink = true;
+                        relinkReason = String.format("tenant mismatch (txn tenant: %s, invoice tenant: %s)",
+                            txnTenantId, invoiceTenantId != null ? invoiceTenantId : "NULL");
+                        logger.warn("⚠️ Batch payment {} linked to wrong lease! {} - will re-link",
+                            transaction.getPayPropTransactionId(), relinkReason);
+                    }
+                }
+
+                if (needsRelink && transaction.getPropertyId() != null && invoiceLinkingService != null) {
+                    try {
+                        Optional<Property> propertyOpt = propertyRepository.findByPayPropId(transaction.getPropertyId());
+                        if (propertyOpt.isPresent()) {
+                            Invoice correctInvoice = invoiceLinkingService.findInvoiceForTransaction(
+                                propertyOpt.get(),
+                                null, // Customer entity
+                                null, // PayProp invoice ID
+                                txnTenantId, // PayProp tenant ID for robust matching
+                                transaction.getTransactionDate()
+                            );
+
+                            if (correctInvoice != null) {
+                                Long oldInvoiceId = currentInvoice != null ? currentInvoice.getId() : null;
+                                existingTransaction.setInvoice(correctInvoice);
+                                financialTransactionRepository.save(existingTransaction);
+                                logger.info("✅ Re-linked batch payment {} from invoice {} to invoice {} (lease: {}) - reason: {}",
+                                    transaction.getPayPropTransactionId(), oldInvoiceId, correctInvoice.getId(),
+                                    correctInvoice.getLeaseReference(), relinkReason);
+                                return true; // Count as updated
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.warn("⚠️ Failed to re-link batch payment {}: {}",
+                            transaction.getPayPropTransactionId(), e.getMessage());
+                    }
+                }
+
+                logger.debug("ℹ️ SKIPPED: Transaction {} already exists (correctly linked)",
+                    transaction.getPayPropTransactionId());
                 return false;
             }
             
@@ -1253,10 +1308,12 @@ public class PayPropFinancialSyncService {
                         Property localProperty = propertyOpt.get();
 
                         // Try to find invoice/lease
+                        // Pass tenantPayPropId for robust ID-based matching via payprop_customer_id on invoice
                         Invoice invoice = invoiceLinkingService.findInvoiceForTransaction(
                             localProperty,
-                            null, // Customer not directly available, linking service will find by property
+                            null, // Customer entity not directly available
                             null, // PayProp invoice ID not in batch payment data
+                            transaction.getTenantId(), // PayProp tenant ID for robust matching
                             transaction.getTransactionDate()
                         );
 
