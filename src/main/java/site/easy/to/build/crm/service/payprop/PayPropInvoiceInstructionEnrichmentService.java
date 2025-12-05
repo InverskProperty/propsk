@@ -143,7 +143,32 @@ public class PayPropInvoiceInstructionEnrichmentService {
                             skipped++;
                         }
                     } else {
-                        // No existing lease - AUTO-CREATE from PayProp instruction
+                        // No existing lease found by property+customer - check if invoice exists by payprop_id
+                        // This handles the case where property/customer changed in PayProp
+                        Optional<Invoice> existingByPaypropId = invoiceRepository.findByPaypropId(instruction.paypropId);
+
+                        if (existingByPaypropId.isPresent()) {
+                            // Invoice with this payprop_id already exists - UPDATE it instead of creating new
+                            Invoice invoiceToUpdate = existingByPaypropId.get();
+                            log.info("ℹ️ Invoice with payprop_id {} already exists (ID: {}), updating instead of creating",
+                                instruction.paypropId, invoiceToUpdate.getId());
+
+                            // Update property and customer linkage
+                            invoiceToUpdate.setProperty(property);
+                            if (customer != null) {
+                                invoiceToUpdate.setCustomer(customer);
+                                invoiceToUpdate.setPaypropCustomerId(instruction.tenantPaypropId);
+                            }
+                            invoiceToUpdate.setAmount(instruction.amount);
+                            invoiceToUpdate.setPaypropLastSync(LocalDateTime.now());
+                            invoiceToUpdate.setIsActive(instruction.isActive != null ? instruction.isActive : true);
+
+                            invoiceRepository.save(invoiceToUpdate);
+                            enriched++;
+                            continue;
+                        }
+
+                        // No existing invoice by payprop_id either - create new
                         if (customer == null) {
                             // Can't create lease without tenant
                             log.debug("ℹ️ Cannot create lease for instruction {} - tenant not found", instruction.paypropId);
