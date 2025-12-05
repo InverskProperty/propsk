@@ -175,20 +175,20 @@ public class ExcelStatementGeneratorService {
      */
     public Workbook generateStatementForCustomerWithCustomPeriods(Long customerId, LocalDate startDate,
                                                                   LocalDate endDate, int periodStartDay) {
-        log.error("🔍 DEBUG: Generating statement for customer {} with custom periods (start day: {})", customerId, periodStartDay);
+        log.debug("🔍 Generating statement for customer {} with custom periods (start day: {})", customerId, periodStartDay);
 
         Workbook workbook = new XSSFWorkbook();
 
         // Extract data for this customer
-        log.error("🔍 DEBUG: About to extract lease master for customer {}", customerId);
+        log.debug("🔍 About to extract lease master for customer {}", customerId);
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMasterForCustomer(customerId);
-        log.error("🔍 DEBUG: About to extract INCOMING transactions (rent received) for customer {} from {} to {}", customerId, startDate, endDate);
+        log.debug("🔍 About to extract INCOMING transactions (rent received) for customer {} from {} to {}", customerId, startDate, endDate);
         // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
         // This excludes OUTGOING transactions (landlord payments, fees, expenses)
         List<TransactionDTO> transactions = dataExtractService.extractRentReceivedForCustomer(
             customerId, startDate, endDate);
 
-        log.error("🔍 DEBUG: Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
+        log.debug("🔍 Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
                 leaseMaster.size(), transactions.size(), customerId);
 
         // Create data sheets with custom periods
@@ -217,7 +217,7 @@ public class ExcelStatementGeneratorService {
         // Create allocation tracking sheets for this owner
         // Resolve the actual owner ID (handles delegated users who manage another owner's properties)
         Long resolvedOwnerId = resolveActualOwnerId(customerId);
-        log.error("🔍 DEBUG: Resolved owner ID {} -> {} for allocation sheets", customerId, resolvedOwnerId);
+        log.debug("🔍 Resolved owner ID {} -> {} for allocation sheets", customerId, resolvedOwnerId);
 
         createIncomeAllocationsSheet(workbook, resolvedOwnerId);
         createExpenseAllocationsSheet(workbook, resolvedOwnerId);
@@ -2179,11 +2179,11 @@ public class ExcelStatementGeneratorService {
         try {
             Customer customer = customerRepository.findById(customerId).orElse(null);
             if (customer == null) {
-                log.error("🔍 DEBUG: Customer {} not found, returning same ID", customerId);
+                log.debug("🔍 Customer {} not found, returning same ID", customerId);
                 return customerId;
             }
 
-            log.error("🔍 DEBUG: Customer {} type={}, managesOwnerId={}",
+            log.debug("🔍 Customer {} type={}, managesOwnerId={}",
                     customerId, customer.getCustomerType(), customer.getManagesOwnerId());
 
             // If delegated user or manager with an assigned owner, return the owner they manage
@@ -2191,7 +2191,7 @@ public class ExcelStatementGeneratorService {
                  customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.MANAGER) &&
                 customer.getManagesOwnerId() != null) {
 
-                log.error("🔍 DEBUG: Delegated user/manager {} manages owner {}, using that ID",
+                log.debug("🔍 Delegated user/manager {} manages owner {}, using that ID",
                         customerId, customer.getManagesOwnerId());
                 return customer.getManagesOwnerId();
             }

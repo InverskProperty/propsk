@@ -351,8 +351,8 @@ public class StatementDataExtractService {
             transactionDTOs.add(dto);
         }
 
-        // Log invoice_id distribution to understand why Monthly Statement shows £0.00
-        log.error("🔍 DEBUG: Transaction invoice_id distribution for customer {}: {}",
+        // Log invoice_id distribution for debugging
+        log.debug("🔍 Transaction invoice_id distribution for customer {}: {}",
             customerId,
             transactionDTOs.stream()
                 .map(t -> "invoice_id=" + t.getInvoiceId() + " amount=" + t.getAmount())
