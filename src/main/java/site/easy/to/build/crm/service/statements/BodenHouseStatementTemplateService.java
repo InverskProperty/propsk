@@ -738,7 +738,7 @@ public class BodenHouseStatementTemplateService {
         for (int i = 0; i < 4 && i < unit.expenses.size(); i++) {
             ExpenseItem expense = unit.expenses.get(i);
             row[19 + (i * 3)] = expense.label;
-            row[20 + (i * 3)] = expense.amount;
+            row[20 + (i * 3)] = expense.amount != null ? expense.amount.abs() : BigDecimal.ZERO;  // Always positive
             row[21 + (i * 3)] = expense.comment;
         }
 
@@ -801,7 +801,7 @@ public class BodenHouseStatementTemplateService {
         totalRow[15] = data.grandTotalManagementFees;
         totalRow[17] = data.grandTotalServiceFees;
         totalRow[18] = data.grandTotalFees;
-        totalRow[31] = data.grandTotalExpenses;
+        totalRow[31] = data.grandTotalExpenses != null ? data.grandTotalExpenses.abs() : BigDecimal.ZERO;  // Always positive
         totalRow[33] = data.grandTotalNetDue;
         values.add(Arrays.asList(totalRow));
     }
@@ -864,7 +864,7 @@ public class BodenHouseStatementTemplateService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         group.totalExpenses = group.units.stream()
-            .map(u -> u.totalExpenses)
+            .map(u -> u.totalExpenses != null ? u.totalExpenses.abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         group.totalNetDue = group.units.stream()
@@ -886,7 +886,7 @@ public class BodenHouseStatementTemplateService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         data.grandTotalExpenses = data.propertyGroups.stream()
-            .map(g -> g.totalExpenses)
+            .map(g -> g.totalExpenses != null ? g.totalExpenses.abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         data.grandTotalNetDue = data.propertyGroups.stream()
