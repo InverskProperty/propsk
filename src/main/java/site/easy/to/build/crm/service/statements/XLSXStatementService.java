@@ -1270,7 +1270,7 @@ public class XLSXStatementService {
                 for (UnifiedTransaction expense : expenseTransactions) {
                     String label = expense.getCategory() != null ? expense.getCategory() :
                                   expense.getDescription() != null ? expense.getDescription() : "Expense";
-                    BigDecimal amount = expense.getAmount() != null ? expense.getAmount().abs() : BigDecimal.ZERO;
+                    BigDecimal amount = expense.getAmount() != null ? expense.getAmount() : BigDecimal.ZERO;
                     String comment = expense.getDescription() != null ? expense.getDescription() : "";
 
                     expenses.add(new ExpenseItem(label, amount, comment));
@@ -1655,8 +1655,7 @@ public class XLSXStatementService {
             if (propertyPayPropId != null) {
                 BigDecimal sum = financialTransactionRepository
                     .sumExpensesForProperty(propertyPayPropId, fromDate, toDate);
-                // Always return absolute value to ensure expenses are positive in reports
-                return sum != null ? sum.abs() : BigDecimal.ZERO;
+                return sum != null ? sum : BigDecimal.ZERO;
             }
 
             return BigDecimal.ZERO;
@@ -1745,15 +1744,13 @@ public class XLSXStatementService {
 
         for (PropertySummary summary : data.getPropertySummaries()) {
             totalRent = totalRent.add(summary.getRentReceived());
-            // Ensure expenses are always positive in summary
-            BigDecimal expenseAmount = summary.getExpenses() != null ? summary.getExpenses().abs() : BigDecimal.ZERO;
-            totalExpenses = totalExpenses.add(expenseAmount);
+            totalExpenses = totalExpenses.add(summary.getExpenses());
 
             values.add(Arrays.asList(
                 summary.getProperty().getPropertyName(),
                 summary.getProperty().getAddressLine1(),
                 "£" + summary.getRentReceived().toString(),
-                "£" + expenseAmount.toString(),
+                "£" + summary.getExpenses().toString(),
                 "£" + summary.getNetIncome().toString(),
                 "Occupied"
             ));
@@ -2166,9 +2163,9 @@ public class XLSXStatementService {
             LocalDate transDate = alloc[1] != null ? (LocalDate) alloc[1] : null;
             String propertyName = alloc[2] != null ? alloc[2].toString() : "";
             String category = alloc[3] != null ? alloc[3].toString() : "";
-            BigDecimal amount = alloc[4] != null ? ((BigDecimal) alloc[4]).abs() : BigDecimal.ZERO;
+            BigDecimal amount = alloc[4] != null ? (BigDecimal) alloc[4] : BigDecimal.ZERO;
             String batchRef = alloc[5] != null ? alloc[5].toString() : "";
-            BigDecimal allocatedAmount = alloc[6] != null ? ((BigDecimal) alloc[6]).abs() : BigDecimal.ZERO;
+            BigDecimal allocatedAmount = alloc[6] != null ? (BigDecimal) alloc[6] : BigDecimal.ZERO;
             String description = alloc[7] != null ? alloc[7].toString() : "";
 
             // Get payment date from batch
@@ -2196,7 +2193,7 @@ public class XLSXStatementService {
         // Add totals row
         data.add(Arrays.asList(""));
         BigDecimal totalExpenses = expenseAllocations.stream()
-            .map(a -> a[6] != null ? ((BigDecimal) a[6]).abs() : BigDecimal.ZERO)
+            .map(a -> a[6] != null ? (BigDecimal) a[6] : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
         data.add(Arrays.asList("TOTAL", "", "", "", "", "", "", totalExpenses, ""));
 

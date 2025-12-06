@@ -553,9 +553,9 @@ public class BodenHouseStatementTemplateService {
 
         unit.totalFeesChargedByPropsk = unit.managementFeeAmount.add(unit.serviceFeeAmount);
 
-        // Calculate total expenses (use abs to ensure positive values)
+        // Calculate total expenses (reversals will reduce the total)
         unit.totalExpenses = unit.expenses.stream()
-            .map(expense -> expense.amount != null ? expense.amount.abs() : BigDecimal.ZERO)
+            .map(expense -> expense.amount != null ? expense.amount : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Net calculations
@@ -738,7 +738,7 @@ public class BodenHouseStatementTemplateService {
         for (int i = 0; i < 4 && i < unit.expenses.size(); i++) {
             ExpenseItem expense = unit.expenses.get(i);
             row[19 + (i * 3)] = expense.label;
-            row[20 + (i * 3)] = expense.amount != null ? expense.amount.abs() : BigDecimal.ZERO;  // Always positive
+            row[20 + (i * 3)] = expense.amount;
             row[21 + (i * 3)] = expense.comment;
         }
 
@@ -801,7 +801,7 @@ public class BodenHouseStatementTemplateService {
         totalRow[15] = data.grandTotalManagementFees;
         totalRow[17] = data.grandTotalServiceFees;
         totalRow[18] = data.grandTotalFees;
-        totalRow[31] = data.grandTotalExpenses != null ? data.grandTotalExpenses.abs() : BigDecimal.ZERO;  // Always positive
+        totalRow[31] = data.grandTotalExpenses;
         totalRow[33] = data.grandTotalNetDue;
         values.add(Arrays.asList(totalRow));
     }
@@ -864,7 +864,7 @@ public class BodenHouseStatementTemplateService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         group.totalExpenses = group.units.stream()
-            .map(u -> u.totalExpenses != null ? u.totalExpenses.abs() : BigDecimal.ZERO)
+            .map(u -> u.totalExpenses)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         group.totalNetDue = group.units.stream()
@@ -886,7 +886,7 @@ public class BodenHouseStatementTemplateService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         data.grandTotalExpenses = data.propertyGroups.stream()
-            .map(g -> g.totalExpenses != null ? g.totalExpenses.abs() : BigDecimal.ZERO)
+            .map(g -> g.totalExpenses)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         data.grandTotalNetDue = data.propertyGroups.stream()
@@ -1187,9 +1187,9 @@ public class BodenHouseStatementTemplateService {
 
         unit.totalFeesChargedByPropsk = unit.managementFeeAmount.add(unit.serviceFeeAmount);
 
-        // Calculate total expenses (use abs to ensure positive values)
+        // Calculate total expenses (reversals will reduce the total)
         unit.totalExpenses = unit.expenses.stream()
-            .map(expense -> expense.amount != null ? expense.amount.abs() : BigDecimal.ZERO)
+            .map(expense -> expense.amount != null ? expense.amount : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Net calculations
@@ -1414,7 +1414,7 @@ public class BodenHouseStatementTemplateService {
     private ExpenseItem convertDtoToExpenseItem(StatementTransactionDto dto) {
         ExpenseItem expense = new ExpenseItem();
         expense.label = dto.getCategory() != null ? dto.getCategory() : dto.getDescription();
-        expense.amount = dto.getAmount().abs(); // Expenses are positive in statements
+        expense.amount = dto.getAmount();
         expense.comment = dto.getDescription();
         return expense;
     }
@@ -1453,7 +1453,7 @@ public class BodenHouseStatementTemplateService {
     private ExpenseItem convertToExpenseItem(HistoricalTransaction transaction) {
         ExpenseItem expense = new ExpenseItem();
         expense.label = transaction.getCategory() != null ? transaction.getCategory() : transaction.getDescription();
-        expense.amount = transaction.getAmount() != null ? transaction.getAmount().abs() : BigDecimal.ZERO;
+        expense.amount = transaction.getAmount() != null ? transaction.getAmount() : BigDecimal.ZERO;
         expense.comment = transaction.getDescription();
         return expense;
     }
