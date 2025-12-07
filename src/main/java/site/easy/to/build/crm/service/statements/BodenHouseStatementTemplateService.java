@@ -285,6 +285,9 @@ public class BodenHouseStatementTemplateService {
         // Set comments
         unit.comments = determineComments(unit, property);
 
+        // NEW: Calculate block property account balance if applicable
+        calculateBlockPropertyAccountBalance(unit, property, fromDate, toDate);
+
         return unit;
     }
 
@@ -352,6 +355,9 @@ public class BodenHouseStatementTemplateService {
         // Set comments
         unit.comments = "";
 
+        // NEW: Calculate block property account balance if applicable
+        calculateBlockPropertyAccountBalance(unit, property, fromDate, toDate);
+
         return unit;
     }
 
@@ -412,6 +418,9 @@ public class BodenHouseStatementTemplateService {
 
         // Set comments - include lease reference
         unit.comments = lease.getLeaseReference() != null ? lease.getLeaseReference() : "";
+
+        // NEW: Calculate block property account balance if applicable
+        calculateBlockPropertyAccountBalance(unit, property, fromDate, toDate);
 
         return unit;
     }
@@ -484,6 +493,9 @@ public class BodenHouseStatementTemplateService {
 
         // Set comments - include lease reference
         unit.comments = lease.getLeaseReference() != null ? lease.getLeaseReference() : "";
+
+        // NEW: Calculate block property account balance if applicable
+        calculateBlockPropertyAccountBalance(unit, property, fromDate, toDate);
 
         return unit;
     }
@@ -572,8 +584,8 @@ public class BodenHouseStatementTemplateService {
     private List<List<Object>> buildBodenHouseStatementValues(BodenHouseStatementData data) {
         List<List<Object>> values = new ArrayList<>();
 
-        // Create empty row template (40 columns - added Batch ID and Payment Status)
-        Object[] emptyRow = new Object[40];
+        // Create empty row template (41 columns - added Property Account Balance)
+        Object[] emptyRow = new Object[41];
         Arrays.fill(emptyRow, "");
 
         // PROPSK LTD Header (matching your exact format)
@@ -668,8 +680,9 @@ public class BodenHouseStatementTemplateService {
             "Expense 4 Label", "Expense 4 Amount", "Expense 4 Comment",
             "Total Expenses", "Total Expenses and Commission",
             "Net\nDue to\nPrestvale", "Net Due from Propsk After Expenses and Commissions",
-            "Batch ID", "Payment\nStatus",  // NEW: Allocation tracking columns
-            "Date\nPaid", "Rent\nDue less\nReceived", "Tenant Balance", "Comments"
+            "Batch ID", "Payment\nStatus",  // Allocation tracking columns
+            "Date\nPaid", "Rent\nDue less\nReceived", "Tenant Balance", "Comments",
+            "Property\nAccount\nBalance"  // NEW: Block property account balance column
         );
         values.add(headers);
     }
@@ -702,7 +715,7 @@ public class BodenHouseStatementTemplateService {
      * UPDATED: Added Batch ID and Payment Status columns (indices 35-36)
      */
     private void addUnitRow(List<List<Object>> values, PropertyUnit unit) {
-        Object[] row = new Object[40];  // Increased from 38 to 40 for new columns
+        Object[] row = new Object[41];  // Increased for Property Account Balance column
         Arrays.fill(row, "");
 
         // Calculate current row number for formulas (Excel rows are 1-based)
@@ -760,13 +773,18 @@ public class BodenHouseStatementTemplateService {
         String tenantBalanceFormula = generateTenantBalanceFormula(unit, currentRow);
         row[39] = tenantBalanceFormula; // Tenant Balance with cross-sheet reference (Column AN, was AL)
 
+        // NEW: Property Account Balance for block properties (Column AP, index 40)
+        if (unit.isBlockProperty) {
+            row[40] = unit.propertyAccountBalance;
+        }
+
         values.add(Arrays.asList(row));
     }
 
     // ===== HELPER METHODS =====
 
     private void addGroupTotals(List<List<Object>> values, PropertyGroup group, Object[] emptyRow) {
-        Object[] totalRow = new Object[40];  // Match new array size
+        Object[] totalRow = new Object[41];  // Match new array size (with Property Account Balance)
         Arrays.fill(totalRow, "");
 
         // Calculate the range for SUM formulas
@@ -790,6 +808,11 @@ public class BodenHouseStatementTemplateService {
         totalRow[33] = "=SUM(AH" + startDataRow + ":AH" + endDataRow + ")"; // Net Due (Column AH, index 33)
         totalRow[38] = "=SUM(AM" + startDataRow + ":AM" + endDataRow + ")"; // Rent Due less Received (Column AM, index 38 - shifted from 36)
 
+        // NEW: Property Account Balance (Column AO, index 40) - only shows for groups with block properties
+        if (group.totalPropertyAccountBalance.compareTo(BigDecimal.ZERO) != 0) {
+            totalRow[40] = "=SUM(AO" + startDataRow + ":AO" + endDataRow + ")"; // Property Account Balance
+        }
+
         values.add(Arrays.asList(totalRow));
     }
 
@@ -803,6 +826,12 @@ public class BodenHouseStatementTemplateService {
         totalRow[18] = data.grandTotalFees;
         totalRow[31] = data.grandTotalExpenses;
         totalRow[33] = data.grandTotalNetDue;
+
+        // NEW: Property Account Balance grand total (only if there are block properties)
+        if (data.grandTotalPropertyAccountBalance.compareTo(BigDecimal.ZERO) != 0) {
+            totalRow[40] = data.grandTotalPropertyAccountBalance;
+        }
+
         values.add(Arrays.asList(totalRow));
     }
 
@@ -870,6 +899,17 @@ public class BodenHouseStatementTemplateService {
         group.totalNetDue = group.units.stream()
             .map(u -> u.netDueToOwner)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // NEW: Block property account totals
+        group.totalPropertyAccountAllocations = group.units.stream()
+            .filter(u -> u.isBlockProperty)
+            .map(u -> u.propertyAccountAllocations)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        group.totalPropertyAccountBalance = group.units.stream()
+            .filter(u -> u.isBlockProperty)
+            .map(u -> u.propertyAccountBalance)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private void calculateOverallTotals(BodenHouseStatementData data) {
@@ -891,6 +931,15 @@ public class BodenHouseStatementTemplateService {
 
         data.grandTotalNetDue = data.propertyGroups.stream()
             .map(g -> g.totalNetDue)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // NEW: Block property account grand totals
+        data.grandTotalPropertyAccountAllocations = data.propertyGroups.stream()
+            .map(g -> g.totalPropertyAccountAllocations)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        data.grandTotalPropertyAccountBalance = data.propertyGroups.stream()
+            .map(g -> g.totalPropertyAccountBalance)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
@@ -1018,7 +1067,7 @@ public class BodenHouseStatementTemplateService {
                 AND transaction_date BETWEEN ? AND ?
                 AND flow_direction = 'OUTGOING'
                 AND category IS NOT NULL
-                AND LOWER(category) NOT IN ('owner', 'commission', 'rent')
+                AND LOWER(category) NOT IN ('owner', 'commission', 'rent', 'property_account_allocation')
                 AND LOWER(category) NOT LIKE '%owner_payment%'
                 AND amount IS NOT NULL
                 ORDER BY transaction_date
@@ -1049,6 +1098,111 @@ public class BodenHouseStatementTemplateService {
         }
 
         return expenses;
+    }
+
+    /**
+     * Get property account allocations for a block property
+     * These are transfers TO the property account (category = PROPERTY_ACCOUNT_ALLOCATION)
+     * Returns the SUM of allocations for the period
+     */
+    private BigDecimal getPropertyAccountAllocationsForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
+        if (property.getId() == null || !Boolean.TRUE.equals(property.getIsBlockProperty())) {
+            return BigDecimal.ZERO;
+        }
+
+        try {
+            // Query unified_transactions for PROPERTY_ACCOUNT_ALLOCATION category
+            // These are transfers TO the property account from tenant payments
+            String sql = """
+                SELECT COALESCE(SUM(amount), 0) as total_allocations
+                FROM unified_transactions
+                WHERE property_id = ?
+                AND transaction_date BETWEEN ? AND ?
+                AND LOWER(category) = 'property_account_allocation'
+                """;
+
+            BigDecimal result = jdbcTemplate.queryForObject(sql, BigDecimal.class,
+                property.getId(), fromDate, toDate);
+
+            log.debug("Property {} account allocations: {} for period {} to {}",
+                property.getPropertyName(), result, fromDate, toDate);
+
+            return result != null ? result : BigDecimal.ZERO;
+
+        } catch (Exception e) {
+            log.warn("Could not get property account allocations for property {}: {}",
+                property.getId(), e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * Get actual expenses for a block property (excluding property account allocations)
+     * These reduce the property account balance
+     */
+    private BigDecimal getActualExpensesForProperty(Property property, LocalDate fromDate, LocalDate toDate) {
+        if (property.getId() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        try {
+            // Query unified_transactions for OUTGOING transactions that are ACTUAL expenses
+            // Exclude: owner payments, commission, rent, and property_account_allocation
+            String sql = """
+                SELECT COALESCE(SUM(ABS(amount)), 0) as total_expenses
+                FROM unified_transactions
+                WHERE property_id = ?
+                AND transaction_date BETWEEN ? AND ?
+                AND flow_direction = 'OUTGOING'
+                AND category IS NOT NULL
+                AND LOWER(category) NOT IN ('owner', 'commission', 'rent', 'property_account_allocation')
+                AND LOWER(category) NOT LIKE '%owner_payment%'
+                """;
+
+            BigDecimal result = jdbcTemplate.queryForObject(sql, BigDecimal.class,
+                property.getId(), fromDate, toDate);
+
+            log.debug("Property {} actual expenses: {} for period {} to {}",
+                property.getPropertyName(), result, fromDate, toDate);
+
+            return result != null ? result : BigDecimal.ZERO;
+
+        } catch (Exception e) {
+            log.warn("Could not get actual expenses for property {}: {}",
+                property.getId(), e.getMessage());
+            return BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * Calculate and set block property account balance fields on the PropertyUnit
+     * Only applies to block properties (is_block_property = true)
+     *
+     * Property Account Balance = Allocations TO account - Actual Expenses FROM account
+     */
+    private void calculateBlockPropertyAccountBalance(PropertyUnit unit, Property property, LocalDate fromDate, LocalDate toDate) {
+        if (!Boolean.TRUE.equals(property.getIsBlockProperty())) {
+            return; // Not a block property - nothing to do
+        }
+
+        unit.isBlockProperty = true;
+
+        // Get allocations TO the property account (from tenant rent payments)
+        unit.propertyAccountAllocations = getPropertyAccountAllocationsForProperty(property, fromDate, toDate);
+
+        // Get actual expenses paid FROM the property account
+        BigDecimal actualExpenses = getActualExpensesForProperty(property, fromDate, toDate);
+
+        // Property Account Balance = allocations - expenses
+        // Positive = money available in account
+        // Negative = account has deficit (expenses exceeded allocations)
+        unit.propertyAccountBalance = unit.propertyAccountAllocations.subtract(actualExpenses);
+
+        log.info("Block property {} account: allocations={}, expenses={}, balance={}",
+            property.getPropertyName(),
+            unit.propertyAccountAllocations,
+            actualExpenses,
+            unit.propertyAccountBalance);
     }
 
     private boolean isRentPayment(HistoricalTransaction transaction) {
@@ -1254,6 +1408,10 @@ public class BodenHouseStatementTemplateService {
         public BigDecimal grandTotalExpenses = BigDecimal.ZERO;
         public BigDecimal grandTotalNetDue = BigDecimal.ZERO;
 
+        // NEW: Block property account balance grand totals
+        public BigDecimal grandTotalPropertyAccountAllocations = BigDecimal.ZERO;
+        public BigDecimal grandTotalPropertyAccountBalance = BigDecimal.ZERO;
+
         // Helper method to get data source summary
         public String getDataSourceSummary() {
             if (includedDataSources == null || includedDataSources.isEmpty()) {
@@ -1288,6 +1446,10 @@ public class BodenHouseStatementTemplateService {
         public BigDecimal totalExpenses = BigDecimal.ZERO;
         public BigDecimal totalExpensesAndCommission = BigDecimal.ZERO;
         public BigDecimal totalNetDue = BigDecimal.ZERO;
+
+        // NEW: Block property account balance totals
+        public BigDecimal totalPropertyAccountAllocations = BigDecimal.ZERO;
+        public BigDecimal totalPropertyAccountBalance = BigDecimal.ZERO;
     }
 
     public static class PropertyUnit {
@@ -1328,6 +1490,11 @@ public class BodenHouseStatementTemplateService {
         // NEW: Allocation tracking fields
         public String batchId;  // Payment batch ID (PayProp or manual)
         public String paymentStatus = "PENDING";  // PENDING, BATCHED, PAID
+
+        // NEW: Block property account balance tracking
+        public boolean isBlockProperty = false;
+        public BigDecimal propertyAccountAllocations = BigDecimal.ZERO;  // Money allocated TO property account
+        public BigDecimal propertyAccountBalance = BigDecimal.ZERO;  // Allocations - Actual Expenses
     }
 
     public static class ExpenseItem {

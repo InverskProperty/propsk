@@ -187,7 +187,10 @@ public class UnifiedTransactionRebuildService {
                 ft.transaction_date,
                 ft.amount,
                 ft.description,
-                ft.category_name as category,
+                CASE
+                    WHEN ft.description LIKE '%global_beneficiary%' THEN 'PROPERTY_ACCOUNT_ALLOCATION'
+                    ELSE ft.category_name
+                END as category,
                 ft.invoice_id,
                 CASE
                     WHEN ft.data_source = 'INCOMING_PAYMENT' THEN CAST(ft.property_id AS UNSIGNED)

@@ -1287,21 +1287,22 @@ public class XLSXStatementService {
     }
 
     /**
-     * Check if a UnifiedTransaction is an expense (not Owner or Commission)
+     * Check if a UnifiedTransaction is an expense (not Owner, Commission, or Property Account Allocation)
      */
     private boolean isExpenseTransactionUnified(UnifiedTransaction transaction) {
         String category = transaction.getCategory();
 
-        // Exclude Owner payments and Commission - these are NOT expenses
+        // Exclude Owner payments, Commission, and Property Account Allocations - these are NOT expenses
         if (category != null) {
             String catLower = category.toLowerCase();
             if (catLower.equals("owner") || catLower.equals("commission") ||
-                catLower.equals("rent") || catLower.contains("owner_payment")) {
+                catLower.equals("rent") || catLower.contains("owner_payment") ||
+                catLower.equals("property_account_allocation")) {
                 return false;
             }
         }
 
-        return true; // OUTGOING transactions that aren't Owner/Commission are expenses
+        return true; // OUTGOING transactions that aren't Owner/Commission/Allocations are expenses
     }
 
     private String getExpenseLabel(List<ExpenseItem> expenses, int index) {
