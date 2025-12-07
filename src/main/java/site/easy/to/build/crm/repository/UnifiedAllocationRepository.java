@@ -259,33 +259,33 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     List<String> findAllDistinctBatchReferences();
 
     /**
-     * Get income allocations for an owner (amount > 0)
-     * Returns allocations with positive amounts ordered by date
+     * Get income allocations for an owner (OWNER type = money going TO owner)
+     * Returns OWNER allocations ordered by date
      */
     @Query(value = """
         SELECT ua.id, ua.unified_transaction_id, ua.historical_transaction_id,
                ua.property_name, ua.category, ua.amount, ua.payment_batch_id,
-               ua.description, ua.created_at
+               ua.description, ua.created_at, ua.source
         FROM unified_allocations ua
         JOIN payment_batches pb ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
         WHERE pb.beneficiary_id = :ownerId
-        AND ua.amount > 0
+        AND ua.allocation_type = 'OWNER'
         ORDER BY ua.created_at, ua.property_name
     """, nativeQuery = true)
     List<Object[]> getIncomeAllocationsForOwner(@Param("ownerId") Long ownerId);
 
     /**
-     * Get expense allocations for an owner (amount < 0)
-     * Returns allocations with negative amounts ordered by date
+     * Get expense/deduction allocations for an owner
+     * Returns EXPENSE, COMMISSION, DISBURSEMENT allocations (money deducted from owner payment)
      */
     @Query(value = """
         SELECT ua.id, ua.unified_transaction_id, ua.historical_transaction_id,
                ua.property_name, ua.category, ua.amount, ua.payment_batch_id,
-               ua.description, ua.created_at
+               ua.description, ua.created_at, ua.source
         FROM unified_allocations ua
         JOIN payment_batches pb ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
         WHERE pb.beneficiary_id = :ownerId
-        AND ua.amount < 0
+        AND ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT')
         ORDER BY ua.created_at, ua.property_name
     """, nativeQuery = true)
     List<Object[]> getExpenseAllocationsForOwner(@Param("ownerId") Long ownerId);

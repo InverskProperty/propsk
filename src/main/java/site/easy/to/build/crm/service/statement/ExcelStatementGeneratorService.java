@@ -2242,7 +2242,7 @@ public class ExcelStatementGeneratorService {
 
             // Parse allocation data from unified_allocations
             // Columns: 0=id, 1=unified_transaction_id, 2=historical_transaction_id, 3=property_name,
-            //          4=category, 5=amount, 6=payment_batch_id, 7=description, 8=created_at
+            //          4=category, 5=amount, 6=payment_batch_id, 7=description, 8=created_at, 9=source
             Long allocationId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
             Long unifiedTxId = allocation[1] != null ? ((Number) allocation[1]).longValue() : null;
             Long historicalTxId = allocation[2] != null ? ((Number) allocation[2]).longValue() : null;
@@ -2252,6 +2252,7 @@ public class ExcelStatementGeneratorService {
             String batchRef = allocation[6] != null ? allocation[6].toString() : "";
             String description = allocation[7] != null ? allocation[7].toString() : "";
             java.sql.Timestamp createdAt = allocation[8] != null ? java.sql.Timestamp.valueOf(allocation[8].toString()) : null;
+            String source = allocation[9] != null ? allocation[9].toString() : "";
 
             // Get payment batch details
             PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
@@ -2282,8 +2283,7 @@ public class ExcelStatementGeneratorService {
             // Description
             row.createCell(4).setCellValue(description);
 
-            // Source (show where allocation came from)
-            String source = batchRef.startsWith("BP-") ? "PayProp" : "Manual";
+            // Source (from database: PAYPROP, HISTORICAL, MANUAL)
             row.createCell(5).setCellValue(source);
 
             // Amount
@@ -2308,11 +2308,11 @@ public class ExcelStatementGeneratorService {
 
         // Total row
         Row totalRow = sheet.createRow(rowNum);
-        Cell totalLabel = totalRow.createCell(6);
+        Cell totalLabel = totalRow.createCell(5);
         totalLabel.setCellValue("TOTAL:");
         totalLabel.setCellStyle(headerStyle);
 
-        Cell totalCell = totalRow.createCell(7);
+        Cell totalCell = totalRow.createCell(6);
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
@@ -2349,17 +2349,17 @@ public class ExcelStatementGeneratorService {
         int rowNum = 1;
         BigDecimal totalAllocated = BigDecimal.ZERO;
 
-        // Expense allocations come from unified_allocations (amount < 0)
+        // Expense allocations come from unified_allocations (EXPENSE, COMMISSION, DISBURSEMENT types)
         // This includes both PayProp and manual batch allocations
         List<Object[]> expenseAllocations = unifiedAllocationRepository.getExpenseAllocationsForOwner(ownerId);
-        log.info("Found {} expense allocations (amount < 0) for owner {}", expenseAllocations.size(), ownerId);
+        log.info("Found {} expense/commission/disbursement allocations for owner {}", expenseAllocations.size(), ownerId);
 
         for (Object[] allocation : expenseAllocations) {
             Row row = sheet.createRow(rowNum++);
 
             // Parse allocation data from unified_allocations
             // Columns: 0=id, 1=unified_transaction_id, 2=historical_transaction_id, 3=property_name,
-            //          4=category, 5=amount, 6=payment_batch_id, 7=description, 8=created_at
+            //          4=category, 5=amount, 6=payment_batch_id, 7=description, 8=created_at, 9=source
             Long allocationId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
             Long unifiedTxId = allocation[1] != null ? ((Number) allocation[1]).longValue() : null;
             Long historicalTxId = allocation[2] != null ? ((Number) allocation[2]).longValue() : null;
@@ -2369,6 +2369,7 @@ public class ExcelStatementGeneratorService {
             String batchRef = allocation[6] != null ? allocation[6].toString() : "";
             String description = allocation[7] != null ? allocation[7].toString() : "";
             java.sql.Timestamp createdAt = allocation[8] != null ? java.sql.Timestamp.valueOf(allocation[8].toString()) : null;
+            String source = allocation[9] != null ? allocation[9].toString() : "";
 
             // Get payment batch details
             PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
@@ -2399,11 +2400,10 @@ public class ExcelStatementGeneratorService {
             // Description
             row.createCell(4).setCellValue(description);
 
-            // Source (show where allocation came from)
-            String source = batchRef.startsWith("BP-") ? "PayProp" : "Manual";
+            // Source (from database: PAYPROP, HISTORICAL, MANUAL)
             row.createCell(5).setCellValue(source);
 
-            // Amount (already negative for expenses)
+            // Amount (expenses are positive in PayProp, show as-is)
             Cell amountCell = row.createCell(6);
             amountCell.setCellValue(allocatedAmount.doubleValue());
             amountCell.setCellStyle(currencyStyle);
@@ -2425,11 +2425,11 @@ public class ExcelStatementGeneratorService {
 
         // Total row
         Row totalRow = sheet.createRow(rowNum);
-        Cell totalLabel = totalRow.createCell(6);
+        Cell totalLabel = totalRow.createCell(5);
         totalLabel.setCellValue("TOTAL:");
         totalLabel.setCellStyle(headerStyle);
 
-        Cell totalCell = totalRow.createCell(7);
+        Cell totalCell = totalRow.createCell(6);
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
