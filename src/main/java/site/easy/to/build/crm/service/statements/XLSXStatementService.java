@@ -58,6 +58,44 @@ public class XLSXStatementService {
     }
 
     /**
+     * Apply fixed column widths to avoid memory-intensive autoSizeColumn().
+     * Uses reasonable defaults based on column content types.
+     * Excel column width units: 256 units = 1 character width
+     */
+    private void applyFixedColumnWidths(Sheet sheet, int columnCount) {
+        // Default width ~15 characters (good for most data)
+        int defaultWidth = 3840;  // 15 * 256
+
+        // Narrower for boolean/flag columns
+        int narrowWidth = 2048;   // 8 * 256
+
+        // Wider for description/name columns
+        int wideWidth = 5120;     // 20 * 256
+
+        for (int i = 0; i < columnCount; i++) {
+            int width = defaultWidth;
+
+            // Column-specific widths for 38-column Boden House template
+            if (columnCount >= 38) {
+                // A (0): Property - wider
+                // B (1): Address - wider
+                // C (2): Tenant - wider
+                // D-E (3-4): Dates - default
+                // F (5): Rent Due - default
+                // G-I (6-8): Booleans - narrow
+                // Rest: default or currency (default works)
+                if (i <= 2) {
+                    width = wideWidth;  // Property, Address, Tenant names
+                } else if (i >= 6 && i <= 8) {
+                    width = narrowWidth;  // Boolean columns
+                }
+            }
+
+            sheet.setColumnWidth(i, width);
+        }
+    }
+
+    /**
      * Generate Property Owner Statement as XLSX using Boden House template
      */
     public byte[] generatePropertyOwnerStatementXLSX(Customer propertyOwner,
@@ -118,8 +156,7 @@ public class XLSXStatementService {
         createExpenseAllocationsSheet(workbook, propertyOwner);
         createOwnerPaymentsSummarySheet(workbook, propertyOwner);
 
-        // Force formula evaluation
-        workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
+        // Note: Skipping evaluateAll() to save memory - Excel will calculate formulas on open
 
         // Convert to byte array
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -178,22 +215,8 @@ public class XLSXStatementService {
             }
         }
 
-        // Auto-size columns for better readability (38 columns)
-        for (int i = 0; i < 38; i++) {
-            try {
-                sheet.autoSizeColumn(i);
-                // Set minimum width to prevent too narrow columns
-                if (sheet.getColumnWidth(i) < 1500) {
-                    sheet.setColumnWidth(i, 1500);
-                }
-                // Set maximum width to prevent too wide columns
-                if (sheet.getColumnWidth(i) > 6000) {
-                    sheet.setColumnWidth(i, 6000);
-                }
-            } catch (Exception e) {
-                // Continue if auto-sizing fails for any column
-            }
-        }
+        // Use fixed column widths to avoid memory-intensive autoSizeColumn
+        applyFixedColumnWidths(sheet, 38);
     }
 
     /**
@@ -374,25 +397,10 @@ public class XLSXStatementService {
         // Apply Boden House specific formatting
         applyBodenHouseFormatting(workbook, sheet);
 
-        // Auto-size columns for better readability (38 columns like your spreadsheet)
-        for (int i = 0; i < 38; i++) {
-            try {
-                sheet.autoSizeColumn(i);
-                // Set minimum width to prevent too narrow columns
-                if (sheet.getColumnWidth(i) < 1500) {
-                    sheet.setColumnWidth(i, 1500);
-                }
-                // Set maximum width to prevent too wide columns
-                if (sheet.getColumnWidth(i) > 6000) {
-                    sheet.setColumnWidth(i, 6000);
-                }
-            } catch (Exception e) {
-                // Continue if auto-sizing fails for any column
-            }
-        }
+        // Use fixed column widths to avoid memory-intensive autoSizeColumn
+        applyFixedColumnWidths(sheet, 38);
 
-        // Force formula evaluation
-        workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
+        // Note: Skipping evaluateAll() to save memory - Excel will calculate formulas on open
 
         // Convert to byte array
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -441,25 +449,10 @@ public class XLSXStatementService {
         // Apply professional formatting
         applyPropertyOwnerStatementFormatting(workbook, sheet, data);
 
-        // Auto-size columns for better readability (38 columns)
-        for (int i = 0; i < 38; i++) {
-            try {
-                sheet.autoSizeColumn(i);
-                // Set minimum width to prevent too narrow columns
-                if (sheet.getColumnWidth(i) < 1500) {
-                    sheet.setColumnWidth(i, 1500);
-                }
-                // Set maximum width to prevent too wide columns
-                if (sheet.getColumnWidth(i) > 6000) {
-                    sheet.setColumnWidth(i, 6000);
-                }
-            } catch (Exception e) {
-                // Continue if auto-sizing fails for any column
-            }
-        }
+        // Use fixed column widths to avoid memory-intensive autoSizeColumn
+        applyFixedColumnWidths(sheet, 38);
 
-        // Force formula evaluation
-        workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
+        // Note: Skipping evaluateAll() to save memory - Excel will calculate formulas on open
 
         // Convert to byte array
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -496,10 +489,8 @@ public class XLSXStatementService {
 
         applyBasicFormatting(workbook, sheet);
 
-        // Auto-size columns
-        for (int i = 0; i < 6; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Use fixed column widths to avoid memory-intensive autoSizeColumn
+        applyFixedColumnWidths(sheet, 6);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         workbook.write(outputStream);
@@ -533,10 +524,8 @@ public class XLSXStatementService {
 
         applyBasicFormatting(workbook, sheet);
 
-        // Auto-size columns
-        for (int i = 0; i < 6; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Use fixed column widths to avoid memory-intensive autoSizeColumn
+        applyFixedColumnWidths(sheet, 6);
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         workbook.write(outputStream);
@@ -2358,17 +2347,8 @@ public class XLSXStatementService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < 15; i++) {
-            try {
-                sheet.autoSizeColumn(i);
-                if (sheet.getColumnWidth(i) > 8000) {
-                    sheet.setColumnWidth(i, 8000);
-                }
-            } catch (Exception e) {
-                // Continue if auto-sizing fails
-            }
-        }
+        // Use fixed column widths to avoid memory-intensive autoSizeColumn
+        applyFixedColumnWidths(sheet, 15);
     }
 
     /**
