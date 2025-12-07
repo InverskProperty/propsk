@@ -2232,44 +2232,39 @@ public class ExcelStatementGeneratorService {
         int rowNum = 1;
         BigDecimal totalAllocated = BigDecimal.ZERO;
 
-        // Income allocations come from unified_allocations (amount > 0)
-        // This includes both PayProp and manual batch allocations
-        List<Object[]> incomeAllocations = unifiedAllocationRepository.getIncomeAllocationsForOwner(ownerId);
-        log.info("Found {} income allocations (amount > 0) for owner {}", incomeAllocations.size(), ownerId);
+        // Income allocations come from transaction_batch_allocations (positive allocated_amount)
+        // Note: unified_allocations OWNER type are PAYMENT SUMMARIES, not individual income transactions
+        List<Object[]> incomeAllocations = allocationRepository.getIncomeAllocationsForOwner(ownerId);
+        log.info("Found {} income allocations (allocatedAmount > 0) for owner {}", incomeAllocations.size(), ownerId);
 
         for (Object[] allocation : incomeAllocations) {
             Row row = sheet.createRow(rowNum++);
 
-            // Parse allocation data from unified_allocations
-            // Columns: 0=id, 1=unified_transaction_id, 2=historical_transaction_id, 3=property_name,
-            //          4=category, 5=amount, 6=payment_batch_id, 7=description, 8=created_at
-            Long allocationId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
-            Long unifiedTxId = allocation[1] != null ? ((Number) allocation[1]).longValue() : null;
-            Long historicalTxId = allocation[2] != null ? ((Number) allocation[2]).longValue() : null;
-            String propertyName = allocation[3] != null ? allocation[3].toString() : "";
-            String category = allocation[4] != null ? allocation[4].toString() : "";
-            BigDecimal allocatedAmount = allocation[5] != null ? new BigDecimal(allocation[5].toString()) : BigDecimal.ZERO;
-            String batchRef = allocation[6] != null ? allocation[6].toString() : "";
-            String description = allocation[7] != null ? allocation[7].toString() : "";
-            java.sql.Timestamp createdAt = allocation[8] != null ? java.sql.Timestamp.valueOf(allocation[8].toString()) : null;
+            // Parse allocation data - allocation[0] is transaction_id linking to historical_transactions
+            Long transactionId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
+            java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
+            String propertyName = allocation[2] != null ? allocation[2].toString() : "";
+            String category = allocation[3] != null ? allocation[3].toString() : "";
+            String batchRef = allocation[7] != null ? allocation[7].toString() : "";
+            BigDecimal allocatedAmount = allocation[8] != null ? new BigDecimal(allocation[8].toString()) : BigDecimal.ZERO;
+            String description = allocation[9] != null ? allocation[9].toString() : "";
 
             // Get payment batch details
             PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
             LocalDate paymentDate = batch != null ? batch.getPaymentDate() : null;
             String paymentStatus = batch != null ? batch.getStatus().toString() : "Unknown";
 
-            // Transaction ID - prefer unified, fall back to historical
-            Long transactionId = unifiedTxId != null ? unifiedTxId : historicalTxId;
+            // Transaction ID - links to Transactions sheet
             if (transactionId != null) {
                 row.createCell(0).setCellValue(transactionId);
             } else {
                 row.createCell(0).setCellValue("");
             }
 
-            // Date (use created_at from allocation)
+            // Date
             Cell dateCell = row.createCell(1);
-            if (createdAt != null) {
-                dateCell.setCellValue(createdAt);
+            if (transactionDate != null) {
+                dateCell.setCellValue(transactionDate);
                 dateCell.setCellStyle(dateStyle);
             }
 
@@ -2282,9 +2277,8 @@ public class ExcelStatementGeneratorService {
             // Description
             row.createCell(4).setCellValue(description);
 
-            // Source (show where allocation came from)
-            String source = batchRef.startsWith("BP-") ? "PayProp" : "Manual";
-            row.createCell(5).setCellValue(source);
+            // Source
+            row.createCell(5).setCellValue("ALLOCATED");
 
             // Amount
             Cell amountCell = row.createCell(6);
@@ -2349,44 +2343,39 @@ public class ExcelStatementGeneratorService {
         int rowNum = 1;
         BigDecimal totalAllocated = BigDecimal.ZERO;
 
-        // Expense allocations come from unified_allocations (amount < 0)
-        // This includes both PayProp and manual batch allocations
-        List<Object[]> expenseAllocations = unifiedAllocationRepository.getExpenseAllocationsForOwner(ownerId);
-        log.info("Found {} expense allocations (amount < 0) for owner {}", expenseAllocations.size(), ownerId);
+        // Expense allocations come from transaction_batch_allocations (negative allocated_amount)
+        // Note: unified_allocations EXPENSE type are PayProp vendor payments, not owner statement expenses
+        List<Object[]> expenseAllocations = allocationRepository.getExpenseAllocationsForOwner(ownerId);
+        log.info("Found {} expense allocations (allocatedAmount < 0) for owner {}", expenseAllocations.size(), ownerId);
 
         for (Object[] allocation : expenseAllocations) {
             Row row = sheet.createRow(rowNum++);
 
-            // Parse allocation data from unified_allocations
-            // Columns: 0=id, 1=unified_transaction_id, 2=historical_transaction_id, 3=property_name,
-            //          4=category, 5=amount, 6=payment_batch_id, 7=description, 8=created_at
-            Long allocationId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
-            Long unifiedTxId = allocation[1] != null ? ((Number) allocation[1]).longValue() : null;
-            Long historicalTxId = allocation[2] != null ? ((Number) allocation[2]).longValue() : null;
-            String propertyName = allocation[3] != null ? allocation[3].toString() : "";
-            String category = allocation[4] != null ? allocation[4].toString() : "";
-            BigDecimal allocatedAmount = allocation[5] != null ? new BigDecimal(allocation[5].toString()) : BigDecimal.ZERO;
-            String batchRef = allocation[6] != null ? allocation[6].toString() : "";
+            // Parse allocation data - allocation[0] is transaction_id linking to historical_transactions
+            Long transactionId = allocation[0] != null ? ((Number) allocation[0]).longValue() : null;
+            java.sql.Date transactionDate = allocation[1] != null ? java.sql.Date.valueOf(allocation[1].toString()) : null;
+            String propertyName = allocation[2] != null ? allocation[2].toString() : "";
+            String category = allocation[3] != null ? allocation[3].toString() : "";
+            String batchRef = allocation[5] != null ? allocation[5].toString() : "";
+            BigDecimal allocatedAmount = allocation[6] != null ? new BigDecimal(allocation[6].toString()) : BigDecimal.ZERO;
             String description = allocation[7] != null ? allocation[7].toString() : "";
-            java.sql.Timestamp createdAt = allocation[8] != null ? java.sql.Timestamp.valueOf(allocation[8].toString()) : null;
 
             // Get payment batch details
             PaymentBatch batch = paymentBatchRepository.findByBatchId(batchRef).orElse(null);
             LocalDate paymentDate = batch != null ? batch.getPaymentDate() : null;
             String paymentStatus = batch != null ? batch.getStatus().toString() : "Unknown";
 
-            // Transaction ID - prefer unified, fall back to historical
-            Long transactionId = unifiedTxId != null ? unifiedTxId : historicalTxId;
+            // Transaction ID - links to Transactions sheet
             if (transactionId != null) {
                 row.createCell(0).setCellValue(transactionId);
             } else {
                 row.createCell(0).setCellValue("");
             }
 
-            // Date (use created_at from allocation)
+            // Date
             Cell dateCell = row.createCell(1);
-            if (createdAt != null) {
-                dateCell.setCellValue(createdAt);
+            if (transactionDate != null) {
+                dateCell.setCellValue(transactionDate);
                 dateCell.setCellStyle(dateStyle);
             }
 
@@ -2399,9 +2388,8 @@ public class ExcelStatementGeneratorService {
             // Description
             row.createCell(4).setCellValue(description);
 
-            // Source (show where allocation came from)
-            String source = batchRef.startsWith("BP-") ? "PayProp" : "Manual";
-            row.createCell(5).setCellValue(source);
+            // Source
+            row.createCell(5).setCellValue("ALLOCATED");
 
             // Amount (already negative for expenses)
             Cell amountCell = row.createCell(6);
@@ -2463,9 +2451,9 @@ public class ExcelStatementGeneratorService {
             cell.setCellStyle(headerStyle);
         }
 
-        // Get batch references from unified_allocations
-        // This is the primary source for owner payment batch allocations (both PayProp and manual)
-        List<String> batchRefs = unifiedAllocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
+        // Get batch references from transaction_batch_allocations
+        // This is the primary source for owner payment batch allocations
+        List<String> batchRefs = allocationRepository.findDistinctBatchReferencesByBeneficiaryId(ownerId);
         log.info("Found {} payment batches for owner {}", batchRefs.size(), ownerId);
 
         int rowNum = 1;
