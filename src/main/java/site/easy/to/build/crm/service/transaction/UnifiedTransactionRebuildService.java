@@ -183,7 +183,8 @@ public class UnifiedTransactionRebuildService {
         String sql = """
             INSERT INTO unified_transactions (
                 source_system, source_table, source_record_id,
-                transaction_date, amount, description, category,
+                transaction_date, amount, net_to_owner_amount, commission_rate, commission_amount,
+                description, category,
                 invoice_id, property_id, customer_id,
                 lease_reference, property_name,
                 payprop_transaction_id, payprop_data_source,
@@ -196,6 +197,9 @@ public class UnifiedTransactionRebuildService {
                 ft.id as source_record_id,
                 ft.transaction_date,
                 ft.amount,
+                ft.net_to_owner_amount,
+                ft.commission_rate,
+                ft.commission_amount,
                 ft.description,
                 CASE
                     WHEN ft.description LIKE '%global_beneficiary%' THEN 'PROPERTY_ACCOUNT_ALLOCATION'
