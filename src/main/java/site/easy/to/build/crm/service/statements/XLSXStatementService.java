@@ -216,7 +216,8 @@ public class XLSXStatementService {
         }
 
         // Use fixed column widths to avoid memory-intensive autoSizeColumn
-        applyFixedColumnWidths(sheet, 38);
+        // 41 columns for Boden House template (includes Property Account Balance at index 40)
+        applyFixedColumnWidths(sheet, 41);
     }
 
     /**
@@ -398,7 +399,7 @@ public class XLSXStatementService {
         applyBodenHouseFormatting(workbook, sheet);
 
         // Use fixed column widths to avoid memory-intensive autoSizeColumn
-        applyFixedColumnWidths(sheet, 38);
+        applyFixedColumnWidths(sheet, 41);
 
         // Note: Skipping evaluateAll() to save memory - Excel will calculate formulas on open
 
@@ -450,7 +451,7 @@ public class XLSXStatementService {
         applyPropertyOwnerStatementFormatting(workbook, sheet, data);
 
         // Use fixed column widths to avoid memory-intensive autoSizeColumn
-        applyFixedColumnWidths(sheet, 38);
+        applyFixedColumnWidths(sheet, 41);
 
         // Note: Skipping evaluateAll() to save memory - Excel will calculate formulas on open
 
