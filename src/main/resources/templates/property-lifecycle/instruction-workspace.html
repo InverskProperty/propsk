@@ -687,7 +687,15 @@
                     <span id="editPropertyName"></span>
                     <br>
                     <strong>Reference:</strong> <span id="editInstructionRef"></span>
-                    <span class="badge badge-primary ml-2" id="editInstructionStatus"></span>
+                </div>
+
+                <!-- Status Change -->
+                <div class="form-group">
+                    <label for="editStatus"><i class="fas fa-exchange-alt"></i> Status</label>
+                    <select class="form-control" id="editStatus">
+                        <!-- Options populated dynamically -->
+                    </select>
+                    <small class="form-text text-muted">Select a new status to transition to</small>
                 </div>
 
                 <!-- Financial Details -->
@@ -756,6 +764,13 @@
                               placeholder="Internal notes (not shown to tenants)..."></textarea>
                 </div>
             </div>
+
+            <!-- Quick Actions based on current status -->
+            <div class="modal-body border-top pt-3" id="editQuickActions">
+                <h6><i class="fas fa-forward"></i> Quick Actions</h6>
+                <div id="quickActionButtons"></div>
+            </div>
+
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">
                     <i class="fas fa-times"></i> Cancel
@@ -942,7 +957,6 @@
                 $('#editInstructionId').val(instruction.id);
                 $('#editPropertyName').text(instruction.property?.propertyName || instruction.property?.address || 'Unknown Property');
                 $('#editInstructionRef').text(instruction.instructionReference || '-');
-                $('#editInstructionStatus').text(instruction.status || '-');
 
                 // Financial
                 $('#editTargetRent').val(instruction.targetRent || '');
@@ -960,11 +974,183 @@
                 $('#editMarketingNotes').val(instruction.marketingNotes || '');
                 $('#editInternalNotes').val(instruction.internalNotes || '');
 
+                // Populate status dropdown with valid transitions
+                populateStatusDropdown(instruction.status);
+
+                // Build quick action buttons based on status
+                buildQuickActionButtons(instruction.id, instruction.status);
+
                 // Show modal
                 $('#editInstructionModal').modal('show');
             },
             error: function(xhr) {
                 showAlert('Failed to load instruction details', 'danger');
+            }
+        });
+    }
+
+    function populateStatusDropdown(currentStatus) {
+        const statusSelect = $('#editStatus');
+        statusSelect.empty();
+
+        // Status display names
+        const statusNames = {
+            'INSTRUCTION_RECEIVED': 'Instruction Received',
+            'ADVERTISING': 'Advertising',
+            'OFFER_ACCEPTED': 'Offer Accepted',
+            'REFERENCING': 'Referencing',
+            'IN_CONTRACTS': 'In Contracts',
+            'CONTRACTS_COMPLETE': 'Contracts Complete',
+            'ACTIVE_LEASE': 'Active Lease',
+            'CANCELLED': 'Cancelled'
+        };
+
+        // Valid transitions from each status
+        const validTransitions = {
+            'INSTRUCTION_RECEIVED': ['INSTRUCTION_RECEIVED', 'ADVERTISING', 'CANCELLED'],
+            'ADVERTISING': ['ADVERTISING', 'OFFER_ACCEPTED', 'CANCELLED'],
+            'OFFER_ACCEPTED': ['OFFER_ACCEPTED', 'REFERENCING', 'ADVERTISING', 'CANCELLED'],
+            'REFERENCING': ['REFERENCING', 'IN_CONTRACTS', 'ADVERTISING', 'CANCELLED'],
+            'IN_CONTRACTS': ['IN_CONTRACTS', 'CONTRACTS_COMPLETE', 'REFERENCING', 'CANCELLED'],
+            'CONTRACTS_COMPLETE': ['CONTRACTS_COMPLETE', 'ACTIVE_LEASE', 'IN_CONTRACTS', 'CANCELLED'],
+            'ACTIVE_LEASE': ['ACTIVE_LEASE', 'INSTRUCTION_RECEIVED', 'CANCELLED'],
+            'CANCELLED': ['CANCELLED']
+        };
+
+        const transitions = validTransitions[currentStatus] || [currentStatus];
+
+        transitions.forEach(status => {
+            const option = $('<option></option>')
+                .val(status)
+                .text(statusNames[status] || status);
+            if (status === currentStatus) {
+                option.prop('selected', true);
+                option.text(statusNames[status] + ' (current)');
+            }
+            statusSelect.append(option);
+        });
+    }
+
+    function buildQuickActionButtons(instructionId, currentStatus) {
+        const container = $('#quickActionButtons');
+        container.empty();
+
+        const statusFlow = {
+            'INSTRUCTION_RECEIVED': {
+                next: 'ADVERTISING',
+                nextLabel: '<i class="fas fa-bullhorn"></i> Start Advertising',
+                nextClass: 'btn-primary'
+            },
+            'ADVERTISING': {
+                next: 'OFFER_ACCEPTED',
+                nextLabel: '<i class="fas fa-handshake"></i> Mark Offer Accepted',
+                nextClass: 'btn-warning'
+            },
+            'OFFER_ACCEPTED': {
+                next: 'REFERENCING',
+                nextLabel: '<i class="fas fa-search"></i> Start Referencing',
+                nextClass: 'btn-info',
+                prev: 'ADVERTISING',
+                prevLabel: '<i class="fas fa-undo"></i> Back to Advertising'
+            },
+            'REFERENCING': {
+                next: 'IN_CONTRACTS',
+                nextLabel: '<i class="fas fa-file-signature"></i> Move to Contracts',
+                nextClass: 'btn-info',
+                prev: 'ADVERTISING',
+                prevLabel: '<i class="fas fa-undo"></i> Back to Advertising'
+            },
+            'IN_CONTRACTS': {
+                next: 'CONTRACTS_COMPLETE',
+                nextLabel: '<i class="fas fa-check"></i> Mark Contracts Complete',
+                nextClass: 'btn-success',
+                prev: 'REFERENCING',
+                prevLabel: '<i class="fas fa-undo"></i> Back to Referencing'
+            },
+            'CONTRACTS_COMPLETE': {
+                next: 'ACTIVE_LEASE',
+                nextLabel: '<i class="fas fa-key"></i> Create Lease',
+                nextClass: 'btn-success',
+                isLeaseCreation: true,
+                prev: 'IN_CONTRACTS',
+                prevLabel: '<i class="fas fa-undo"></i> Back to Contracts'
+            },
+            'ACTIVE_LEASE': {
+                next: 'INSTRUCTION_RECEIVED',
+                nextLabel: '<i class="fas fa-redo"></i> Re-let Property',
+                nextClass: 'btn-secondary'
+            }
+        };
+
+        const flow = statusFlow[currentStatus];
+        if (!flow) {
+            container.html('<span class="text-muted">No actions available for this status</span>');
+            return;
+        }
+
+        let html = '<div class="btn-group-vertical w-100">';
+
+        // Next action button
+        if (flow.next) {
+            if (flow.isLeaseCreation) {
+                html += `<button class="btn ${flow.nextClass} mb-2" onclick="$('#editInstructionModal').modal('hide'); showLeaseCreationModal(${instructionId});">
+                    ${flow.nextLabel}
+                </button>`;
+            } else {
+                html += `<button class="btn ${flow.nextClass} mb-2" onclick="quickStatusTransition(${instructionId}, '${flow.next}')">
+                    ${flow.nextLabel}
+                </button>`;
+            }
+        }
+
+        // Previous/back action button
+        if (flow.prev) {
+            html += `<button class="btn btn-outline-secondary mb-2" onclick="quickStatusTransition(${instructionId}, '${flow.prev}')">
+                ${flow.prevLabel}
+            </button>`;
+        }
+
+        // Cancel button (always available except for already cancelled)
+        if (currentStatus !== 'CANCELLED') {
+            html += `<button class="btn btn-outline-danger" onclick="quickStatusTransition(${instructionId}, 'CANCELLED')">
+                <i class="fas fa-times"></i> Cancel Instruction
+            </button>`;
+        }
+
+        html += '</div>';
+        container.html(html);
+    }
+
+    function quickStatusTransition(instructionId, newStatus) {
+        if (newStatus === 'CANCELLED') {
+            if (!confirm('Are you sure you want to cancel this instruction?')) {
+                return;
+            }
+        }
+
+        $.ajax({
+            url: '/employee/letting-instruction/' + instructionId + '/transition-status',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ newStatus: newStatus }),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Status updated successfully!', 'success');
+                    $('#editInstructionModal').modal('hide');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert('Error: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr) {
+                let errorMessage = 'Failed to update status';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage += ': ' + xhr.responseJSON.message;
+                }
+                showAlert(errorMessage, 'danger');
             }
         });
     }
@@ -975,6 +1161,9 @@
             showAlert('No instruction selected', 'danger');
             return;
         }
+
+        const selectedStatus = $('#editStatus').val();
+        const currentStatus = $('#editStatus option:contains("(current)")').val();
 
         const data = {
             targetRent: $('#editTargetRent').val() ? parseFloat($('#editTargetRent').val()) : null,
@@ -987,6 +1176,7 @@
             internalNotes: $('#editInternalNotes').val() || null
         };
 
+        // First save the field updates
         $.ajax({
             url: '/employee/letting-instruction/' + instructionId + '/update',
             method: 'POST',
@@ -997,10 +1187,39 @@
             },
             success: function(response) {
                 if (response.success) {
-                    showAlert('Instruction updated successfully!', 'success');
-                    $('#editInstructionModal').modal('hide');
-                    // Reload page to show updated data
-                    setTimeout(() => location.reload(), 1000);
+                    // Check if status changed
+                    if (selectedStatus && selectedStatus !== currentStatus) {
+                        // Update status
+                        $.ajax({
+                            url: '/employee/letting-instruction/' + instructionId + '/transition-status',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({ newStatus: selectedStatus }),
+                            beforeSend: function(xhr) {
+                                xhr.setRequestHeader(csrfHeader, csrfToken);
+                            },
+                            success: function(statusResponse) {
+                                if (statusResponse.success) {
+                                    showAlert('Instruction and status updated successfully!', 'success');
+                                    $('#editInstructionModal').modal('hide');
+                                    setTimeout(() => location.reload(), 1000);
+                                } else {
+                                    showAlert('Fields saved, but status change failed: ' + statusResponse.message, 'warning');
+                                }
+                            },
+                            error: function(xhr) {
+                                let errorMessage = 'Fields saved, but status change failed';
+                                if (xhr.responseJSON && xhr.responseJSON.message) {
+                                    errorMessage += ': ' + xhr.responseJSON.message;
+                                }
+                                showAlert(errorMessage, 'warning');
+                            }
+                        });
+                    } else {
+                        showAlert('Instruction updated successfully!', 'success');
+                        $('#editInstructionModal').modal('hide');
+                        setTimeout(() => location.reload(), 1000);
+                    }
                 } else {
                     showAlert('Error: ' + response.message, 'danger');
                 }
