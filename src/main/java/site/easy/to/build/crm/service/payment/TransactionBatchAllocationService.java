@@ -38,7 +38,21 @@ import java.util.stream.Collectors;
  *   Transaction A (£1000 net) → 100% to Batch LMN
  *   Transaction B (£1000 net) → 100% to Batch OPQ
  *   Transaction C (£1000 net) → £500 to Batch LMN, £500 to Batch OPQ
+ *
+ * @deprecated Use {@link UnifiedAllocationService} instead. This service works with
+ * {@link TransactionBatchAllocation} which is being phased out in favor of
+ * {@link site.easy.to.build.crm.entity.UnifiedAllocation}.
+ *
+ * Migration guide:
+ * - allocateFullTransaction() → allocateFullUnifiedTransaction()
+ * - allocatePartialTransaction() → allocatePartialUnifiedTransaction()
+ * - getUnallocatedTransactionsForOwner() → getUnallocatedUnifiedTransactionsForOwner()
+ * - getBatchSummary() → UnifiedAllocationService.getBatchSummary()
+ *
+ * The data has been migrated from transaction_batch_allocations to unified_allocations.
+ * This service continues to work for backwards compatibility during the transition period.
  */
+@Deprecated
 @Service
 @Transactional
 public class TransactionBatchAllocationService {

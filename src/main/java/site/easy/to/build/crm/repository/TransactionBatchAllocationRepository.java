@@ -13,7 +13,15 @@ import java.util.List;
 /**
  * Repository for TransactionBatchAllocation entities.
  * Provides methods for managing transaction-to-batch allocations with split support.
+ *
+ * @deprecated Use {@link UnifiedAllocationRepository} instead. The allocation data has been
+ * migrated to the unified_allocations table, which now serves as the single source of truth
+ * for all allocations (both from PayProp and manual).
+ *
+ * This repository is kept for backwards compatibility during the transition period.
+ * New code should use UnifiedAllocationRepository.
  */
+@Deprecated
 @Repository
 public interface TransactionBatchAllocationRepository extends JpaRepository<TransactionBatchAllocation, Long> {
 
@@ -264,4 +272,41 @@ public interface TransactionBatchAllocationRepository extends JpaRepository<Tran
      */
     @Query("SELECT a.batchReference, a.allocatedAmount FROM TransactionBatchAllocation a WHERE a.transactionId = :transactionId ORDER BY a.batchReference")
     List<Object[]> getBatchReferencesForTransaction(@Param("transactionId") Long transactionId);
+
+    // ===== UNIFIED TRANSACTION QUERIES (NEW - for migration to unified layer) =====
+
+    /**
+     * Find all allocations for a unified transaction
+     */
+    List<TransactionBatchAllocation> findByUnifiedTransactionId(Long unifiedTransactionId);
+
+    /**
+     * Get total allocated amount for a unified transaction
+     */
+    @Query("SELECT COALESCE(SUM(a.allocatedAmount), 0) FROM TransactionBatchAllocation a WHERE a.unifiedTransactionId = :unifiedTransactionId")
+    BigDecimal getTotalAllocatedForUnifiedTransaction(@Param("unifiedTransactionId") Long unifiedTransactionId);
+
+    /**
+     * Get remaining unallocated amount for a unified transaction
+     */
+    @Query("""
+        SELECT ut.netToOwnerAmount - COALESCE(SUM(a.allocatedAmount), 0)
+        FROM UnifiedTransaction ut
+        LEFT JOIN TransactionBatchAllocation a ON a.unifiedTransactionId = ut.id
+        WHERE ut.id = :unifiedTransactionId
+        GROUP BY ut.id, ut.netToOwnerAmount
+    """)
+    BigDecimal getRemainingUnallocatedForUnified(@Param("unifiedTransactionId") Long unifiedTransactionId);
+
+    /**
+     * Check if a unified transaction has any allocations
+     */
+    boolean existsByUnifiedTransactionId(Long unifiedTransactionId);
+
+    /**
+     * Delete all allocations for a unified transaction
+     */
+    @Modifying
+    @Query("DELETE FROM TransactionBatchAllocation a WHERE a.unifiedTransactionId = :unifiedTransactionId")
+    int deleteByUnifiedTransactionId(@Param("unifiedTransactionId") Long unifiedTransactionId);
 }

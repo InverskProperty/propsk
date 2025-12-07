@@ -22,6 +22,18 @@ public class UnifiedAllocation {
     @Column(name = "incoming_transaction_id")
     private Long incomingTransactionId;
 
+    // Link to unified_transactions (consolidated from transaction_batch_allocations)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "unified_transaction_id")
+    private UnifiedTransaction unifiedTransaction;
+
+    @Column(name = "unified_transaction_id", insertable = false, updatable = false)
+    private Long unifiedTransactionId;
+
+    // Link to historical_transactions (for backwards compatibility)
+    @Column(name = "historical_transaction_id")
+    private Long historicalTransactionId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "allocation_type", nullable = false)
     private AllocationType allocationType;
@@ -78,6 +90,9 @@ public class UnifiedAllocation {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "created_by")
+    private Long createdBy;
 
     // Enums
     public enum AllocationType {
@@ -152,6 +167,18 @@ public class UnifiedAllocation {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public UnifiedTransaction getUnifiedTransaction() { return unifiedTransaction; }
+    public void setUnifiedTransaction(UnifiedTransaction unifiedTransaction) { this.unifiedTransaction = unifiedTransaction; }
+
+    public Long getUnifiedTransactionId() { return unifiedTransactionId; }
+    public void setUnifiedTransactionId(Long unifiedTransactionId) { this.unifiedTransactionId = unifiedTransactionId; }
+
+    public Long getHistoricalTransactionId() { return historicalTransactionId; }
+    public void setHistoricalTransactionId(Long historicalTransactionId) { this.historicalTransactionId = historicalTransactionId; }
+
+    public Long getCreatedBy() { return createdBy; }
+    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 
     @PrePersist
     protected void onCreate() {

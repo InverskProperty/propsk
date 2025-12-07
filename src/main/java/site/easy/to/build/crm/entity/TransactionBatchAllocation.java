@@ -19,7 +19,15 @@ import java.time.LocalDateTime;
  *
  * Validation: SUM(allocated_amount) for a transaction should not exceed
  *             the transaction's net_to_owner_amount
+ *
+ * @deprecated Use {@link UnifiedAllocation} instead. The allocation system has been
+ * consolidated into a single table (unified_allocations) that handles both PayProp
+ * allocations and manual batch allocations.
+ *
+ * All data from this table has been migrated to unified_allocations.
+ * This entity is kept for backwards compatibility during the transition period.
  */
+@Deprecated
 @Entity
 @Table(name = "transaction_batch_allocations",
     indexes = {
@@ -43,6 +51,15 @@ public class TransactionBatchAllocation {
 
     @Column(name = "transaction_id", insertable = false, updatable = false)
     private Long transactionId;
+
+    // ===== LINK TO UNIFIED TRANSACTION (NEW - for migration to unified layer) =====
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "unified_transaction_id")
+    private UnifiedTransaction unifiedTransaction;
+
+    @Column(name = "unified_transaction_id", insertable = false, updatable = false)
+    private Long unifiedTransactionId;
 
     // ===== BATCH REFERENCE =====
 
@@ -148,6 +165,18 @@ public class TransactionBatchAllocation {
 
     public Long getTransactionId() {
         return transactionId;
+    }
+
+    public UnifiedTransaction getUnifiedTransaction() {
+        return unifiedTransaction;
+    }
+
+    public void setUnifiedTransaction(UnifiedTransaction unifiedTransaction) {
+        this.unifiedTransaction = unifiedTransaction;
+    }
+
+    public Long getUnifiedTransactionId() {
+        return unifiedTransactionId;
     }
 
     public String getBatchReference() {

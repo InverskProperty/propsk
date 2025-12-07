@@ -72,8 +72,14 @@ public class UnifiedTransactionRebuildService {
             result.put("paypropRecordsInserted", paypropCount);
             log.info("✅ Inserted {} records from financial_transactions", paypropCount);
 
-            // Step 4: Verify rebuild
-            log.info("📋 Step 4: Verifying rebuild...");
+            // Step 4: Migrate allocations to unified layer
+            log.info("📋 Step 4: Migrating allocations to unified_transactions...");
+            int migratedAllocations = migrateAllocationsToUnified();
+            result.put("migratedAllocations", migratedAllocations);
+            log.info("✅ Migrated {} allocations to unified_transaction_id", migratedAllocations);
+
+            // Step 5: Verify rebuild
+            log.info("📋 Step 5: Verifying rebuild...");
             Map<String, Object> verification = verifyRebuild();
             result.put("verification", verification);
 
@@ -106,7 +112,8 @@ public class UnifiedTransactionRebuildService {
         String sql = """
             INSERT INTO unified_transactions (
                 source_system, source_table, source_record_id,
-                transaction_date, amount, description, category,
+                transaction_date, amount, net_to_owner_amount, commission_rate, commission_amount,
+                description, category,
                 invoice_id, property_id, customer_id,
                 lease_reference, lease_start_date, lease_end_date,
                 rent_amount_at_transaction, property_name,
@@ -124,6 +131,9 @@ public class UnifiedTransactionRebuildService {
                     THEN ABS(ht.amount)
                     ELSE ht.amount
                 END as amount,
+                ht.net_to_owner_amount,
+                ht.commission_rate,
+                ht.commission_amount,
                 ht.description,
                 ht.category,
                 COALESCE(ht.invoice_id, active_lease.id) as invoice_id,
@@ -226,6 +236,27 @@ public class UnifiedTransactionRebuildService {
         """;
 
         return jdbcTemplate.update(sql, batchId);
+    }
+
+    /**
+     * Migrate existing allocations from historical_transactions to unified_transactions
+     * Links allocations to their corresponding unified_transaction record via source_record_id
+     */
+    private int migrateAllocationsToUnified() {
+        String sql = """
+            UPDATE transaction_batch_allocations tba
+            SET unified_transaction_id = (
+                SELECT ut.id
+                FROM unified_transactions ut
+                WHERE ut.source_table = 'historical_transactions'
+                  AND ut.source_record_id = tba.transaction_id
+                LIMIT 1
+            )
+            WHERE tba.unified_transaction_id IS NULL
+              AND tba.transaction_id IS NOT NULL
+        """;
+
+        return jdbcTemplate.update(sql);
     }
 
     /**

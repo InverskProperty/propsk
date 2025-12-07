@@ -121,16 +121,101 @@ This extraction is **correct**. The problem is downstream.
 
 ### Required Fixes Before Statement Enhancements
 
-1. **Phase 0A**: Remove redundant import services
-   - Disable `PayPropIncomingPaymentImportService`
-   - Disable `PayPropPaymentImportService`
+1. **Phase 0A**: Remove redundant import services ✅ COMPLETED
+   - ✅ Deprecated `PayPropIncomingPaymentImportService` with `@Deprecated` annotation
+   - ✅ Deprecated `PayPropPaymentImportService` with `@Deprecated` annotation
+   - ✅ Deprecated controller endpoints `/import` and `/sync-all`
 
-2. **Phase 0B**: Fix allocation pages to use unified layer
-   - Modify `TransactionBatchAllocationService` to query `unified_transactions`
-   - Modify `OwnerPaymentController` to use unified layer
+2. **Phase 0B**: Fix allocation pages to use unified layer ✅ COMPLETED
+   - ✅ Added `net_to_owner_amount`, `commission_rate`, `commission_amount` to `unified_transactions` table
+   - ✅ Added `unified_transaction_id` column to `transaction_batch_allocations` table
+   - ✅ Updated `UnifiedTransaction` entity with new fields
+   - ✅ Updated `TransactionBatchAllocation` entity with `unifiedTransaction` relationship
+   - ✅ Updated `UnifiedTransactionRebuildService` to:
+     - Copy `net_to_owner_amount` from `historical_transactions` during rebuild
+     - Migrate allocations to use `unified_transaction_id` during rebuild
+   - ✅ Added unified query methods to `UnifiedTransactionRepository`
+   - ✅ Added unified query methods to `TransactionBatchAllocationRepository`
+   - ✅ Migrated 186 existing allocations to use `unified_transaction_id`
 
-3. **Phase 0C**: Consolidate allocation systems
-   - Merge `UnifiedAllocation` + `TransactionBatchAllocation` into one system
+3. **Phase 0C**: Consolidate allocation systems ✓ COMPLETED
+   - ✅ Merged `TransactionBatchAllocation` data into `UnifiedAllocation`
+   - ✅ Added `unified_transaction_id` and `historical_transaction_id` to unified_allocations
+   - ✅ Enhanced `UnifiedAllocationService` with full allocation functionality
+   - ✅ Deprecated `TransactionBatchAllocation`, `TransactionBatchAllocationRepository`, and `TransactionBatchAllocationService`
+
+### Database Changes Made
+
+```sql
+-- Phase 0B: unified_transactions additions
+ALTER TABLE unified_transactions
+ADD COLUMN net_to_owner_amount DECIMAL(12,2) NULL,
+ADD COLUMN commission_rate DECIMAL(5,2) NULL,
+ADD COLUMN commission_amount DECIMAL(12,2) NULL;
+
+-- Phase 0B: transaction_batch_allocations additions (temporary for migration)
+ALTER TABLE transaction_batch_allocations
+ADD COLUMN unified_transaction_id BIGINT NULL,
+ADD INDEX idx_tba_unified (unified_transaction_id);
+
+-- Phase 0C: unified_allocations consolidation columns
+ALTER TABLE unified_allocations
+ADD COLUMN unified_transaction_id BIGINT NULL,
+ADD COLUMN historical_transaction_id BIGINT NULL,
+ADD COLUMN created_by BIGINT NULL,
+ADD INDEX idx_ua_unified_tx (unified_transaction_id),
+ADD INDEX idx_ua_historical_tx (historical_transaction_id);
+
+-- Phase 0C: Data migration from transaction_batch_allocations to unified_allocations
+INSERT INTO unified_allocations (
+    unified_transaction_id, historical_transaction_id, allocation_type, amount,
+    category, description, property_id, property_name, beneficiary_type,
+    beneficiary_id, beneficiary_name, payment_status, payment_batch_id,
+    source, created_at, updated_at, created_by
+)
+SELECT
+    tba.unified_transaction_id,
+    tba.transaction_id,
+    CASE WHEN tba.allocated_amount >= 0 THEN 'OWNER' ELSE 'EXPENSE' END,
+    tba.allocated_amount,
+    SUBSTRING(tba.batch_reference, 1, 100),
+    CONCAT('Migrated from batch ', tba.batch_reference),
+    tba.property_id,
+    tba.property_name,
+    'OWNER',
+    tba.beneficiary_id,
+    tba.beneficiary_name,
+    'BATCHED',
+    tba.batch_reference,
+    'HISTORICAL',
+    tba.created_at,
+    tba.updated_at,
+    tba.created_by
+FROM transaction_batch_allocations tba;
+-- Result: 186 records migrated
+
+-- Verification query:
+SELECT source, COUNT(*) FROM unified_allocations GROUP BY source;
+-- PAYPROP: 289, HISTORICAL: 201 (15 original + 186 migrated)
+```
+
+### Allocation Architecture (Consolidated)
+
+```
+SINGLE SOURCE OF TRUTH: unified_allocations
+├── source = 'PAYPROP'     → Allocations from PayProp imports (289 records)
+├── source = 'HISTORICAL'  → Migrated manual batch allocations (201 records)
+├── source = 'MANUAL'      → New manual allocations (via UnifiedAllocationService)
+└── source = 'CSV_IMPORT'  → Future: CSV-imported allocations
+
+Services:
+├── UnifiedAllocationService      → Primary service for all allocation operations
+└── TransactionBatchAllocationService (DEPRECATED) → Backwards compatibility only
+
+Repositories:
+├── UnifiedAllocationRepository   → Primary repository for unified_allocations
+└── TransactionBatchAllocationRepository (DEPRECATED) → Backwards compatibility only
+```
 
 ---
 

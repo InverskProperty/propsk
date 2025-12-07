@@ -50,6 +50,15 @@ public class UnifiedTransaction {
     @Column(name = "amount", precision = 12, scale = 2, nullable = false)
     private BigDecimal amount;
 
+    @Column(name = "net_to_owner_amount", precision = 12, scale = 2)
+    private BigDecimal netToOwnerAmount;
+
+    @Column(name = "commission_rate", precision = 5, scale = 2)
+    private BigDecimal commissionRate;
+
+    @Column(name = "commission_amount", precision = 12, scale = 2)
+    private BigDecimal commissionAmount;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
@@ -188,6 +197,30 @@ public class UnifiedTransaction {
 
     public void setAmount(BigDecimal amount) {
         this.amount = amount;
+    }
+
+    public BigDecimal getNetToOwnerAmount() {
+        return netToOwnerAmount;
+    }
+
+    public void setNetToOwnerAmount(BigDecimal netToOwnerAmount) {
+        this.netToOwnerAmount = netToOwnerAmount;
+    }
+
+    public BigDecimal getCommissionRate() {
+        return commissionRate;
+    }
+
+    public void setCommissionRate(BigDecimal commissionRate) {
+        this.commissionRate = commissionRate;
+    }
+
+    public BigDecimal getCommissionAmount() {
+        return commissionAmount;
+    }
+
+    public void setCommissionAmount(BigDecimal commissionAmount) {
+        this.commissionAmount = commissionAmount;
     }
 
     public String getDescription() {

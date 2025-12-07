@@ -217,4 +217,38 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
         LocalDate endDate,
         UnifiedTransaction.FlowDirection flowDirection
     );
+
+    // ===== ALLOCATION SUPPORT QUERIES =====
+
+    /**
+     * Find transactions with net_to_owner_amount for a property (for allocation UI)
+     */
+    @Query("""
+        SELECT ut FROM UnifiedTransaction ut
+        WHERE ut.propertyId = :propertyId
+          AND ut.netToOwnerAmount IS NOT NULL
+        ORDER BY ut.transactionDate DESC
+    """)
+    List<UnifiedTransaction> findByPropertyIdWithNetToOwner(@Param("propertyId") Long propertyId);
+
+    /**
+     * Find transactions with net_to_owner_amount for properties owned by customer (for allocation UI)
+     */
+    @Query("""
+        SELECT ut FROM UnifiedTransaction ut
+        WHERE ut.propertyId IN (
+            SELECT cpa.property.id FROM CustomerPropertyAssignment cpa
+            WHERE cpa.customer.customerId = :ownerId
+              AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+        )
+        AND ut.netToOwnerAmount IS NOT NULL
+        ORDER BY ut.transactionDate DESC
+    """)
+    List<UnifiedTransaction> findByOwnerIdWithNetToOwner(@Param("ownerId") Long ownerId);
+
+    /**
+     * Find by ID
+     */
+    @Query("SELECT ut FROM UnifiedTransaction ut WHERE ut.id = :id")
+    java.util.Optional<UnifiedTransaction> findByIdWithDetails(@Param("id") Long id);
 }
