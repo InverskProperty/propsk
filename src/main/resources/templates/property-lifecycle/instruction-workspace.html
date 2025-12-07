@@ -666,6 +666,108 @@
     </div>
 </div>
 
+<!-- Edit Instruction Modal -->
+<div class="modal fade" id="editInstructionModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit"></i> Edit Instruction
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editInstructionId">
+
+                <!-- Property Info (Read-only) -->
+                <div class="alert alert-secondary">
+                    <strong><i class="fas fa-building"></i> Property:</strong>
+                    <span id="editPropertyName"></span>
+                    <br>
+                    <strong>Reference:</strong> <span id="editInstructionRef"></span>
+                    <span class="badge badge-primary ml-2" id="editInstructionStatus"></span>
+                </div>
+
+                <!-- Financial Details -->
+                <h6 class="mt-3 mb-2"><i class="fas fa-pound-sign"></i> Financial Details</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="editTargetRent">Target Rent (per month)</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">£</span>
+                                </div>
+                                <input type="number" class="form-control" id="editTargetRent" step="0.01" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="editTargetLeaseLength">Target Lease Length (months)</label>
+                            <input type="number" class="form-control" id="editTargetLeaseLength" min="1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dates -->
+                <h6 class="mt-3 mb-2"><i class="fas fa-calendar-alt"></i> Key Dates</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="editExpectedVacancyDate">Expected Vacancy Date</label>
+                            <input type="date" class="form-control" id="editExpectedVacancyDate">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="editAvailableFromDate">Available From Date</label>
+                            <input type="date" class="form-control" id="editAvailableFromDate">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <h6 class="mt-3 mb-2"><i class="fas fa-align-left"></i> Property Description</h6>
+                <div class="form-group">
+                    <textarea class="form-control" id="editPropertyDescription" rows="3"
+                              placeholder="Describe the property..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="editKeyFeatures">Key Features</label>
+                    <textarea class="form-control" id="editKeyFeatures" rows="2"
+                              placeholder="e.g., Garden, Parking, Recently renovated..."></textarea>
+                </div>
+
+                <!-- Notes -->
+                <h6 class="mt-3 mb-2"><i class="fas fa-sticky-note"></i> Notes</h6>
+                <div class="form-group">
+                    <label for="editMarketingNotes">Marketing Notes</label>
+                    <textarea class="form-control" id="editMarketingNotes" rows="2"
+                              placeholder="Notes for marketing/advertising..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="editInternalNotes">Internal Notes</label>
+                    <textarea class="form-control" id="editInternalNotes" rows="2"
+                              placeholder="Internal notes (not shown to tenants)..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button type="button" class="btn btn-info" onclick="saveInstructionEdit()">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Lease Creation Modal (CONTRACTS_COMPLETE → ACTIVE_LEASE) -->
 <div class="modal fade" id="leaseCreationModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
@@ -831,6 +933,90 @@
     }
 
     function viewInstruction(instructionId) {
+        // Load instruction data and open edit modal
+        $.ajax({
+            url: '/employee/letting-instruction/api/' + instructionId,
+            method: 'GET',
+            success: function(instruction) {
+                // Populate modal fields
+                $('#editInstructionId').val(instruction.id);
+                $('#editPropertyName').text(instruction.property?.propertyName || instruction.property?.address || 'Unknown Property');
+                $('#editInstructionRef').text(instruction.instructionReference || '-');
+                $('#editInstructionStatus').text(instruction.status || '-');
+
+                // Financial
+                $('#editTargetRent').val(instruction.targetRent || '');
+                $('#editTargetLeaseLength').val(instruction.targetLeaseLengthMonths || '');
+
+                // Dates
+                $('#editExpectedVacancyDate').val(instruction.expectedVacancyDate || '');
+                $('#editAvailableFromDate').val(instruction.availableFromDate || '');
+
+                // Description
+                $('#editPropertyDescription').val(instruction.propertyDescription || '');
+                $('#editKeyFeatures').val(instruction.keyFeatures || '');
+
+                // Notes
+                $('#editMarketingNotes').val(instruction.marketingNotes || '');
+                $('#editInternalNotes').val(instruction.internalNotes || '');
+
+                // Show modal
+                $('#editInstructionModal').modal('show');
+            },
+            error: function(xhr) {
+                showAlert('Failed to load instruction details', 'danger');
+            }
+        });
+    }
+
+    function saveInstructionEdit() {
+        const instructionId = $('#editInstructionId').val();
+        if (!instructionId) {
+            showAlert('No instruction selected', 'danger');
+            return;
+        }
+
+        const data = {
+            targetRent: $('#editTargetRent').val() ? parseFloat($('#editTargetRent').val()) : null,
+            targetLeaseLengthMonths: $('#editTargetLeaseLength').val() ? parseInt($('#editTargetLeaseLength').val()) : null,
+            expectedVacancyDate: $('#editExpectedVacancyDate').val() || null,
+            availableFromDate: $('#editAvailableFromDate').val() || null,
+            propertyDescription: $('#editPropertyDescription').val() || null,
+            keyFeatures: $('#editKeyFeatures').val() || null,
+            marketingNotes: $('#editMarketingNotes').val() || null,
+            internalNotes: $('#editInternalNotes').val() || null
+        };
+
+        $.ajax({
+            url: '/employee/letting-instruction/' + instructionId + '/update',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Instruction updated successfully!', 'success');
+                    $('#editInstructionModal').modal('hide');
+                    // Reload page to show updated data
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showAlert('Error: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr) {
+                let errorMessage = 'Failed to update instruction';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage += ': ' + xhr.responseJSON.message;
+                }
+                showAlert(errorMessage, 'danger');
+            }
+        });
+    }
+
+    function viewInstructionDetail(instructionId) {
+        // Navigate to detail page (for read-only view)
         window.location.href = '/employee/letting-instruction/' + instructionId + '/detail';
     }
 
@@ -1019,6 +1205,9 @@
                 keyFeatures: null,
                 marketingNotes: notes
             }),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
             success: function(response) {
                 if (response.success) {
                     showAlert('Marketing started! Notes saved successfully.', 'success');
@@ -1131,6 +1320,9 @@
                 agreedRent: parseFloat(agreedRent),
                 notes: notes
             }),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
             success: function(response) {
                 if (response.success) {
                     showAlert('Offer accepted! Rent and tenant saved successfully.', 'success');
@@ -1209,6 +1401,9 @@
                 newStatus: currentDragEvent.targetStatus,
                 notes: notes
             }),
+            beforeSend: function(xhr) {
+                xhr.setRequestHeader(csrfHeader, csrfToken);
+            },
             success: function(response) {
                 if (response.success) {
                     showAlert('Status updated successfully! Notes saved.', 'success');

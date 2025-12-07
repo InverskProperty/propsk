@@ -752,7 +752,105 @@ public class LettingInstructionController {
         }
     }
 
+    /**
+     * Update instruction details (for edit modal)
+     */
+    @PostMapping("/{id}/update")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> updateInstruction(@PathVariable Long id,
+                                                                  @RequestBody UpdateInstructionRequest request) {
+        try {
+            LettingInstruction instruction = lettingInstructionService.getInstructionById(id)
+                    .orElse(null);
+            if (instruction == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("success", false, "message", "Instruction not found"));
+            }
+
+            // Update editable fields
+            if (request.getTargetRent() != null) {
+                instruction.setTargetRent(request.getTargetRent());
+            }
+            if (request.getTargetLeaseLengthMonths() != null) {
+                instruction.setTargetLeaseLengthMonths(request.getTargetLeaseLengthMonths());
+            }
+            if (request.getExpectedVacancyDate() != null) {
+                instruction.setExpectedVacancyDate(request.getExpectedVacancyDate());
+            }
+            if (request.getAvailableFromDate() != null) {
+                instruction.setAvailableFromDate(request.getAvailableFromDate());
+            }
+            if (request.getPropertyDescription() != null) {
+                instruction.setPropertyDescription(request.getPropertyDescription());
+            }
+            if (request.getKeyFeatures() != null) {
+                instruction.setKeyFeatures(request.getKeyFeatures());
+            }
+            if (request.getMarketingNotes() != null) {
+                instruction.setMarketingNotes(request.getMarketingNotes());
+            }
+            if (request.getInternalNotes() != null) {
+                instruction.setInternalNotes(request.getInternalNotes());
+            }
+
+            instruction = lettingInstructionRepository.save(instruction);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Instruction updated successfully",
+                    "instructionId", instruction.getId()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
     // ===== REQUEST DTOs =====
+
+    public static class UpdateInstructionRequest {
+        private BigDecimal targetRent;
+        private Integer targetLeaseLengthMonths;
+        private LocalDate expectedVacancyDate;
+        private LocalDate availableFromDate;
+        private String propertyDescription;
+        private String keyFeatures;
+        private String marketingNotes;
+        private String internalNotes;
+
+        // Getters and setters
+        public BigDecimal getTargetRent() { return targetRent; }
+        public void setTargetRent(BigDecimal targetRent) { this.targetRent = targetRent; }
+
+        public Integer getTargetLeaseLengthMonths() { return targetLeaseLengthMonths; }
+        public void setTargetLeaseLengthMonths(Integer targetLeaseLengthMonths) {
+            this.targetLeaseLengthMonths = targetLeaseLengthMonths;
+        }
+
+        public LocalDate getExpectedVacancyDate() { return expectedVacancyDate; }
+        public void setExpectedVacancyDate(LocalDate expectedVacancyDate) {
+            this.expectedVacancyDate = expectedVacancyDate;
+        }
+
+        public LocalDate getAvailableFromDate() { return availableFromDate; }
+        public void setAvailableFromDate(LocalDate availableFromDate) {
+            this.availableFromDate = availableFromDate;
+        }
+
+        public String getPropertyDescription() { return propertyDescription; }
+        public void setPropertyDescription(String propertyDescription) {
+            this.propertyDescription = propertyDescription;
+        }
+
+        public String getKeyFeatures() { return keyFeatures; }
+        public void setKeyFeatures(String keyFeatures) { this.keyFeatures = keyFeatures; }
+
+        public String getMarketingNotes() { return marketingNotes; }
+        public void setMarketingNotes(String marketingNotes) { this.marketingNotes = marketingNotes; }
+
+        public String getInternalNotes() { return internalNotes; }
+        public void setInternalNotes(String internalNotes) { this.internalNotes = internalNotes; }
+    }
 
     public static class CreateInstructionRequest {
         private Long propertyId;

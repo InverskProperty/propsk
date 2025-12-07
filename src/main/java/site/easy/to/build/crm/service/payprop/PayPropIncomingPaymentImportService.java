@@ -31,6 +31,23 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * @deprecated REDUNDANT SERVICE - DO NOT USE
+ *
+ * This service is deprecated because it duplicates functionality already provided by
+ * {@link PayPropIncomingPaymentFinancialSyncService}, which writes to financial_transactions.
+ *
+ * PROBLEM: This service writes PayProp data to historical_transactions, but:
+ * - historical_transactions should ONLY contain CSV/manual imports
+ * - PayPropIncomingPaymentFinancialSyncService already writes the same data to financial_transactions
+ * - Both tables feed into unified_transactions, causing potential duplicates
+ *
+ * MIGRATION PATH:
+ * - Use PayPropIncomingPaymentFinancialSyncService instead (writes to financial_transactions)
+ * - Allocation pages should query unified_transactions, not historical_transactions directly
+ *
+ * See: docs/STATEMENT_SERVICES_ANALYSIS.md for full architecture documentation
+ *
+ * -------- ORIGINAL DOCUMENTATION --------
  * Imports incoming tenant payments from payprop_incoming_payments to historical_transactions
  *
  * This service:
@@ -45,6 +62,7 @@ import java.util.List;
  *   - Creates management_fee transaction (commission)
  *   - Creates owner_allocation transaction (net to owner)
  */
+@Deprecated
 @Service
 @Transactional
 public class PayPropIncomingPaymentImportService {

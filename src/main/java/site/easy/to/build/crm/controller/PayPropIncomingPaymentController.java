@@ -14,8 +14,14 @@ import java.util.Map;
  * Controller for PayProp incoming payment extraction and import
  *
  * Workflow:
- * 1. Extract: Deduplicate payprop_report_all_payments -> payprop_incoming_payments
- * 2. Import: Transform payprop_incoming_payments -> historical_transactions (with splits)
+ * 1. Extract: Deduplicate payprop_report_all_payments -> payprop_incoming_payments (STILL VALID)
+ * 2. Import: Transform payprop_incoming_payments -> historical_transactions (DEPRECATED)
+ *
+ * IMPORTANT: The /import and /sync-all endpoints are DEPRECATED.
+ * PayProp data should flow to financial_transactions via PayPropIncomingPaymentFinancialSyncService,
+ * NOT to historical_transactions.
+ *
+ * See: docs/STATEMENT_SERVICES_ANALYSIS.md for the correct data flow architecture.
  */
 @RestController
 @RequestMapping("/api/payprop/incoming-payments")
@@ -57,9 +63,13 @@ public class PayPropIncomingPaymentController {
     }
 
     /**
+     * @deprecated This endpoint imports to historical_transactions which is wrong.
+     * Use PayPropIncomingPaymentFinancialSyncService.syncIncomingPaymentsToFinancialTransactions() instead.
+     *
      * Step 2: Import incoming payments to historical_transactions with commission splits
      * GET /api/payprop/incoming-payments/import
      */
+    @Deprecated
     @GetMapping("/import")
     public ResponseEntity<?> importIncomingPayments() {
         try {
@@ -87,9 +97,13 @@ public class PayPropIncomingPaymentController {
     }
 
     /**
+     * @deprecated The import step writes to historical_transactions which is wrong.
+     * Use /extract endpoint only, then trigger PayPropIncomingPaymentFinancialSyncService separately.
+     *
      * Combined operation: Extract AND Import in one call
      * GET /api/payprop/incoming-payments/sync-all
      */
+    @Deprecated
     @GetMapping("/sync-all")
     public ResponseEntity<?> syncAll() {
         try {

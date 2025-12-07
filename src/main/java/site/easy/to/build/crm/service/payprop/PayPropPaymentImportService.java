@@ -33,6 +33,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * @deprecated REDUNDANT SERVICE - DO NOT USE - NOT CALLED FROM ANYWHERE
+ *
+ * This service is deprecated because it duplicates functionality already provided by
+ * {@link PayPropFinancialSyncService}, which writes to financial_transactions.
+ *
+ * PROBLEM: This service writes PayProp batch payment data to historical_transactions, but:
+ * - historical_transactions should ONLY contain CSV/manual imports
+ * - PayPropFinancialSyncService already writes BATCH_PAYMENT records to financial_transactions
+ * - Both tables feed into unified_transactions, causing potential duplicates
+ *
+ * NOTE: This service is NOT autowired anywhere and appears to be dead code.
+ *
+ * MIGRATION PATH:
+ * - Use PayPropFinancialSyncService instead (writes to financial_transactions with data_source=BATCH_PAYMENT)
+ * - Allocation pages should query unified_transactions, not historical_transactions directly
+ *
+ * See: docs/STATEMENT_SERVICES_ANALYSIS.md for full architecture documentation
+ *
+ * -------- ORIGINAL DOCUMENTATION --------
  * Service to import PayProp payment batches into historical transactions
  *
  * Imports TWO types of transactions:
@@ -44,6 +63,7 @@ import java.util.Map;
  * - Each property allocation is tracked individually (what they earned)
  * - One lump sum payment is made to the owner's bank (what they received)
  */
+@Deprecated
 @Service
 @Transactional
 public class PayPropPaymentImportService {
