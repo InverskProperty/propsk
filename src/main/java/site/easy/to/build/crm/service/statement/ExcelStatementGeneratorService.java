@@ -431,10 +431,8 @@ public class ExcelStatementGeneratorService {
             row.createCell(10).setCellValue(lease.getFrequency() != null ? lease.getFrequency() : "MONTHLY");
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("LEASE_MASTER sheet created with {} rows", leaseMaster.size());
     }
@@ -496,10 +494,8 @@ public class ExcelStatementGeneratorService {
             row.createCell(9).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("TRANSACTIONS sheet created with {} rows", transactions.size());
     }
@@ -638,10 +634,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("RENT_DUE sheet created with {} rows (lease × month)", rowNum - 1);
     }
@@ -768,10 +762,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("RENT_RECEIVED sheet created with {} rows", rowNum - 1);
     }
@@ -849,10 +841,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("EXPENSES sheet created with {} expense rows", rowNum - 1);
     }
@@ -988,10 +978,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("PROPERTY_ACCOUNT sheet created with {} rows for {} blocks", rowNum - 1, processedBlocks.size());
     }
@@ -1254,11 +1242,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns - skip for very wide sheets to improve performance
-        int colsToAutoSize = Math.min(headers.length, 16); // Only auto-size first 16 columns
-        for (int i = 0; i < colsToAutoSize; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("MONTHLY_STATEMENT sheet created with {} rows", rowNum - 1);
     }
@@ -1487,11 +1472,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns - skip for very wide sheets to improve performance
-        int colsToAutoSize = Math.min(headers.length, 16); // Only auto-size first 16 columns
-        for (int i = 0; i < colsToAutoSize; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("{} sheet created with {} rows", sheetName, rowNum - 1);
     }
@@ -1654,10 +1636,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("RENT_DUE sheet created with {} rows (lease-based periods)", rowNum - 1);
     }
@@ -1777,10 +1757,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("RENT_RECEIVED sheet created with {} rows (custom periods)", rowNum - 1);
     }
@@ -2028,10 +2006,8 @@ public class ExcelStatementGeneratorService {
             totalNetCell.setCellStyle(boldCurrencyStyle);
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("{} sheet created with {} rows", sheetName, rowNum - 1);
     }
@@ -2255,10 +2231,8 @@ public class ExcelStatementGeneratorService {
             totalClosingBalanceCell.setCellStyle(boldCurrencyStyle);
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("SUMMARY sheet created with {} rows", rowNum - 1);
     }
@@ -2424,10 +2398,8 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("MONTHLY_STATEMENT sheet created with {} rows (custom periods)", rowNum - 1);
     }
@@ -2610,10 +2582,8 @@ public class ExcelStatementGeneratorService {
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("Income Allocations sheet created with {} rows, total: {}", incomeAllocations.size(), totalAllocated);
     }
@@ -2727,10 +2697,8 @@ public class ExcelStatementGeneratorService {
         totalCell.setCellValue(totalAllocated.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("Expense Allocations sheet created with {} rows, total: {}", expenseAllocations.size(), totalAllocated);
     }
@@ -2826,11 +2794,41 @@ public class ExcelStatementGeneratorService {
         totalCell.setCellValue(totalPayments.doubleValue());
         totalCell.setCellStyle(currencyStyle);
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
+        applyFixedColumnWidths(sheet, headers.length);
 
         log.info("Owner Payments Summary sheet created with {} batches, total: {}", batchRefs.size(), totalPayments);
+    }
+
+    /**
+     * Apply fixed column widths to avoid memory-intensive autoSizeColumn()
+     * autoSizeColumn() causes OutOfMemoryError on large sheets because it:
+     * 1. Iterates through ALL cells in the column
+     * 2. Creates font metrics objects
+     * 3. Caches rendered text widths
+     *
+     * Fixed widths are much faster and use minimal memory.
+     *
+     * @param sheet The sheet to apply widths to
+     * @param columnCount Number of columns to size
+     */
+    private void applyFixedColumnWidths(Sheet sheet, int columnCount) {
+        // Default width in characters (Excel uses 1/256th of character width)
+        int defaultWidth = 15 * 256;  // 15 characters
+        int narrowWidth = 10 * 256;   // 10 characters for IDs, dates
+        int wideWidth = 25 * 256;     // 25 characters for names, descriptions
+        int currencyWidth = 12 * 256; // 12 characters for currency values
+
+        for (int i = 0; i < columnCount; i++) {
+            // Apply width based on column position patterns
+            // Most sheets have: ID, reference, name, dates, amounts...
+            if (i == 0) {
+                sheet.setColumnWidth(i, narrowWidth);  // First column usually ID or reference
+            } else if (i == 1 || i == 2) {
+                sheet.setColumnWidth(i, wideWidth);    // Names, property names
+            } else {
+                sheet.setColumnWidth(i, defaultWidth); // Everything else
+            }
+        }
     }
 }
