@@ -307,18 +307,20 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     /**
      * Get all allocations for a batch with full details
      */
-    @Query("SELECT ua FROM UnifiedAllocation ua WHERE ua.paymentBatchId = :batchReference ORDER BY CASE WHEN ua.amount > 0 THEN 0 ELSE 1 END, ua.createdAt, ua.propertyName")
+    @Query("SELECT ua FROM UnifiedAllocation ua WHERE ua.paymentBatchId = :batchReference ORDER BY CASE WHEN ua.allocationType = 'OWNER' THEN 0 ELSE 1 END, ua.createdAt, ua.propertyName")
     List<UnifiedAllocation> getAllocationsForBatchWithDetails(@Param("batchReference") String batchReference);
 
     /**
      * Get batch summary - count and totals
+     * Uses allocation type to distinguish income vs expenses (not amount sign)
+     * Net = Income - Expenses (expenses are stored as positive amounts)
      */
     @Query("""
         SELECT ua.paymentBatchId,
                COUNT(ua),
-               SUM(CASE WHEN ua.amount > 0 THEN ua.amount ELSE 0 END) as totalIncome,
-               SUM(CASE WHEN ua.amount < 0 THEN ua.amount ELSE 0 END) as totalExpenses,
-               SUM(ua.amount) as netTotal
+               SUM(CASE WHEN ua.allocationType = 'OWNER' THEN ua.amount ELSE 0 END) as totalIncome,
+               SUM(CASE WHEN ua.allocationType IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT', 'OTHER') THEN ua.amount ELSE 0 END) as totalExpenses,
+               SUM(CASE WHEN ua.allocationType = 'OWNER' THEN ua.amount ELSE 0 END) - SUM(CASE WHEN ua.allocationType IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT', 'OTHER') THEN ua.amount ELSE 0 END) as netTotal
         FROM UnifiedAllocation ua
         WHERE ua.paymentBatchId IS NOT NULL
         GROUP BY ua.paymentBatchId

@@ -84,9 +84,16 @@ public class PaymentBatchService {
             }
         }
 
-        // Calculate total
+        // Calculate total: Income (OWNER) - Expenses (EXPENSE, COMMISSION, DISBURSEMENT, OTHER)
+        // Expenses are stored as positive amounts but should be subtracted from income
         BigDecimal totalAllocations = allocations.stream()
-            .map(UnifiedAllocation::getAmount)
+            .map(a -> {
+                if (a.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                    return a.getAmount(); // Add income
+                } else {
+                    return a.getAmount().negate(); // Subtract expenses
+                }
+            })
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Generate batch ID
@@ -179,9 +186,16 @@ public class PaymentBatchService {
             }
         }
 
-        // Calculate total from allocations
+        // Calculate total from allocations: Income (OWNER) - Expenses (others)
+        // Expenses are stored as positive amounts but should be subtracted from income
         BigDecimal totalAllocations = allocations.stream()
-            .map(UnifiedAllocation::getAmount)
+            .map(a -> {
+                if (a.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                    return a.getAmount(); // Add income
+                } else {
+                    return a.getAmount().negate(); // Subtract expenses
+                }
+            })
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Calculate adjustment
@@ -247,9 +261,15 @@ public class PaymentBatchService {
             return;
         }
 
-        // Calculate total amount across all properties
+        // Calculate total net amount across all properties (income - expenses)
         BigDecimal totalAmount = allocations.stream()
-                .map(UnifiedAllocation::getAmount)
+                .map(a -> {
+                    if (a.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                        return a.getAmount(); // Add income
+                    } else {
+                        return a.getAmount().negate(); // Subtract expenses
+                    }
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Distribute deposit proportionally
@@ -262,8 +282,15 @@ public class PaymentBatchService {
             List<UnifiedAllocation> propertyAllocations = entry.getValue();
             currentProperty++;
 
+            // Calculate net per property (income - expenses)
             BigDecimal propertyTotal = propertyAllocations.stream()
-                    .map(UnifiedAllocation::getAmount)
+                    .map(a -> {
+                        if (a.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                            return a.getAmount(); // Add income
+                        } else {
+                            return a.getAmount().negate(); // Subtract expenses
+                        }
+                    })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             BigDecimal propertyDeposit;
@@ -304,9 +331,15 @@ public class PaymentBatchService {
             return;
         }
 
-        // Calculate total amount across all properties
+        // Calculate total net amount across all properties (income - expenses)
         BigDecimal totalAmount = allocations.stream()
-                .map(UnifiedAllocation::getAmount)
+                .map(a -> {
+                    if (a.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                        return a.getAmount(); // Add income
+                    } else {
+                        return a.getAmount().negate(); // Subtract expenses
+                    }
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Check total available balance
@@ -335,8 +368,15 @@ public class PaymentBatchService {
             List<UnifiedAllocation> propertyAllocations = entry.getValue();
             currentProperty++;
 
+            // Calculate net per property (income - expenses)
             BigDecimal propertyTotal = propertyAllocations.stream()
-                    .map(UnifiedAllocation::getAmount)
+                    .map(a -> {
+                        if (a.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                            return a.getAmount(); // Add income
+                        } else {
+                            return a.getAmount().negate(); // Subtract expenses
+                        }
+                    })
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             BigDecimal propertyWithdrawal;

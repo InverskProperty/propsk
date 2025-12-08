@@ -347,8 +347,15 @@ public class UnifiedAllocationService {
             allocation.setHistoricalTransactionId(transaction.getSourceRecordId());
         }
 
-        allocation.setAllocationType(amount.compareTo(BigDecimal.ZERO) >= 0 ? AllocationType.OWNER : AllocationType.EXPENSE);
-        allocation.setAmount(amount);
+        // Determine allocation type based on transaction's flow direction, not amount sign
+        // INCOMING (rent received) → OWNER (income for landlord)
+        // OUTGOING (expenses paid) → EXPENSE (deductions from landlord payment)
+        if (transaction.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING) {
+            allocation.setAllocationType(AllocationType.OWNER);
+        } else {
+            allocation.setAllocationType(AllocationType.EXPENSE);
+        }
+        allocation.setAmount(amount.abs()); // Store as positive, type determines if income or expense
         allocation.setCategory(transaction.getCategory());
         allocation.setDescription(transaction.getDescription());
 
@@ -385,6 +392,7 @@ public class UnifiedAllocationService {
 
     /**
      * Validate that an allocation amount is valid for a unified transaction
+     * All amounts are stored as positive - allocation type determines income vs expense
      */
     public void validateUnifiedAllocation(UnifiedTransaction transaction, BigDecimal amount) {
         BigDecimal netToOwner = transaction.getNetToOwnerAmount();
@@ -394,25 +402,16 @@ public class UnifiedAllocationService {
 
         BigDecimal remaining = getRemainingUnallocatedForUnified(transaction.getId());
 
-        // For positive net (income), amount should be positive and not exceed remaining
-        if (netToOwner.compareTo(BigDecimal.ZERO) >= 0) {
-            if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("Allocation amount must be positive for income transaction");
-            }
-            if (amount.compareTo(remaining) > 0) {
-                throw new IllegalArgumentException("Allocation amount (" + amount +
-                        ") exceeds remaining unallocated (" + remaining + ")");
-            }
+        // Amount should always be positive (absolute value)
+        BigDecimal absAmount = amount.abs();
+        BigDecimal absRemaining = remaining.abs();
+
+        if (absAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Allocation amount must be positive");
         }
-        // For negative net (expense), amount should be negative and not exceed remaining
-        else {
-            if (amount.compareTo(BigDecimal.ZERO) >= 0) {
-                throw new IllegalArgumentException("Allocation amount must be negative for expense transaction");
-            }
-            if (amount.compareTo(remaining) < 0) {
-                throw new IllegalArgumentException("Allocation amount (" + amount +
-                        ") exceeds remaining unallocated (" + remaining + ")");
-            }
+        if (absAmount.compareTo(absRemaining) > 0) {
+            throw new IllegalArgumentException("Allocation amount (" + absAmount +
+                    ") exceeds remaining unallocated (" + absRemaining + ")");
         }
     }
 

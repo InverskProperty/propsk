@@ -242,8 +242,15 @@ public class OwnerPaymentController {
             List<UnifiedAllocation> pendingAllocations = allocationService.getPendingAllocationsForBeneficiary(ownerId);
             model.addAttribute("pendingAllocations", pendingAllocations);
 
+            // Calculate net pending: Income (OWNER) - Expenses (others)
             BigDecimal pendingTotal = pendingAllocations.stream()
-                .map(UnifiedAllocation::getAmount)
+                .map(a -> {
+                    if (a.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                        return a.getAmount(); // Add income
+                    } else {
+                        return a.getAmount().negate(); // Subtract expenses
+                    }
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
             model.addAttribute("pendingTotal", pendingTotal);
         }
