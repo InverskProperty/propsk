@@ -43,6 +43,20 @@ public class StatementDataExtractService {
 
     private static final Logger log = LoggerFactory.getLogger(StatementDataExtractService.class);
 
+    /**
+     * Log current memory usage for debugging
+     * Search keyword: [STMT-DEBUG] for easy log filtering
+     */
+    private void logMemoryUsage(String phase) {
+        Runtime runtime = Runtime.getRuntime();
+        long usedMemory = runtime.totalMemory() - runtime.freeMemory();
+        long maxMemory = runtime.maxMemory();
+        int usedPercent = (int) ((usedMemory * 100) / maxMemory);
+        String status = usedPercent > 90 ? "🔴 CRITICAL" : usedPercent > 70 ? "🟡 WARNING" : "🟢 OK";
+        log.info("[STMT-DEBUG] {} [{}] Memory: {}MB/{}MB ({}%)",
+            status, phase, usedMemory / (1024 * 1024), maxMemory / (1024 * 1024), usedPercent);
+    }
+
     @Autowired
     private InvoiceRepository invoiceRepository;
 
@@ -153,7 +167,8 @@ public class StatementDataExtractService {
      * @return List of lease master records for this customer
      */
     public List<LeaseMasterDTO> extractLeaseMasterForCustomer(Long customerId) {
-        log.info("🔍 Extracting lease master data for customer {}...", customerId);
+        log.info("[STMT-DEBUG] 🔍 START extractLeaseMasterForCustomer({})", customerId);
+        logMemoryUsage("EXTRACT_LEASE_START");
 
         Customer customer = customerRepository.findById(customerId).orElse(null);
         if (customer == null) {
@@ -173,9 +188,11 @@ public class StatementDataExtractService {
             // This automatically handles:
             // - DELEGATED_USER with manages_owner_id → redirects to owner's properties
             // - PROPERTY_OWNER → returns their own properties
+            log.info("[STMT-DEBUG] Fetching properties for customer {}...", customerId);
             List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+            logMemoryUsage("AFTER_FETCH_PROPERTIES");
 
-            log.info("✅ Found {} properties accessible by customer {} using PropertyService filter",
+            log.info("[STMT-DEBUG] ✅ Found {} properties accessible by customer {}",
                 properties.size(), customerId);
 
             // Get property IDs for filtering invoices
@@ -183,16 +200,22 @@ public class StatementDataExtractService {
                 .map(Property::getId)
                 .collect(Collectors.toList());
 
-            log.info("📋 Property IDs: {}", propertyIds);
+            log.info("[STMT-DEBUG] 📋 Property IDs: {}", propertyIds);
 
             // Get leases (invoices) for these properties
-            invoices = invoiceRepository.findAll().stream()
+            log.info("[STMT-DEBUG] Fetching all invoices from database...");
+            List<Invoice> allInvoices = invoiceRepository.findAll();
+            log.info("[STMT-DEBUG] Loaded {} total invoices from database", allInvoices.size());
+            logMemoryUsage("AFTER_FETCH_ALL_INVOICES");
+
+            invoices = allInvoices.stream()
                 .filter(i -> i.getProperty() != null)
                 .filter(i -> propertyIds.contains(i.getProperty().getId()))
                 .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
                 .collect(Collectors.toList());
 
-            log.info("✅ Found {} leases for customer {}'s properties", invoices.size(), customerId);
+            log.info("[STMT-DEBUG] ✅ Filtered to {} leases for customer {}'s properties", invoices.size(), customerId);
+            logMemoryUsage("AFTER_FILTER_INVOICES");
         } else {
             // For tenants: Get leases where they are the customer (tenant on the lease)
             log.info("📋 Customer {} is TENANT, getting leases where they are the customer", customerId);
@@ -201,11 +224,14 @@ public class StatementDataExtractService {
                 .collect(Collectors.toList());
         }
 
-        log.info("📊 Total {} leases found for customer {}", invoices.size(), customerId);
+        log.info("[STMT-DEBUG] 📊 Total {} leases found for customer {}", invoices.size(), customerId);
+        logMemoryUsage("BEFORE_DTO_CREATION");
 
         List<LeaseMasterDTO> leaseMaster = new ArrayList<>();
+        int dtoCount = 0;
 
         for (Invoice invoice : invoices) {
+            dtoCount++;
             LeaseMasterDTO dto = new LeaseMasterDTO();
 
             // Lease details
@@ -248,9 +274,15 @@ public class StatementDataExtractService {
                 invoice.getLeaseReference(), tenantName, dto.getCustomerName());
 
             leaseMaster.add(dto);
+
+            // Log memory every 10 DTOs
+            if (dtoCount % 10 == 0) {
+                logMemoryUsage("DTO_CREATION_" + dtoCount);
+            }
         }
 
-        log.info("✅ Extracted {} lease master records for customer {}", leaseMaster.size(), customerId);
+        log.info("[STMT-DEBUG] ✅ Extracted {} lease master records for customer {}", leaseMaster.size(), customerId);
+        logMemoryUsage("EXTRACT_LEASE_COMPLETE");
 
         if (!leaseMaster.isEmpty()) {
             log.info("📋 Sample leases: {}",
@@ -436,8 +468,9 @@ public class StatementDataExtractService {
      * @return List of INCOMING transactions for this customer
      */
     public List<TransactionDTO> extractRentReceivedForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
-        log.info("✨ Extracting INCOMING transactions (rent received) for customer {} from {} to {}...",
+        log.info("[STMT-DEBUG] ✨ START extractRentReceivedForCustomer({}) from {} to {}",
             customerId, startDate, endDate);
+        logMemoryUsage("EXTRACT_RENT_RECEIVED_START");
 
         Customer customer = customerRepository.findById(customerId).orElse(null);
         if (customer == null) {
@@ -446,6 +479,7 @@ public class StatementDataExtractService {
         }
 
         // Use the new flow_direction filtering query
+        log.info("[STMT-DEBUG] Querying unified transactions...");
         List<UnifiedTransaction> transactions = unifiedTransactionRepository
             .findByCustomerOwnedPropertiesAndDateRangeAndFlowDirection(
                 customerId,
@@ -453,8 +487,9 @@ public class StatementDataExtractService {
                 endDate,
                 UnifiedTransaction.FlowDirection.INCOMING
             );
+        logMemoryUsage("AFTER_QUERY_TRANSACTIONS");
 
-        log.info("✨ Found {} INCOMING transactions (rent received) for customer {}",
+        log.info("[STMT-DEBUG] ✨ Found {} INCOMING transactions for customer {}",
             transactions.size(), customerId);
 
         List<TransactionDTO> transactionDTOs = new ArrayList<>();
@@ -479,7 +514,8 @@ public class StatementDataExtractService {
             transactionDTOs.add(dto);
         }
 
-        log.info("✨ Extracted {} INCOMING transaction records for customer {}", transactionDTOs.size(), customerId);
+        log.info("[STMT-DEBUG] ✨ COMPLETE extractRentReceivedForCustomer - {} records", transactionDTOs.size());
+        logMemoryUsage("EXTRACT_RENT_RECEIVED_COMPLETE");
         return transactionDTOs;
     }
 

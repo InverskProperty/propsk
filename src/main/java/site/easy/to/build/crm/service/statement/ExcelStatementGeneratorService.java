@@ -58,6 +58,7 @@ public class ExcelStatementGeneratorService {
 
     /**
      * Log current memory usage for debugging statement generation issues
+     * Search keyword: [STMT-DEBUG] for easy log filtering
      */
     private void logMemoryUsage(String phase) {
         Runtime runtime = Runtime.getRuntime();
@@ -65,13 +66,17 @@ public class ExcelStatementGeneratorService {
         long freeMemory = runtime.freeMemory();
         long usedMemory = totalMemory - freeMemory;
         long maxMemory = runtime.maxMemory();
+        int usedPercent = (int) ((usedMemory * 100) / maxMemory);
 
-        log.info("📊 MEMORY [{}]: Used={}MB, Free={}MB, Total={}MB, Max={}MB",
-            phase,
+        String status = usedPercent > 90 ? "🔴 CRITICAL" : usedPercent > 70 ? "🟡 WARNING" : "🟢 OK";
+
+        log.info("[STMT-DEBUG] {} [{}] Memory: {}MB/{}MB ({}%) - Used={}MB, Free={}MB",
+            status, phase,
             usedMemory / (1024 * 1024),
-            freeMemory / (1024 * 1024),
-            totalMemory / (1024 * 1024),
-            maxMemory / (1024 * 1024));
+            maxMemory / (1024 * 1024),
+            usedPercent,
+            usedMemory / (1024 * 1024),
+            freeMemory / (1024 * 1024));
     }
 
     /**
