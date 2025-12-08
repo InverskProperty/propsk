@@ -92,7 +92,10 @@ public class ExcelStatementGeneratorService {
         logMemoryUsage("START");
 
         Workbook workbook = new XSSFWorkbook();
-        log.info("📝 Created new XSSFWorkbook");
+
+        // MEMORY OPTIMIZATION: Create styles ONCE and reuse across all sheets
+        WorkbookStyles styles = new WorkbookStyles(workbook);
+        log.info("📝 Created new XSSFWorkbook with shared styles");
         logMemoryUsage("WORKBOOK_CREATED");
 
         // Extract data
@@ -110,40 +113,40 @@ public class ExcelStatementGeneratorService {
         log.info("📥 Transactions extracted: {} transactions in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
         logMemoryUsage("TRANSACTIONS_EXTRACTED");
 
-        // Create sheets
+        // Create sheets - all using shared styles
         log.info("📄 Creating LEASE_MASTER sheet...");
         long sheetStart = System.currentTimeMillis();
-        createLeaseMasterSheet(workbook, leaseMaster);
+        createLeaseMasterSheet(workbook, leaseMaster, styles);
         log.info("✅ LEASE_MASTER sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("LEASE_MASTER_SHEET");
 
         log.info("📄 Creating TRANSACTIONS sheet...");
         sheetStart = System.currentTimeMillis();
-        createTransactionsSheet(workbook, transactions);
+        createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("TRANSACTIONS_SHEET");
 
         log.info("📄 Creating RENT_DUE sheet...");
         sheetStart = System.currentTimeMillis();
-        createRentDueSheet(workbook, leaseMaster, startDate, endDate);
+        createRentDueSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ RENT_DUE sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("RENT_DUE_SHEET");
 
         log.info("📄 Creating RENT_RECEIVED sheet...");
         sheetStart = System.currentTimeMillis();
-        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
+        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ RENT_RECEIVED sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("RENT_RECEIVED_SHEET");
 
         log.info("📄 Creating EXPENSES sheet...");
         sheetStart = System.currentTimeMillis();
-        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ EXPENSES sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("EXPENSES_SHEET");
 
         log.info("📄 Creating MONTHLY_STATEMENT sheet...");
         sheetStart = System.currentTimeMillis();
-        createMonthlyStatementSheet(workbook, leaseMaster, startDate, endDate);
+        createMonthlyStatementSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ MONTHLY_STATEMENT sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("MONTHLY_STATEMENT_SHEET");
 
@@ -169,7 +172,10 @@ public class ExcelStatementGeneratorService {
         logMemoryUsage("CUSTOMER_START");
 
         Workbook workbook = new XSSFWorkbook();
-        log.info("📝 Created new XSSFWorkbook for customer {}", customerId);
+
+        // MEMORY OPTIMIZATION: Create styles ONCE and reuse across all sheets
+        WorkbookStyles styles = new WorkbookStyles(workbook);
+        log.info("📝 Created new XSSFWorkbook with shared styles for customer {}", customerId);
         logMemoryUsage("CUSTOMER_WORKBOOK_CREATED");
 
         // Extract data for this customer
@@ -188,40 +194,40 @@ public class ExcelStatementGeneratorService {
         log.info("📥 Transactions extracted: {} transactions in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
         logMemoryUsage("CUSTOMER_TRANSACTIONS");
 
-        // Create data sheets
+        // Create data sheets - all using shared styles
         log.info("📄 Creating LEASE_MASTER sheet for customer {}...", customerId);
         long sheetStart = System.currentTimeMillis();
-        createLeaseMasterSheet(workbook, leaseMaster);
+        createLeaseMasterSheet(workbook, leaseMaster, styles);
         log.info("✅ LEASE_MASTER sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         log.info("📄 Creating TRANSACTIONS sheet...");
         sheetStart = System.currentTimeMillis();
-        createTransactionsSheet(workbook, transactions);
+        createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         log.info("📄 Creating RENT_DUE sheet...");
         sheetStart = System.currentTimeMillis();
-        createRentDueSheet(workbook, leaseMaster, startDate, endDate);
+        createRentDueSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ RENT_DUE sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         log.info("📄 Creating RENT_RECEIVED sheet...");
         sheetStart = System.currentTimeMillis();
-        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
+        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ RENT_RECEIVED sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         log.info("📄 Creating EXPENSES sheet...");
         sheetStart = System.currentTimeMillis();
-        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ EXPENSES sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("CUSTOMER_DATA_SHEETS_COMPLETE");
 
         // Create PROPERTY_ACCOUNT sheet for block property account balance tracking
         log.info("📄 Creating PROPERTY_ACCOUNT sheet...");
         sheetStart = System.currentTimeMillis();
-        createPropertyAccountSheet(workbook, leaseMaster, startDate, endDate);
+        createPropertyAccountSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ PROPERTY_ACCOUNT sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
-        // Create separate monthly statement sheets for each month in the period
+        // Create separate monthly statement sheets for each month in the period (using shared styles)
         List<site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod> periods =
             site.easy.to.build.crm.util.RentCyclePeriodCalculator.calculateMonthlyPeriods(startDate, endDate);
 
@@ -232,7 +238,7 @@ public class ExcelStatementGeneratorService {
             sheetCount++;
             log.debug("📄 Creating monthly sheet {}/{}: {} to {}", sheetCount, periods.size(),
                 period.getStartDate(), period.getEndDate());
-            createMonthlyStatementSheetForPeriod(workbook, leaseMaster, period);
+            createMonthlyStatementSheetForPeriod(workbook, leaseMaster, period, styles);
 
             // Log memory every 3 sheets to track growth
             if (sheetCount % 3 == 0) {
@@ -264,7 +270,10 @@ public class ExcelStatementGeneratorService {
         logMemoryUsage("CUSTOM_PERIOD_START");
 
         Workbook workbook = new XSSFWorkbook();
-        log.info("📝 Created new XSSFWorkbook");
+
+        // MEMORY OPTIMIZATION: Create styles ONCE and reuse across all sheets
+        WorkbookStyles styles = new WorkbookStyles(workbook);
+        log.info("📝 Created new XSSFWorkbook with shared styles");
 
         // Extract data
         log.info("📥 Extracting lease master...");
@@ -279,30 +288,30 @@ public class ExcelStatementGeneratorService {
         log.info("📥 Transactions extracted: {} in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
         logMemoryUsage("CUSTOM_PERIOD_DATA_EXTRACTED");
 
-        // Create sheets with custom periods
+        // Create sheets with custom periods - all using shared styles
         log.info("📄 Creating sheets with custom periods...");
         long sheetStart = System.currentTimeMillis();
-        createLeaseMasterSheet(workbook, leaseMaster);
+        createLeaseMasterSheet(workbook, leaseMaster, styles);
         log.info("✅ LEASE_MASTER created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createTransactionsSheet(workbook, transactions);
+        createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ RENT_RECEIVED (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ EXPENSES created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ MONTHLY_STATEMENT (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         long totalTime = System.currentTimeMillis() - startTime;
@@ -352,33 +361,32 @@ public class ExcelStatementGeneratorService {
         logMemoryUsage("CUSTOMER_CUSTOM_TRANSACTIONS");
 
         // Create data sheets with custom periods
-        // NOTE: These sheets create their own styles (5 sheets x 3 styles = 15 styles)
-        // The main optimization is in the monthly sheets which are created 12+ times
+        // MEMORY OPTIMIZATION: All sheets now use shared WorkbookStyles (was ~48 styles, now 6)
         log.info("📄 Creating data sheets...");
         long sheetStart = System.currentTimeMillis();
-        createLeaseMasterSheet(workbook, leaseMaster);
+        createLeaseMasterSheet(workbook, leaseMaster, styles);
         log.info("✅ LEASE_MASTER created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createTransactionsSheet(workbook, transactions);
+        createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ RENT_RECEIVED (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ EXPENSES created in {}ms", System.currentTimeMillis() - sheetStart);
 
         // Create PROPERTY_ACCOUNT sheet for block property account balance tracking
         log.info("📄 Creating PROPERTY_ACCOUNT sheet...");
         sheetStart = System.currentTimeMillis();
-        createPropertyAccountSheet(workbook, leaseMaster, startDate, endDate);
+        createPropertyAccountSheet(workbook, leaseMaster, startDate, endDate, styles);
         log.info("✅ PROPERTY_ACCOUNT created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("CUSTOMER_CUSTOM_DATA_SHEETS");
 
@@ -405,29 +413,27 @@ public class ExcelStatementGeneratorService {
         log.info("✅ {} monthly sheets created in {}ms", periods.size(), System.currentTimeMillis() - sheetStart);
         logMemoryUsage("CUSTOMER_CUSTOM_MONTHLY_SHEETS");
 
-        // Create summary sheet (totals across all periods)
-        // NOTE: Summary and allocation sheets create their own styles (4 sheets x ~3 styles = ~12 styles)
-        // The main optimization is in monthly sheets which are created 12+ times (saves 36+ styles)
+        // Create summary sheet (totals across all periods) - using shared styles
         log.info("📄 Creating summary sheet...");
         sheetStart = System.currentTimeMillis();
-        createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate);
+        createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate, styles);
         log.info("✅ SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
-        // Create allocation tracking sheets for this owner
+        // Create allocation tracking sheets for this owner - using shared styles
         // Resolve the actual owner ID (handles delegated users who manage another owner's properties)
         Long resolvedOwnerId = resolveActualOwnerId(customerId);
         log.info("📄 Creating allocation sheets for owner {} (resolved from {})...", resolvedOwnerId, customerId);
 
         sheetStart = System.currentTimeMillis();
-        createIncomeAllocationsSheet(workbook, resolvedOwnerId);
+        createIncomeAllocationsSheet(workbook, resolvedOwnerId, styles);
         log.info("✅ INCOME_ALLOCATIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createExpenseAllocationsSheet(workbook, resolvedOwnerId);
+        createExpenseAllocationsSheet(workbook, resolvedOwnerId, styles);
         log.info("✅ EXPENSE_ALLOCATIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createOwnerPaymentsSummarySheet(workbook, resolvedOwnerId);
+        createOwnerPaymentsSummarySheet(workbook, resolvedOwnerId, styles);
         log.info("✅ OWNER_PAYMENTS_SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         long totalTime = System.currentTimeMillis() - startTime;
@@ -580,7 +586,7 @@ public class ExcelStatementGeneratorService {
      * Create LEASE_MASTER sheet with raw lease data
      * NO CALCULATIONS - Just data from database
      */
-    private void createLeaseMasterSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster) {
+    private void createLeaseMasterSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster, WorkbookStyles styles) {
         log.info("Creating LEASE_MASTER sheet with {} leases", leaseMaster.size());
 
         Sheet sheet = workbook.createSheet("LEASE_MASTER");
@@ -592,16 +598,17 @@ public class ExcelStatementGeneratorService {
             "customer_id", "customer_name", "start_date", "end_date", "monthly_rent", "frequency"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Data rows
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
         for (LeaseMasterDTO lease : leaseMaster) {
@@ -649,7 +656,7 @@ public class ExcelStatementGeneratorService {
      * Create TRANSACTIONS sheet with raw transaction data
      * NO CALCULATIONS - Just data from database
      */
-    private void createTransactionsSheet(Workbook workbook, List<TransactionDTO> transactions) {
+    private void createTransactionsSheet(Workbook workbook, List<TransactionDTO> transactions, WorkbookStyles styles) {
         log.info("Creating TRANSACTIONS sheet with {} transactions", transactions.size());
 
         Sheet sheet = workbook.createSheet("TRANSACTIONS");
@@ -661,16 +668,17 @@ public class ExcelStatementGeneratorService {
             "customer_id", "category", "transaction_type", "amount", "description"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Data rows
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
         for (TransactionDTO txn : transactions) {
@@ -713,7 +721,7 @@ public class ExcelStatementGeneratorService {
      * This is where Excel formulas do the heavy lifting!
      */
     private void createRentDueSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                   LocalDate startDate, LocalDate endDate) {
+                                   LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
         log.info("Creating RENT_DUE sheet with formulas");
 
         Sheet sheet = workbook.createSheet("RENT_DUE");
@@ -726,16 +734,17 @@ public class ExcelStatementGeneratorService {
             "management_fee", "service_fee", "total_commission", "net_to_owner"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -853,7 +862,7 @@ public class ExcelStatementGeneratorService {
      * Shows individual payment dates and amounts (up to 4 payments per period)
      */
     private void createRentReceivedSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                        LocalDate startDate, LocalDate endDate) {
+                                        LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
         log.info("Creating RENT_RECEIVED sheet with payment breakdown");
 
         Sheet sheet = workbook.createSheet("RENT_RECEIVED");
@@ -870,16 +879,17 @@ public class ExcelStatementGeneratorService {
             "total_received"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -981,7 +991,7 @@ public class ExcelStatementGeneratorService {
      * Shows property expenses (cleaning, maintenance, furnishings, etc.)
      */
     private void createExpensesSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                     LocalDate startDate, LocalDate endDate) {
+                                     LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
         log.info("Creating EXPENSES sheet with flat structure (one row per expense)");
 
         Sheet sheet = workbook.createSheet("EXPENSES");
@@ -993,16 +1003,17 @@ public class ExcelStatementGeneratorService {
             "expense_date", "expense_amount", "expense_category", "expense_description"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -1069,7 +1080,7 @@ public class ExcelStatementGeneratorService {
      * The MONTHLY_STATEMENT uses SUMIFS to look up values from this sheet.
      */
     private void createPropertyAccountSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                            LocalDate startDate, LocalDate endDate) {
+                                            LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
         log.info("Creating PROPERTY_ACCOUNT sheet for block property balance tracking");
 
         Sheet sheet = workbook.createSheet("PROPERTY_ACCOUNT");
@@ -1080,16 +1091,17 @@ public class ExcelStatementGeneratorService {
             "block_name", "movement_type", "description", "amount", "date", "source_property", "batch_reference"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization - avoids creating duplicate CellStyles)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -1247,7 +1259,7 @@ public class ExcelStatementGeneratorService {
      * Final output sheet with arrears calculation
      */
     private void createMonthlyStatementSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                            LocalDate startDate, LocalDate endDate) {
+                                            LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
         log.info("Creating MONTHLY_STATEMENT sheet with formulas");
 
         Sheet sheet = workbook.createSheet("MONTHLY_STATEMENT");
@@ -1262,16 +1274,17 @@ public class ExcelStatementGeneratorService {
             "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -1468,19 +1481,21 @@ public class ExcelStatementGeneratorService {
      * Used when generating separate sheets for each month
      */
     private void createMonthlyStatementSheetForPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                      site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod period) {
+                                                      site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod period,
+                                                      WorkbookStyles styles) {
         String sheetName = sanitizeSheetName(period.getSheetName());
         log.info("Creating monthly statement sheet: {}", sheetName);
 
         // Call the existing method with the period's date range
-        createMonthlyStatementSheetWithName(workbook, leaseMaster, period.getStartDate(), period.getEndDate(), sheetName);
+        createMonthlyStatementSheetWithName(workbook, leaseMaster, period.getStartDate(), period.getEndDate(), sheetName, styles);
     }
 
     /**
      * Create MONTHLY_STATEMENT sheet with a custom name
      */
     private void createMonthlyStatementSheetWithName(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                     LocalDate startDate, LocalDate endDate, String sheetName) {
+                                                     LocalDate startDate, LocalDate endDate, String sheetName,
+                                                     WorkbookStyles styles) {
         log.info("Creating {} sheet with formulas", sheetName);
 
         Sheet sheet = workbook.createSheet(sheetName);
@@ -1495,16 +1510,17 @@ public class ExcelStatementGeneratorService {
             "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -1717,7 +1733,8 @@ public class ExcelStatementGeneratorService {
      * Uses actual month days for accurate pro-rating.
      */
     private void createRentDueSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                    LocalDate startDate, LocalDate endDate, int periodStartDay) {
+                                                    LocalDate startDate, LocalDate endDate, int periodStartDay,
+                                                    WorkbookStyles styles) {
         log.info("Creating RENT_DUE sheet with LEASE-BASED periods (ignoring periodStartDay: {})", periodStartDay);
 
         Sheet sheet = workbook.createSheet("RENT_DUE");
@@ -1731,16 +1748,17 @@ public class ExcelStatementGeneratorService {
             "management_fee", "service_fee", "total_commission", "net_to_owner"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -1862,7 +1880,8 @@ public class ExcelStatementGeneratorService {
      * Shows individual payment dates and amounts (up to 4 payments per period)
      */
     private void createRentReceivedSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                         LocalDate startDate, LocalDate endDate, int periodStartDay) {
+                                                         LocalDate startDate, LocalDate endDate, int periodStartDay,
+                                                         WorkbookStyles styles) {
         log.info("Creating RENT_RECEIVED sheet with custom periods and payment breakdown");
 
         Sheet sheet = workbook.createSheet("RENT_RECEIVED");
@@ -1879,16 +1898,17 @@ public class ExcelStatementGeneratorService {
             "total_received"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -2305,7 +2325,8 @@ public class ExcelStatementGeneratorService {
      * Create SUMMARY sheet that totals across all custom periods
      */
     private void createSummarySheetForCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                   List<CustomPeriod> periods, LocalDate startDate, LocalDate endDate) {
+                                                   List<CustomPeriod> periods, LocalDate startDate, LocalDate endDate,
+                                                   WorkbookStyles styles) {
         log.info("Creating SUMMARY sheet for custom periods");
 
         Sheet sheet = workbook.createSheet("SUMMARY");
@@ -2318,16 +2339,17 @@ public class ExcelStatementGeneratorService {
             "total_commission", "total_expenses", "total_net_to_owner", "opening_balance", "closing_balance"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -2530,7 +2552,8 @@ public class ExcelStatementGeneratorService {
      * Create MONTHLY_STATEMENT sheet with custom periods
      */
     private void createMonthlyStatementSheetWithCustomPeriods(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                             LocalDate startDate, LocalDate endDate, int periodStartDay) {
+                                                             LocalDate startDate, LocalDate endDate, int periodStartDay,
+                                                             WorkbookStyles styles) {
         log.info("Creating MONTHLY_STATEMENT sheet with custom periods");
 
         Sheet sheet = workbook.createSheet("MONTHLY_STATEMENT");
@@ -2543,16 +2566,17 @@ public class ExcelStatementGeneratorService {
             "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
             cell.setCellStyle(headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -2825,13 +2849,14 @@ public class ExcelStatementGeneratorService {
     /**
      * Create Income Allocations sheet showing all income transactions allocated to payment batches
      */
-    private void createIncomeAllocationsSheet(Workbook workbook, Long ownerId) {
+    private void createIncomeAllocationsSheet(Workbook workbook, Long ownerId, WorkbookStyles styles) {
         log.info("Creating Income Allocations sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Income Allocations");
-        CellStyle headerStyle = createHeaderStyle(workbook);
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         // Headers - Transaction ID links to the Transactions sheet
         String[] headers = {"Transaction ID", "Date", "Property", "Category", "Description", "Source",
@@ -2940,13 +2965,14 @@ public class ExcelStatementGeneratorService {
     /**
      * Create Expense Allocations sheet showing all expense transactions allocated to payment batches
      */
-    private void createExpenseAllocationsSheet(Workbook workbook, Long ownerId) {
+    private void createExpenseAllocationsSheet(Workbook workbook, Long ownerId, WorkbookStyles styles) {
         log.info("Creating Expense Allocations sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Expense Allocations");
-        CellStyle headerStyle = createHeaderStyle(workbook);
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         // Headers - Transaction ID links to the Transactions sheet
         String[] headers = {"Transaction ID", "Date", "Property", "Category", "Description", "Source",
@@ -3055,13 +3081,14 @@ public class ExcelStatementGeneratorService {
     /**
      * Create Owner Payments Summary sheet showing all payment batches for this owner
      */
-    private void createOwnerPaymentsSummarySheet(Workbook workbook, Long ownerId) {
+    private void createOwnerPaymentsSummarySheet(Workbook workbook, Long ownerId, WorkbookStyles styles) {
         log.info("Creating Owner Payments Summary sheet for owner {}", ownerId);
 
         Sheet sheet = workbook.createSheet("Owner Payments Summary");
-        CellStyle headerStyle = createHeaderStyle(workbook);
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles (memory optimization)
+        CellStyle headerStyle = styles.headerStyle;
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         // Headers
         String[] headers = {"Batch Reference", "Payment Date", "Total Allocations", "Balance Adjustment",
