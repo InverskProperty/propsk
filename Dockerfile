@@ -5,7 +5,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y maven
 
 # Limit Maven memory to fit in 512MB build container
-ENV MAVEN_OPTS="-Xmx256m -XX:+UseG1GC"
+# Need ~320MB for WAR packaging of large project
+ENV MAVEN_OPTS="-Xmx320m -XX:+UseG1GC -XX:+UseStringDeduplication"
 
 # Copy pom.xml and download dependencies
 COPY pom.xml .
