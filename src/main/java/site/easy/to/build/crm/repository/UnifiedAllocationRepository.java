@@ -278,10 +278,10 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      * Get expense/deduction allocations for an owner
      * Returns EXPENSE, COMMISSION, DISBURSEMENT allocations (money deducted from owner payment)
      *
-     * Links expenses to owner through TWO paths (OR condition):
-     * 1. payment_batch_id -> payment_batches.beneficiary_id (for batched allocations)
-     * 2. payprop_batch_id -> batch_payments.payprop_batch_id -> customer_id (for PayProp allocations)
-     * 3. property_id -> properties.property_owner_id (fallback for property-linked expenses)
+     * Links expenses to owner through multiple paths (OR condition):
+     * 1. payment_batch_id -> payment_batches.beneficiary_id (for manual batched allocations)
+     * 2. property_id -> properties.property_owner_id (for property-linked expenses)
+     * 3. PayProp link: expense.payprop_payment_id -> raw.incoming_transaction_id -> owner.beneficiary_payprop_id -> customer
      */
     @Query(value = """
         SELECT ua.id, ua.unified_transaction_id, ua.historical_transaction_id,
@@ -289,10 +289,13 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
                ua.description, ua.created_at, ua.source
         FROM unified_allocations ua
         LEFT JOIN payment_batches pb ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
-        LEFT JOIN batch_payments bp ON ua.payprop_batch_id = bp.payprop_batch_id
         LEFT JOIN properties p ON ua.property_id = p.id
+        LEFT JOIN payprop_report_all_payments expense_raw ON ua.payprop_payment_id = expense_raw.payprop_id
+        LEFT JOIN payprop_report_all_payments owner_raw ON expense_raw.incoming_transaction_id = owner_raw.incoming_transaction_id
+            AND owner_raw.beneficiary_type = 'beneficiary'
+        LEFT JOIN customers c ON owner_raw.beneficiary_payprop_id = c.payprop_entity_id
         WHERE ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT')
-        AND (pb.beneficiary_id = :ownerId OR bp.customer_id = :ownerId OR p.property_owner_id = :ownerId)
+        AND (pb.beneficiary_id = :ownerId OR p.property_owner_id = :ownerId OR c.customer_id = :ownerId)
         ORDER BY ua.created_at, ua.property_name
     """, nativeQuery = true)
     List<Object[]> getExpenseAllocationsForOwner(@Param("ownerId") Long ownerId);
