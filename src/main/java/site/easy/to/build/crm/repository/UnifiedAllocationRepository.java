@@ -282,10 +282,13 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      * 1. payment_batch_id -> payment_batches.beneficiary_id (for manual batched allocations)
      * 2. property_id -> properties.property_owner_id (for property-linked expenses)
      * 3. PayProp link: expense.payprop_payment_id -> raw.incoming_transaction_id -> owner.beneficiary_payprop_id -> customer
+     *
+     * Returns the OWNER's batch reference (not the agency batch) so owner can see which payment the expense was deducted from
      */
     @Query(value = """
         SELECT ua.id, ua.unified_transaction_id, ua.historical_transaction_id,
-               ua.property_name, ua.category, ua.amount, ua.payment_batch_id,
+               ua.property_name, ua.category, ua.amount,
+               COALESCE(owner_raw.payment_batch_id, ua.payment_batch_id) as owner_payment_batch,
                ua.description, ua.created_at, ua.source
         FROM unified_allocations ua
         LEFT JOIN payment_batches pb ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
