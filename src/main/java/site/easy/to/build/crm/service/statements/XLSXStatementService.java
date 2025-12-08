@@ -3,6 +3,8 @@ package site.easy.to.build.crm.service.statements;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.entity.Customer;
@@ -31,6 +33,26 @@ import java.util.stream.Collectors;
 
 @Service
 public class XLSXStatementService {
+
+    private static final Logger log = LoggerFactory.getLogger(XLSXStatementService.class);
+
+    /**
+     * Log current memory usage for debugging statement generation issues
+     */
+    private void logMemoryUsage(String phase) {
+        Runtime runtime = Runtime.getRuntime();
+        long totalMemory = runtime.totalMemory();
+        long freeMemory = runtime.freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        long maxMemory = runtime.maxMemory();
+
+        log.info("📊 MEMORY [{}]: Used={}MB, Free={}MB, Total={}MB, Max={}MB",
+            phase,
+            usedMemory / (1024 * 1024),
+            freeMemory / (1024 * 1024),
+            totalMemory / (1024 * 1024),
+            maxMemory / (1024 * 1024));
+    }
 
     private final CustomerService customerService;
     private final PropertyService propertyService;
@@ -102,13 +124,30 @@ public class XLSXStatementService {
                                                    LocalDate fromDate, LocalDate toDate)
             throws IOException {
 
-        System.out.println("🏢 Generating XLSX Property Owner statement using Boden House template for: " + propertyOwner.getName());
+        long startTime = System.currentTimeMillis();
+        log.info("🚀 XLSX SINGLE STATEMENT START: {} (ID:{}) from {} to {}",
+            propertyOwner.getName(), propertyOwner.getCustomerId(), fromDate, toDate);
+        logMemoryUsage("XLSX_SINGLE_START");
 
         // Use new Boden House template
+        log.info("📥 Generating Boden House template data...");
+        long templateStart = System.currentTimeMillis();
         List<List<Object>> values = bodenHouseTemplateService.generatePropertyOwnerStatement(propertyOwner, fromDate, toDate);
+        log.info("✅ Template data generated: {} rows in {}ms", values.size(), System.currentTimeMillis() - templateStart);
+        logMemoryUsage("XLSX_SINGLE_TEMPLATE_DATA");
 
         // Create Excel workbook with the new template
-        return createBodenHouseExcelStatement(values, "Property Owner Statement");
+        log.info("📄 Creating Excel workbook...");
+        long excelStart = System.currentTimeMillis();
+        byte[] result = createBodenHouseExcelStatement(values, "Property Owner Statement");
+        log.info("✅ Excel workbook created: {} bytes in {}ms", result.length, System.currentTimeMillis() - excelStart);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("🏁 XLSX SINGLE STATEMENT COMPLETE: {} bytes in {}ms ({}s)",
+            result.length, totalTime, totalTime / 1000);
+        logMemoryUsage("XLSX_SINGLE_COMPLETE");
+
+        return result;
     }
 
     /**
@@ -119,53 +158,82 @@ public class XLSXStatementService {
                                                            Set<StatementDataSource> includedDataSources)
             throws IOException {
 
-        System.out.println("🏢 Generating XLSX MONTHLY Property Owner statement for: " + propertyOwner.getName());
-        System.out.println("📊 Date range: " + fromDate + " to " + toDate);
+        long startTime = System.currentTimeMillis();
+        log.info("🚀 XLSX MONTHLY STATEMENT START: {} (ID:{}) from {} to {}",
+            propertyOwner.getName(), propertyOwner.getCustomerId(), fromDate, toDate);
+        logMemoryUsage("XLSX_MONTHLY_START");
 
         // Calculate rent cycle periods
         List<RentCyclePeriod> periods = RentCyclePeriodCalculator.calculateMonthlyPeriods(fromDate, toDate);
-        System.out.println("📊 Splitting into " + periods.size() + " monthly periods");
+        log.info("📊 Splitting into {} monthly periods", periods.size());
 
         // Create workbook with multiple sheets
         XSSFWorkbook workbook = new XSSFWorkbook();
+        log.info("📝 Created new XSSFWorkbook");
+        logMemoryUsage("XLSX_MONTHLY_WORKBOOK_CREATED");
 
         // Generate a sheet for each period
         for (int i = 0; i < periods.size(); i++) {
             RentCyclePeriod period = periods.get(i);
             String sheetName = sanitizeSheetName(period.getSheetName());
 
-            System.out.println("📊 Generating sheet " + (i + 1) + "/" + periods.size() + ": " + sheetName);
+            log.info("📄 Generating sheet {}/{}: {} ({} to {})",
+                i + 1, periods.size(), sheetName, period.getStartDate(), period.getEndDate());
+            long sheetStart = System.currentTimeMillis();
 
             // Generate statement data for this period
             List<List<Object>> values = bodenHouseTemplateService.generatePropertyOwnerStatement(
                 propertyOwner, period.getStartDate(), period.getEndDate());
+            log.debug("   Template data: {} rows", values.size());
 
             // Create sheet and populate data
             XSSFSheet sheet = workbook.createSheet(sheetName);
             populateSheetWithData(sheet, values);
             applyBodenHouseFormatting(workbook, sheet);
 
-            System.out.println("✅ Completed sheet: " + sheetName);
+            log.info("✅ Sheet {} completed in {}ms", sheetName, System.currentTimeMillis() - sheetStart);
+
+            // Log memory every 3 sheets
+            if ((i + 1) % 3 == 0) {
+                logMemoryUsage("XLSX_MONTHLY_SHEET_" + (i + 1));
+            }
         }
+        logMemoryUsage("XLSX_MONTHLY_ALL_PERIOD_SHEETS");
 
         // Create summary sheet
+        log.info("📄 Creating Period Summary sheet...");
+        long summaryStart = System.currentTimeMillis();
         createPeriodSummarySheetXLSX(workbook, propertyOwner, periods);
+        log.info("✅ Period Summary sheet created in {}ms", System.currentTimeMillis() - summaryStart);
 
         // Create allocation tracking sheets
+        log.info("📄 Creating allocation tracking sheets...");
+        long allocStart = System.currentTimeMillis();
         createIncomeAllocationsSheet(workbook, propertyOwner);
+        log.info("✅ Income Allocations sheet created");
         createExpenseAllocationsSheet(workbook, propertyOwner);
+        log.info("✅ Expense Allocations sheet created");
         createOwnerPaymentsSummarySheet(workbook, propertyOwner);
+        log.info("✅ Owner Payments Summary sheet created in {}ms total", System.currentTimeMillis() - allocStart);
+        logMemoryUsage("XLSX_MONTHLY_ALL_SHEETS_COMPLETE");
 
         // Note: Skipping evaluateAll() to save memory - Excel will calculate formulas on open
 
         // Convert to byte array
+        log.info("📤 Converting workbook to byte array...");
+        long writeStart = System.currentTimeMillis();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         workbook.write(outputStream);
         workbook.close();
+        byte[] result = outputStream.toByteArray();
+        log.info("✅ Converted to {} bytes in {}ms", result.length, System.currentTimeMillis() - writeStart);
 
-        System.out.println("✅ Monthly XLSX statement generated successfully - " + outputStream.size() + " bytes");
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("🏁 XLSX MONTHLY STATEMENT COMPLETE: {} sheets, {} bytes in {}ms ({}s)",
+            workbook.getNumberOfSheets(), result.length, totalTime, totalTime / 1000);
+        logMemoryUsage("XLSX_MONTHLY_COMPLETE");
 
-        return outputStream.toByteArray();
+        return result;
     }
 
     /**
@@ -363,10 +431,19 @@ public class XLSXStatementService {
      * Create Excel statement using Boden House template (NEW METHOD)
      */
     private byte[] createBodenHouseExcelStatement(List<List<Object>> values, String sheetName) throws IOException {
+        long methodStart = System.currentTimeMillis();
+        log.info("📄 createBodenHouseExcelStatement: Starting for sheet '{}' with {} rows", sheetName, values.size());
+
         XSSFWorkbook workbook = new XSSFWorkbook();
         XSSFSheet sheet = workbook.createSheet(sheetName);
+        log.debug("   Created workbook and sheet");
 
         // Create rows and cells following your exact template structure
+        log.info("   Populating {} rows...", values.size());
+        long populateStart = System.currentTimeMillis();
+        int formulaCount = 0;
+        int cellCount = 0;
+
         for (int rowIndex = 0; rowIndex < values.size(); rowIndex++) {
             Row row = sheet.createRow(rowIndex);
             List<Object> rowData = values.get(rowIndex);
@@ -374,13 +451,16 @@ public class XLSXStatementService {
             for (int colIndex = 0; colIndex < rowData.size(); colIndex++) {
                 Cell cell = row.createCell(colIndex);
                 Object value = rowData.get(colIndex);
+                cellCount++;
 
                 if (value instanceof String && ((String) value).startsWith("=")) {
                     // Excel formula - remove leading "=" and set as formula
                     try {
                         cell.setCellFormula(((String) value).substring(1));
+                        formulaCount++;
                     } catch (Exception e) {
                         // Fallback to text if formula is invalid
+                        log.warn("   Invalid formula at row {} col {}: {}", rowIndex, colIndex, e.getMessage());
                         cell.setCellValue(value.toString());
                     }
                 } else if (value instanceof BigDecimal) {
@@ -393,10 +473,20 @@ public class XLSXStatementService {
                     cell.setCellValue(value.toString());
                 }
             }
+
+            // Log progress every 100 rows
+            if ((rowIndex + 1) % 100 == 0) {
+                log.debug("   Populated {}/{} rows...", rowIndex + 1, values.size());
+            }
         }
+        log.info("   Populated {} cells ({} formulas) in {}ms",
+            cellCount, formulaCount, System.currentTimeMillis() - populateStart);
 
         // Apply Boden House specific formatting
+        log.info("   Applying formatting...");
+        long formatStart = System.currentTimeMillis();
         applyBodenHouseFormatting(workbook, sheet);
+        log.info("   Formatting applied in {}ms", System.currentTimeMillis() - formatStart);
 
         // Use fixed column widths to avoid memory-intensive autoSizeColumn
         applyFixedColumnWidths(sheet, 41);
@@ -404,13 +494,18 @@ public class XLSXStatementService {
         // Note: Skipping evaluateAll() to save memory - Excel will calculate formulas on open
 
         // Convert to byte array
+        log.info("   Writing to byte array...");
+        long writeStart = System.currentTimeMillis();
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         workbook.write(outputStream);
         workbook.close();
+        byte[] result = outputStream.toByteArray();
+        log.info("   Written {} bytes in {}ms", result.length, System.currentTimeMillis() - writeStart);
 
-        System.out.println("✅ Boden House XLSX statement generated successfully - " + outputStream.size() + " bytes");
+        log.info("✅ createBodenHouseExcelStatement: Completed '{}' in {}ms",
+            sheetName, System.currentTimeMillis() - methodStart);
 
-        return outputStream.toByteArray();
+        return result;
     }
 
     private byte[] createExcelStatement(PropertyOwnerStatementData data) throws IOException {

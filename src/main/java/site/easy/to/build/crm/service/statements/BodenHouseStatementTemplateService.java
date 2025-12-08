@@ -79,11 +79,42 @@ public class BodenHouseStatementTemplateService {
     }
 
     /**
+     * Log current memory usage for debugging
+     */
+    private void logMemoryUsage(String phase) {
+        Runtime runtime = Runtime.getRuntime();
+        long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+        long maxMemory = runtime.maxMemory() / (1024 * 1024);
+        log.info("📊 MEMORY [{}]: Used={}MB, Max={}MB", phase, usedMemory, maxMemory);
+    }
+
+    /**
      * Generate Property Owner Statement using Boden House template
      */
     public List<List<Object>> generatePropertyOwnerStatement(Customer propertyOwner, LocalDate fromDate, LocalDate toDate) {
+        long startTime = System.currentTimeMillis();
+        log.info("🚀 BODEN HOUSE TEMPLATE START: {} (ID:{}) from {} to {}",
+            propertyOwner.getName(), propertyOwner.getCustomerId(), fromDate, toDate);
+        logMemoryUsage("TEMPLATE_START");
+
+        log.info("📥 Building statement data...");
+        long dataStart = System.currentTimeMillis();
         BodenHouseStatementData data = buildStatementData(propertyOwner, fromDate, toDate);
-        return buildBodenHouseStatementValues(data);
+        log.info("✅ Statement data built in {}ms - {} property groups",
+            System.currentTimeMillis() - dataStart, data.propertyGroups.size());
+        logMemoryUsage("TEMPLATE_DATA_BUILT");
+
+        log.info("📄 Building statement values (rows)...");
+        long valuesStart = System.currentTimeMillis();
+        List<List<Object>> result = buildBodenHouseStatementValues(data);
+        log.info("✅ Statement values built in {}ms - {} rows",
+            System.currentTimeMillis() - valuesStart, result.size());
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("🏁 BODEN HOUSE TEMPLATE COMPLETE: {} rows in {}ms", result.size(), totalTime);
+        logMemoryUsage("TEMPLATE_COMPLETE");
+
+        return result;
     }
 
     /**
@@ -116,6 +147,9 @@ public class BodenHouseStatementTemplateService {
      * Leases outside the statement period will show rent_due = £0
      */
     private BodenHouseStatementData buildStatementData(Customer propertyOwner, LocalDate fromDate, LocalDate toDate) {
+        long methodStart = System.currentTimeMillis();
+        log.info("📥 buildStatementData: Starting for {} (ID:{})", propertyOwner.getName(), propertyOwner.getCustomerId());
+
         BodenHouseStatementData data = new BodenHouseStatementData();
         data.client = propertyOwner.getName();
         data.fromDate = fromDate;
@@ -123,40 +157,55 @@ public class BodenHouseStatementTemplateService {
         data.period = formatPeriod(fromDate, toDate);
 
         // Get all properties for this owner
+        log.info("   Fetching properties for owner {}...", propertyOwner.getCustomerId());
+        long queryStart = System.currentTimeMillis();
         List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(propertyOwner.getCustomerId());
+        log.info("   Found {} properties in {}ms", properties.size(), System.currentTimeMillis() - queryStart);
 
         // TEMPORARY: If no properties found, generate sample data for testing
         if (properties.isEmpty()) {
+            log.warn("   No properties found - generating sample data");
             properties = generateSampleProperties(propertyOwner);
         }
 
         // Group properties by building/location (like your spreadsheet)
         Map<String, List<Property>> propertiesByBuilding = properties.stream()
             .collect(Collectors.groupingBy(this::extractBuildingName));
+        log.info("   Grouped into {} buildings", propertiesByBuilding.size());
 
         // Build property groups - NOW LEASE-BASED
+        int totalLeases = 0;
+        int totalUnits = 0;
+        int buildingIndex = 0;
+
         for (Map.Entry<String, List<Property>> entry : propertiesByBuilding.entrySet()) {
+            buildingIndex++;
             PropertyGroup group = new PropertyGroup();
             group.propertyName = entry.getKey();
             group.units = new ArrayList<>();
 
+            log.debug("   Processing building {}/{}: {} ({} properties)",
+                buildingIndex, propertiesByBuilding.size(), entry.getKey(), entry.getValue().size());
+
             for (Property property : entry.getValue()) {
                 // Get ALL leases for this property (not filtered by date)
                 List<Invoice> leases = invoiceRepository.findAllLeasesByProperty(property);
+                totalLeases += leases.size();
 
-                System.out.println("DEBUG: Property " + property.getPropertyName() + " (ID: " + property.getId() + ") has " + leases.size() + " leases");
+                log.debug("     Property {} (ID:{}) has {} leases",
+                    property.getPropertyName(), property.getId(), leases.size());
 
                 if (leases.isEmpty()) {
                     // No leases - still show property with empty data
-                    System.out.println("DEBUG: No leases found for property " + property.getPropertyName() + " - using buildPropertyUnit");
                     PropertyUnit unit = buildPropertyUnit(property, fromDate, toDate);
                     group.units.add(unit);
+                    totalUnits++;
                 } else {
                     // Create one row per lease
-                    System.out.println("DEBUG: Found " + leases.size() + " leases for property " + property.getPropertyName() + " - using buildPropertyUnitFromLease");
                     for (Invoice lease : leases) {
                         PropertyUnit unit = buildPropertyUnitFromLease(property, lease, fromDate, toDate);
                         group.units.add(unit);
+                        totalUnits++;
                     }
                 }
             }
@@ -167,7 +216,12 @@ public class BodenHouseStatementTemplateService {
         }
 
         // Calculate overall totals
+        log.info("   Calculating overall totals...");
         calculateOverallTotals(data);
+
+        log.info("✅ buildStatementData: Completed in {}ms - {} buildings, {} properties, {} leases, {} units",
+            System.currentTimeMillis() - methodStart,
+            propertiesByBuilding.size(), properties.size(), totalLeases, totalUnits);
 
         return data;
     }

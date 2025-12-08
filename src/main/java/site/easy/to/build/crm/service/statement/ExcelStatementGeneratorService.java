@@ -57,6 +57,24 @@ public class ExcelStatementGeneratorService {
     private UnifiedAllocationRepository unifiedAllocationRepository;
 
     /**
+     * Log current memory usage for debugging statement generation issues
+     */
+    private void logMemoryUsage(String phase) {
+        Runtime runtime = Runtime.getRuntime();
+        long totalMemory = runtime.totalMemory();
+        long freeMemory = runtime.freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        long maxMemory = runtime.maxMemory();
+
+        log.info("📊 MEMORY [{}]: Used={}MB, Free={}MB, Total={}MB, Max={}MB",
+            phase,
+            usedMemory / (1024 * 1024),
+            freeMemory / (1024 * 1024),
+            totalMemory / (1024 * 1024),
+            maxMemory / (1024 * 1024));
+    }
+
+    /**
      * Generate complete statement workbook
      *
      * @param startDate Statement period start
@@ -64,27 +82,71 @@ public class ExcelStatementGeneratorService {
      * @return Excel workbook with all sheets and formulas
      */
     public Workbook generateStatement(LocalDate startDate, LocalDate endDate) {
-        log.info("Generating statement from {} to {}", startDate, endDate);
+        long startTime = System.currentTimeMillis();
+        log.info("🚀 STATEMENT GENERATION START: All customers from {} to {}", startDate, endDate);
+        logMemoryUsage("START");
 
         Workbook workbook = new XSSFWorkbook();
+        log.info("📝 Created new XSSFWorkbook");
+        logMemoryUsage("WORKBOOK_CREATED");
 
         // Extract data
+        log.info("📥 Extracting lease master data...");
+        long extractStart = System.currentTimeMillis();
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMaster();
+        log.info("📥 Lease master extracted: {} leases in {}ms", leaseMaster.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("LEASE_MASTER_EXTRACTED");
+
         // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
         // This excludes OUTGOING transactions (landlord payments, fees, expenses)
+        log.info("📥 Extracting transactions (rent received)...");
+        extractStart = System.currentTimeMillis();
         List<TransactionDTO> transactions = dataExtractService.extractRentReceived(startDate, endDate);
-
-        log.info("Extracted {} leases and {} INCOMING transactions (rent received)", leaseMaster.size(), transactions.size());
+        log.info("📥 Transactions extracted: {} transactions in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("TRANSACTIONS_EXTRACTED");
 
         // Create sheets
+        log.info("📄 Creating LEASE_MASTER sheet...");
+        long sheetStart = System.currentTimeMillis();
         createLeaseMasterSheet(workbook, leaseMaster);
-        createTransactionsSheet(workbook, transactions);
-        createRentDueSheet(workbook, leaseMaster, startDate, endDate);
-        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
-        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
-        createMonthlyStatementSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ LEASE_MASTER sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("LEASE_MASTER_SHEET");
 
-        log.info("Statement workbook created successfully");
+        log.info("📄 Creating TRANSACTIONS sheet...");
+        sheetStart = System.currentTimeMillis();
+        createTransactionsSheet(workbook, transactions);
+        log.info("✅ TRANSACTIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("TRANSACTIONS_SHEET");
+
+        log.info("📄 Creating RENT_DUE sheet...");
+        sheetStart = System.currentTimeMillis();
+        createRentDueSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ RENT_DUE sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("RENT_DUE_SHEET");
+
+        log.info("📄 Creating RENT_RECEIVED sheet...");
+        sheetStart = System.currentTimeMillis();
+        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ RENT_RECEIVED sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("RENT_RECEIVED_SHEET");
+
+        log.info("📄 Creating EXPENSES sheet...");
+        sheetStart = System.currentTimeMillis();
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ EXPENSES sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("EXPENSES_SHEET");
+
+        log.info("📄 Creating MONTHLY_STATEMENT sheet...");
+        sheetStart = System.currentTimeMillis();
+        createMonthlyStatementSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ MONTHLY_STATEMENT sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("MONTHLY_STATEMENT_SHEET");
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("🏁 STATEMENT GENERATION COMPLETE: {} sheets created in {}ms ({}s)",
+            workbook.getNumberOfSheets(), totalTime, totalTime / 1000);
+        logMemoryUsage("COMPLETE");
+
         return workbook;
     }
 
@@ -97,40 +159,89 @@ public class ExcelStatementGeneratorService {
      * @return Excel workbook for this customer only
      */
     public Workbook generateStatementForCustomer(Long customerId, LocalDate startDate, LocalDate endDate) {
-        log.info("Generating statement for customer {} from {} to {}", customerId, startDate, endDate);
+        long startTime = System.currentTimeMillis();
+        log.info("🚀 CUSTOMER STATEMENT START: Customer {} from {} to {}", customerId, startDate, endDate);
+        logMemoryUsage("CUSTOMER_START");
 
         Workbook workbook = new XSSFWorkbook();
+        log.info("📝 Created new XSSFWorkbook for customer {}", customerId);
+        logMemoryUsage("CUSTOMER_WORKBOOK_CREATED");
 
         // Extract data for this customer
+        log.info("📥 Extracting lease master for customer {}...", customerId);
+        long extractStart = System.currentTimeMillis();
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMasterForCustomer(customerId);
+        log.info("📥 Lease master extracted: {} leases in {}ms", leaseMaster.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("CUSTOMER_LEASE_MASTER");
+
         // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
         // This excludes OUTGOING transactions (landlord payments, fees, expenses)
+        log.info("📥 Extracting transactions for customer {}...", customerId);
+        extractStart = System.currentTimeMillis();
         List<TransactionDTO> transactions = dataExtractService.extractRentReceivedForCustomer(
             customerId, startDate, endDate);
-
-        log.info("Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
-                leaseMaster.size(), transactions.size(), customerId);
+        log.info("📥 Transactions extracted: {} transactions in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("CUSTOMER_TRANSACTIONS");
 
         // Create data sheets
+        log.info("📄 Creating LEASE_MASTER sheet for customer {}...", customerId);
+        long sheetStart = System.currentTimeMillis();
         createLeaseMasterSheet(workbook, leaseMaster);
+        log.info("✅ LEASE_MASTER sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        log.info("📄 Creating TRANSACTIONS sheet...");
+        sheetStart = System.currentTimeMillis();
         createTransactionsSheet(workbook, transactions);
+        log.info("✅ TRANSACTIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        log.info("📄 Creating RENT_DUE sheet...");
+        sheetStart = System.currentTimeMillis();
         createRentDueSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ RENT_DUE sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        log.info("📄 Creating RENT_RECEIVED sheet...");
+        sheetStart = System.currentTimeMillis();
         createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ RENT_RECEIVED sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        log.info("📄 Creating EXPENSES sheet...");
+        sheetStart = System.currentTimeMillis();
         createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ EXPENSES sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("CUSTOMER_DATA_SHEETS_COMPLETE");
 
         // Create PROPERTY_ACCOUNT sheet for block property account balance tracking
+        log.info("📄 Creating PROPERTY_ACCOUNT sheet...");
+        sheetStart = System.currentTimeMillis();
         createPropertyAccountSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ PROPERTY_ACCOUNT sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         // Create separate monthly statement sheets for each month in the period
         List<site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod> periods =
             site.easy.to.build.crm.util.RentCyclePeriodCalculator.calculateMonthlyPeriods(startDate, endDate);
 
-        log.info("Creating {} separate monthly statement sheets", periods.size());
+        log.info("📄 Creating {} monthly statement sheets...", periods.size());
+        sheetStart = System.currentTimeMillis();
+        int sheetCount = 0;
         for (site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod period : periods) {
+            sheetCount++;
+            log.debug("📄 Creating monthly sheet {}/{}: {} to {}", sheetCount, periods.size(),
+                period.getStartDate(), period.getEndDate());
             createMonthlyStatementSheetForPeriod(workbook, leaseMaster, period);
-        }
 
-        log.info("Customer statement workbook created successfully with {} monthly sheets", periods.size());
+            // Log memory every 3 sheets to track growth
+            if (sheetCount % 3 == 0) {
+                logMemoryUsage("MONTHLY_SHEET_" + sheetCount);
+            }
+        }
+        log.info("✅ {} monthly sheets created in {}ms", periods.size(), System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("CUSTOMER_MONTHLY_SHEETS_COMPLETE");
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("🏁 CUSTOMER STATEMENT COMPLETE: Customer {}, {} sheets in {}ms ({}s)",
+            customerId, workbook.getNumberOfSheets(), totalTime, totalTime / 1000);
+        logMemoryUsage("CUSTOMER_COMPLETE");
+
         return workbook;
     }
 
@@ -143,27 +254,57 @@ public class ExcelStatementGeneratorService {
      * @return Excel workbook with custom periods
      */
     public Workbook generateStatementWithCustomPeriods(LocalDate startDate, LocalDate endDate, int periodStartDay) {
-        log.info("Generating statement with custom periods (start day: {}) from {} to {}", periodStartDay, startDate, endDate);
+        long startTime = System.currentTimeMillis();
+        log.info("🚀 CUSTOM PERIOD STATEMENT START: periodStartDay={} from {} to {}", periodStartDay, startDate, endDate);
+        logMemoryUsage("CUSTOM_PERIOD_START");
 
         Workbook workbook = new XSSFWorkbook();
+        log.info("📝 Created new XSSFWorkbook");
 
         // Extract data
+        log.info("📥 Extracting lease master...");
+        long extractStart = System.currentTimeMillis();
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMaster();
-        // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
-        // This excludes OUTGOING transactions (landlord payments, fees, expenses)
-        List<TransactionDTO> transactions = dataExtractService.extractRentReceived(startDate, endDate);
+        log.info("📥 Lease master extracted: {} leases in {}ms", leaseMaster.size(), System.currentTimeMillis() - extractStart);
 
-        log.info("Extracted {} leases and {} INCOMING transactions (rent received)", leaseMaster.size(), transactions.size());
+        // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
+        log.info("📥 Extracting transactions...");
+        extractStart = System.currentTimeMillis();
+        List<TransactionDTO> transactions = dataExtractService.extractRentReceived(startDate, endDate);
+        log.info("📥 Transactions extracted: {} in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("CUSTOM_PERIOD_DATA_EXTRACTED");
 
         // Create sheets with custom periods
+        log.info("📄 Creating sheets with custom periods...");
+        long sheetStart = System.currentTimeMillis();
         createLeaseMasterSheet(workbook, leaseMaster);
-        createTransactionsSheet(workbook, transactions);
-        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
-        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
-        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
-        createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        log.info("✅ LEASE_MASTER created in {}ms", System.currentTimeMillis() - sheetStart);
 
-        log.info("Statement workbook with custom periods created successfully");
+        sheetStart = System.currentTimeMillis();
+        createTransactionsSheet(workbook, transactions);
+        log.info("✅ TRANSACTIONS created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
+        createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
+        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        log.info("✅ RENT_RECEIVED (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
+        createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ EXPENSES created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
+        createMonthlyStatementSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        log.info("✅ MONTHLY_STATEMENT (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("🏁 CUSTOM PERIOD STATEMENT COMPLETE: {} sheets in {}ms ({}s)",
+            workbook.getNumberOfSheets(), totalTime, totalTime / 1000);
+        logMemoryUsage("CUSTOM_PERIOD_COMPLETE");
+
         return workbook;
     }
 
@@ -178,55 +319,103 @@ public class ExcelStatementGeneratorService {
      */
     public Workbook generateStatementForCustomerWithCustomPeriods(Long customerId, LocalDate startDate,
                                                                   LocalDate endDate, int periodStartDay) {
-        log.debug("🔍 Generating statement for customer {} with custom periods (start day: {})", customerId, periodStartDay);
+        long startTime = System.currentTimeMillis();
+        log.info("🚀 CUSTOMER CUSTOM PERIOD STATEMENT START: Customer {} periodStartDay={} from {} to {}",
+            customerId, periodStartDay, startDate, endDate);
+        logMemoryUsage("CUSTOMER_CUSTOM_START");
 
         Workbook workbook = new XSSFWorkbook();
+        log.info("📝 Created new XSSFWorkbook for customer {}", customerId);
 
         // Extract data for this customer
-        log.debug("🔍 About to extract lease master for customer {}", customerId);
+        log.info("📥 Extracting lease master for customer {}...", customerId);
+        long extractStart = System.currentTimeMillis();
         List<LeaseMasterDTO> leaseMaster = dataExtractService.extractLeaseMasterForCustomer(customerId);
-        log.debug("🔍 About to extract INCOMING transactions (rent received) for customer {} from {} to {}", customerId, startDate, endDate);
+        log.info("📥 Lease master extracted: {} leases in {}ms", leaseMaster.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("CUSTOMER_CUSTOM_LEASE_MASTER");
+
         // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
-        // This excludes OUTGOING transactions (landlord payments, fees, expenses)
+        log.info("📥 Extracting transactions for customer {}...", customerId);
+        extractStart = System.currentTimeMillis();
         List<TransactionDTO> transactions = dataExtractService.extractRentReceivedForCustomer(
             customerId, startDate, endDate);
-
-        log.debug("🔍 Extracted {} leases and {} INCOMING transactions (rent received) for customer {}",
-                leaseMaster.size(), transactions.size(), customerId);
+        log.info("📥 Transactions extracted: {} in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("CUSTOMER_CUSTOM_TRANSACTIONS");
 
         // Create data sheets with custom periods
+        log.info("📄 Creating data sheets...");
+        long sheetStart = System.currentTimeMillis();
         createLeaseMasterSheet(workbook, leaseMaster);
+        log.info("✅ LEASE_MASTER created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
         createTransactionsSheet(workbook, transactions);
+        log.info("✅ TRANSACTIONS created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
         createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
         createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay);
+        log.info("✅ RENT_RECEIVED (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
         createExpensesSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ EXPENSES created in {}ms", System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("CUSTOMER_CUSTOM_DATA_SHEETS");
 
         // Generate custom periods
         List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
 
         // Create separate monthly statement sheets for each period
-        log.info("Creating {} separate monthly statement sheets", periods.size());
+        long sheetStart = System.currentTimeMillis();
+        int sheetCount = 0;
         for (CustomPeriod period : periods) {
+            sheetCount++;
             String sheetName = sanitizeSheetName(
                 period.periodStart.format(DateTimeFormatter.ofPattern("MMM dd")) + " - " +
                 period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
             );
+            log.debug("📄 Creating monthly sheet {}/{}: {}", sheetCount, periods.size(), sheetName);
             createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName);
+
+            // Log memory every 3 sheets
+            if (sheetCount % 3 == 0) {
+                logMemoryUsage("CUSTOM_MONTHLY_SHEET_" + sheetCount);
+            }
         }
+        log.info("✅ {} monthly sheets created in {}ms", periods.size(), System.currentTimeMillis() - sheetStart);
+        logMemoryUsage("CUSTOMER_CUSTOM_MONTHLY_SHEETS");
 
         // Create summary sheet (totals across all periods)
+        log.info("📄 Creating summary sheet...");
+        sheetStart = System.currentTimeMillis();
         createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate);
+        log.info("✅ SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         // Create allocation tracking sheets for this owner
         // Resolve the actual owner ID (handles delegated users who manage another owner's properties)
         Long resolvedOwnerId = resolveActualOwnerId(customerId);
-        log.debug("🔍 Resolved owner ID {} -> {} for allocation sheets", customerId, resolvedOwnerId);
+        log.info("📄 Creating allocation sheets for owner {} (resolved from {})...", resolvedOwnerId, customerId);
 
+        sheetStart = System.currentTimeMillis();
         createIncomeAllocationsSheet(workbook, resolvedOwnerId);
-        createExpenseAllocationsSheet(workbook, resolvedOwnerId);
-        createOwnerPaymentsSummarySheet(workbook, resolvedOwnerId);
+        log.info("✅ INCOME_ALLOCATIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
-        log.info("Customer statement workbook with custom periods created successfully with {} monthly sheets", periods.size());
+        sheetStart = System.currentTimeMillis();
+        createExpenseAllocationsSheet(workbook, resolvedOwnerId);
+        log.info("✅ EXPENSE_ALLOCATIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        sheetStart = System.currentTimeMillis();
+        createOwnerPaymentsSummarySheet(workbook, resolvedOwnerId);
+        log.info("✅ OWNER_PAYMENTS_SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("🏁 CUSTOMER CUSTOM PERIOD STATEMENT COMPLETE: Customer {}, {} sheets in {}ms ({}s)",
+            customerId, workbook.getNumberOfSheets(), totalTime, totalTime / 1000);
+        logMemoryUsage("CUSTOMER_CUSTOM_COMPLETE");
+
         return workbook;
     }
 

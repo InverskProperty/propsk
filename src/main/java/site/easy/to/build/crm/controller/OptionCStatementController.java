@@ -47,6 +47,16 @@ public class OptionCStatementController {
     private ExcelStatementGeneratorService excelGenerator;
 
     /**
+     * Log current memory usage for debugging
+     */
+    private void logMemoryUsage(String phase) {
+        Runtime runtime = Runtime.getRuntime();
+        long usedMemory = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+        long maxMemory = runtime.maxMemory() / (1024 * 1024);
+        log.info("📊 MEMORY [{}]: Used={}MB, Max={}MB", phase, usedMemory, maxMemory);
+    }
+
+    /**
      * Generate owner statement for specific customer (Excel with formulas)
      *
      * Example: GET /api/statements/option-c/owner/123/excel?startDate=2025-01-01&endDate=2025-12-31&periodStartDay=22
@@ -65,12 +75,19 @@ public class OptionCStatementController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "1") Integer periodStartDay) {
 
-        log.info("📊 Option C: Generating Excel statement for customer {} from {} to {} (period start day: {})",
+        long requestStart = System.currentTimeMillis();
+        log.info("🚀 OPTION C REQUEST START: Customer {} from {} to {} (periodStartDay: {})",
                  customerId, startDate, endDate, periodStartDay);
+        logMemoryUsage("REQUEST_START");
+
+        Workbook workbook = null;
+        ByteArrayOutputStream out = null;
 
         try {
             // Generate workbook with formulas (Option C)
-            Workbook workbook;
+            log.info("📄 Generating workbook...");
+            long genStart = System.currentTimeMillis();
+
             if (periodStartDay == 1) {
                 // Use calendar months (existing behavior)
                 workbook = excelGenerator.generateStatementForCustomer(customerId, startDate, endDate);
@@ -80,13 +97,18 @@ public class OptionCStatementController {
                     customerId, startDate, endDate, periodStartDay);
             }
 
-            // Convert to byte array
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            workbook.write(out);
-            workbook.close();
+            log.info("✅ Workbook generated in {}ms with {} sheets",
+                System.currentTimeMillis() - genStart, workbook.getNumberOfSheets());
+            logMemoryUsage("WORKBOOK_GENERATED");
 
+            // Convert to byte array
+            log.info("📤 Converting workbook to byte array...");
+            long writeStart = System.currentTimeMillis();
+            out = new ByteArrayOutputStream();
+            workbook.write(out);
             byte[] excelBytes = out.toByteArray();
-            out.close();
+            log.info("✅ Converted to {} bytes in {}ms", excelBytes.length, System.currentTimeMillis() - writeStart);
+            logMemoryUsage("BYTES_WRITTEN");
 
             // Prepare HTTP response
             HttpHeaders headers = new HttpHeaders();
@@ -100,17 +122,48 @@ public class OptionCStatementController {
             headers.setContentDispositionFormData("attachment", filename);
             headers.setContentLength(excelBytes.length);
 
-            log.info("✅ Option C: Successfully generated statement - {} sheets, {} bytes",
-                    workbook.getNumberOfSheets(), excelBytes.length);
+            long totalTime = System.currentTimeMillis() - requestStart;
+            log.info("🏁 OPTION C REQUEST COMPLETE: Customer {}, {} sheets, {} bytes in {}ms ({}s)",
+                    customerId, workbook.getNumberOfSheets(), excelBytes.length, totalTime, totalTime / 1000);
+            logMemoryUsage("REQUEST_COMPLETE");
 
             return ResponseEntity.ok()
                     .headers(headers)
                     .body(excelBytes);
 
         } catch (IOException e) {
-            log.error("❌ Option C: Error generating Excel statement for customer {}: {}",
-                    customerId, e.getMessage(), e);
+            log.error("❌ Option C IO ERROR for customer {}: {} at {}",
+                    customerId, e.getMessage(), e.getClass().getName());
+            log.error("Stack trace:", e);
+            logMemoryUsage("IO_ERROR");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+
+        } catch (OutOfMemoryError e) {
+            log.error("❌ Option C OUT OF MEMORY for customer {}: {}", customerId, e.getMessage());
+            logMemoryUsage("OOM_ERROR");
+            // Try to free up memory
+            if (workbook != null) {
+                try { workbook.close(); } catch (Exception ignored) {}
+            }
+            System.gc();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+
+        } catch (Exception e) {
+            log.error("❌ Option C UNEXPECTED ERROR for customer {}: {} ({})",
+                    customerId, e.getMessage(), e.getClass().getName());
+            log.error("Stack trace:", e);
+            logMemoryUsage("UNEXPECTED_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+
+        } finally {
+            // Ensure resources are closed
+            if (out != null) {
+                try { out.close(); } catch (Exception ignored) {}
+            }
+            if (workbook != null) {
+                try { workbook.close(); } catch (Exception ignored) {}
+            }
+            log.info("🧹 Resources cleaned up for customer {}", customerId);
         }
     }
 
