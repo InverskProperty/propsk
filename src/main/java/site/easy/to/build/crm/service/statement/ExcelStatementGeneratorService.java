@@ -1557,14 +1557,14 @@ public class ExcelStatementGeneratorService {
                     netToOwnerCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // Column O: opening_balance (formula: sum all arrears before statement period)
+                    // Column O: opening_balance (pre-calculated from database)
+                    // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
                     Cell openingBalanceCell = row.createCell(col++);
                     if (isFirstRowForLease) {
-                        // Opening balance = (total rent due before period start) - (total rent received before period start)
-                        openingBalanceCell.setCellFormula(String.format(
-                            "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, \"<\"&F%d) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \"<\"&F%d)",
-                            lease.getLeaseId(), rowNum + 1, lease.getLeaseId(), rowNum + 1
-                        ));
+                        // Opening balance calculated from database for first row
+                        java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
+                            lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent());
+                        openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                     } else {
                         // For subsequent months, opening balance is 0 (cumulative handles the carry-forward)
                         openingBalanceCell.setCellValue(0);
@@ -1795,12 +1795,12 @@ public class ExcelStatementGeneratorService {
                 netCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                 netCell.setCellStyle(currencyStyle);
 
-                // Column O: opening_balance (sum all rent due before this month minus all rent received before this month)
+                // Column O: opening_balance (pre-calculated from database)
+                // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
                 Cell openingBalanceCell = row.createCell(col++);
-                openingBalanceCell.setCellFormula(String.format(
-                    "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, \"<\"&F%d) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \"<\"&F%d)",
-                    lease.getLeaseId(), rowNum + 1, lease.getLeaseId(), rowNum + 1
-                ));
+                java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
+                    lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent());
+                openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                 openingBalanceCell.setCellStyle(currencyStyle);
 
                 // Column P: cumulative_arrears (opening_balance + current month arrears)
@@ -1941,8 +1941,8 @@ public class ExcelStatementGeneratorService {
             }
 
             // Generate periods based on THIS LEASE's start date (anniversary-based)
-            // IMPORTANT: Include FULL HISTORY from lease start for accurate opening balance calculations
-            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, true);
+            // MEMORY FIX: Only include periods within statement range - opening balances calculated separately
+            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, false);
 
             for (CustomPeriod period : leasePeriods) {
                 Row row = sheet.createRow(rowNum);
@@ -2079,11 +2079,9 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Find earliest lease start to include full history for opening balance calculations
-        LocalDate earliestLeaseStart = findEarliestLeaseStart(leaseMaster);
-
-        // Generate custom periods - include FULL HISTORY from earliest lease start
-        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay, earliestLeaseStart);
+        // MEMORY FIX: Only include periods within statement range - opening balances calculated separately
+        // Previously we included full history which caused OOM for customers with old leases
+        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay, null);
 
         // Generate rows for each lease × custom period that has started
         // Show active leases AND ended leases, but NOT future leases that haven't started
@@ -2291,19 +2289,12 @@ public class ExcelStatementGeneratorService {
             rentReceivedCell.setCellStyle(currencyStyle);
 
             // I: opening_balance (cumulative arrears BEFORE this period)
-            // Formula: SUM(all rent due for periods starting before this billing period) - SUM(all rent received before period start)
-            // IMPORTANT: Must match rent_due logic - we count rent due where period_start falls within billing period
-            // So opening_balance = sum where period_start < billing_period_start
-            // RENT_DUE: B=lease_reference, D=period_start, L=prorated_rent_due
-            // RENT_RECEIVED: B=lease_reference, E=period_start, O=total_received
+            // MEMORY FIX: Pre-calculate from database instead of using SUMIFS on historical data
+            // This allows us to limit RENT_DUE/RENT_RECEIVED sheets to statement period only
             Cell openingBalanceCell = row.createCell(col++);
-            openingBalanceCell.setCellFormula(String.format(
-                "SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, A%d, RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, A%d, RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
-                rowNum + 1,
-                period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
-                rowNum + 1,
-                period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()
-            ));
+            java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
+                lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent());
+            openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
             openingBalanceCell.setCellStyle(currencyStyle);
 
             // J: period_arrears (this period only: rent_due - rent_received)
@@ -2626,15 +2617,12 @@ public class ExcelStatementGeneratorService {
                 totalNetCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                 totalNetCell.setCellStyle(currencyStyle);
 
-                // O: opening_balance (arrears before first period start)
+                // O: opening_balance (pre-calculated from database)
+                // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
                 Cell openingBalanceCell = row.createCell(col++);
-                openingBalanceCell.setCellFormula(String.format(
-                    "SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, \"%s\", RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
-                    lease.getLeaseReference(),
-                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
-                    lease.getLeaseReference(),
-                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth()
-                ));
+                java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
+                    lease.getLeaseId(), lease.getStartDate(), startDate, lease.getMonthlyRent());
+                openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                 openingBalanceCell.setCellStyle(currencyStyle);
 
                 // P: closing_balance (opening + arrears for period)
@@ -2854,17 +2842,14 @@ public class ExcelStatementGeneratorService {
                     netToOwnerCell.setCellFormula(String.format("H%d - L%d - M%d", rowNum + 1, rowNum + 1, rowNum + 1));
                     netToOwnerCell.setCellStyle(currencyStyle);
 
-                    // O: opening_balance (formula: sum all arrears before statement period)
+                    // O: opening_balance (pre-calculated from database)
+                    // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
                     Cell openingBalanceCell = row.createCell(col++);
                     if (isFirstPeriodForLease) {
-                        // Opening balance = (total rent due before first period start) - (total rent received before first period start)
-                        openingBalanceCell.setCellFormula(String.format(
-                            "SUMIFS(RENT_DUE!H:H, RENT_DUE!A:A, %d, RENT_DUE!D:D, \"<\"&DATE(%d,%d,%d)) - SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \"<\"&DATE(%d,%d,%d))",
-                            lease.getLeaseId(),
-                            period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
-                            lease.getLeaseId(),
-                            period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()
-                        ));
+                        // Opening balance calculated from database for first period
+                        java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
+                            lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent());
+                        openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                     } else {
                         // For subsequent periods, opening balance is 0 (cumulative handles the carry-forward)
                         openingBalanceCell.setCellValue(0);

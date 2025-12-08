@@ -1029,4 +1029,105 @@ public class StatementDataExtractService {
         }
         return null;
     }
+
+    /**
+     * Calculate the tenant opening balance (arrears) for a lease as of a specific date.
+     *
+     * Opening Balance = (Total rent due before date) - (Total rent received before date)
+     *
+     * This calculates from the lease start date to the specified date, avoiding the need
+     * to store historical data in Excel sheets.
+     *
+     * @param leaseId The lease/invoice ID
+     * @param leaseStartDate The lease start date (rent due from this date)
+     * @param asOfDate Calculate balance as of this date (exclusive - before this date)
+     * @param monthlyRent The monthly rent amount
+     * @return Opening balance (positive = arrears/tenant owes, negative = credit/overpaid)
+     */
+    public java.math.BigDecimal calculateTenantOpeningBalance(Long leaseId, LocalDate leaseStartDate,
+                                                               LocalDate asOfDate, java.math.BigDecimal monthlyRent) {
+        log.debug("Calculating tenant opening balance for lease {} from {} to {} (monthly rent: {})",
+            leaseId, leaseStartDate, asOfDate, monthlyRent);
+
+        if (leaseStartDate == null || asOfDate == null || monthlyRent == null) {
+            log.warn("Cannot calculate opening balance - missing required data for lease {}", leaseId);
+            return java.math.BigDecimal.ZERO;
+        }
+
+        // If statement starts before or at lease start, opening balance is zero
+        if (!asOfDate.isAfter(leaseStartDate)) {
+            return java.math.BigDecimal.ZERO;
+        }
+
+        // Calculate total rent due from lease start to asOfDate
+        // Count full months between lease start and asOfDate
+        long monthsBetween = java.time.temporal.ChronoUnit.MONTHS.between(leaseStartDate, asOfDate);
+        java.math.BigDecimal totalRentDue = monthlyRent.multiply(java.math.BigDecimal.valueOf(monthsBetween));
+
+        log.debug("Lease {}: {} months of rent due = {}", leaseId, monthsBetween, totalRentDue);
+
+        // Get total rent received before asOfDate
+        java.math.BigDecimal totalReceived = getTotalRentReceivedBefore(leaseId, asOfDate);
+
+        log.debug("Lease {}: total received before {} = {}", leaseId, asOfDate, totalReceived);
+
+        // Opening balance = rent due - rent received
+        java.math.BigDecimal openingBalance = totalRentDue.subtract(totalReceived);
+
+        log.info("Lease {} opening balance as of {}: {} (due: {} - received: {})",
+            leaseId, asOfDate, openingBalance, totalRentDue, totalReceived);
+
+        return openingBalance;
+    }
+
+    /**
+     * Get total rent received for a lease before a specific date.
+     * Sums all INCOMING transactions before the specified date.
+     *
+     * @param leaseId The lease/invoice ID
+     * @param beforeDate Sum payments before this date (exclusive)
+     * @return Total amount received
+     */
+    public java.math.BigDecimal getTotalRentReceivedBefore(Long leaseId, LocalDate beforeDate) {
+        // Query all transactions for this lease and filter to INCOMING before the date
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository.findByInvoiceId(leaseId);
+
+        java.math.BigDecimal total = java.math.BigDecimal.ZERO;
+        for (UnifiedTransaction txn : transactions) {
+            // Only count INCOMING transactions (rent received)
+            if (txn.getFlowDirection() != UnifiedTransaction.FlowDirection.INCOMING) {
+                continue;
+            }
+            if (txn.getTransactionDate() != null && txn.getTransactionDate().isBefore(beforeDate)) {
+                if (txn.getAmount() != null) {
+                    total = total.add(txn.getAmount());
+                }
+            }
+        }
+
+        return total;
+    }
+
+    /**
+     * Get total rent received for a lease within a date range.
+     *
+     * @param leaseId The lease/invoice ID
+     * @param startDate Start of range (inclusive)
+     * @param endDate End of range (inclusive)
+     * @return Total amount received in the period
+     */
+    public java.math.BigDecimal getTotalRentReceivedInPeriod(Long leaseId, LocalDate startDate, LocalDate endDate) {
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+                leaseId, startDate, endDate, UnifiedTransaction.FlowDirection.INCOMING);
+
+        java.math.BigDecimal total = java.math.BigDecimal.ZERO;
+        for (UnifiedTransaction txn : transactions) {
+            if (txn.getAmount() != null) {
+                total = total.add(txn.getAmount());
+            }
+        }
+
+        return total;
+    }
 }
