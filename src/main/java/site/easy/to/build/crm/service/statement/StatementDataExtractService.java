@@ -112,6 +112,14 @@ public class StatementDataExtractService {
                 // Commission rates from property (not global defaults)
                 dto.setCommissionPercentage(property.getCommissionPercentage());
                 dto.setServiceFeePercentage(property.getServiceFeePercentage());
+
+                // Block property support
+                dto.setIsBlockProperty(property.getIsBlockProperty());
+                dto.setPropertyAccountBalance(property.getAccountBalance());
+                if (property.getBlock() != null) {
+                    dto.setBlockId(property.getBlock().getId());
+                    dto.setBlockName(property.getBlock().getName());
+                }
             }
 
             // Customer details (property owner)
@@ -218,6 +226,14 @@ public class StatementDataExtractService {
                 // Commission rates from property (not global defaults)
                 dto.setCommissionPercentage(property.getCommissionPercentage());
                 dto.setServiceFeePercentage(property.getServiceFeePercentage());
+
+                // Block property support
+                dto.setIsBlockProperty(property.getIsBlockProperty());
+                dto.setPropertyAccountBalance(property.getAccountBalance());
+                if (property.getBlock() != null) {
+                    dto.setBlockId(property.getBlock().getId());
+                    dto.setBlockName(property.getBlock().getName());
+                }
             }
 
             // Customer details (always same customer in this method)

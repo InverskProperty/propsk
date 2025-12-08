@@ -29,6 +29,12 @@ public class LeaseMasterDTO {
     private BigDecimal commissionPercentage;  // Management fee % from property
     private BigDecimal serviceFeePercentage;  // Service fee % from property
 
+    // Block property support - for grouping and property account balance tracking
+    private Long blockId;              // ID of the block this property belongs to (null if standalone)
+    private String blockName;          // Name of the block (e.g., "Boden House Block")
+    private Boolean isBlockProperty;   // True if this IS the block property itself (not a unit)
+    private BigDecimal propertyAccountBalance;  // Current property account balance (for block properties)
+
     // Constructor
     public LeaseMasterDTO() {
     }
@@ -168,6 +174,45 @@ public class LeaseMasterDTO {
 
     public void setServiceFeePercentage(BigDecimal serviceFeePercentage) {
         this.serviceFeePercentage = serviceFeePercentage;
+    }
+
+    public Long getBlockId() {
+        return blockId;
+    }
+
+    public void setBlockId(Long blockId) {
+        this.blockId = blockId;
+    }
+
+    public String getBlockName() {
+        return blockName;
+    }
+
+    public void setBlockName(String blockName) {
+        this.blockName = blockName;
+    }
+
+    public Boolean getIsBlockProperty() {
+        return isBlockProperty;
+    }
+
+    public void setIsBlockProperty(Boolean isBlockProperty) {
+        this.isBlockProperty = isBlockProperty;
+    }
+
+    public BigDecimal getPropertyAccountBalance() {
+        return propertyAccountBalance;
+    }
+
+    public void setPropertyAccountBalance(BigDecimal propertyAccountBalance) {
+        this.propertyAccountBalance = propertyAccountBalance;
+    }
+
+    /**
+     * Check if this lease's property belongs to a block
+     */
+    public boolean belongsToBlock() {
+        return blockId != null;
     }
 
     @Override

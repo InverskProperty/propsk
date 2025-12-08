@@ -361,4 +361,95 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     @Modifying
     @Query("DELETE FROM UnifiedAllocation ua WHERE ua.paymentBatchId = :batchReference")
     int deleteByBatchReference(@Param("batchReference") String batchReference);
+
+    // ===== PROPERTY ACCOUNT BALANCE QUERIES (Block Property Support) =====
+
+    /**
+     * Get total disbursements INTO a block property account within a date range
+     * DISBURSEMENT allocations where beneficiary_name is the block property name
+     *
+     * @param blockPropertyName The name of the block property (e.g., "BODEN HOUSE BLOCK PROPERTY")
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return Sum of disbursements into the property account
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ua.amount), 0)
+        FROM unified_allocations ua
+        WHERE ua.allocation_type = 'DISBURSEMENT'
+        AND UPPER(ua.beneficiary_name) = UPPER(:blockPropertyName)
+        AND ua.created_at >= :startDate
+        AND ua.created_at < :endDate
+    """, nativeQuery = true)
+    BigDecimal getPropertyAccountInflows(
+        @Param("blockPropertyName") String blockPropertyName,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get total expenses paid FROM a block property account within a date range
+     * EXPENSE allocations where the property is the block property
+     *
+     * @param blockPropertyId The ID of the block property
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return Sum of expenses paid from property account (returned as positive)
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ABS(ua.amount)), 0)
+        FROM unified_allocations ua
+        WHERE ua.allocation_type = 'EXPENSE'
+        AND ua.property_id = :blockPropertyId
+        AND ua.created_at >= :startDate
+        AND ua.created_at < :endDate
+    """, nativeQuery = true)
+    BigDecimal getPropertyAccountOutflows(
+        @Param("blockPropertyId") Long blockPropertyId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get all disbursements to a block property account (for detailed listing)
+     */
+    @Query(value = """
+        SELECT ua.id, ua.property_name, ua.amount, ua.description, ua.created_at, ua.payment_batch_id
+        FROM unified_allocations ua
+        WHERE ua.allocation_type = 'DISBURSEMENT'
+        AND UPPER(ua.beneficiary_name) = UPPER(:blockPropertyName)
+        ORDER BY ua.created_at DESC
+    """, nativeQuery = true)
+    List<Object[]> getPropertyAccountDisbursements(@Param("blockPropertyName") String blockPropertyName);
+
+    /**
+     * Get sum of all historical disbursements to a block property (for opening balance calculation)
+     * Returns total of all DISBURSEMENT allocations before the given date
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ua.amount), 0)
+        FROM unified_allocations ua
+        WHERE ua.allocation_type = 'DISBURSEMENT'
+        AND UPPER(ua.beneficiary_name) = UPPER(:blockPropertyName)
+        AND ua.created_at < :beforeDate
+    """, nativeQuery = true)
+    BigDecimal getPropertyAccountInflowsBefore(
+        @Param("blockPropertyName") String blockPropertyName,
+        @Param("beforeDate") LocalDate beforeDate
+    );
+
+    /**
+     * Get sum of all historical expenses from a block property (for opening balance calculation)
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ABS(ua.amount)), 0)
+        FROM unified_allocations ua
+        WHERE ua.allocation_type = 'EXPENSE'
+        AND ua.property_id = :blockPropertyId
+        AND ua.created_at < :beforeDate
+    """, nativeQuery = true)
+    BigDecimal getPropertyAccountOutflowsBefore(
+        @Param("blockPropertyId") Long blockPropertyId,
+        @Param("beforeDate") LocalDate beforeDate
+    );
 }

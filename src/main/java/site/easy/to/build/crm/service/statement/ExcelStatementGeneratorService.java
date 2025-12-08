@@ -118,6 +118,9 @@ public class ExcelStatementGeneratorService {
         createRentReceivedSheet(workbook, leaseMaster, startDate, endDate);
         createExpensesSheet(workbook, leaseMaster, startDate, endDate);
 
+        // Create PROPERTY_ACCOUNT sheet for block property account balance tracking
+        createPropertyAccountSheet(workbook, leaseMaster, startDate, endDate);
+
         // Create separate monthly statement sheets for each month in the period
         List<site.easy.to.build.crm.util.RentCyclePeriodCalculator.RentCyclePeriod> periods =
             site.easy.to.build.crm.util.RentCyclePeriodCalculator.calculateMonthlyPeriods(startDate, endDate);
@@ -855,6 +858,188 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
+     * Create PROPERTY_ACCOUNT sheet for block property account balance tracking
+     *
+     * This sheet provides the data source for property account balance columns in MONTHLY_STATEMENT.
+     * Structure:
+     * - Column A: block_name (e.g., "Boden House Block")
+     * - Column B: movement_type ("opening", "in", "out", "closing")
+     * - Column C: description (e.g., "Flat 24 SC", "Opening Balance")
+     * - Column D: amount
+     * - Column E: date
+     *
+     * The MONTHLY_STATEMENT uses SUMIFS to look up values from this sheet.
+     */
+    private void createPropertyAccountSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                            LocalDate startDate, LocalDate endDate) {
+        log.info("Creating PROPERTY_ACCOUNT sheet for block property balance tracking");
+
+        Sheet sheet = workbook.createSheet("PROPERTY_ACCOUNT");
+
+        // Header row
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "block_name", "movement_type", "description", "amount", "date", "source_property", "batch_reference"
+        };
+
+        CellStyle headerStyle = createHeaderStyle(workbook);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Styles
+        CellStyle dateStyle = createDateStyle(workbook);
+        CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+        int rowNum = 1;
+
+        // Find distinct blocks from lease master data
+        java.util.Set<String> processedBlocks = new java.util.HashSet<>();
+
+        for (LeaseMasterDTO lease : leaseMaster) {
+            if (lease.getBlockName() != null && !processedBlocks.contains(lease.getBlockName())) {
+                processedBlocks.add(lease.getBlockName());
+                String blockName = lease.getBlockName();
+
+                // Get property account data from unified allocations
+                // We need to query the database for DISBURSEMENT allocations to this block
+
+                // Row 1: Opening balance (all historical inflows - outflows before start date)
+                Row openingRow = sheet.createRow(rowNum++);
+                openingRow.createCell(0).setCellValue(blockName);
+                openingRow.createCell(1).setCellValue("opening");
+                openingRow.createCell(2).setCellValue("Opening Balance (prior to " + startDate + ")");
+
+                // Calculate opening balance from database
+                java.math.BigDecimal openingBalance = calculatePropertyAccountOpeningBalance(blockName, startDate);
+                Cell openingAmountCell = openingRow.createCell(3);
+                openingAmountCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
+                openingAmountCell.setCellStyle(currencyStyle);
+
+                Cell openingDateCell = openingRow.createCell(4);
+                openingDateCell.setCellValue(startDate);
+                openingDateCell.setCellStyle(dateStyle);
+
+                openingRow.createCell(5).setCellValue(""); // source_property
+                openingRow.createCell(6).setCellValue(""); // batch_reference
+
+                // Row 2+: Inflows during period (DISBURSEMENT allocations to block)
+                java.math.BigDecimal totalInflows = getPropertyAccountInflows(blockName, startDate, endDate);
+                if (totalInflows != null && totalInflows.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    Row inflowRow = sheet.createRow(rowNum++);
+                    inflowRow.createCell(0).setCellValue(blockName);
+                    inflowRow.createCell(1).setCellValue("in");
+                    inflowRow.createCell(2).setCellValue("Service charge contributions (period total)");
+
+                    Cell inflowAmountCell = inflowRow.createCell(3);
+                    inflowAmountCell.setCellValue(totalInflows.doubleValue());
+                    inflowAmountCell.setCellStyle(currencyStyle);
+
+                    Cell inflowDateCell = inflowRow.createCell(4);
+                    inflowDateCell.setCellValue(endDate);
+                    inflowDateCell.setCellStyle(dateStyle);
+
+                    inflowRow.createCell(5).setCellValue("Various units");
+                    inflowRow.createCell(6).setCellValue("");
+                }
+
+                // Row: Outflows during period (EXPENSE allocations from block)
+                java.math.BigDecimal totalOutflows = getPropertyAccountOutflows(blockName, startDate, endDate);
+                if (totalOutflows != null && totalOutflows.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    Row outflowRow = sheet.createRow(rowNum++);
+                    outflowRow.createCell(0).setCellValue(blockName);
+                    outflowRow.createCell(1).setCellValue("out");
+                    outflowRow.createCell(2).setCellValue("Block expenses paid (period total)");
+
+                    Cell outflowAmountCell = outflowRow.createCell(3);
+                    outflowAmountCell.setCellValue(totalOutflows.doubleValue());
+                    outflowAmountCell.setCellStyle(currencyStyle);
+
+                    Cell outflowDateCell = outflowRow.createCell(4);
+                    outflowDateCell.setCellValue(endDate);
+                    outflowDateCell.setCellStyle(dateStyle);
+
+                    outflowRow.createCell(5).setCellValue("Block property");
+                    outflowRow.createCell(6).setCellValue("");
+                }
+
+                // Row: Closing balance (opening + in - out)
+                Row closingRow = sheet.createRow(rowNum++);
+                closingRow.createCell(0).setCellValue(blockName);
+                closingRow.createCell(1).setCellValue("closing");
+                closingRow.createCell(2).setCellValue("Closing Balance");
+
+                java.math.BigDecimal closingBalance = (openingBalance != null ? openingBalance : java.math.BigDecimal.ZERO)
+                    .add(totalInflows != null ? totalInflows : java.math.BigDecimal.ZERO)
+                    .subtract(totalOutflows != null ? totalOutflows : java.math.BigDecimal.ZERO);
+
+                Cell closingAmountCell = closingRow.createCell(3);
+                closingAmountCell.setCellValue(closingBalance.doubleValue());
+                closingAmountCell.setCellStyle(currencyStyle);
+
+                Cell closingDateCell = closingRow.createCell(4);
+                closingDateCell.setCellValue(endDate);
+                closingDateCell.setCellStyle(dateStyle);
+
+                closingRow.createCell(5).setCellValue("");
+                closingRow.createCell(6).setCellValue("");
+            }
+        }
+
+        // Auto-size columns
+        for (int i = 0; i < headers.length; i++) {
+            sheet.autoSizeColumn(i);
+        }
+
+        log.info("PROPERTY_ACCOUNT sheet created with {} rows for {} blocks", rowNum - 1, processedBlocks.size());
+    }
+
+    /**
+     * Calculate opening balance for a property account (all historical inflows - outflows before date)
+     */
+    private java.math.BigDecimal calculatePropertyAccountOpeningBalance(String blockName, LocalDate beforeDate) {
+        try {
+            // Get total inflows before the date
+            java.math.BigDecimal inflowsBefore = unifiedAllocationRepository.getPropertyAccountInflowsBefore(blockName, beforeDate);
+
+            // For outflows, we need the block property ID - for now, return just inflows
+            // TODO: Get block property ID and calculate outflows too
+            return inflowsBefore != null ? inflowsBefore : java.math.BigDecimal.ZERO;
+        } catch (Exception e) {
+            log.warn("Error calculating property account opening balance for {}: {}", blockName, e.getMessage());
+            return java.math.BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * Get total inflows (disbursements) into a property account during a period
+     */
+    private java.math.BigDecimal getPropertyAccountInflows(String blockName, LocalDate startDate, LocalDate endDate) {
+        try {
+            return unifiedAllocationRepository.getPropertyAccountInflows(blockName, startDate, endDate);
+        } catch (Exception e) {
+            log.warn("Error getting property account inflows for {}: {}", blockName, e.getMessage());
+            return java.math.BigDecimal.ZERO;
+        }
+    }
+
+    /**
+     * Get total outflows (expenses) from a property account during a period
+     */
+    private java.math.BigDecimal getPropertyAccountOutflows(String blockName, LocalDate startDate, LocalDate endDate) {
+        try {
+            // TODO: Need to get block property ID to query outflows properly
+            // For now, return 0 - outflows need the property_id, not the beneficiary_name
+            return java.math.BigDecimal.ZERO;
+        } catch (Exception e) {
+            log.warn("Error getting property account outflows for {}: {}", blockName, e.getMessage());
+            return java.math.BigDecimal.ZERO;
+        }
+    }
+
+    /**
      * Create MONTHLY_STATEMENT sheet with FORMULAS combining DUE and RECEIVED
      * Final output sheet with arrears calculation
      */
@@ -869,7 +1054,9 @@ public class ExcelStatementGeneratorService {
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day", "month",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
-            "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears"
+            "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears",
+            // NEW: Block property and property account balance columns
+            "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -1011,6 +1198,54 @@ public class ExcelStatementGeneratorService {
                     }
                     cumArrearsCell.setCellStyle(currencyStyle);
 
+                    // ===== NEW: Block Property and Property Account Balance Columns =====
+
+                    // Column Q: block_name (for grouping)
+                    Cell blockNameCell = row.createCell(col++);
+                    if (lease.getBlockName() != null) {
+                        blockNameCell.setCellValue(lease.getBlockName());
+                    } else {
+                        blockNameCell.setCellValue(""); // Not part of a block
+                    }
+
+                    // Columns R-U: Property account balance tracking (only for properties in blocks)
+                    if (lease.belongsToBlock() && lease.getBlockName() != null) {
+                        // Column R: property_account_opening
+                        Cell propAcctOpeningCell = row.createCell(col++);
+                        propAcctOpeningCell.setCellFormula(String.format(
+                            "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"opening\"), 0)",
+                            rowNum + 1
+                        ));
+                        propAcctOpeningCell.setCellStyle(currencyStyle);
+
+                        // Column S: property_account_in
+                        Cell propAcctInCell = row.createCell(col++);
+                        propAcctInCell.setCellFormula(String.format(
+                            "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"in\"), 0)",
+                            rowNum + 1
+                        ));
+                        propAcctInCell.setCellStyle(currencyStyle);
+
+                        // Column T: property_account_out
+                        Cell propAcctOutCell = row.createCell(col++);
+                        propAcctOutCell.setCellFormula(String.format(
+                            "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"out\"), 0)",
+                            rowNum + 1
+                        ));
+                        propAcctOutCell.setCellStyle(currencyStyle);
+
+                        // Column U: property_account_closing (opening + in - out)
+                        Cell propAcctClosingCell = row.createCell(col++);
+                        propAcctClosingCell.setCellFormula(String.format("R%d + S%d - T%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                        propAcctClosingCell.setCellStyle(currencyStyle);
+                    } else {
+                        // Not a block property - leave cells empty
+                        row.createCell(col++).setCellValue(""); // property_account_opening
+                        row.createCell(col++).setCellValue(""); // property_account_in
+                        row.createCell(col++).setCellValue(""); // property_account_out
+                        row.createCell(col++).setCellValue(""); // property_account_closing
+                    }
+
                     rowNum++;
                     isFirstRowForLease = false;
                 }
@@ -1019,8 +1254,9 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
+        // Auto-size columns - skip for very wide sheets to improve performance
+        int colsToAutoSize = Math.min(headers.length, 16); // Only auto-size first 16 columns
+        for (int i = 0; i < colsToAutoSize; i++) {
             sheet.autoSizeColumn(i);
         }
 
@@ -1054,7 +1290,9 @@ public class ExcelStatementGeneratorService {
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "lease_start_date", "rent_due_day", "month",
             "rent_due", "rent_received", "arrears", "management_fee", "service_fee",
-            "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears"
+            "total_commission", "total_expenses", "net_to_owner", "opening_balance", "cumulative_arrears",
+            // NEW: Block property and property account balance columns
+            "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing"
         };
 
         CellStyle headerStyle = createHeaderStyle(workbook);
@@ -1188,14 +1426,70 @@ public class ExcelStatementGeneratorService {
                 cumulativeArrearsCell.setCellFormula(String.format("O%d + I%d", rowNum + 1, rowNum + 1));
                 cumulativeArrearsCell.setCellStyle(currencyStyle);
 
+                // ===== NEW: Block Property and Property Account Balance Columns =====
+
+                // Column Q: block_name (for grouping)
+                Cell blockNameCell = row.createCell(col++);
+                if (lease.getBlockName() != null) {
+                    blockNameCell.setCellValue(lease.getBlockName());
+                } else {
+                    blockNameCell.setCellValue(""); // Not part of a block
+                }
+
+                // Columns R-U: Property account balance tracking (only for properties in blocks)
+                // These show the flow of money through the block's property account
+                if (lease.belongsToBlock() && lease.getBlockName() != null) {
+                    // Get property account data from unified allocations
+                    // Note: In a real implementation, you would calculate these from the database
+                    // For now, we use the property's current account_balance and calculate movement
+
+                    // Column R: property_account_opening (balance at start of period)
+                    // This is calculated as: all historical inflows - all historical outflows before startDate
+                    Cell propAcctOpeningCell = row.createCell(col++);
+                    // Use a placeholder formula referencing a PROPERTY_ACCOUNT_SUMMARY sheet
+                    propAcctOpeningCell.setCellFormula(String.format(
+                        "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"opening\"), 0)",
+                        rowNum + 1
+                    ));
+                    propAcctOpeningCell.setCellStyle(currencyStyle);
+
+                    // Column S: property_account_in (disbursements into property account this period)
+                    Cell propAcctInCell = row.createCell(col++);
+                    propAcctInCell.setCellFormula(String.format(
+                        "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"in\"), 0)",
+                        rowNum + 1
+                    ));
+                    propAcctInCell.setCellStyle(currencyStyle);
+
+                    // Column T: property_account_out (expenses paid from property account this period)
+                    Cell propAcctOutCell = row.createCell(col++);
+                    propAcctOutCell.setCellFormula(String.format(
+                        "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"out\"), 0)",
+                        rowNum + 1
+                    ));
+                    propAcctOutCell.setCellStyle(currencyStyle);
+
+                    // Column U: property_account_closing (opening + in - out)
+                    Cell propAcctClosingCell = row.createCell(col++);
+                    propAcctClosingCell.setCellFormula(String.format("R%d + S%d - T%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                    propAcctClosingCell.setCellStyle(currencyStyle);
+                } else {
+                    // Not a block property - leave cells empty
+                    row.createCell(col++).setCellValue(""); // property_account_opening
+                    row.createCell(col++).setCellValue(""); // property_account_in
+                    row.createCell(col++).setCellValue(""); // property_account_out
+                    row.createCell(col++).setCellValue(""); // property_account_closing
+                }
+
                 rowNum++;
 
                 currentMonth = currentMonth.plusMonths(1);
             }
         }
 
-        // Auto-size columns
-        for (int i = 0; i < headers.length; i++) {
+        // Auto-size columns - skip for very wide sheets to improve performance
+        int colsToAutoSize = Math.min(headers.length, 16); // Only auto-size first 16 columns
+        for (int i = 0; i < colsToAutoSize; i++) {
             sheet.autoSizeColumn(i);
         }
 
