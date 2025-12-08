@@ -2278,13 +2278,13 @@ public class ExcelStatementGeneratorService {
             rentDueCell.setCellStyle(currencyStyle);
 
             // H: rent_received (SUMIFS to RENT_RECEIVED sheet) - payments can come in even for inactive leases
+            // Use date range to sum ALL months within a quarterly/semi-annual/annual statement period
             Cell rentReceivedCell = row.createCell(col++);
             rentReceivedCell.setCellFormula(String.format(
-                "IFERROR(SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, DATE(%d,%d,%d)), 0)",
+                "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$1000=\"%s\")*(RENT_RECEIVED!$E$2:$E$1000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$E$2:$E$1000<=DATE(%d,%d,%d))*RENT_RECEIVED!$O$2:$O$1000), 0)",
                 lease.getLeaseReference(),
-                period.periodStart.getYear(),
-                period.periodStart.getMonthValue(),
-                period.periodStart.getDayOfMonth()
+                period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
+                period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
             ));
             rentReceivedCell.setCellStyle(currencyStyle);
 
@@ -2784,25 +2784,23 @@ public class ExcelStatementGeneratorService {
                                        period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"));
                     row.createCell(col++).setCellValue(periodLabel);
 
-                    // G: rent_due (SUMIFS to RENT_DUE sheet - more reliable than INDEX/MATCH array formula)
+                    // G: rent_due (SUMPRODUCT to RENT_DUE sheet - sum all rent due periods starting within this billing period)
                     Cell rentDueCell = row.createCell(col++);
                     rentDueCell.setCellFormula(String.format(
-                        "IFERROR(SUMIFS(RENT_DUE!L:L, RENT_DUE!B:B, \"%s\", RENT_DUE!D:D, DATE(%d,%d,%d)), 0)",
+                        "IFERROR(SUMPRODUCT((RENT_DUE!$B$2:$B$1000=\"%s\")*(RENT_DUE!$D$2:$D$1000>=DATE(%d,%d,%d))*(RENT_DUE!$D$2:$D$1000<=DATE(%d,%d,%d))*RENT_DUE!$L$2:$L$1000), 0)",
                         lease.getLeaseReference(),
-                        period.periodStart.getYear(),
-                        period.periodStart.getMonthValue(),
-                        period.periodStart.getDayOfMonth()
+                        period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
+                        period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
                     ));
                     rentDueCell.setCellStyle(currencyStyle);
 
-                    // H: rent_received (SUMIFS to RENT_RECEIVED sheet - more reliable than INDEX/MATCH array formula)
+                    // H: rent_received (SUMPRODUCT to RENT_RECEIVED sheet - sum all payments in periods starting within this billing period)
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "IFERROR(SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, DATE(%d,%d,%d)), 0)",
+                        "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$1000=\"%s\")*(RENT_RECEIVED!$E$2:$E$1000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$E$2:$E$1000<=DATE(%d,%d,%d))*RENT_RECEIVED!$O$2:$O$1000), 0)",
                         lease.getLeaseReference(),
-                        period.periodStart.getYear(),
-                        period.periodStart.getMonthValue(),
-                        period.periodStart.getDayOfMonth()
+                        period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
+                        period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
                     ));
                     rentReceivedCell.setCellStyle(currencyStyle);
 

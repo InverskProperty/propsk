@@ -4,7 +4,8 @@
       "Bash(nul)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(mvn clean package:*)"
+      "Bash(mvn clean package:*)",
+      "mcp__render__list_logs"
     ],
     "deny": [],
     "ask": [],
