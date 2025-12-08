@@ -80,6 +80,28 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
+     * Request garbage collection and log memory before/after.
+     * Called between heavy operations to free memory.
+     */
+    private void requestGC(String phase) {
+        Runtime runtime = Runtime.getRuntime();
+        long usedBefore = runtime.totalMemory() - runtime.freeMemory();
+
+        // Request GC (hint to JVM, not guaranteed)
+        System.gc();
+
+        // Small pause to allow GC to run
+        try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+
+        long usedAfter = runtime.totalMemory() - runtime.freeMemory();
+        long freed = usedBefore - usedAfter;
+
+        if (freed > 0) {
+            log.info("[STMT-DEBUG] 🗑️ GC after {} freed {}MB", phase, freed / (1024 * 1024));
+        }
+    }
+
+    /**
      * Generate complete statement workbook
      *
      * @param startDate Statement period start
@@ -333,9 +355,27 @@ public class ExcelStatementGeneratorService {
      */
     public Workbook generateStatementForCustomerWithCustomPeriods(Long customerId, LocalDate startDate,
                                                                   LocalDate endDate, int periodStartDay) {
+        // Default to QUARTERLY for memory efficiency
+        return generateStatementForCustomerWithCustomPeriods(customerId, startDate, endDate, periodStartDay, "QUARTERLY");
+    }
+
+    /**
+     * Generate statement for customer with custom periods and configurable statement frequency.
+     * Data sheets cover the full period, but monthly statement sheets are generated at the specified frequency.
+     *
+     * @param customerId Customer ID
+     * @param startDate Statement period start
+     * @param endDate Statement period end
+     * @param periodStartDay Day of month when period starts
+     * @param statementFrequency MONTHLY (12/year), QUARTERLY (4/year), SEMI_ANNUAL (2/year), ANNUAL (1/year)
+     * @return Excel workbook for this customer with custom periods
+     */
+    public Workbook generateStatementForCustomerWithCustomPeriods(Long customerId, LocalDate startDate,
+                                                                  LocalDate endDate, int periodStartDay,
+                                                                  String statementFrequency) {
         long startTime = System.currentTimeMillis();
-        log.info("🚀 CUSTOMER CUSTOM PERIOD STATEMENT START: Customer {} periodStartDay={} from {} to {}",
-            customerId, periodStartDay, startDate, endDate);
+        log.info("🚀 CUSTOMER CUSTOM PERIOD STATEMENT START: Customer {} periodStartDay={} frequency={} from {} to {}",
+            customerId, periodStartDay, statementFrequency, startDate, endDate);
         logMemoryUsage("CUSTOMER_CUSTOM_START");
 
         Workbook workbook = new XSSFWorkbook();
@@ -371,6 +411,10 @@ public class ExcelStatementGeneratorService {
         createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS created in {}ms", System.currentTimeMillis() - sheetStart);
 
+        // GC hint after data sheets (transactions list can be large)
+        transactions = null; // Allow GC to reclaim
+        requestGC("DATA_SHEETS");
+
         sheetStart = System.currentTimeMillis();
         createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
@@ -378,6 +422,9 @@ public class ExcelStatementGeneratorService {
         sheetStart = System.currentTimeMillis();
         createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ RENT_RECEIVED (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        // GC hint after rent sheets
+        requestGC("RENT_SHEETS");
 
         sheetStart = System.currentTimeMillis();
         createExpensesSheet(workbook, leaseMaster, startDate, endDate, styles);
@@ -390,33 +437,38 @@ public class ExcelStatementGeneratorService {
         log.info("✅ PROPERTY_ACCOUNT created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("CUSTOMER_CUSTOM_DATA_SHEETS");
 
-        // Generate custom periods
-        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
+        // GC hint before statement sheets (heaviest part)
+        requestGC("BEFORE_STATEMENT_SHEETS");
 
-        // Create separate monthly statement sheets for each period (using shared styles)
+        // Generate statement periods based on frequency (reduces memory for quarterly/semi-annual)
+        // Data sheets already have full history - statement sheets are just for display/summary
+        List<CustomPeriod> statementPeriods = generateStatementPeriods(startDate, endDate, periodStartDay, statementFrequency);
+
+        // Create statement sheets for each period (using shared styles)
         sheetStart = System.currentTimeMillis();
         int sheetCount = 0;
-        for (CustomPeriod period : periods) {
+        for (CustomPeriod period : statementPeriods) {
             sheetCount++;
             String sheetName = sanitizeSheetName(
                 period.periodStart.format(DateTimeFormatter.ofPattern("MMM dd")) + " - " +
                 period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
             );
-            log.debug("📄 Creating monthly sheet {}/{}: {}", sheetCount, periods.size(), sheetName);
+            log.debug("📄 Creating statement sheet {}/{}: {}", sheetCount, statementPeriods.size(), sheetName);
             createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName, styles);
 
-            // Log memory every 3 sheets
+            // Log memory and request GC every 3 sheets
             if (sheetCount % 3 == 0) {
                 logMemoryUsage("CUSTOM_MONTHLY_SHEET_" + sheetCount);
+                requestGC("MONTHLY_SHEET_" + sheetCount);
             }
         }
-        log.info("✅ {} monthly sheets created in {}ms", periods.size(), System.currentTimeMillis() - sheetStart);
+        log.info("✅ {} statement sheets created in {}ms", statementPeriods.size(), System.currentTimeMillis() - sheetStart);
         logMemoryUsage("CUSTOMER_CUSTOM_MONTHLY_SHEETS");
 
-        // Create summary sheet (totals across all periods) - using shared styles
+        // Create summary sheet (totals across all statement periods) - using shared styles
         log.info("📄 Creating summary sheet...");
         sheetStart = System.currentTimeMillis();
-        createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate, styles);
+        createSummarySheetForCustomPeriods(workbook, leaseMaster, statementPeriods, startDate, endDate, styles);
         log.info("✅ SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         // Create allocation tracking sheets for this owner - using shared styles
@@ -460,6 +512,24 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
+     * Find the earliest lease start date from the lease master list.
+     * Used to determine how far back to include data for opening balance calculations.
+     */
+    private LocalDate findEarliestLeaseStart(List<LeaseMasterDTO> leaseMaster) {
+        LocalDate earliest = null;
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            if (leaseStart != null && (earliest == null || leaseStart.isBefore(earliest))) {
+                earliest = leaseStart;
+            }
+        }
+        if (earliest != null) {
+            log.info("Earliest lease start date: {}", earliest);
+        }
+        return earliest;
+    }
+
+    /**
      * Generate rent due periods based on the LEASE START DATE (anniversary-based)
      * Each lease has its own rent cycle based on when it started.
      * E.g., a lease starting March 6th has periods: Mar 6 - Apr 5, Apr 6 - May 5, etc.
@@ -472,6 +542,24 @@ public class ExcelStatementGeneratorService {
      */
     private List<CustomPeriod> generateLeaseBasedPeriods(LocalDate leaseStart, LocalDate leaseEnd,
                                                           LocalDate overallStart, LocalDate overallEnd) {
+        // Default: only generate periods within statement range (for monthly statement sheets)
+        return generateLeaseBasedPeriods(leaseStart, leaseEnd, overallStart, overallEnd, false);
+    }
+
+    /**
+     * Generate rent due periods based on the LEASE START DATE (anniversary-based).
+     *
+     * @param leaseStart The lease start date (determines rent due day)
+     * @param leaseEnd The lease end date (null for ongoing leases)
+     * @param overallStart The overall statement start date
+     * @param overallEnd The overall statement end date
+     * @param includeFullHistory If true, include ALL periods from lease start (for data sheets/opening balances).
+     *                           If false, only include periods within statement range (for monthly sheets).
+     * @return List of rent due periods
+     */
+    private List<CustomPeriod> generateLeaseBasedPeriods(LocalDate leaseStart, LocalDate leaseEnd,
+                                                          LocalDate overallStart, LocalDate overallEnd,
+                                                          boolean includeFullHistory) {
         List<CustomPeriod> periods = new ArrayList<>();
 
         if (leaseStart == null) {
@@ -481,11 +569,11 @@ public class ExcelStatementGeneratorService {
 
         int rentDueDay = leaseStart.getDayOfMonth();
 
-        // Find the first rent due date on or after lease start that's within our statement range
+        // Start from lease start date
         LocalDate periodStart = leaseStart;
 
-        // If lease started before our statement range, find the first period that overlaps
-        if (periodStart.isBefore(overallStart)) {
+        // If NOT including full history, skip forward to statement range
+        if (!includeFullHistory && periodStart.isBefore(overallStart)) {
             // Move forward to find the rent due date in or just before the statement range
             while (periodStart.plusMonths(1).isBefore(overallStart) ||
                    periodStart.plusMonths(1).isEqual(overallStart)) {
@@ -502,7 +590,7 @@ public class ExcelStatementGeneratorService {
             effectiveEnd = leaseEnd;
         }
 
-        // Generate periods from lease start to effective end
+        // Generate periods from start to effective end
         while (!periodStart.isAfter(effectiveEnd)) {
             // Calculate period end (one day before next month's rent due date)
             LocalDate nextPeriodStart = periodStart.plusMonths(1);
@@ -515,8 +603,9 @@ public class ExcelStatementGeneratorService {
                 periodEnd = leaseEnd;
             }
 
-            // Only add period if it overlaps with our statement range
-            if (!periodEnd.isBefore(overallStart) && !periodStart.isAfter(overallEnd)) {
+            // When including full history, add ALL periods
+            // When not including full history, only add periods that overlap with statement range
+            if (includeFullHistory || (!periodEnd.isBefore(overallStart) && !periodStart.isAfter(overallEnd))) {
                 periods.add(new CustomPeriod(periodStart, periodEnd));
             }
 
@@ -524,8 +613,8 @@ public class ExcelStatementGeneratorService {
             periodStart = nextPeriodStart;
         }
 
-        log.debug("Generated {} lease-based periods for lease starting {} (rent due day: {})",
-                 periods.size(), leaseStart, rentDueDay);
+        log.debug("Generated {} lease-based periods for lease starting {} (rent due day: {}, fullHistory: {})",
+                 periods.size(), leaseStart, rentDueDay, includeFullHistory);
         return periods;
     }
 
@@ -533,30 +622,38 @@ public class ExcelStatementGeneratorService {
      * Generate custom periods based on start day (e.g., 22nd of each month)
      */
     private List<CustomPeriod> generateCustomPeriods(LocalDate start, LocalDate end, int periodStartDay) {
+        return generateCustomPeriods(start, end, periodStartDay, null);
+    }
+
+    /**
+     * Generate custom periods based on start day (e.g., 22nd of each month)
+     *
+     * @param start Statement start date
+     * @param end Statement end date
+     * @param periodStartDay Day of month for period boundaries (e.g., 22)
+     * @param earliestLeaseStart If provided, include periods from this date for full history (for data sheets)
+     */
+    private List<CustomPeriod> generateCustomPeriods(LocalDate start, LocalDate end, int periodStartDay,
+                                                     LocalDate earliestLeaseStart) {
         List<CustomPeriod> periods = new ArrayList<>();
 
-        // Find first period start on or after the start date
-        LocalDate periodStart = LocalDate.of(start.getYear(), start.getMonthValue(),
-                                            Math.min(periodStartDay, start.lengthOfMonth()));
-
-        // If we're past the period start day in the first month, start there
-        if (periodStart.isBefore(start)) {
-            // Move to next month's period start
-            periodStart = periodStart.plusMonths(1);
-            periodStart = LocalDate.of(periodStart.getYear(), periodStart.getMonthValue(),
-                                      Math.min(periodStartDay, periodStart.lengthOfMonth()));
-        } else if (start.getDayOfMonth() > periodStartDay) {
-            // Start date is after period start day, so next period starts next month
-            periodStart = periodStart.plusMonths(1);
-            periodStart = LocalDate.of(periodStart.getYear(), periodStart.getMonthValue(),
-                                      Math.min(periodStartDay, periodStart.lengthOfMonth()));
+        // Determine effective start - use earliest lease start if provided (for full history)
+        LocalDate effectiveStart = start;
+        if (earliestLeaseStart != null && earliestLeaseStart.isBefore(start)) {
+            effectiveStart = earliestLeaseStart;
+            log.info("Including full history from {} for opening balance calculations", earliestLeaseStart);
         }
 
-        // Actually, let's align to the first period that contains or starts after the start date
-        periodStart = LocalDate.of(start.getYear(), start.getMonthValue(),
-                                  Math.min(periodStartDay, start.lengthOfMonth()));
-        if (periodStart.isBefore(start)) {
-            periodStart = start;
+        // Find first period start on or after the effective start date
+        LocalDate periodStart = LocalDate.of(effectiveStart.getYear(), effectiveStart.getMonthValue(),
+                                            Math.min(periodStartDay, effectiveStart.lengthOfMonth()));
+
+        // If we're past the period start day in the first month, use start of that period
+        if (periodStart.isAfter(effectiveStart)) {
+            // Go back one month to catch the period that contains effectiveStart
+            periodStart = periodStart.minusMonths(1);
+            periodStart = LocalDate.of(periodStart.getYear(), periodStart.getMonthValue(),
+                                      Math.min(periodStartDay, periodStart.lengthOfMonth()));
         }
 
         while (!periodStart.isAfter(end)) {
@@ -575,10 +672,79 @@ public class ExcelStatementGeneratorService {
             periods.add(new CustomPeriod(periodStart, periodEnd));
 
             // Move to next period
-            periodStart = periodEnd.plusDays(1);
+            periodStart = nextMonthStart;
         }
 
-        log.info("Generated {} custom periods with start day {}", periods.size(), periodStartDay);
+        log.info("Generated {} custom periods with start day {} (from {} to {})",
+                periods.size(), periodStartDay, effectiveStart, end);
+        return periods;
+    }
+
+    /**
+     * Generate statement periods based on frequency (MONTHLY, QUARTERLY, SEMI_ANNUAL, ANNUAL).
+     * Used to control how many monthly statement sheets are generated (memory optimization).
+     *
+     * @param startDate Statement start date
+     * @param endDate Statement end date
+     * @param periodStartDay Day of month for period boundaries (e.g., 22)
+     * @param frequency MONTHLY (12/year), QUARTERLY (4/year), SEMI_ANNUAL (2/year), ANNUAL (1/year)
+     * @return List of statement periods (fewer than monthly periods for quarterly/semi-annual/annual)
+     */
+    private List<CustomPeriod> generateStatementPeriods(LocalDate startDate, LocalDate endDate,
+                                                        int periodStartDay, String frequency) {
+        List<CustomPeriod> periods = new ArrayList<>();
+
+        // Determine months per period based on frequency
+        int monthsPerPeriod;
+        switch (frequency.toUpperCase()) {
+            case "MONTHLY":
+                monthsPerPeriod = 1;
+                break;
+            case "QUARTERLY":
+                monthsPerPeriod = 3;
+                break;
+            case "SEMI_ANNUAL":
+                monthsPerPeriod = 6;
+                break;
+            case "ANNUAL":
+                monthsPerPeriod = 12;
+                break;
+            default:
+                log.warn("Unknown frequency '{}', defaulting to QUARTERLY", frequency);
+                monthsPerPeriod = 3;
+        }
+
+        // Find first period start on or after the start date
+        LocalDate periodStart = LocalDate.of(startDate.getYear(), startDate.getMonthValue(),
+                                            Math.min(periodStartDay, startDate.lengthOfMonth()));
+
+        // If we're past the period start day in the first month, use start of that period
+        if (periodStart.isAfter(startDate)) {
+            periodStart = periodStart.minusMonths(1);
+            periodStart = LocalDate.of(periodStart.getYear(), periodStart.getMonthValue(),
+                                      Math.min(periodStartDay, periodStart.lengthOfMonth()));
+        }
+
+        while (!periodStart.isAfter(endDate)) {
+            // Period ends based on frequency (e.g., 3 months for quarterly)
+            LocalDate nextPeriodStart = periodStart.plusMonths(monthsPerPeriod);
+            nextPeriodStart = LocalDate.of(nextPeriodStart.getYear(), nextPeriodStart.getMonthValue(),
+                                          Math.min(periodStartDay, nextPeriodStart.lengthOfMonth()));
+            LocalDate periodEnd = nextPeriodStart.minusDays(1);
+
+            // Adjust if period end exceeds overall end date
+            if (periodEnd.isAfter(endDate)) {
+                periodEnd = endDate;
+            }
+
+            periods.add(new CustomPeriod(periodStart, periodEnd));
+
+            // Move to next period
+            periodStart = nextPeriodStart;
+        }
+
+        log.info("Generated {} {} statement periods (start day: {}) from {} to {}",
+                periods.size(), frequency, periodStartDay, startDate, endDate);
         return periods;
     }
 
@@ -1775,7 +1941,8 @@ public class ExcelStatementGeneratorService {
             }
 
             // Generate periods based on THIS LEASE's start date (anniversary-based)
-            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate);
+            // IMPORTANT: Include FULL HISTORY from lease start for accurate opening balance calculations
+            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, true);
 
             for (CustomPeriod period : leasePeriods) {
                 Row row = sheet.createRow(rowNum);
@@ -1912,8 +2079,11 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate custom periods
-        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
+        // Find earliest lease start to include full history for opening balance calculations
+        LocalDate earliestLeaseStart = findEarliestLeaseStart(leaseMaster);
+
+        // Generate custom periods - include FULL HISTORY from earliest lease start
+        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay, earliestLeaseStart);
 
         // Generate rows for each lease × custom period that has started
         // Show active leases AND ended leases, but NOT future leases that haven't started
@@ -1925,6 +2095,11 @@ public class ExcelStatementGeneratorService {
                 // Skip future leases that haven't started yet (lease start is after period end)
                 if (leaseStart != null && leaseStart.isAfter(period.periodEnd)) {
                     continue; // Don't show leases that haven't started yet
+                }
+
+                // Skip periods before this specific lease started
+                if (leaseStart != null && period.periodEnd.isBefore(leaseStart)) {
+                    continue; // This period is before the lease started
                 }
 
                 // Create row for leases that have started (payments can come in even for ended leases)

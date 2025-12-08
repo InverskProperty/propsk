@@ -59,12 +59,13 @@ public class OptionCStatementController {
     /**
      * Generate owner statement for specific customer (Excel with formulas)
      *
-     * Example: GET /api/statements/option-c/owner/123/excel?startDate=2025-01-01&endDate=2025-12-31&periodStartDay=22
+     * Example: GET /api/statements/option-c/owner/123/excel?startDate=2025-01-01&endDate=2025-12-31&periodStartDay=22&statementFrequency=QUARTERLY
      *
      * @param customerId Customer ID
      * @param startDate Statement period start (format: yyyy-MM-dd)
      * @param endDate Statement period end (format: yyyy-MM-dd)
      * @param periodStartDay Day of month when period starts (1-31). Default=1 (calendar months). Use 22 for 22nd-21st periods.
+     * @param statementFrequency How often to generate statement sheets: MONTHLY (12/year), QUARTERLY (4/year), SEMI_ANNUAL (2/year), ANNUAL (1/year). Default=QUARTERLY.
      * @return Excel file download with formulas
      */
     @GetMapping("/owner/{customerId}/excel")
@@ -73,11 +74,12 @@ public class OptionCStatementController {
             @PathVariable Long customerId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(defaultValue = "1") Integer periodStartDay) {
+            @RequestParam(defaultValue = "1") Integer periodStartDay,
+            @RequestParam(defaultValue = "QUARTERLY") String statementFrequency) {
 
         long requestStart = System.currentTimeMillis();
-        log.info("🚀 OPTION C REQUEST START: Customer {} from {} to {} (periodStartDay: {})",
-                 customerId, startDate, endDate, periodStartDay);
+        log.info("🚀 OPTION C REQUEST START: Customer {} from {} to {} (periodStartDay: {}, frequency: {})",
+                 customerId, startDate, endDate, periodStartDay, statementFrequency);
         logMemoryUsage("REQUEST_START");
 
         Workbook workbook = null;
@@ -92,9 +94,9 @@ public class OptionCStatementController {
                 // Use calendar months (existing behavior)
                 workbook = excelGenerator.generateStatementForCustomer(customerId, startDate, endDate);
             } else {
-                // Use custom periods (e.g., 22nd-21st)
+                // Use custom periods (e.g., 22nd-21st) with frequency control
                 workbook = excelGenerator.generateStatementForCustomerWithCustomPeriods(
-                    customerId, startDate, endDate, periodStartDay);
+                    customerId, startDate, endDate, periodStartDay, statementFrequency);
             }
 
             log.info("✅ Workbook generated in {}ms with {} sheets",
@@ -242,7 +244,8 @@ public class OptionCStatementController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'PROPERTY_OWNER', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateOwnerStatementCurrentMonth(
             @PathVariable Long customerId,
-            @RequestParam(defaultValue = "1") Integer periodStartDay) {
+            @RequestParam(defaultValue = "1") Integer periodStartDay,
+            @RequestParam(defaultValue = "MONTHLY") String statementFrequency) {
 
         LocalDate now = LocalDate.now();
         LocalDate startDate = now.withDayOfMonth(1);
@@ -251,7 +254,7 @@ public class OptionCStatementController {
         log.info("📊 Option C: Generating current month statement for customer {}: {} to {}",
                 customerId, startDate, endDate);
 
-        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay);
+        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay, statementFrequency);
     }
 
     /**
@@ -267,7 +270,8 @@ public class OptionCStatementController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'PROPERTY_OWNER', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateOwnerStatementCurrentYear(
             @PathVariable Long customerId,
-            @RequestParam(defaultValue = "1") Integer periodStartDay) {
+            @RequestParam(defaultValue = "1") Integer periodStartDay,
+            @RequestParam(defaultValue = "QUARTERLY") String statementFrequency) {
 
         LocalDate now = LocalDate.now();
         LocalDate startDate = LocalDate.of(now.getYear(), 1, 1);
@@ -276,7 +280,7 @@ public class OptionCStatementController {
         log.info("📊 Option C: Generating current year statement for customer {}: {} to {}",
                 customerId, startDate, endDate);
 
-        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay);
+        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay, statementFrequency);
     }
 
     /**
@@ -292,7 +296,8 @@ public class OptionCStatementController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'PROPERTY_OWNER', 'ADMIN', 'MANAGER')")
     public ResponseEntity<byte[]> generateOwnerStatementLastMonth(
             @PathVariable Long customerId,
-            @RequestParam(defaultValue = "1") Integer periodStartDay) {
+            @RequestParam(defaultValue = "1") Integer periodStartDay,
+            @RequestParam(defaultValue = "MONTHLY") String statementFrequency) {
 
         LocalDate now = LocalDate.now();
         LocalDate startDate = now.minusMonths(1).withDayOfMonth(1);
@@ -301,7 +306,7 @@ public class OptionCStatementController {
         log.info("📊 Option C: Generating last month statement for customer {}: {} to {}",
                 customerId, startDate, endDate);
 
-        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay);
+        return generateOwnerStatement(customerId, startDate, endDate, periodStartDay, statementFrequency);
     }
 
     /**
