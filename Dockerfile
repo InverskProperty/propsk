@@ -4,6 +4,9 @@ WORKDIR /app
 # Install Maven
 RUN apt-get update && apt-get install -y maven
 
+# Limit Maven memory to fit in 512MB build container
+ENV MAVEN_OPTS="-Xmx256m -XX:+UseG1GC"
+
 # Copy pom.xml and download dependencies
 COPY pom.xml .
 # Try to download dependencies with retries, but don't fail the build if Maven Central has issues
@@ -11,7 +14,7 @@ RUN mvn dependency:go-offline -B || echo "Dependency download had issues, will r
 
 # Copy source code and build
 COPY src ./src
-RUN mvn clean package -DskipTests
+RUN mvn clean package -DskipTests -T 1
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
