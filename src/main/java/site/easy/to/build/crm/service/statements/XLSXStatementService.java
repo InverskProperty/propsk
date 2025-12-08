@@ -1137,34 +1137,34 @@ public class XLSXStatementService {
         // Company header
         String[] companyRow1 = emptyRow.clone();
         companyRow1[4] = "PROPSK LTD";
-        values.add(Arrays.asList(companyRow1));
+        values.add(Arrays.asList((Object[]) companyRow1));
 
         String[] companyRow2 = emptyRow.clone();
         companyRow2[4] = "1 Poplar Court, Greensward Lane, Hockley, England, SS5 5JB";
-        values.add(Arrays.asList(companyRow2));
+        values.add(Arrays.asList((Object[]) companyRow2));
 
         String[] companyRow3 = emptyRow.clone();
         companyRow3[4] = "Company number 15933011";
-        values.add(Arrays.asList(companyRow3));
+        values.add(Arrays.asList((Object[]) companyRow3));
 
-        values.add(Arrays.asList(emptyRow)); // Empty row
+        values.add(Arrays.asList((Object[]) emptyRow.clone())); // Empty row
 
         String[] statementRow = emptyRow.clone();
         statementRow[4] = "STATEMENT";
-        values.add(Arrays.asList(statementRow));
+        values.add(Arrays.asList((Object[]) statementRow));
 
-        values.add(Arrays.asList(emptyRow)); // Empty row
+        values.add(Arrays.asList((Object[]) emptyRow.clone())); // Empty row
 
         // Client, Property, Period information
         String[] clientRow = emptyRow.clone();
         clientRow[0] = "CLIENT:";
         clientRow[1] = data.getPropertyOwner().getName();
-        values.add(Arrays.asList(clientRow));
+        values.add(Arrays.asList((Object[]) clientRow));
 
         String[] propertyRow = emptyRow.clone();
         propertyRow[0] = "PROPERTY:";
         propertyRow[1] = data.getProperties().isEmpty() ? "PROPERTY PORTFOLIO" : data.getProperties().get(0).getPropertyName();
-        values.add(Arrays.asList(propertyRow));
+        values.add(Arrays.asList((Object[]) propertyRow));
 
         // Format period dates
         String fromDateFormatted = data.getFromDate().format(DateTimeFormatter.ofPattern("d")) +
@@ -1177,15 +1177,15 @@ public class XLSXStatementService {
         String[] periodRow = emptyRow.clone();
         periodRow[0] = "PERIOD:";
         periodRow[1] = fromDateFormatted + " to " + toDateFormatted;
-        values.add(Arrays.asList(periodRow));
+        values.add(Arrays.asList((Object[]) periodRow));
 
-        values.add(Arrays.asList(emptyRow)); // Empty row
-        values.add(Arrays.asList(emptyRow)); // Empty row
+        values.add(Arrays.asList((Object[]) emptyRow.clone())); // Empty row
+        values.add(Arrays.asList((Object[]) emptyRow.clone())); // Empty row
 
         // Income Statement Header
         String[] incomeHeaderRow = emptyRow.clone();
         incomeHeaderRow[0] = "Income Statement";
-        values.add(Arrays.asList(incomeHeaderRow));
+        values.add(Arrays.asList((Object[]) incomeHeaderRow));
 
         // Enhanced column headers (38 columns total)
         values.add(Arrays.asList(
