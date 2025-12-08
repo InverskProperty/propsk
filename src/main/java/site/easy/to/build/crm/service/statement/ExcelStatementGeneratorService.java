@@ -989,8 +989,11 @@ public class ExcelStatementGeneratorService {
      */
     private java.math.BigDecimal calculatePropertyAccountOpeningBalance(String blockName, LocalDate beforeDate) {
         try {
+            // Convert LocalDate to LocalDateTime at start of day for query compatibility
+            java.time.LocalDateTime beforeDateTime = beforeDate.atStartOfDay();
+
             // Get total inflows before the date
-            java.math.BigDecimal inflowsBefore = unifiedAllocationRepository.getPropertyAccountInflowsBefore(blockName, beforeDate);
+            java.math.BigDecimal inflowsBefore = unifiedAllocationRepository.getPropertyAccountInflowsBefore(blockName, beforeDateTime);
 
             // For outflows, we need the block property ID - for now, return just inflows
             // TODO: Get block property ID and calculate outflows too
@@ -1006,7 +1009,11 @@ public class ExcelStatementGeneratorService {
      */
     private java.math.BigDecimal getPropertyAccountInflows(String blockName, LocalDate startDate, LocalDate endDate) {
         try {
-            return unifiedAllocationRepository.getPropertyAccountInflows(blockName, startDate, endDate);
+            // Convert LocalDate to LocalDateTime for query compatibility
+            java.time.LocalDateTime startDateTime = startDate.atStartOfDay();
+            java.time.LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay(); // End of day
+
+            return unifiedAllocationRepository.getPropertyAccountInflows(blockName, startDateTime, endDateTime);
         } catch (Exception e) {
             log.warn("Error getting property account inflows for {}: {}", blockName, e.getMessage());
             return java.math.BigDecimal.ZERO;

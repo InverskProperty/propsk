@@ -11,6 +11,7 @@ import site.easy.to.build.crm.entity.UnifiedAllocation.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -378,13 +379,13 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         FROM unified_allocations ua
         WHERE ua.allocation_type = 'DISBURSEMENT'
         AND UPPER(ua.beneficiary_name) = UPPER(:blockPropertyName)
-        AND ua.created_at >= :startDate
-        AND ua.created_at < :endDate
+        AND ua.created_at >= :startDateTime
+        AND ua.created_at < :endDateTime
     """, nativeQuery = true)
     BigDecimal getPropertyAccountInflows(
         @Param("blockPropertyName") String blockPropertyName,
-        @Param("startDate") LocalDate startDate,
-        @Param("endDate") LocalDate endDate
+        @Param("startDateTime") LocalDateTime startDateTime,
+        @Param("endDateTime") LocalDateTime endDateTime
     );
 
     /**
@@ -401,13 +402,13 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         FROM unified_allocations ua
         WHERE ua.allocation_type = 'EXPENSE'
         AND ua.property_id = :blockPropertyId
-        AND ua.created_at >= :startDate
-        AND ua.created_at < :endDate
+        AND ua.created_at >= :startDateTime
+        AND ua.created_at < :endDateTime
     """, nativeQuery = true)
     BigDecimal getPropertyAccountOutflows(
         @Param("blockPropertyId") Long blockPropertyId,
-        @Param("startDate") LocalDate startDate,
-        @Param("endDate") LocalDate endDate
+        @Param("startDateTime") LocalDateTime startDateTime,
+        @Param("endDateTime") LocalDateTime endDateTime
     );
 
     /**
@@ -431,11 +432,11 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         FROM unified_allocations ua
         WHERE ua.allocation_type = 'DISBURSEMENT'
         AND UPPER(ua.beneficiary_name) = UPPER(:blockPropertyName)
-        AND ua.created_at < :beforeDate
+        AND ua.created_at < :beforeDateTime
     """, nativeQuery = true)
     BigDecimal getPropertyAccountInflowsBefore(
         @Param("blockPropertyName") String blockPropertyName,
-        @Param("beforeDate") LocalDate beforeDate
+        @Param("beforeDateTime") LocalDateTime beforeDateTime
     );
 
     /**
@@ -446,10 +447,10 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         FROM unified_allocations ua
         WHERE ua.allocation_type = 'EXPENSE'
         AND ua.property_id = :blockPropertyId
-        AND ua.created_at < :beforeDate
+        AND ua.created_at < :beforeDateTime
     """, nativeQuery = true)
     BigDecimal getPropertyAccountOutflowsBefore(
         @Param("blockPropertyId") Long blockPropertyId,
-        @Param("beforeDate") LocalDate beforeDate
+        @Param("beforeDateTime") LocalDateTime beforeDateTime
     );
 }
