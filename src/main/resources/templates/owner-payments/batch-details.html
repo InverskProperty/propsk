@@ -161,6 +161,7 @@
                                     <thead class="thead-dark">
                                         <tr>
                                             <th>Property</th>
+                                            <th>Type</th>
                                             <th>Amount</th>
                                             <th>Category</th>
                                             <th>Status</th>
@@ -170,7 +171,13 @@
                                     <tbody>
                                         <tr th:each="alloc : ${allocations}">
                                             <td th:text="${alloc.propertyName}">Property</td>
-                                            <td class="font-weight-bold" th:text="${alloc.amount}">100.00</td>
+                                            <td>
+                                                <span th:if="${alloc.allocationType.name() == 'OWNER'}" class="badge badge-success">Income</span>
+                                                <span th:if="${alloc.allocationType.name() != 'OWNER'}" class="badge badge-danger">Expense</span>
+                                            </td>
+                                            <td class="font-weight-bold"
+                                                th:classappend="${alloc.allocationType.name() == 'OWNER'} ? 'text-success' : 'text-danger'"
+                                                th:text="${alloc.amount}">100.00</td>
                                             <td th:text="${alloc.category}">Category</td>
                                             <td>
                                                 <span th:if="${alloc.paymentStatus.name() == 'PENDING'}" class="badge badge-warning">Pending</span>
@@ -182,7 +189,7 @@
                                     </tbody>
                                     <tfoot>
                                         <tr class="font-weight-bold bg-light">
-                                            <td>Total</td>
+                                            <td colspan="2">Net Total</td>
                                             <td th:text="${batch.totalAllocations}">0.00</td>
                                             <td colspan="3"></td>
                                         </tr>

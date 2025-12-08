@@ -104,6 +104,7 @@
                                             <tr>
                                                 <th><input type="checkbox" id="selectAllAllocations" checked></th>
                                                 <th>Property</th>
+                                                <th>Type</th>
                                                 <th>Amount</th>
                                                 <th>Category</th>
                                                 <th>Status</th>
@@ -115,7 +116,15 @@
                                                     <input type="checkbox" name="allocationIds" th:value="${alloc.id}" checked class="alloc-checkbox">
                                                 </td>
                                                 <td th:text="${alloc.propertyName}">Property</td>
-                                                <td class="font-weight-bold" th:text="${alloc.amount}">100.00</td>
+                                                <td>
+                                                    <span th:if="${alloc.allocationType.name() == 'OWNER'}" class="badge badge-success">Income</span>
+                                                    <span th:if="${alloc.allocationType.name() != 'OWNER'}" class="badge badge-danger">Expense</span>
+                                                    <!-- Hidden field for JS calculation -->
+                                                    <input type="hidden" class="alloc-type" th:value="${alloc.allocationType.name()}">
+                                                </td>
+                                                <td class="font-weight-bold"
+                                                    th:classappend="${alloc.allocationType.name() == 'OWNER'} ? 'text-success' : 'text-danger'"
+                                                    th:text="${alloc.amount}">100.00</td>
                                                 <td th:text="${alloc.category}">Category</td>
                                                 <td>
                                                     <span class="badge badge-warning">Pending</span>
@@ -125,7 +134,7 @@
                                         <tfoot>
                                             <tr class="font-weight-bold bg-light">
                                                 <td></td>
-                                                <td>Total Selected</td>
+                                                <td colspan="2">Net Total (Income - Expenses)</td>
                                                 <td id="selectedTotal" th:text="${pendingTotal}">0.00</td>
                                                 <td colspan="2"></td>
                                             </tr>
@@ -284,8 +293,15 @@
             var allocTotal = 0;
             $('.alloc-checkbox:checked').each(function() {
                 var row = $(this).closest('tr');
-                var amount = parseFloat(row.find('td:eq(2)').text()) || 0;
-                allocTotal += amount;
+                var amount = parseFloat(row.find('td:eq(3)').text()) || 0; // Amount is now column 3 (0-indexed)
+                var allocType = row.find('.alloc-type').val(); // Get allocation type from hidden input
+
+                // Income (OWNER) is added, Expenses (EXPENSE, COMMISSION, etc.) are subtracted
+                if (allocType === 'OWNER') {
+                    allocTotal += amount;
+                } else {
+                    allocTotal -= amount;
+                }
             });
 
             var contribution = parseFloat($('#balanceContribution').val()) || 0;
