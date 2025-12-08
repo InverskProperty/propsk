@@ -277,14 +277,15 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     /**
      * Get expense/deduction allocations for an owner
      * Returns EXPENSE, COMMISSION, DISBURSEMENT allocations (money deducted from owner payment)
+     * Links through property ownership since expenses are associated with properties, not payment batches
      */
     @Query(value = """
         SELECT ua.id, ua.unified_transaction_id, ua.historical_transaction_id,
                ua.property_name, ua.category, ua.amount, ua.payment_batch_id,
                ua.description, ua.created_at, ua.source
         FROM unified_allocations ua
-        JOIN payment_batches pb ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
-        WHERE pb.beneficiary_id = :ownerId
+        JOIN properties p ON ua.property_id = p.id
+        WHERE p.property_owner_id = :ownerId
         AND ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT')
         ORDER BY ua.created_at, ua.property_name
     """, nativeQuery = true)
