@@ -330,7 +330,11 @@ public class ExcelStatementGeneratorService {
         logMemoryUsage("CUSTOMER_CUSTOM_START");
 
         Workbook workbook = new XSSFWorkbook();
-        log.info("📝 Created new XSSFWorkbook for customer {}", customerId);
+
+        // MEMORY OPTIMIZATION: Create styles ONCE and reuse across all sheets
+        // This prevents creating 51+ duplicate CellStyle objects (was causing OOM)
+        WorkbookStyles styles = new WorkbookStyles(workbook);
+        log.info("📝 Created XSSFWorkbook with shared styles for customer {}", customerId);
 
         // Extract data for this customer
         log.info("📥 Extracting lease master for customer {}...", customerId);
@@ -348,6 +352,8 @@ public class ExcelStatementGeneratorService {
         logMemoryUsage("CUSTOMER_CUSTOM_TRANSACTIONS");
 
         // Create data sheets with custom periods
+        // NOTE: These sheets create their own styles (5 sheets x 3 styles = 15 styles)
+        // The main optimization is in the monthly sheets which are created 12+ times
         log.info("📄 Creating data sheets...");
         long sheetStart = System.currentTimeMillis();
         createLeaseMasterSheet(workbook, leaseMaster);
@@ -373,7 +379,7 @@ public class ExcelStatementGeneratorService {
         // Generate custom periods
         List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
 
-        // Create separate monthly statement sheets for each period
+        // Create separate monthly statement sheets for each period (using shared styles)
         sheetStart = System.currentTimeMillis();
         int sheetCount = 0;
         for (CustomPeriod period : periods) {
@@ -383,7 +389,7 @@ public class ExcelStatementGeneratorService {
                 period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
             );
             log.debug("📄 Creating monthly sheet {}/{}: {}", sheetCount, periods.size(), sheetName);
-            createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName);
+            createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName, styles);
 
             // Log memory every 3 sheets
             if (sheetCount % 3 == 0) {
@@ -394,6 +400,8 @@ public class ExcelStatementGeneratorService {
         logMemoryUsage("CUSTOMER_CUSTOM_MONTHLY_SHEETS");
 
         // Create summary sheet (totals across all periods)
+        // NOTE: Summary and allocation sheets create their own styles (4 sheets x ~3 styles = ~12 styles)
+        // The main optimization is in monthly sheets which are created 12+ times (saves 36+ styles)
         log.info("📄 Creating summary sheet...");
         sheetStart = System.currentTimeMillis();
         createSummarySheetForCustomPeriods(workbook, leaseMaster, periods, startDate, endDate);
@@ -1967,8 +1975,20 @@ public class ExcelStatementGeneratorService {
     /**
      * Create a monthly statement sheet for a specific custom period
      */
+    /**
+     * @deprecated Use version with WorkbookStyles for memory efficiency
+     */
     private void createMonthlyStatementSheetForCustomPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                                            CustomPeriod period, String sheetName) {
+        // Create styles on-demand for backward compatibility
+        createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName, new WorkbookStyles(workbook));
+    }
+
+    /**
+     * Create monthly statement sheet with shared styles (memory optimized version)
+     */
+    private void createMonthlyStatementSheetForCustomPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                                           CustomPeriod period, String sheetName, WorkbookStyles styles) {
         log.info("Creating monthly statement sheet: {}", sheetName);
 
         Sheet sheet = workbook.createSheet(sheetName);
@@ -1981,16 +2001,16 @@ public class ExcelStatementGeneratorService {
             "management_fee", "service_fee", "total_commission", "total_expenses", "net_to_owner"
         };
 
-        CellStyle headerStyle = createHeaderStyle(workbook);
+        // Use shared styles instead of creating new ones
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
+            cell.setCellStyle(styles.headerStyle);
         }
 
-        // Styles
-        CellStyle dateStyle = createDateStyle(workbook);
-        CellStyle currencyStyle = createCurrencyStyle(workbook);
+        // Use shared styles
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
 
@@ -2136,75 +2156,68 @@ public class ExcelStatementGeneratorService {
             rowNum++;
         }
 
-        // Add totals row
+        // Add totals row (use shared styles to save memory)
         if (rowNum > 1) {
             Row totalsRow = sheet.createRow(rowNum);
             int col = 0;
 
-            // A-F: Label in first column
+            // A-F: Label in first column (use shared boldStyle)
             Cell labelCell = totalsRow.createCell(col++);
             labelCell.setCellValue("TOTALS");
-            Font boldFont = workbook.createFont();
-            boldFont.setBold(true);
-            CellStyle boldStyle = workbook.createCellStyle();
-            boldStyle.setFont(boldFont);
-            labelCell.setCellStyle(boldStyle);
+            labelCell.setCellStyle(styles.boldStyle);
 
             // Skip columns B-F (property_name, customer_name, tenant_name, lease_start_date, rent_due_day)
             col += 5;
 
-            // G: total_rent_due
+            // G: total_rent_due (use shared boldCurrencyStyle)
             Cell totalRentDueCell = totalsRow.createCell(col++);
             totalRentDueCell.setCellFormula(String.format("SUM(G2:G%d)", rowNum));
-            CellStyle boldCurrencyStyle = workbook.createCellStyle();
-            boldCurrencyStyle.cloneStyleFrom(currencyStyle);
-            boldCurrencyStyle.setFont(boldFont);
-            totalRentDueCell.setCellStyle(boldCurrencyStyle);
+            totalRentDueCell.setCellStyle(styles.boldCurrencyStyle);
 
             // H: total_rent_received
             Cell totalRentReceivedCell = totalsRow.createCell(col++);
             totalRentReceivedCell.setCellFormula(String.format("SUM(H2:H%d)", rowNum));
-            totalRentReceivedCell.setCellStyle(boldCurrencyStyle);
+            totalRentReceivedCell.setCellStyle(styles.boldCurrencyStyle);
 
             // I: total_opening_balance
             Cell totalOpeningBalanceCell = totalsRow.createCell(col++);
             totalOpeningBalanceCell.setCellFormula(String.format("SUM(I2:I%d)", rowNum));
-            totalOpeningBalanceCell.setCellStyle(boldCurrencyStyle);
+            totalOpeningBalanceCell.setCellStyle(styles.boldCurrencyStyle);
 
             // J: total_period_arrears
             Cell totalPeriodArrearsCell = totalsRow.createCell(col++);
             totalPeriodArrearsCell.setCellFormula(String.format("SUM(J2:J%d)", rowNum));
-            totalPeriodArrearsCell.setCellStyle(boldCurrencyStyle);
+            totalPeriodArrearsCell.setCellStyle(styles.boldCurrencyStyle);
 
             // K: total_closing_balance
             Cell totalClosingBalanceCell = totalsRow.createCell(col++);
             totalClosingBalanceCell.setCellFormula(String.format("SUM(K2:K%d)", rowNum));
-            totalClosingBalanceCell.setCellStyle(boldCurrencyStyle);
+            totalClosingBalanceCell.setCellStyle(styles.boldCurrencyStyle);
 
             // L: total_management_fee
             Cell totalMgmtFeeCell = totalsRow.createCell(col++);
             totalMgmtFeeCell.setCellFormula(String.format("SUM(L2:L%d)", rowNum));
-            totalMgmtFeeCell.setCellStyle(boldCurrencyStyle);
+            totalMgmtFeeCell.setCellStyle(styles.boldCurrencyStyle);
 
             // M: total_service_fee
             Cell totalSvcFeeCell = totalsRow.createCell(col++);
             totalSvcFeeCell.setCellFormula(String.format("SUM(M2:M%d)", rowNum));
-            totalSvcFeeCell.setCellStyle(boldCurrencyStyle);
+            totalSvcFeeCell.setCellStyle(styles.boldCurrencyStyle);
 
             // N: total_commission
             Cell totalCommCell = totalsRow.createCell(col++);
             totalCommCell.setCellFormula(String.format("SUM(N2:N%d)", rowNum));
-            totalCommCell.setCellStyle(boldCurrencyStyle);
+            totalCommCell.setCellStyle(styles.boldCurrencyStyle);
 
             // O: total_expenses
             Cell totalExpensesCell = totalsRow.createCell(col++);
             totalExpensesCell.setCellFormula(String.format("SUM(O2:O%d)", rowNum));
-            totalExpensesCell.setCellStyle(boldCurrencyStyle);
+            totalExpensesCell.setCellStyle(styles.boldCurrencyStyle);
 
             // P: total_net_to_owner
             Cell totalNetCell = totalsRow.createCell(col++);
             totalNetCell.setCellFormula(String.format("SUM(P2:P%d)", rowNum));
-            totalNetCell.setCellStyle(boldCurrencyStyle);
+            totalNetCell.setCellStyle(styles.boldCurrencyStyle);
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
@@ -2608,7 +2621,61 @@ public class ExcelStatementGeneratorService {
     // ============================================================================
     // Cell Style Helpers
     // ============================================================================
+    // STYLE MANAGEMENT - MEMORY OPTIMIZATION
+    // CellStyles are stored at workbook level. Creating styles per-sheet wastes memory.
+    // Solution: Create styles ONCE per workbook and reuse across all sheets.
+    // ============================================================================
 
+    /**
+     * Holds all CellStyles for a workbook - created ONCE and reused across all sheets.
+     * This prevents creating 51+ duplicate styles (was causing OOM on 512MB instances).
+     */
+    private static class WorkbookStyles {
+        final CellStyle headerStyle;
+        final CellStyle dateStyle;
+        final CellStyle currencyStyle;
+        final CellStyle percentStyle;
+        final CellStyle boldStyle;
+        final CellStyle boldCurrencyStyle;
+
+        WorkbookStyles(Workbook workbook) {
+            // Bold font - reused across styles
+            Font boldFont = workbook.createFont();
+            boldFont.setBold(true);
+
+            // Header style - bold with grey background
+            this.headerStyle = workbook.createCellStyle();
+            headerStyle.setFont(boldFont);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            // Date style
+            DataFormat format = workbook.createDataFormat();
+            this.dateStyle = workbook.createCellStyle();
+            dateStyle.setDataFormat(format.getFormat("yyyy-mm-dd"));
+
+            // Currency style
+            this.currencyStyle = workbook.createCellStyle();
+            currencyStyle.setDataFormat(format.getFormat("£#,##0.00"));
+
+            // Percent style
+            this.percentStyle = workbook.createCellStyle();
+            percentStyle.setDataFormat(format.getFormat("0.00%"));
+
+            // Bold style (for totals labels)
+            this.boldStyle = workbook.createCellStyle();
+            boldStyle.setFont(boldFont);
+
+            // Bold currency style (for totals values)
+            this.boldCurrencyStyle = workbook.createCellStyle();
+            boldCurrencyStyle.setFont(boldFont);
+            boldCurrencyStyle.setDataFormat(format.getFormat("£#,##0.00"));
+        }
+    }
+
+    /**
+     * @deprecated Use WorkbookStyles instead for memory efficiency
+     */
     private CellStyle createHeaderStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         Font font = workbook.createFont();
@@ -2619,6 +2686,9 @@ public class ExcelStatementGeneratorService {
         return style;
     }
 
+    /**
+     * @deprecated Use WorkbookStyles instead for memory efficiency
+     */
     private CellStyle createDateStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         DataFormat format = workbook.createDataFormat();
@@ -2626,6 +2696,9 @@ public class ExcelStatementGeneratorService {
         return style;
     }
 
+    /**
+     * @deprecated Use WorkbookStyles instead for memory efficiency
+     */
     private CellStyle createCurrencyStyle(Workbook workbook) {
         CellStyle style = workbook.createCellStyle();
         DataFormat format = workbook.createDataFormat();
