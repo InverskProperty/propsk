@@ -374,6 +374,12 @@ public class ExcelStatementGeneratorService {
         sheetStart = System.currentTimeMillis();
         createExpensesSheet(workbook, leaseMaster, startDate, endDate);
         log.info("✅ EXPENSES created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        // Create PROPERTY_ACCOUNT sheet for block property account balance tracking
+        log.info("📄 Creating PROPERTY_ACCOUNT sheet...");
+        sheetStart = System.currentTimeMillis();
+        createPropertyAccountSheet(workbook, leaseMaster, startDate, endDate);
+        log.info("✅ PROPERTY_ACCOUNT created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("CUSTOMER_CUSTOM_DATA_SHEETS");
 
         // Generate custom periods
@@ -1998,7 +2004,8 @@ public class ExcelStatementGeneratorService {
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "tenant_name", "lease_start_date", "rent_due_day",
             "rent_due", "rent_received", "opening_balance", "period_arrears", "closing_balance",
-            "management_fee", "service_fee", "total_commission", "total_expenses", "net_to_owner"
+            "management_fee", "service_fee", "total_commission", "total_expenses", "net_to_owner",
+            "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing"
         };
 
         // Use shared styles instead of creating new ones
@@ -2153,6 +2160,54 @@ public class ExcelStatementGeneratorService {
             netToOwnerCell.setCellFormula(String.format("H%d - N%d - O%d", rowNum + 1, rowNum + 1, rowNum + 1));
             netToOwnerCell.setCellStyle(currencyStyle);
 
+            // ===== Block Property and Property Account Balance Columns =====
+
+            // Q: block_name (for grouping)
+            Cell blockNameCell = row.createCell(col++);
+            if (lease.getBlockName() != null) {
+                blockNameCell.setCellValue(lease.getBlockName());
+            } else {
+                blockNameCell.setCellValue(""); // Not part of a block
+            }
+
+            // Columns R-U: Property account balance tracking (only for properties in blocks)
+            if (lease.belongsToBlock() && lease.getBlockName() != null) {
+                // R: property_account_opening - SUMIFS from PROPERTY_ACCOUNT sheet
+                Cell propAcctOpeningCell = row.createCell(col++);
+                propAcctOpeningCell.setCellFormula(String.format(
+                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"opening\"), 0)",
+                    rowNum + 1
+                ));
+                propAcctOpeningCell.setCellStyle(currencyStyle);
+
+                // S: property_account_in - inflows from PROPERTY_ACCOUNT sheet
+                Cell propAcctInCell = row.createCell(col++);
+                propAcctInCell.setCellFormula(String.format(
+                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"in\"), 0)",
+                    rowNum + 1
+                ));
+                propAcctInCell.setCellStyle(currencyStyle);
+
+                // T: property_account_out - outflows from PROPERTY_ACCOUNT sheet
+                Cell propAcctOutCell = row.createCell(col++);
+                propAcctOutCell.setCellFormula(String.format(
+                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"out\"), 0)",
+                    rowNum + 1
+                ));
+                propAcctOutCell.setCellStyle(currencyStyle);
+
+                // U: property_account_closing (opening + in - out)
+                Cell propAcctClosingCell = row.createCell(col++);
+                propAcctClosingCell.setCellFormula(String.format("R%d + S%d - T%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                propAcctClosingCell.setCellStyle(currencyStyle);
+            } else {
+                // Not a block property - leave cells empty
+                row.createCell(col++).setCellValue(""); // property_account_opening
+                row.createCell(col++).setCellValue(""); // property_account_in
+                row.createCell(col++).setCellValue(""); // property_account_out
+                row.createCell(col++).setCellValue(""); // property_account_closing
+            }
+
             rowNum++;
         }
 
@@ -2218,6 +2273,26 @@ public class ExcelStatementGeneratorService {
             Cell totalNetCell = totalsRow.createCell(col++);
             totalNetCell.setCellFormula(String.format("SUM(P2:P%d)", rowNum));
             totalNetCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // Q: block_name (no total - just skip)
+            totalsRow.createCell(col++).setCellValue("");
+
+            // R-U: Property account balance totals
+            Cell totalPropAcctOpeningCell = totalsRow.createCell(col++);
+            totalPropAcctOpeningCell.setCellFormula(String.format("SUM(R2:R%d)", rowNum));
+            totalPropAcctOpeningCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalPropAcctInCell = totalsRow.createCell(col++);
+            totalPropAcctInCell.setCellFormula(String.format("SUM(S2:S%d)", rowNum));
+            totalPropAcctInCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalPropAcctOutCell = totalsRow.createCell(col++);
+            totalPropAcctOutCell.setCellFormula(String.format("SUM(T2:T%d)", rowNum));
+            totalPropAcctOutCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalPropAcctClosingCell = totalsRow.createCell(col++);
+            totalPropAcctClosingCell.setCellFormula(String.format("SUM(U2:U%d)", rowNum));
+            totalPropAcctClosingCell.setCellStyle(styles.boldCurrencyStyle);
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
