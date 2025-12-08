@@ -1804,6 +1804,37 @@ public class CustomerController {
                             "Customer created but failed to create login: " + e.getMessage());
                     }
                 }
+            } else if ("DELEGATED_USER".equals(finalCustomerType) || "MANAGER".equals(finalCustomerType)) {
+                // Auto-create login with default password for delegated users and managers
+                System.out.println("🔍 Creating login with default password for " + finalCustomerType);
+
+                try {
+                    CustomerLoginInfo existingLogin = customerLoginInfoService.findByEmail(email);
+                    if (existingLogin != null) {
+                        System.out.println("⚠️ Login already exists for email: " + email);
+                    } else {
+                        // Create login with default password "123"
+                        String defaultPassword = "123";
+                        CustomerLoginInfo loginInfo = new CustomerLoginInfo();
+                        loginInfo.setUsername(email);
+                        loginInfo.setPassword(EmailTokenUtils.encodePassword(defaultPassword));
+                        loginInfo.setPasswordSet(true);
+                        loginInfo.setAccountLocked(false);
+                        loginInfo.setLoginAttempts(0);
+                        loginInfo.setCreatedAt(LocalDateTime.now());
+
+                        CustomerLoginInfo savedLoginInfo = customerLoginInfoService.save(loginInfo);
+                        System.out.println("✅ Login created with default password for: " + email);
+
+                        savedCustomer.setCustomerLoginInfo(savedLoginInfo);
+                        customerService.save(savedCustomer);
+
+                        redirectAttributes.addFlashAttribute("infoMessage",
+                            "Login created with temporary password: " + defaultPassword + " - Please change after first login.");
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ Error creating default login: " + e.getMessage());
+                }
             } else {
                 System.out.println("🔍 No temporary password provided, skipping login creation");
             }
@@ -1969,8 +2000,38 @@ public class CustomerController {
             Customer updatedCustomer = customerService.save(customer);
             System.out.println("✅ [Update Role] Customer role updated successfully: " + updatedCustomer.getName());
 
+            // Auto-create login for DELEGATED_USER and MANAGER if not exists
+            String loginMessage = null;
+            if ((newCustomerType == CustomerType.DELEGATED_USER || newCustomerType == CustomerType.MANAGER)
+                && updatedCustomer.getCustomerLoginInfo() == null
+                && updatedCustomer.getEmail() != null) {
+
+                CustomerLoginInfo existingLogin = customerLoginInfoService.findByEmail(updatedCustomer.getEmail());
+                if (existingLogin == null) {
+                    try {
+                        String defaultPassword = "123";
+                        CustomerLoginInfo loginInfo = new CustomerLoginInfo();
+                        loginInfo.setUsername(updatedCustomer.getEmail());
+                        loginInfo.setPassword(EmailTokenUtils.encodePassword(defaultPassword));
+                        loginInfo.setPasswordSet(true);
+                        loginInfo.setAccountLocked(false);
+                        loginInfo.setLoginAttempts(0);
+                        loginInfo.setCreatedAt(LocalDateTime.now());
+
+                        CustomerLoginInfo savedLoginInfo = customerLoginInfoService.save(loginInfo);
+                        updatedCustomer.setCustomerLoginInfo(savedLoginInfo);
+                        customerService.save(updatedCustomer);
+
+                        loginMessage = "Login created with temporary password: " + defaultPassword;
+                        System.out.println("✅ [Update Role] Login created for: " + updatedCustomer.getEmail());
+                    } catch (Exception e) {
+                        System.err.println("❌ [Update Role] Failed to create login: " + e.getMessage());
+                    }
+                }
+            }
+
             return ResponseEntity.ok(Map.of(
-                "message", "Customer role updated successfully",
+                "message", "Customer role updated successfully" + (loginMessage != null ? ". " + loginMessage : ""),
                 "customerId", updatedCustomer.getCustomerId(),
                 "customerType", updatedCustomer.getCustomerType().name(),
                 "managesOwnerId", updatedCustomer.getManagesOwnerId() != null ? updatedCustomer.getManagesOwnerId() : null
