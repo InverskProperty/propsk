@@ -17,5 +17,10 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/target/crm.war app.war
 EXPOSE 8080
-# Optimized JVM configuration without artificial memory limits
-CMD ["java", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", "-XX:+UseStringDeduplication", "-XX:+UseCompressedOops", "-jar", "app.war"]
+# JVM configuration with explicit memory settings for Render container
+# Starter plan = 512MB container, so allocate ~384MB heap
+# Adjust -Xmx based on your Render plan:
+#   Starter (512MB): -Xmx384m
+#   Standard (1GB):  -Xmx768m
+#   Pro (2GB):       -Xmx1536m
+CMD ["java", "-Xms256m", "-Xmx384m", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", "-XX:+UseStringDeduplication", "-XX:+UseCompressedOops", "-XX:+UseContainerSupport", "-jar", "app.war"]
