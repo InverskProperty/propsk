@@ -369,7 +369,7 @@ public class ExcelStatementGeneratorService {
         List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay);
 
         // Create separate monthly statement sheets for each period
-        long sheetStart = System.currentTimeMillis();
+        sheetStart = System.currentTimeMillis();
         int sheetCount = 0;
         for (CustomPeriod period : periods) {
             sheetCount++;
