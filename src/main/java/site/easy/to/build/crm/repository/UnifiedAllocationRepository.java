@@ -298,7 +298,7 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         LEFT JOIN payprop_report_all_payments owner_raw ON expense_raw.incoming_transaction_id = owner_raw.incoming_transaction_id
             AND owner_raw.beneficiary_type = 'beneficiary'
         LEFT JOIN customers c ON owner_raw.beneficiary_payprop_id = c.payprop_entity_id
-        WHERE ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT')
+        WHERE ua.allocation_type IN ('EXPENSE', 'COMMISSION')
         AND (pb.beneficiary_id = :ownerId OR p.property_owner_id = :ownerId OR c.customer_id = :ownerId)
         ORDER BY ua.created_at, ua.property_name
     """, nativeQuery = true)
