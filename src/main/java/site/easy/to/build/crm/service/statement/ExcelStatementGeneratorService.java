@@ -980,31 +980,45 @@ public class ExcelStatementGeneratorService {
                     leaseDaysCell.setCellValue(0);
                 }
 
-                // Column H: prorated_rent_due - handles cycle-based billing for multi-month frequencies
-                // For monthly (freq_months=1): prorate based on days in month
-                // For multi-month (freq_months>1): full rent on cycle start, £0 otherwise
-                Cell proratedRentCell = row.createCell(col++);
+                // Column H: rent_due - RENT IN ADVANCE model
+                // Full cycle rent is due on lease start date and each cycle anniversary
+                // Pre-calculated using Java to properly handle cycle dates based on lease start
+                Cell rentDueCell = row.createCell(col++);
                 if (leaseActiveInMonth) {
-                    // Build cycle-based rent formula:
-                    // IF frequency_months > 1:
-                    //   IF MOD(months_since_start, frequency_months) = 0: gross_rent ELSE 0
-                    // ELSE: existing prorated formula
-                    int r = rowNum + 1;
-                    String cycleBasedFormula = String.format(
-                        "IF(VLOOKUP(A%d,LEASE_MASTER!A:L,12,FALSE)>1," +
-                        "IF(MOD(DATEDIF(VLOOKUP(A%d,LEASE_MASTER!A:L,8,FALSE),D%d,\"M\"),VLOOKUP(A%d,LEASE_MASTER!A:L,12,FALSE))=0," +
-                        "VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE),0)," +
-                        "IF(AND(NOT(ISBLANK(VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE))),VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)>=D%d,VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)<E%d)," +
-                        "ROUND((VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)-D%d+1)/F%d*VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE),2)," +
-                        "VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE)))",
-                        r, r, r, r, r, r, r, r, r, r, r, r, r, r, r
-                    );
-                    proratedRentCell.setCellFormula(cycleBasedFormula);
+                    // Calculate rent due based on cycle start dates falling within this month
+                    // RENT IN ADVANCE: Full rent is due when a cycle starts, £0 otherwise
+                    int cycleMonths = lease.getFrequencyMonths() != null ? lease.getFrequencyMonths() : 1;
+
+                    if (cycleMonths == 1) {
+                        // Monthly billing: use proration formula for partial months
+                        int r = rowNum + 1;
+                        String proratedFormula = String.format(
+                            "IF(AND(NOT(ISBLANK(VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE))),VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)>=D%d,VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)<=E%d)," +
+                            "ROUND((VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)-MAX(VLOOKUP(A%d,LEASE_MASTER!A:L,8,FALSE),D%d)+1)/F%d*VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE),2)," +
+                            "VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE))",
+                            r, r, r, r, r, r, r, r, r, r, r
+                        );
+                        rentDueCell.setCellFormula(proratedFormula);
+                    } else {
+                        // Multi-month billing: check if a cycle start date falls in this month
+                        // Pre-calculate using Java for accuracy (handles lease anniversary dates)
+                        long cyclesInMonth = dataExtractService.countCycleStartDatesInPeriod(
+                            leaseStart, monthStart, monthEnd, cycleMonths);
+
+                        if (cyclesInMonth > 0) {
+                            // Cycle starts in this month - full rent due
+                            double rentDue = lease.getMonthlyRent().doubleValue() * cyclesInMonth;
+                            rentDueCell.setCellValue(rentDue);
+                        } else {
+                            // No cycle start in this month - £0 due
+                            rentDueCell.setCellValue(0);
+                        }
+                    }
                 } else {
                     // Lease not active - rent due is £0
-                    proratedRentCell.setCellValue(0);
+                    rentDueCell.setCellValue(0);
                 }
-                proratedRentCell.setCellStyle(currencyStyle);
+                rentDueCell.setCellStyle(currencyStyle);
 
                 // Column I: management_fee (formula: 10%)
                 Cell mgmtFeeCell = row.createCell(col++);
@@ -1577,8 +1591,10 @@ public class ExcelStatementGeneratorService {
                     Cell openingBalanceCell = row.createCell(col++);
                     if (isFirstRowForLease) {
                         // Opening balance calculated from database for first row
+                        // Pass frequencyMonths to handle multi-month billing cycles correctly
                         java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
-                            lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent());
+                            lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent(),
+                            lease.getFrequencyMonths());
                         openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                     } else {
                         // For subsequent months, opening balance is 0 (cumulative handles the carry-forward)
@@ -1812,9 +1828,11 @@ public class ExcelStatementGeneratorService {
 
                 // Column O: opening_balance (pre-calculated from database)
                 // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
+                // Pass frequencyMonths to handle multi-month billing cycles correctly
                 Cell openingBalanceCell = row.createCell(col++);
                 java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
-                    lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent());
+                    lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent(),
+                    lease.getFrequencyMonths());
                 openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                 openingBalanceCell.setCellStyle(currencyStyle);
 
@@ -1960,16 +1978,25 @@ public class ExcelStatementGeneratorService {
             List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, false);
 
             // Get frequency for cycle-based calculations
-            int frequencyMonths = lease.getFrequencyMonths();
-            int periodIndex = 0;
+            int frequencyMonths = lease.getFrequencyMonths() != null ? lease.getFrequencyMonths() : 1;
 
             for (CustomPeriod period : leasePeriods) {
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
-                // Determine if this period is a billing cycle start
-                // For multi-month frequencies (>1), only show rent on cycle start months
-                boolean isCycleStart = frequencyMonths <= 1 || (periodIndex % frequencyMonths == 0);
+                // Determine if this period contains a billing cycle start date
+                // RENT IN ADVANCE: Full rent is due when a cycle starts (lease start + every N months)
+                // Use Java calculation to properly detect cycle starts based on actual lease anniversary dates
+                boolean isCycleStart;
+                if (frequencyMonths <= 1) {
+                    // Monthly billing - every period is a cycle start
+                    isCycleStart = true;
+                } else {
+                    // Multi-month billing - check if a cycle start date falls within this period
+                    long cyclesInPeriod = dataExtractService.countCycleStartDatesInPeriod(
+                        leaseStart, period.periodStart, period.periodEnd, frequencyMonths);
+                    isCycleStart = cyclesInPeriod > 0;
+                }
 
                 // A: lease_id
                 row.createCell(col++).setCellValue(lease.getLeaseId());
@@ -2038,8 +2065,6 @@ public class ExcelStatementGeneratorService {
                     ));
                 }
                 proratedRentCell.setCellStyle(currencyStyle);
-
-                periodIndex++;
 
                 // M: management_fee (from config)
                 Cell mgmtFeeCell = row.createCell(col++);
@@ -2320,9 +2345,11 @@ public class ExcelStatementGeneratorService {
             // I: opening_balance (cumulative arrears BEFORE this period)
             // MEMORY FIX: Pre-calculate from database instead of using SUMIFS on historical data
             // This allows us to limit RENT_DUE/RENT_RECEIVED sheets to statement period only
+            // Pass frequencyMonths to handle multi-month billing cycles correctly
             Cell openingBalanceCell = row.createCell(col++);
             java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
-                lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent());
+                lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent(),
+                lease.getFrequencyMonths());
             openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
             openingBalanceCell.setCellStyle(currencyStyle);
 
@@ -2648,9 +2675,11 @@ public class ExcelStatementGeneratorService {
 
                 // O: opening_balance (pre-calculated from database)
                 // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
+                // Pass frequencyMonths to handle multi-month billing cycles correctly
                 Cell openingBalanceCell = row.createCell(col++);
                 java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
-                    lease.getLeaseId(), lease.getStartDate(), startDate, lease.getMonthlyRent());
+                    lease.getLeaseId(), lease.getStartDate(), startDate, lease.getMonthlyRent(),
+                    lease.getFrequencyMonths());
                 openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                 openingBalanceCell.setCellStyle(currencyStyle);
 
@@ -2871,11 +2900,13 @@ public class ExcelStatementGeneratorService {
 
                     // O: opening_balance (pre-calculated from database)
                     // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
+                    // Pass frequencyMonths to handle multi-month billing cycles correctly
                     Cell openingBalanceCell = row.createCell(col++);
                     if (isFirstPeriodForLease) {
                         // Opening balance calculated from database for first period
                         java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
-                            lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent());
+                            lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent(),
+                            lease.getFrequencyMonths());
                         openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                     } else {
                         // For subsequent periods, opening balance is 0 (cumulative handles the carry-forward)

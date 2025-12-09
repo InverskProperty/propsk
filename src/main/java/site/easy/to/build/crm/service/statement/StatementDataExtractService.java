@@ -1037,36 +1037,52 @@ public class StatementDataExtractService {
      *
      * Opening Balance = (Total rent due before date) - (Total rent received before date)
      *
-     * This calculates from the lease start date to the specified date, avoiding the need
-     * to store historical data in Excel sheets.
+     * RENT IN ADVANCE MODEL:
+     * - Full cycle rent is due on the lease start date
+     * - Full cycle rent is due on each cycle anniversary thereafter
+     * - We count how many cycle START DATES occurred BEFORE the asOfDate
+     * - Each cycle start date triggers the full cycle rent being due
+     *
+     * Example: Lease starts 2024-01-15, 6-month cycle @ £6000, asOfDate = 2024-10-01
+     * - Cycle 1 starts 2024-01-15 (before asOfDate) ✓
+     * - Cycle 2 starts 2024-07-15 (before asOfDate) ✓
+     * - Cycle 3 starts 2025-01-15 (after asOfDate) ✗
+     * - Cycles due = 2, Rent due = £12,000
      *
      * @param leaseId The lease/invoice ID
-     * @param leaseStartDate The lease start date (rent due from this date)
-     * @param asOfDate Calculate balance as of this date (exclusive - before this date)
-     * @param monthlyRent The monthly rent amount
+     * @param leaseStartDate The lease start date (first cycle due date)
+     * @param asOfDate Calculate balance as of this date (count cycles starting BEFORE this date)
+     * @param rentAmount The rent amount per cycle (full cycle amount)
+     * @param frequencyMonths The billing cycle length in months (1=monthly, 6=semi-annual, etc.)
      * @return Opening balance (positive = arrears/tenant owes, negative = credit/overpaid)
      */
     public java.math.BigDecimal calculateTenantOpeningBalance(Long leaseId, LocalDate leaseStartDate,
-                                                               LocalDate asOfDate, java.math.BigDecimal monthlyRent) {
-        log.debug("Calculating tenant opening balance for lease {} from {} to {} (monthly rent: {})",
-            leaseId, leaseStartDate, asOfDate, monthlyRent);
+                                                               LocalDate asOfDate, java.math.BigDecimal rentAmount,
+                                                               Integer frequencyMonths) {
+        // Default to monthly if not specified
+        int cycleMonths = (frequencyMonths != null && frequencyMonths > 0) ? frequencyMonths : 1;
 
-        if (leaseStartDate == null || asOfDate == null || monthlyRent == null) {
+        log.debug("Calculating tenant opening balance for lease {} from {} to {} (rent: {}, cycle: {} months)",
+            leaseId, leaseStartDate, asOfDate, rentAmount, cycleMonths);
+
+        if (leaseStartDate == null || asOfDate == null || rentAmount == null) {
             log.warn("Cannot calculate opening balance - missing required data for lease {}", leaseId);
             return java.math.BigDecimal.ZERO;
         }
 
-        // If statement starts before or at lease start, opening balance is zero
+        // If asOfDate is on or before lease start, no rent is due yet
         if (!asOfDate.isAfter(leaseStartDate)) {
             return java.math.BigDecimal.ZERO;
         }
 
-        // Calculate total rent due from lease start to asOfDate
-        // Count full months between lease start and asOfDate
-        long monthsBetween = java.time.temporal.ChronoUnit.MONTHS.between(leaseStartDate, asOfDate);
-        java.math.BigDecimal totalRentDue = monthlyRent.multiply(java.math.BigDecimal.valueOf(monthsBetween));
+        // RENT IN ADVANCE: Count cycle start dates that occurred BEFORE asOfDate
+        // Cycle 1 starts on leaseStartDate, subsequent cycles every cycleMonths months
+        long cyclesDue = countCycleStartDatesBefore(leaseStartDate, asOfDate, cycleMonths);
 
-        log.debug("Lease {}: {} months of rent due = {}", leaseId, monthsBetween, totalRentDue);
+        java.math.BigDecimal totalRentDue = rentAmount.multiply(java.math.BigDecimal.valueOf(cyclesDue));
+
+        log.debug("Lease {}: {} cycle start dates before {} = {} cycles × {} = {} (rent in advance)",
+            leaseId, cyclesDue, asOfDate, cyclesDue, rentAmount, totalRentDue);
 
         // Get total rent received before asOfDate
         java.math.BigDecimal totalReceived = getTotalRentReceivedBefore(leaseId, asOfDate);
@@ -1080,6 +1096,108 @@ public class StatementDataExtractService {
             leaseId, asOfDate, openingBalance, totalRentDue, totalReceived);
 
         return openingBalance;
+    }
+
+    /**
+     * Count how many cycle start dates occurred BEFORE a given date.
+     *
+     * RENT IN ADVANCE: Rent is due on lease start and every cycleMonths thereafter.
+     *
+     * @param leaseStartDate The first cycle start date (lease start)
+     * @param beforeDate Count cycles starting strictly before this date
+     * @param cycleMonths Months per billing cycle
+     * @return Number of cycles that have started (and thus rent is due)
+     */
+    private long countCycleStartDatesBefore(LocalDate leaseStartDate, LocalDate beforeDate, int cycleMonths) {
+        if (beforeDate.isBefore(leaseStartDate) || beforeDate.equals(leaseStartDate)) {
+            return 0;  // No cycles have started yet
+        }
+
+        // First cycle starts on lease start date - if we're past that, at least 1 cycle is due
+        long cycleCount = 1;
+
+        // Count subsequent cycle start dates
+        LocalDate nextCycleStart = leaseStartDate.plusMonths(cycleMonths);
+        while (nextCycleStart.isBefore(beforeDate)) {
+            cycleCount++;
+            nextCycleStart = nextCycleStart.plusMonths(cycleMonths);
+        }
+
+        return cycleCount;
+    }
+
+    /**
+     * Count how many cycle start dates fall WITHIN a given period (inclusive of both start and end).
+     *
+     * RENT IN ADVANCE: Rent is due on lease start and every cycleMonths thereafter.
+     * This counts cycle start dates that fall within [periodStart, periodEnd].
+     *
+     * @param leaseStartDate The first cycle start date (lease start)
+     * @param periodStart Start of the period (inclusive)
+     * @param periodEnd End of the period (inclusive)
+     * @param cycleMonths Months per billing cycle
+     * @return Number of cycle start dates within the period
+     */
+    public long countCycleStartDatesInPeriod(LocalDate leaseStartDate, LocalDate periodStart,
+                                              LocalDate periodEnd, int cycleMonths) {
+        if (leaseStartDate == null || periodStart == null || periodEnd == null) {
+            return 0;
+        }
+
+        long cycleCount = 0;
+
+        // Start from lease start date and iterate through all cycle start dates
+        LocalDate cycleStart = leaseStartDate;
+
+        // Skip cycles that are before the period start
+        while (cycleStart.isBefore(periodStart)) {
+            cycleStart = cycleStart.plusMonths(cycleMonths);
+        }
+
+        // Count cycles within the period [periodStart, periodEnd]
+        while (!cycleStart.isAfter(periodEnd)) {
+            cycleCount++;
+            cycleStart = cycleStart.plusMonths(cycleMonths);
+        }
+
+        return cycleCount;
+    }
+
+    /**
+     * Calculate rent due within a period based on cycle start dates.
+     *
+     * RENT IN ADVANCE: Full cycle rent is due on each cycle start date that falls within the period.
+     *
+     * @param leaseStartDate The lease start date (first cycle)
+     * @param periodStart Start of the period (inclusive)
+     * @param periodEnd End of the period (inclusive)
+     * @param rentAmount The rent amount per cycle
+     * @param frequencyMonths The billing cycle length in months
+     * @return Total rent due in the period
+     */
+    public java.math.BigDecimal calculateRentDueInPeriod(LocalDate leaseStartDate, LocalDate periodStart,
+                                                          LocalDate periodEnd, java.math.BigDecimal rentAmount,
+                                                          Integer frequencyMonths) {
+        int cycleMonths = (frequencyMonths != null && frequencyMonths > 0) ? frequencyMonths : 1;
+
+        long cyclesDue = countCycleStartDatesInPeriod(leaseStartDate, periodStart, periodEnd, cycleMonths);
+
+        java.math.BigDecimal rentDue = rentAmount.multiply(java.math.BigDecimal.valueOf(cyclesDue));
+
+        log.debug("Rent due in period {}-{}: {} cycles × {} = {}",
+            periodStart, periodEnd, cyclesDue, rentAmount, rentDue);
+
+        return rentDue;
+    }
+
+    /**
+     * Overload for backward compatibility - defaults to monthly billing cycle
+     * @deprecated Use calculateTenantOpeningBalance(leaseId, leaseStartDate, asOfDate, rentAmount, frequencyMonths) instead
+     */
+    @Deprecated
+    public java.math.BigDecimal calculateTenantOpeningBalance(Long leaseId, LocalDate leaseStartDate,
+                                                               LocalDate asOfDate, java.math.BigDecimal monthlyRent) {
+        return calculateTenantOpeningBalance(leaseId, leaseStartDate, asOfDate, monthlyRent, 1);
     }
 
     /**
