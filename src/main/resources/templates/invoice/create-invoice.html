@@ -135,33 +135,44 @@
                                     </div>
                                 </div>
 
-                                <!-- Frequency and Payment Day -->
+                                <!-- Frequency, Billing Cycle, and Payment Day -->
                                 <div class="row">
-                                    <div class="col-md-6">
+                                    <div class="col-md-4">
                                         <div class="form-group">
                                             <label for="frequency" class="required">Frequency *</label>
                                             <select class="form-control" id="frequency" name="frequency" required>
                                                 <option value="">Select Frequency...</option>
-                                                <option th:each="freq : ${frequencies}" 
-                                                        th:value="${freq}" 
+                                                <option th:each="freq : ${frequencies}"
+                                                        th:value="${freq}"
                                                         th:text="${freq.displayName}">
                                                 </option>
                                             </select>
                                         </div>
                                     </div>
-                                    
-                                    <div class="col-md-6">
+
+                                    <div class="col-md-4">
+                                        <div class="form-group" id="frequencyMonthsGroup" style="display: none;">
+                                            <label for="frequencyMonths">Billing Cycle (Months)</label>
+                                            <input type="number" class="form-control" id="frequencyMonths" name="frequencyMonths"
+                                                   min="1" max="24" value="1" placeholder="1">
+                                            <small class="form-text text-muted">
+                                                Number of months per billing cycle (e.g., 6 for semi-annual)
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
                                         <div class="form-group" id="paymentDayGroup" style="display: none;">
                                             <label for="paymentDay">Payment Day</label>
                                             <select class="form-control" id="paymentDay" name="paymentDay">
                                                 <option value="">Select Day...</option>
-                                                <option th:each="day : ${#numbers.sequence(1,31)}" 
-                                                        th:value="${day}" 
+                                                <option th:each="day : ${#numbers.sequence(1,31)}"
+                                                        th:value="${day}"
                                                         th:text="${day}">
                                                 </option>
                                             </select>
                                             <small class="form-text text-muted">
-                                                Day of month for recurring payments (1-31)
+                                                Day of month for payments (1-31)
                                             </small>
                                         </div>
                                     </div>
@@ -248,12 +259,18 @@
                             
                             <h6><strong>Frequencies:</strong></h6>
                             <ul class="list-unstyled">
-                                <li><strong>Monthly (M):</strong> Every month on chosen day</li>
-                                <li><strong>Weekly (W):</strong> Every week on chosen day</li>
-                                <li><strong>One-time (O):</strong> Single payment</li>
-                                <li><strong>Quarterly (Q):</strong> Every 3 months</li>
-                                <li><strong>Yearly (Y):</strong> Annual payment</li>
+                                <li><strong>Monthly:</strong> Every month on chosen day</li>
+                                <li><strong>Weekly:</strong> Every week on chosen day</li>
+                                <li><strong>One-time:</strong> Single payment</li>
+                                <li><strong>Quarterly:</strong> Every 3 months</li>
+                                <li><strong>Yearly:</strong> Annual payment</li>
                             </ul>
+
+                            <h6><strong>Billing Cycle (Months):</strong></h6>
+                            <p class="small text-muted">
+                                For upfront rent payments, set the billing cycle to match. E.g., for 6 months paid upfront,
+                                set frequency to "Monthly" and billing cycle to "6". Rent will only show as due on cycle start dates.
+                            </p>
                             
                             <h6><strong>PayProp Integration:</strong></h6>
                             <p class="small text-muted">
@@ -284,24 +301,47 @@ $(document).ready(function() {
     const today = new Date().toISOString().split('T')[0];
     $('#startDate').val(today);
     
-    // Frequency change handler - show/hide payment day
+    // Frequency change handler - show/hide payment day and frequency months
     $('#frequency').change(function() {
         const frequency = $(this).val();
         const paymentDayGroup = $('#paymentDayGroup');
-        
-        // Show payment day for recurring frequencies
-        if (frequency === 'M' || frequency === 'W' || frequency === 'Q' || frequency === 'Y') {
+        const frequencyMonthsGroup = $('#frequencyMonthsGroup');
+
+        // Default frequency months based on selection
+        const frequencyMonthsDefaults = {
+            'monthly': 1,
+            'quarterly': 3,
+            'yearly': 12,
+            'weekly': 0,
+            'daily': 0,
+            'one_time': 0
+        };
+
+        // Show payment day and frequency months for recurring frequencies
+        if (frequency === 'monthly' || frequency === 'quarterly' || frequency === 'yearly') {
             paymentDayGroup.show();
+            frequencyMonthsGroup.show();
             $('#paymentDay').prop('required', true);
-            
-            // Set default payment day for monthly
-            if (frequency === 'M' && $('#paymentDay').val() === '') {
+
+            // Set default values
+            if ($('#paymentDay').val() === '') {
                 $('#paymentDay').val('1');
             }
+            $('#frequencyMonths').val(frequencyMonthsDefaults[frequency] || 1);
+
+        } else if (frequency === 'weekly') {
+            paymentDayGroup.show();
+            frequencyMonthsGroup.hide();
+            $('#paymentDay').prop('required', true);
+            $('#frequencyMonths').val(0);
+
         } else {
+            // One-time or daily
             paymentDayGroup.hide();
+            frequencyMonthsGroup.hide();
             $('#paymentDay').prop('required', false);
             $('#paymentDay').val('');
+            $('#frequencyMonths').val(frequencyMonthsDefaults[frequency] || 1);
         }
     });
     

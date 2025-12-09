@@ -761,7 +761,8 @@ public class ExcelStatementGeneratorService {
         Row header = sheet.createRow(0);
         String[] headers = {
             "lease_id", "lease_reference", "property_id", "property_name", "property_address",
-            "customer_id", "customer_name", "start_date", "end_date", "monthly_rent", "frequency"
+            "customer_id", "customer_name", "start_date", "end_date", "monthly_rent", "frequency",
+            "frequency_months"  // Numeric billing cycle for rent_due calculations
         };
 
         // Use shared styles (memory optimization)
@@ -810,6 +811,7 @@ public class ExcelStatementGeneratorService {
             }
 
             row.createCell(10).setCellValue(lease.getFrequency() != null ? lease.getFrequency() : "MONTHLY");
+            row.createCell(11).setCellValue(lease.getFrequencyMonths());  // Numeric billing cycle
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
@@ -978,13 +980,26 @@ public class ExcelStatementGeneratorService {
                     leaseDaysCell.setCellValue(0);
                 }
 
-                // Column H: prorated_rent_due - £0 if lease not active in this month
+                // Column H: prorated_rent_due - handles cycle-based billing for multi-month frequencies
+                // For monthly (freq_months=1): prorate based on days in month
+                // For multi-month (freq_months>1): full rent on cycle start, £0 otherwise
                 Cell proratedRentCell = row.createCell(col++);
                 if (leaseActiveInMonth) {
-                    proratedRentCell.setCellFormula(String.format(
-                        "IF(AND(NOT(ISBLANK(VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE))), VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE)>=D%d, VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE)<E%d), ROUND((VLOOKUP(A%d,LEASE_MASTER!A:I,9,FALSE)-D%d+1)/F%d*VLOOKUP(A%d,LEASE_MASTER!A:J,10,FALSE), 2), VLOOKUP(A%d,LEASE_MASTER!A:J,10,FALSE))",
-                        rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1, rowNum + 1
-                    ));
+                    // Build cycle-based rent formula:
+                    // IF frequency_months > 1:
+                    //   IF MOD(months_since_start, frequency_months) = 0: gross_rent ELSE 0
+                    // ELSE: existing prorated formula
+                    int r = rowNum + 1;
+                    String cycleBasedFormula = String.format(
+                        "IF(VLOOKUP(A%d,LEASE_MASTER!A:L,12,FALSE)>1," +
+                        "IF(MOD(DATEDIF(VLOOKUP(A%d,LEASE_MASTER!A:L,8,FALSE),D%d,\"M\"),VLOOKUP(A%d,LEASE_MASTER!A:L,12,FALSE))=0," +
+                        "VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE),0)," +
+                        "IF(AND(NOT(ISBLANK(VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE))),VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)>=D%d,VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)<E%d)," +
+                        "ROUND((VLOOKUP(A%d,LEASE_MASTER!A:L,9,FALSE)-D%d+1)/F%d*VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE),2)," +
+                        "VLOOKUP(A%d,LEASE_MASTER!A:L,10,FALSE)))",
+                        r, r, r, r, r, r, r, r, r, r, r, r, r, r, r
+                    );
+                    proratedRentCell.setCellFormula(cycleBasedFormula);
                 } else {
                     // Lease not active - rent due is £0
                     proratedRentCell.setCellValue(0);
@@ -1944,9 +1959,17 @@ public class ExcelStatementGeneratorService {
             // MEMORY FIX: Only include periods within statement range - opening balances calculated separately
             List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, false);
 
+            // Get frequency for cycle-based calculations
+            int frequencyMonths = lease.getFrequencyMonths();
+            int periodIndex = 0;
+
             for (CustomPeriod period : leasePeriods) {
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
+
+                // Determine if this period is a billing cycle start
+                // For multi-month frequencies (>1), only show rent on cycle start months
+                boolean isCycleStart = frequencyMonths <= 1 || (periodIndex % frequencyMonths == 0);
 
                 // A: lease_id
                 row.createCell(col++).setCellValue(lease.getLeaseId());
@@ -1982,7 +2005,7 @@ public class ExcelStatementGeneratorService {
                     leaseEndCell.setCellStyle(dateStyle);
                 }
 
-                // I: monthly_rent
+                // I: monthly_rent (actually cycle_rent for multi-month frequencies)
                 Cell monthlyRentCell = row.createCell(col++);
                 if (lease.getMonthlyRent() != null) {
                     monthlyRentCell.setCellValue(lease.getMonthlyRent().doubleValue());
@@ -1996,21 +2019,27 @@ public class ExcelStatementGeneratorService {
                 Cell leaseDaysCell = row.createCell(col++);
                 leaseDaysCell.setCellValue(period.periodDays);
 
-                // L: prorated_rent_due
-                // If this is a full period (period_days >= 28), use full monthly rent
-                // If this is a partial period (e.g., lease ends mid-period), prorate
+                // L: prorated_rent_due - handles cycle-based billing for multi-month frequencies
+                // For multi-month (freq > 1): full rent on cycle start, £0 on intermediate months
+                // For monthly (freq = 1): prorate if partial period
                 Cell proratedRentCell = row.createCell(col++);
-                // Check if period is prorated (less than ~28 days for a month)
-                // Use formula: IF period_days < 28, prorate, else full rent
-                proratedRentCell.setCellFormula(String.format(
-                    "IF(F%d < 28, ROUND(F%d / DAY(EOMONTH(D%d, 0)) * I%d, 2), I%d)",
-                    rowNum + 1, // period_days
-                    rowNum + 1, // period_days for proration
-                    rowNum + 1, // period_start for month length
-                    rowNum + 1, // monthly_rent
-                    rowNum + 1  // monthly_rent (full)
-                ));
+                if (!isCycleStart) {
+                    // Not a cycle start - no rent due this period
+                    proratedRentCell.setCellValue(0);
+                } else {
+                    // Cycle start - check if period is prorated (less than ~28 days)
+                    proratedRentCell.setCellFormula(String.format(
+                        "IF(F%d < 28, ROUND(F%d / DAY(EOMONTH(D%d, 0)) * I%d, 2), I%d)",
+                        rowNum + 1, // period_days
+                        rowNum + 1, // period_days for proration
+                        rowNum + 1, // period_start for month length
+                        rowNum + 1, // monthly_rent
+                        rowNum + 1  // monthly_rent (full)
+                    ));
+                }
                 proratedRentCell.setCellStyle(currencyStyle);
+
+                periodIndex++;
 
                 // M: management_fee (from config)
                 Cell mgmtFeeCell = row.createCell(col++);

@@ -86,6 +86,7 @@ public class InvoiceController {
             @RequestParam("categoryId") String categoryId,
             @RequestParam("amount") BigDecimal amount,
             @RequestParam("frequency") String frequencyStr,
+            @RequestParam(value = "frequencyMonths", required = false) Integer frequencyMonths,
             @RequestParam(value = "paymentDay", required = false) Integer paymentDay,
             @RequestParam("startDate") String startDateStr,
             @RequestParam(value = "endDate", required = false) String endDateStr,
@@ -129,6 +130,10 @@ public class InvoiceController {
             invoice.setCategoryId(categoryId);
             invoice.setAmount(amount);
             invoice.setFrequency(frequency);
+            // Set custom frequency months if provided (for multi-month billing cycles like 6M, 7M)
+            if (frequencyMonths != null && frequencyMonths > 0) {
+                invoice.setFrequencyMonths(frequencyMonths);
+            }
             invoice.setPaymentDay(paymentDay);
             invoice.setStartDate(startDate);
             invoice.setEndDate(endDate);

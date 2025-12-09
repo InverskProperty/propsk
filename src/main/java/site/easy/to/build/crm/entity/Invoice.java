@@ -98,7 +98,16 @@ public class Invoice {
     
     @Column(name = "frequency_code", length = 10)
     private String frequencyCode;
-    
+
+    /**
+     * Numeric representation of billing frequency in months.
+     * Examples: 1=monthly, 3=quarterly, 6=semi-annual, 12=annual
+     * Supports arbitrary values like 7M for custom payment schedules.
+     * Used for cycle-based rent due calculations in statements.
+     */
+    @Column(name = "frequency_months")
+    private Integer frequencyMonths = 1;
+
     @Column(name = "payment_day")
     @Min(value = 1, message = "Payment day must be between 1 and 31")
     @Max(value = 31, message = "Payment day must be between 1 and 31")
@@ -196,6 +205,11 @@ public class Invoice {
         // Set frequency code for PayProp sync
         if (this.frequencyCode == null) {
             this.frequencyCode = this.frequency.name();
+        }
+
+        // Auto-derive frequencyMonths from enum if not explicitly set
+        if (this.frequencyMonths == null || this.frequencyMonths == 1) {
+            this.frequencyMonths = deriveFrequencyMonths(this.frequency);
         }
 
         // Auto-set payment day for monthly/quarterly/yearly invoices
@@ -330,11 +344,34 @@ public class Invoice {
     public void setVatAmount(BigDecimal vatAmount) { this.vatAmount = vatAmount; }
     
     public InvoiceFrequency getFrequency() { return frequency; }
-    public void setFrequency(InvoiceFrequency frequency) { this.frequency = frequency; }
-    
+    public void setFrequency(InvoiceFrequency frequency) {
+        this.frequency = frequency;
+        // Auto-derive frequencyMonths from enum if not explicitly set
+        if (this.frequencyMonths == null || this.frequencyMonths == 1) {
+            this.frequencyMonths = deriveFrequencyMonths(frequency);
+        }
+    }
+
+    /**
+     * Derive numeric frequency months from InvoiceFrequency enum.
+     * Used to auto-populate frequencyMonths for locally created invoices.
+     */
+    private Integer deriveFrequencyMonths(InvoiceFrequency freq) {
+        if (freq == null) return 1;
+        return switch (freq) {
+            case monthly -> 1;
+            case quarterly -> 3;
+            case yearly -> 12;
+            case weekly, daily, one_time -> 0;  // Non-monthly cycles
+        };
+    }
+
     public String getFrequencyCode() { return frequencyCode; }
     public void setFrequencyCode(String frequencyCode) { this.frequencyCode = frequencyCode; }
-    
+
+    public Integer getFrequencyMonths() { return frequencyMonths != null ? frequencyMonths : 1; }
+    public void setFrequencyMonths(Integer frequencyMonths) { this.frequencyMonths = frequencyMonths != null ? frequencyMonths : 1; }
+
     public Integer getPaymentDay() { return paymentDay; }
     public void setPaymentDay(Integer paymentDay) { this.paymentDay = paymentDay; }
     

@@ -115,6 +115,7 @@ public class StatementDataExtractService {
             dto.setEndDate(invoice.getEndDate());  // NULL = ongoing lease
             dto.setMonthlyRent(invoice.getAmount());
             dto.setFrequency(invoice.getFrequency() != null ? invoice.getFrequency().name() : "MONTHLY");
+            dto.setFrequencyMonths(invoice.getFrequencyMonths());  // Numeric cycle length for rent_due calculations
             dto.setPaymentDay(invoice.getPaymentDay());
 
             // Property details
@@ -241,6 +242,7 @@ public class StatementDataExtractService {
             dto.setEndDate(invoice.getEndDate());
             dto.setMonthlyRent(invoice.getAmount());
             dto.setFrequency(invoice.getFrequency() != null ? invoice.getFrequency().name() : "MONTHLY");
+            dto.setFrequencyMonths(invoice.getFrequencyMonths());  // Numeric cycle length for rent_due calculations
             dto.setPaymentDay(invoice.getPaymentDay());
 
             // Property details

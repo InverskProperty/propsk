@@ -23,6 +23,7 @@ public class LeaseMasterDTO {
     private LocalDate endDate;  // NULL = ongoing lease
     private BigDecimal monthlyRent;
     private String frequency;  // MONTHLY, WEEKLY, etc.
+    private Integer frequencyMonths;  // Numeric billing cycle in months (1=monthly, 6=semi-annual, etc.)
     private Integer paymentDay;  // Day of month rent is due
 
     // Commission rates from Property - used instead of global defaults
@@ -150,6 +151,14 @@ public class LeaseMasterDTO {
 
     public void setFrequency(String frequency) {
         this.frequency = frequency;
+    }
+
+    public Integer getFrequencyMonths() {
+        return frequencyMonths != null ? frequencyMonths : 1;
+    }
+
+    public void setFrequencyMonths(Integer frequencyMonths) {
+        this.frequencyMonths = frequencyMonths;
     }
 
     public Integer getPaymentDay() {

@@ -264,6 +264,7 @@ public class PayPropInvoiceToLeaseImportService {
         // Frequency
         invoice.setFrequency(parseFrequency(data.frequency));
         invoice.setFrequencyCode(data.frequencyCode);
+        invoice.setFrequencyMonths(parseFrequencyMonths(data.frequency));
         invoice.setPaymentDay(data.paymentDay);
 
         // Dates (this is the LEASE PERIOD)
@@ -414,6 +415,49 @@ public class PayPropInvoiceToLeaseImportService {
             case "Y", "YEARLY", "ANNUAL" -> InvoiceFrequency.yearly;
             case "O", "ONE_TIME", "ONCE" -> InvoiceFrequency.one_time;
             default -> InvoiceFrequency.monthly;
+        };
+    }
+
+    /**
+     * Parse frequency string to numeric months.
+     * Handles arbitrary patterns like "6M", "7M", "18M" as well as standard codes.
+     * Returns the billing cycle length in months.
+     *
+     * @param frequency PayProp frequency code (e.g., "M", "6M", "Q", "Y")
+     * @return Number of months in the billing cycle (default 1 for monthly)
+     */
+    private int parseFrequencyMonths(String frequency) {
+        if (frequency == null || frequency.trim().isEmpty()) {
+            return 1; // Default to monthly
+        }
+
+        String upper = frequency.toUpperCase().trim();
+
+        // Handle numeric patterns: "6M", "7M", "2M", "18M", etc.
+        if (upper.matches("\\d+M")) {
+            try {
+                return Integer.parseInt(upper.replace("M", ""));
+            } catch (NumberFormatException e) {
+                log.warn("Failed to parse numeric frequency '{}', defaulting to monthly", frequency);
+                return 1;
+            }
+        }
+
+        // Handle standard frequency codes
+        return switch (upper) {
+            case "M", "MONTHLY" -> 1;
+            case "W", "WEEKLY" -> 0;      // Weekly - special handling needed
+            case "2W", "BI_WEEKLY", "BIWEEKLY" -> 0;  // Bi-weekly
+            case "4W", "FOUR_WEEKLY" -> 0; // Four-weekly
+            case "D", "DAILY" -> 0;        // Daily - special handling needed
+            case "Q", "QUARTERLY" -> 3;
+            case "2M", "BI_MONTHLY", "BIMONTHLY" -> 2;
+            case "Y", "YEARLY", "ANNUAL", "A" -> 12;
+            case "O", "ONE_TIME", "ONCE" -> 0;  // One-time - no recurring cycle
+            default -> {
+                log.warn("Unknown frequency code '{}', defaulting to monthly", frequency);
+                yield 1;
+            }
         };
     }
 
