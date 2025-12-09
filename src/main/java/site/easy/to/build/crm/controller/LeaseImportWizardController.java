@@ -520,6 +520,15 @@ public class LeaseImportWizardController {
                         ? ((Number) paymentDayObj).intValue()
                         : Integer.parseInt(paymentDayObj.toString().trim());
 
+                    // Parse frequency months (default to 1 = monthly)
+                    Integer frequencyMonths = 1;
+                    Object freqMonthsObj = leaseData.get("frequencyMonths");
+                    if (freqMonthsObj != null) {
+                        frequencyMonths = (freqMonthsObj instanceof Number)
+                            ? ((Number) freqMonthsObj).intValue()
+                            : Integer.parseInt(freqMonthsObj.toString().trim());
+                    }
+
                     // Extract action and existingLeaseId (from frontend duplicate handling)
                     String action = leaseData.containsKey("action")
                         ? (String) leaseData.get("action")
@@ -560,7 +569,7 @@ public class LeaseImportWizardController {
 
                     // Create new lease (for both IMPORT and REPLACE actions)
                     createLeaseDirectly(propertyId, customerId, leaseReference, startDateStr,
-                                      endDateStr, rentAmount, paymentDay, currentUser);
+                                      endDateStr, rentAmount, paymentDay, frequencyMonths, currentUser);
 
                     successCount++;
 
@@ -631,6 +640,12 @@ public class LeaseImportWizardController {
                 row.rentAmount = getValueOrEmpty(values, headerMap, "rent_amount");
                 row.paymentDay = getValueOrEmpty(values, headerMap, "payment_day");
                 row.leaseReference = getValueOrEmpty(values, headerMap, "lease_reference");
+                row.frequencyMonths = getValueOrEmpty(values, headerMap, "frequency_months");
+
+                // Default to 1 (monthly) if not specified
+                if (row.frequencyMonths.isEmpty()) {
+                    row.frequencyMonths = "1";
+                }
 
                 // Skip rows with no customer name or email
                 if (row.rawCustomerName.isEmpty() && row.rawCustomerEmail.isEmpty()) {
@@ -769,7 +784,7 @@ public class LeaseImportWizardController {
      */
     private void createLeaseDirectly(Long propertyId, Long customerId, String leaseReference,
                                     String startDateStr, String endDateStr, BigDecimal rentAmount,
-                                    Integer paymentDay, User createdBy) {
+                                    Integer paymentDay, Integer frequencyMonths, User createdBy) {
 
         // Load property and customer
         Property property = propertyService.findById(propertyId);
@@ -802,7 +817,8 @@ public class LeaseImportWizardController {
         lease.setCategoryName("Rent");
 
         // Set frequency and payment details
-        lease.setFrequency(Invoice.InvoiceFrequency.monthly); // Monthly
+        lease.setFrequency(Invoice.InvoiceFrequency.monthly); // Base frequency
+        lease.setFrequencyMonths(frequencyMonths != null ? frequencyMonths : 1); // Billing cycle
         lease.setPaymentDay(paymentDay);
 
         // Set date range
@@ -882,6 +898,7 @@ public class LeaseImportWizardController {
         public String rentAmount;
         public String paymentDay;
         public String leaseReference;
+        public String frequencyMonths;  // Billing cycle in months (1=monthly, 6=semi-annual, etc.)
 
         // Getters for JSON serialization
         public int getRowNumber() { return rowNumber; }
@@ -893,6 +910,7 @@ public class LeaseImportWizardController {
         public String getRentAmount() { return rentAmount; }
         public String getPaymentDay() { return paymentDay; }
         public String getLeaseReference() { return leaseReference; }
+        public String getFrequencyMonths() { return frequencyMonths; }
     }
 
     public static class PropertyMatch {
