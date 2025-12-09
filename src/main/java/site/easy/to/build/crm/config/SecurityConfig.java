@@ -126,7 +126,7 @@ public class SecurityConfig {
 
         http.csrf((csrf) -> csrf
                 .csrfTokenRepository(httpSessionCsrfTokenRepository)
-                .ignoringRequestMatchers("/api/payprop/**", "/portfolio/**", "/property-owner/files/upload/**")
+                .ignoringRequestMatchers("/api/payprop/**", "/api/admin/**", "/portfolio/**", "/property-owner/files/upload/**")
         );
 
         // ADD DEBUG FILTER - ENHANCED FOR PAYPROP
@@ -241,6 +241,7 @@ public class SecurityConfig {
 
                         // CRITICAL FIX: PayProp routes - MUST come BEFORE /portfolio/**
                         .requestMatchers("/api/test/**").permitAll() // Allow test endpoints without auth for debugging
+                        .requestMatchers("/api/admin/reset-password").permitAll() // Admin password reset endpoint
                         .requestMatchers("/api/payprop/sync/**").permitAll() // Allow sync endpoints without auth
                         .requestMatchers("/admin/payprop/**").hasAnyRole("MANAGER", "OIDC_USER")
                         .requestMatchers("/payprop/**").hasAnyRole("MANAGER", "ADMIN", "SUPER_ADMIN", "OIDC_USER") // PayProp import pages
