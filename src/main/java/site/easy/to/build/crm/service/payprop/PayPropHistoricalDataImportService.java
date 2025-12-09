@@ -223,12 +223,18 @@ public class PayPropHistoricalDataImportService {
         ft.setCategoryName(mappedCategory);
 
         // Commission calculation for rent payments - detect rate dynamically
-        if ("rent".equals(mappedCategory) && imported.amount.compareTo(BigDecimal.ZERO) > 0) {
+        // Works for positive or negative amounts (reversals)
+        if ("rent".equals(mappedCategory)) {
             // Look for corresponding commission transaction to calculate actual rate
-            BigDecimal commissionRate = detectCommissionRateForProperty(property, imported.amount);
-            BigDecimal commissionAmount = imported.amount
+            BigDecimal commissionRate = detectCommissionRateForProperty(property, imported.amount.abs());
+            BigDecimal commissionAmount = imported.amount.abs()
                 .multiply(commissionRate)
                 .divide(new BigDecimal("100"), 2, BigDecimal.ROUND_HALF_UP);
+
+            // For reversals (negative), commission is also reversed
+            if (imported.amount.compareTo(BigDecimal.ZERO) < 0) {
+                commissionAmount = commissionAmount.negate();
+            }
 
             ft.setCommissionRate(commissionRate);
             ft.setCommissionAmount(commissionAmount);
@@ -395,18 +401,9 @@ public class PayPropHistoricalDataImportService {
             errors.add("Property reference is required");
         }
 
-        // Commission pairing validation for rent payments
-        if ("deposit".equals(transaction.transactionType) && "rent".equals(transaction.category)) {
-            if (transaction.amount.compareTo(BigDecimal.ZERO) <= 0) {
-                errors.add("Rent payments must have positive amounts");
-            }
-        }
-
-        if ("fee".equals(transaction.transactionType) && "commission".equals(transaction.category)) {
-            if (transaction.amount.compareTo(BigDecimal.ZERO) >= 0) {
-                errors.add("Commission fees must have negative amounts");
-            }
-        }
+        // Note: Amount sign validation removed - amounts can be positive or negative
+        // Negative amounts represent reversals/corrections
+        // Category/type determines if it's income or expense, not the sign
 
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException("Line " + lineNumber + " validation errors: " + String.join(", ", errors));

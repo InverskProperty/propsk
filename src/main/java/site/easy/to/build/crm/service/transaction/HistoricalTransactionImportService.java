@@ -1121,16 +1121,18 @@ public class HistoricalTransactionImportService {
 
     /**
      * Calculate and set net-to-owner amount for transactions.
+     * Category determines if it's income or expense, NOT the amount sign.
+     * Negative amounts represent reversals/corrections.
      *
-     * For RENT (positive amounts):
+     * For RENT (category = "rent"):
      *   Formula: netToOwner = rentAmount - (rentAmount × commissionRate / 100)
-     *   Uses commission rate from property.
+     *   Uses commission rate from property. Works for positive or negative (reversal) amounts.
      *
-     * For EXPENSES (negative amounts):
-     *   Formula: netToOwner = amount (full expense reduces owner's net)
-     *   No commission applied to expenses.
+     * For EXPENSES (expense categories):
+     *   Formula: netToOwner = -|amount| (expense reduces owner's net)
+     *   No commission applied to expenses. Positive expenses are negated for net calculation.
      *
-     * Excluded categories: owner_payment (already a payment to owner), agency_fee (commission)
+     * Excluded categories: owner_payment (already a payment to owner)
      */
     private void calculateAndSetNetToOwner(HistoricalTransaction transaction) {
         if (transaction.getAmount() == null || transaction.getCategory() == null) {
@@ -1147,19 +1149,24 @@ public class HistoricalTransactionImportService {
             return;
         }
 
-        // RENT: Positive amount with commission
-        if (category.equals("rent") && amount.compareTo(BigDecimal.ZERO) > 0) {
+        // RENT: Apply commission calculation (works for positive or negative amounts/reversals)
+        if (category.equals("rent")) {
             calculateNetToOwnerForRent(transaction);
             return;
         }
 
-        // EXPENSES: Negative amounts - full amount impacts owner
-        if (amount.compareTo(BigDecimal.ZERO) < 0 && isExpenseCategory(category)) {
-            // No commission on expenses - net to owner is the full expense amount
+        // EXPENSES: Full amount impacts owner (no commission)
+        // Category determines it's an expense, not the amount sign
+        // Negative amounts would be expense reversals/credits
+        if (isExpenseCategory(category)) {
+            // No commission on expenses - net to owner is the expense amount (as deduction)
             transaction.setCommissionRate(BigDecimal.ZERO);
             transaction.setCommissionAmount(BigDecimal.ZERO);
-            transaction.setNetToOwnerAmount(amount);  // Already negative
-            log.debug("Set net-to-owner for expense '{}': £{}", category, amount);
+            // Store as negative for net calculation (expense reduces what owner receives)
+            // If already negative (reversal), keep as is; if positive, negate
+            BigDecimal netToOwner = amount.compareTo(BigDecimal.ZERO) > 0 ? amount.negate() : amount;
+            transaction.setNetToOwnerAmount(netToOwner);
+            log.debug("Set net-to-owner for expense '{}': £{} (stored as £{})", category, amount, netToOwner);
         }
     }
 
@@ -1385,6 +1392,7 @@ public class HistoricalTransactionImportService {
     
     /**
      * Infer transaction type from context when not explicitly provided
+     * Note: Does NOT infer from amount sign - category/type determines income vs expense
      */
     private TransactionType inferTransactionType(BigDecimal amount, String beneficiaryType, String incomingAmountStr) {
         // Priority 1: If incoming transaction amount is present, it's a payment received
@@ -1404,12 +1412,8 @@ public class HistoricalTransactionImportService {
             }
         }
 
-        // Priority 3: Infer from amount direction
-        if (amount.compareTo(BigDecimal.ZERO) > 0) {
-            return TransactionType.invoice; // Money in
-        } else if (amount.compareTo(BigDecimal.ZERO) < 0) {
-            return TransactionType.payment; // Money out
-        }
+        // Note: Amount sign is NOT used for inference - amounts can be positive or negative
+        // Negative amounts represent reversals/corrections, not a different transaction type
 
         // Default fallback
         return TransactionType.payment;
