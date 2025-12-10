@@ -1054,16 +1054,17 @@ public class StatementDataExtractService {
      * @param asOfDate Calculate balance as of this date (count cycles starting BEFORE this date)
      * @param rentAmount The rent amount per cycle (full cycle amount)
      * @param frequencyMonths The billing cycle length in months (1=monthly, 6=semi-annual, etc.)
+     * @param leaseEndDate The lease end date (null for ongoing leases) - used for proration
      * @return Opening balance (positive = arrears/tenant owes, negative = credit/overpaid)
      */
     public java.math.BigDecimal calculateTenantOpeningBalance(Long leaseId, LocalDate leaseStartDate,
                                                                LocalDate asOfDate, java.math.BigDecimal rentAmount,
-                                                               Integer frequencyMonths) {
+                                                               Integer frequencyMonths, LocalDate leaseEndDate) {
         // Default to monthly if not specified
         int cycleMonths = (frequencyMonths != null && frequencyMonths > 0) ? frequencyMonths : 1;
 
-        log.debug("Calculating tenant opening balance for lease {} from {} to {} (rent: {}, cycle: {} months)",
-            leaseId, leaseStartDate, asOfDate, rentAmount, cycleMonths);
+        log.debug("Calculating tenant opening balance for lease {} from {} to {} (rent: {}, cycle: {} months, end: {})",
+            leaseId, leaseStartDate, asOfDate, rentAmount, cycleMonths, leaseEndDate);
 
         if (leaseStartDate == null || asOfDate == null || rentAmount == null) {
             log.warn("Cannot calculate opening balance - missing required data for lease {}", leaseId);
@@ -1075,14 +1076,19 @@ public class StatementDataExtractService {
             return java.math.BigDecimal.ZERO;
         }
 
-        // RENT IN ADVANCE: Count cycle start dates that occurred BEFORE asOfDate
-        // Cycle 1 starts on leaseStartDate, subsequent cycles every cycleMonths months
-        long cyclesDue = countCycleStartDatesBefore(leaseStartDate, asOfDate, cycleMonths);
+        // Determine the effective end date for rent due calculation
+        // Use lease end if it's before asOfDate, otherwise use asOfDate
+        LocalDate effectiveEndDate = asOfDate;
+        if (leaseEndDate != null && leaseEndDate.isBefore(asOfDate)) {
+            effectiveEndDate = leaseEndDate.plusDays(1); // Include lease end date
+        }
 
-        java.math.BigDecimal totalRentDue = rentAmount.multiply(java.math.BigDecimal.valueOf(cyclesDue));
+        // RENT IN ADVANCE: Calculate rent due with proration for final partial cycle
+        java.math.BigDecimal totalRentDue = calculateRentDueWithProration(
+            leaseStartDate, effectiveEndDate, rentAmount, cycleMonths);
 
-        log.debug("Lease {}: {} cycle start dates before {} = {} cycles × {} = {} (rent in advance)",
-            leaseId, cyclesDue, asOfDate, cyclesDue, rentAmount, totalRentDue);
+        log.debug("Lease {}: rent due before {} = {} (with proration if applicable)",
+            leaseId, asOfDate, totalRentDue);
 
         // Get total rent received before asOfDate
         java.math.BigDecimal totalReceived = getTotalRentReceivedBefore(leaseId, asOfDate);
@@ -1096,6 +1102,72 @@ public class StatementDataExtractService {
             leaseId, asOfDate, openingBalance, totalRentDue, totalReceived);
 
         return openingBalance;
+    }
+
+    /**
+     * Calculate total rent due with proration for partial final cycle.
+     *
+     * @param leaseStartDate Lease start date
+     * @param endDate End date for calculation (exclusive)
+     * @param cycleRent Full cycle rent amount
+     * @param cycleMonths Months per cycle
+     * @return Total rent due including prorated final cycle
+     */
+    private java.math.BigDecimal calculateRentDueWithProration(LocalDate leaseStartDate, LocalDate endDate,
+                                                                java.math.BigDecimal cycleRent, int cycleMonths) {
+        if (leaseStartDate == null || endDate == null || !endDate.isAfter(leaseStartDate)) {
+            return java.math.BigDecimal.ZERO;
+        }
+
+        // Count full cycles
+        long fullCycles = 0;
+        LocalDate cycleStart = leaseStartDate;
+        LocalDate lastCycleStart = leaseStartDate;
+
+        while (true) {
+            LocalDate nextCycleStart = cycleStart.plusMonths(cycleMonths);
+            if (!nextCycleStart.isBefore(endDate)) {
+                // This cycle extends past endDate - need to check for proration
+                lastCycleStart = cycleStart;
+                break;
+            }
+            fullCycles++;
+            cycleStart = nextCycleStart;
+            lastCycleStart = cycleStart;
+        }
+
+        // Calculate rent for full cycles
+        java.math.BigDecimal totalRent = cycleRent.multiply(java.math.BigDecimal.valueOf(fullCycles));
+
+        // Check if there's a partial final cycle to prorate
+        LocalDate cycleEndDate = lastCycleStart.plusMonths(cycleMonths);
+        if (endDate.isAfter(lastCycleStart) && endDate.isBefore(cycleEndDate)) {
+            // Prorate: (full months × monthly rate) + (remaining days / days in month × monthly rate)
+            double monthlyRate = cycleRent.doubleValue() / cycleMonths;
+
+            // Count full months in the partial cycle
+            long fullMonthsInPartial = java.time.temporal.ChronoUnit.MONTHS.between(lastCycleStart, endDate);
+            LocalDate afterFullMonths = lastCycleStart.plusMonths(fullMonthsInPartial);
+
+            // Count remaining days
+            long remainingDays = java.time.temporal.ChronoUnit.DAYS.between(afterFullMonths, endDate);
+            int daysInMonth = afterFullMonths.lengthOfMonth();
+
+            double proratedAmount = (fullMonthsInPartial * monthlyRate) +
+                                   ((double) remainingDays / daysInMonth * monthlyRate);
+            proratedAmount = Math.round(proratedAmount * 100.0) / 100.0;
+
+            totalRent = totalRent.add(java.math.BigDecimal.valueOf(proratedAmount));
+
+            log.debug("Prorated final cycle: {} full months + {} days = £{}",
+                fullMonthsInPartial, remainingDays, proratedAmount);
+        } else if (!endDate.isBefore(cycleEndDate.plusDays(1))) {
+            // The cycle that started at lastCycleStart is fully within the period
+            // This happens when endDate is at or after the cycle end
+            totalRent = totalRent.add(cycleRent);
+        }
+
+        return totalRent;
     }
 
     /**
@@ -1191,13 +1263,22 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Overload without leaseEndDate - assumes ongoing lease (no proration needed)
+     */
+    public java.math.BigDecimal calculateTenantOpeningBalance(Long leaseId, LocalDate leaseStartDate,
+                                                               LocalDate asOfDate, java.math.BigDecimal rentAmount,
+                                                               Integer frequencyMonths) {
+        return calculateTenantOpeningBalance(leaseId, leaseStartDate, asOfDate, rentAmount, frequencyMonths, null);
+    }
+
+    /**
      * Overload for backward compatibility - defaults to monthly billing cycle
-     * @deprecated Use calculateTenantOpeningBalance(leaseId, leaseStartDate, asOfDate, rentAmount, frequencyMonths) instead
+     * @deprecated Use calculateTenantOpeningBalance with frequencyMonths and leaseEndDate instead
      */
     @Deprecated
     public java.math.BigDecimal calculateTenantOpeningBalance(Long leaseId, LocalDate leaseStartDate,
                                                                LocalDate asOfDate, java.math.BigDecimal monthlyRent) {
-        return calculateTenantOpeningBalance(leaseId, leaseStartDate, asOfDate, monthlyRent, 1);
+        return calculateTenantOpeningBalance(leaseId, leaseStartDate, asOfDate, monthlyRent, 1, null);
     }
 
     /**

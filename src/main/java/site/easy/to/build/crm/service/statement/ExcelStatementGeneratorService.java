@@ -530,6 +530,38 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
+     * Find the cycle start date that falls within a given period.
+     * Used for proration calculations when lease ends mid-cycle.
+     *
+     * @param leaseStart The lease start date (first cycle)
+     * @param periodStart Start of the period to search
+     * @param periodEnd End of the period to search
+     * @param cycleMonths Months per billing cycle
+     * @return The cycle start date within the period, or null if none found
+     */
+    private LocalDate findCycleStartInPeriod(LocalDate leaseStart, LocalDate periodStart,
+                                              LocalDate periodEnd, int cycleMonths) {
+        if (leaseStart == null || periodStart == null || periodEnd == null) {
+            return null;
+        }
+
+        // Start from lease start and find the cycle that falls in the period
+        LocalDate cycleStart = leaseStart;
+
+        // Skip cycles before the period
+        while (cycleStart.isBefore(periodStart)) {
+            cycleStart = cycleStart.plusMonths(cycleMonths);
+        }
+
+        // Check if this cycle is within the period
+        if (!cycleStart.isAfter(periodEnd)) {
+            return cycleStart;
+        }
+
+        return null;
+    }
+
+    /**
      * Generate rent due periods based on the LEASE START DATE (anniversary-based)
      * Each lease has its own rent cycle based on when it started.
      * E.g., a lease starting March 6th has periods: Mar 6 - Apr 5, Apr 6 - May 5, etc.
@@ -980,13 +1012,11 @@ public class ExcelStatementGeneratorService {
                     leaseDaysCell.setCellValue(0);
                 }
 
-                // Column H: rent_due - RENT IN ADVANCE model
+                // Column H: rent_due - RENT IN ADVANCE model with proration
                 // Full cycle rent is due on lease start date and each cycle anniversary
-                // Pre-calculated using Java to properly handle cycle dates based on lease start
+                // If lease ends mid-cycle, prorate based on days used
                 Cell rentDueCell = row.createCell(col++);
                 if (leaseActiveInMonth) {
-                    // Calculate rent due based on cycle start dates falling within this month
-                    // RENT IN ADVANCE: Full rent is due when a cycle starts, £0 otherwise
                     int cycleMonths = lease.getFrequencyMonths() != null ? lease.getFrequencyMonths() : 1;
 
                     if (cycleMonths == 1) {
@@ -1001,13 +1031,34 @@ public class ExcelStatementGeneratorService {
                         rentDueCell.setCellFormula(proratedFormula);
                     } else {
                         // Multi-month billing: check if a cycle start date falls in this month
-                        // Pre-calculate using Java for accuracy (handles lease anniversary dates)
                         long cyclesInMonth = dataExtractService.countCycleStartDatesInPeriod(
                             leaseStart, monthStart, monthEnd, cycleMonths);
 
                         if (cyclesInMonth > 0) {
-                            // Cycle starts in this month - full rent due
-                            double rentDue = lease.getMonthlyRent().doubleValue() * cyclesInMonth;
+                            // Cycle starts in this month - calculate rent with proration if lease ends mid-cycle
+                            LocalDate cycleStartDate = findCycleStartInPeriod(leaseStart, monthStart, monthEnd, cycleMonths);
+                            LocalDate cycleEndDate = cycleStartDate.plusMonths(cycleMonths).minusDays(1);
+                            LocalDate leaseEndDate = lease.getEndDate();
+
+                            double rentDue;
+                            if (leaseEndDate != null && leaseEndDate.isBefore(cycleEndDate)) {
+                                // Lease ends mid-cycle - prorate
+                                // Calculate: (full months × monthly rate) + (remaining days / days in final month × monthly rate)
+                                double monthlyRate = lease.getMonthlyRent().doubleValue() / cycleMonths;
+                                long fullMonths = java.time.temporal.ChronoUnit.MONTHS.between(cycleStartDate, leaseEndDate.plusDays(1));
+                                LocalDate lastFullMonthEnd = cycleStartDate.plusMonths(fullMonths);
+                                long remainingDays = java.time.temporal.ChronoUnit.DAYS.between(lastFullMonthEnd, leaseEndDate) + 1;
+                                int daysInFinalMonth = leaseEndDate.lengthOfMonth();
+
+                                rentDue = (fullMonths * monthlyRate) + ((double) remainingDays / daysInFinalMonth * monthlyRate);
+                                rentDue = Math.round(rentDue * 100.0) / 100.0; // Round to 2 decimal places
+
+                                log.debug("Prorated rent for lease {}: {} months + {} days = £{}",
+                                    lease.getLeaseReference(), fullMonths, remainingDays, rentDue);
+                            } else {
+                                // Full cycle - no proration needed
+                                rentDue = lease.getMonthlyRent().doubleValue() * cyclesInMonth;
+                            }
                             rentDueCell.setCellValue(rentDue);
                         } else {
                             // No cycle start in this month - £0 due
@@ -1591,10 +1642,10 @@ public class ExcelStatementGeneratorService {
                     Cell openingBalanceCell = row.createCell(col++);
                     if (isFirstRowForLease) {
                         // Opening balance calculated from database for first row
-                        // Pass frequencyMonths to handle multi-month billing cycles correctly
+                        // Pass frequencyMonths and leaseEndDate for proration if lease ends mid-cycle
                         java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
                             lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent(),
-                            lease.getFrequencyMonths());
+                            lease.getFrequencyMonths(), lease.getEndDate());
                         openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                     } else {
                         // For subsequent months, opening balance is 0 (cumulative handles the carry-forward)
@@ -1828,11 +1879,11 @@ public class ExcelStatementGeneratorService {
 
                 // Column O: opening_balance (pre-calculated from database)
                 // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
-                // Pass frequencyMonths to handle multi-month billing cycles correctly
+                // Pass frequencyMonths and leaseEndDate for proration if lease ends mid-cycle
                 Cell openingBalanceCell = row.createCell(col++);
                 java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
                     lease.getLeaseId(), leaseStart, monthStart, lease.getMonthlyRent(),
-                    lease.getFrequencyMonths());
+                    lease.getFrequencyMonths(), lease.getEndDate());
                 openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                 openingBalanceCell.setCellStyle(currencyStyle);
 
@@ -2345,11 +2396,11 @@ public class ExcelStatementGeneratorService {
             // I: opening_balance (cumulative arrears BEFORE this period)
             // MEMORY FIX: Pre-calculate from database instead of using SUMIFS on historical data
             // This allows us to limit RENT_DUE/RENT_RECEIVED sheets to statement period only
-            // Pass frequencyMonths to handle multi-month billing cycles correctly
+            // Pass frequencyMonths and leaseEndDate for proration if lease ends mid-cycle
             Cell openingBalanceCell = row.createCell(col++);
             java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
                 lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent(),
-                lease.getFrequencyMonths());
+                lease.getFrequencyMonths(), lease.getEndDate());
             openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
             openingBalanceCell.setCellStyle(currencyStyle);
 
@@ -2675,11 +2726,11 @@ public class ExcelStatementGeneratorService {
 
                 // O: opening_balance (pre-calculated from database)
                 // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
-                // Pass frequencyMonths to handle multi-month billing cycles correctly
+                // Pass frequencyMonths and leaseEndDate for proration if lease ends mid-cycle
                 Cell openingBalanceCell = row.createCell(col++);
                 java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
                     lease.getLeaseId(), lease.getStartDate(), startDate, lease.getMonthlyRent(),
-                    lease.getFrequencyMonths());
+                    lease.getFrequencyMonths(), lease.getEndDate());
                 openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                 openingBalanceCell.setCellStyle(currencyStyle);
 
@@ -2900,13 +2951,13 @@ public class ExcelStatementGeneratorService {
 
                     // O: opening_balance (pre-calculated from database)
                     // MEMORY FIX: Calculate in service layer instead of using SUMIFS on historical data
-                    // Pass frequencyMonths to handle multi-month billing cycles correctly
+                    // Pass frequencyMonths and leaseEndDate for proration if lease ends mid-cycle
                     Cell openingBalanceCell = row.createCell(col++);
                     if (isFirstPeriodForLease) {
                         // Opening balance calculated from database for first period
                         java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
                             lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent(),
-                            lease.getFrequencyMonths());
+                            lease.getFrequencyMonths(), lease.getEndDate());
                         openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
                     } else {
                         // For subsequent periods, opening balance is 0 (cumulative handles the carry-forward)
