@@ -148,6 +148,12 @@ public class ExcelStatementGeneratorService {
         log.info("✅ TRANSACTIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
         logMemoryUsage("TRANSACTIONS_SHEET");
 
+        // MEMORY: Clear transactions list - no longer needed, data is in Excel sheet
+        transactions.clear();
+        transactions = null;
+        System.gc(); // Hint to GC
+        logMemoryUsage("TRANSACTIONS_CLEARED");
+
         log.info("📄 Creating RENT_DUE sheet...");
         sheetStart = System.currentTimeMillis();
         createRentDueSheet(workbook, leaseMaster, startDate, endDate, styles);
@@ -226,6 +232,12 @@ public class ExcelStatementGeneratorService {
         sheetStart = System.currentTimeMillis();
         createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
+        // MEMORY: Clear transactions list - no longer needed
+        transactions.clear();
+        transactions = null;
+        System.gc();
+        logMemoryUsage("CUSTOMER_TRANSACTIONS_CLEARED");
 
         log.info("📄 Creating RENT_DUE sheet...");
         sheetStart = System.currentTimeMillis();
@@ -320,6 +332,12 @@ public class ExcelStatementGeneratorService {
         createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS created in {}ms", System.currentTimeMillis() - sheetStart);
 
+        // MEMORY: Clear transactions list - no longer needed
+        transactions.clear();
+        transactions = null;
+        System.gc();
+        logMemoryUsage("CUSTOM_TRANSACTIONS_CLEARED");
+
         sheetStart = System.currentTimeMillis();
         createRentDueSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
         log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
@@ -411,8 +429,9 @@ public class ExcelStatementGeneratorService {
         createTransactionsSheet(workbook, transactions, styles);
         log.info("✅ TRANSACTIONS created in {}ms", System.currentTimeMillis() - sheetStart);
 
-        // GC hint after data sheets (transactions list can be large)
-        transactions = null; // Allow GC to reclaim
+        // MEMORY: Clear transactions list - no longer needed, data is in Excel sheet
+        transactions.clear();
+        transactions = null;
         requestGC("DATA_SHEETS");
 
         sheetStart = System.currentTimeMillis();
