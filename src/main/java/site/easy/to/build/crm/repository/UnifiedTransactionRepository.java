@@ -58,6 +58,42 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
     );
 
     /**
+     * Find ALL transactions by flow direction (no date filter)
+     * Used for SXSSF streaming statements where opening balance is calculated via Excel formulas
+     */
+    List<UnifiedTransaction> findByFlowDirection(UnifiedTransaction.FlowDirection flowDirection);
+
+    /**
+     * Find ALL transactions for properties owned by customer, filtered by flow direction (no date filter)
+     * Used for SXSSF streaming statements where opening balance is calculated via Excel formulas
+     */
+    @Query("""
+        SELECT ut FROM UnifiedTransaction ut
+        WHERE (
+            ut.propertyId IN (
+                SELECT cpa.property.id FROM CustomerPropertyAssignment cpa
+                WHERE cpa.customer.customerId = :customerId
+                  AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+            )
+            OR (
+                ut.paypropDataSource = 'INCOMING_PAYMENT'
+                AND ut.propertyName IN (
+                    SELECT p.propertyName FROM CustomerPropertyAssignment cpa
+                    JOIN cpa.property p
+                    WHERE cpa.customer.customerId = :customerId
+                      AND cpa.assignmentType IN ('OWNER', 'MANAGER')
+                )
+            )
+        )
+        AND ut.flowDirection = :flowDirection
+        ORDER BY ut.transactionDate, ut.id
+    """)
+    List<UnifiedTransaction> findByCustomerOwnedPropertiesAndFlowDirection(
+        @Param("customerId") Long customerId,
+        @Param("flowDirection") UnifiedTransaction.FlowDirection flowDirection
+    );
+
+    /**
      * Find transactions by invoice ID, date range, and flow direction
      * Use this for statement generation to separate rent received (INCOMING) from payments (OUTGOING)
      */

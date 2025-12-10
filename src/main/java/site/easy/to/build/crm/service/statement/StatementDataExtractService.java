@@ -522,6 +522,61 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Extract ALL INCOMING transactions (rent received) for specific customer - NO DATE FILTER.
+     * Used for SXSSF streaming statements where opening balance is calculated via Excel formulas.
+     *
+     * @param customerId Customer ID to filter by
+     * @return List of ALL INCOMING transactions for this customer (from earliest to present)
+     */
+    public List<TransactionDTO> extractAllRentReceivedForCustomer(Long customerId) {
+        log.info("[STMT-DEBUG] ✨ START extractAllRentReceivedForCustomer({}) - NO DATE FILTER", customerId);
+        logMemoryUsage("EXTRACT_ALL_RENT_RECEIVED_START");
+
+        Customer customer = customerRepository.findById(customerId).orElse(null);
+        if (customer == null) {
+            log.error("Customer {} not found - returning empty list", customerId);
+            return new ArrayList<>();
+        }
+
+        // Use the new query WITHOUT date filtering
+        log.info("[STMT-DEBUG] Querying ALL unified transactions (no date filter)...");
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByCustomerOwnedPropertiesAndFlowDirection(
+                customerId,
+                UnifiedTransaction.FlowDirection.INCOMING
+            );
+        logMemoryUsage("AFTER_QUERY_ALL_TRANSACTIONS");
+
+        log.info("[STMT-DEBUG] ✨ Found {} TOTAL INCOMING transactions for customer {}", transactions.size(), customerId);
+
+        List<TransactionDTO> transactionDTOs = new ArrayList<>();
+
+        for (UnifiedTransaction ut : transactions) {
+            TransactionDTO dto = new TransactionDTO();
+
+            dto.setTransactionId(ut.getId());
+            dto.setTransactionDate(ut.getTransactionDate());
+            dto.setInvoiceId(ut.getInvoiceId());
+            dto.setPropertyId(ut.getPropertyId());
+            dto.setPropertyName(ut.getPropertyName());
+            dto.setCustomerId(ut.getCustomerId());
+            dto.setCategory(ut.getCategory());
+            dto.setTransactionType(ut.getTransactionType());
+            dto.setAmount(ut.getAmount());
+            dto.setDescription(ut.getDescription());
+            dto.setLeaseStartDate(ut.getLeaseStartDate());
+            dto.setLeaseEndDate(ut.getLeaseEndDate());
+            dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
+
+            transactionDTOs.add(dto);
+        }
+
+        log.info("[STMT-DEBUG] ✨ COMPLETE extractAllRentReceivedForCustomer - {} records", transactionDTOs.size());
+        logMemoryUsage("EXTRACT_ALL_RENT_RECEIVED_COMPLETE");
+        return transactionDTOs;
+    }
+
+    /**
      * Extract OUTGOING transactions only (landlord payments, fees, expenses)
      *
      * @param customerId Customer ID to filter by

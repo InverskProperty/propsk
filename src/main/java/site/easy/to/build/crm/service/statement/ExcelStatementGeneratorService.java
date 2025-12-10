@@ -2,6 +2,7 @@ package site.easy.to.build.crm.service.statement;
 
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -392,11 +393,14 @@ public class ExcelStatementGeneratorService {
                                                                   LocalDate endDate, int periodStartDay,
                                                                   String statementFrequency) {
         long startTime = System.currentTimeMillis();
-        log.info("🚀 CUSTOMER CUSTOM PERIOD STATEMENT START: Customer {} periodStartDay={} frequency={} from {} to {}",
+        log.info("🚀 SXSSF STREAMING STATEMENT START: Customer {} periodStartDay={} frequency={} from {} to {}",
             customerId, periodStartDay, statementFrequency, startDate, endDate);
-        logMemoryUsage("CUSTOMER_CUSTOM_START");
+        logMemoryUsage("SXSSF_START");
 
-        Workbook workbook = new XSSFWorkbook();
+        // MEMORY OPTIMIZATION: Use SXSSF (streaming) to write rows to disk instead of memory
+        // Keep only 20 rows in memory, flush older rows to temp file
+        SXSSFWorkbook workbook = new SXSSFWorkbook(20);
+        workbook.setCompressTempFiles(true); // Compress temp files to save disk space
 
         // MEMORY OPTIMIZATION: Create styles ONCE and reuse across all sheets
         // This prevents creating 51+ duplicate CellStyle objects (was causing OOM)
@@ -410,13 +414,12 @@ public class ExcelStatementGeneratorService {
         log.info("📥 Lease master extracted: {} leases in {}ms", leaseMaster.size(), System.currentTimeMillis() - extractStart);
         logMemoryUsage("CUSTOMER_CUSTOM_LEASE_MASTER");
 
-        // IMPORTANT: Only extract INCOMING transactions (rent received) to prevent double-counting
-        log.info("📥 Extracting transactions for customer {}...", customerId);
+        // SXSSF: Extract ALL transactions (no date filter) for Excel formula-based opening balance
+        log.info("📥 Extracting ALL transactions for customer {} (no date filter)...", customerId);
         extractStart = System.currentTimeMillis();
-        List<TransactionDTO> transactions = dataExtractService.extractRentReceivedForCustomer(
-            customerId, startDate, endDate);
-        log.info("📥 Transactions extracted: {} in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
-        logMemoryUsage("CUSTOMER_CUSTOM_TRANSACTIONS");
+        List<TransactionDTO> transactions = dataExtractService.extractAllRentReceivedForCustomer(customerId);
+        log.info("📥 ALL transactions extracted: {} in {}ms", transactions.size(), System.currentTimeMillis() - extractStart);
+        logMemoryUsage("SXSSF_ALL_TRANSACTIONS");
 
         // Create data sheets with custom periods
         // MEMORY OPTIMIZATION: All sheets now use shared WorkbookStyles (was ~48 styles, now 6)
@@ -508,9 +511,11 @@ public class ExcelStatementGeneratorService {
         log.info("✅ OWNER_PAYMENTS_SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
         long totalTime = System.currentTimeMillis() - startTime;
-        log.info("🏁 CUSTOMER CUSTOM PERIOD STATEMENT COMPLETE: Customer {}, {} sheets in {}ms ({}s)",
+        log.info("🏁 SXSSF STREAMING STATEMENT COMPLETE: Customer {}, {} sheets in {}ms ({}s)",
             customerId, workbook.getNumberOfSheets(), totalTime, totalTime / 1000);
-        logMemoryUsage("CUSTOMER_CUSTOM_COMPLETE");
+        log.info("📊 SXSSF: Opening balance now calculated via Excel SUMIFS formula (not Java)");
+        log.info("📊 SXSSF: Full transaction/rent history included for formula-based calculations");
+        logMemoryUsage("SXSSF_COMPLETE");
 
         return workbook;
     }
@@ -2044,8 +2049,8 @@ public class ExcelStatementGeneratorService {
             }
 
             // Generate periods based on THIS LEASE's start date (anniversary-based)
-            // MEMORY FIX: Only include periods within statement range - opening balances calculated separately
-            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, false);
+            // SXSSF: Include ALL periods from lease start for Excel formula-based opening balance calculation
+            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, true);
 
             // Get frequency for cycle-based calculations
             int frequencyMonths = lease.getFrequencyMonths() != null ? lease.getFrequencyMonths() : 1;
@@ -2413,14 +2418,19 @@ public class ExcelStatementGeneratorService {
             rentReceivedCell.setCellStyle(currencyStyle);
 
             // I: opening_balance (cumulative arrears BEFORE this period)
-            // MEMORY FIX: Pre-calculate from database instead of using SUMIFS on historical data
-            // This allows us to limit RENT_DUE/RENT_RECEIVED sheets to statement period only
-            // Pass frequencyMonths and leaseEndDate for proration if lease ends mid-cycle
+            // SXSSF: Calculate via Excel formula using RENT_DUE and TRANSACTIONS sheets
+            // Opening Balance = (Total Rent Due before period) - (Total Payments before period)
+            // RENT_DUE columns: B=lease_reference, D=period_start, L=prorated_rent_due
+            // TRANSACTIONS columns: B=transaction_date, E=property_name, I=amount
             Cell openingBalanceCell = row.createCell(col++);
-            java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
-                lease.getLeaseId(), leaseStart, period.periodStart, lease.getMonthlyRent(),
-                lease.getFrequencyMonths(), lease.getEndDate());
-            openingBalanceCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
+            openingBalanceCell.setCellFormula(String.format(
+                "IFERROR(SUMIFS(RENT_DUE!$L$2:$L$10000, RENT_DUE!$B$2:$B$10000, \"%s\", RENT_DUE!$D$2:$D$10000, \"<\"&DATE(%d,%d,%d)), 0) - " +
+                "IFERROR(SUMIFS(TRANSACTIONS!$I$2:$I$10000, TRANSACTIONS!$E$2:$E$10000, \"%s\", TRANSACTIONS!$B$2:$B$10000, \"<\"&DATE(%d,%d,%d)), 0)",
+                lease.getLeaseReference(),
+                period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
+                lease.getPropertyName() != null ? lease.getPropertyName() : "",
+                period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()
+            ));
             openingBalanceCell.setCellStyle(currencyStyle);
 
             // J: period_arrears (this period only: rent_due - rent_received)

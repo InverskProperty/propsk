@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -163,7 +164,14 @@ public class OptionCStatementController {
                 try { out.close(); } catch (Exception ignored) {}
             }
             if (workbook != null) {
-                try { workbook.close(); } catch (Exception ignored) {}
+                try {
+                    // SXSSF workbooks need dispose() to clean up temp files
+                    if (workbook instanceof SXSSFWorkbook) {
+                        ((SXSSFWorkbook) workbook).dispose();
+                        log.info("🗑️ SXSSF temp files disposed");
+                    }
+                    workbook.close();
+                } catch (Exception ignored) {}
             }
             log.info("🧹 Resources cleaned up for customer {}", customerId);
         }
@@ -189,9 +197,11 @@ public class OptionCStatementController {
         log.info("📊 Option C: Generating Excel statement for all customers from {} to {} (period start day: {})",
                  startDate, endDate, periodStartDay);
 
+        Workbook workbook = null;
+        ByteArrayOutputStream out = null;
+
         try {
             // Generate workbook with formulas (all customers)
-            Workbook workbook;
             if (periodStartDay == 1) {
                 // Use calendar months (existing behavior)
                 workbook = excelGenerator.generateStatement(startDate, endDate);
@@ -201,12 +211,10 @@ public class OptionCStatementController {
             }
 
             // Convert to byte array
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            out = new ByteArrayOutputStream();
             workbook.write(out);
-            workbook.close();
 
             byte[] excelBytes = out.toByteArray();
-            out.close();
 
             // Prepare HTTP response
             HttpHeaders headers = new HttpHeaders();
@@ -228,6 +236,23 @@ public class OptionCStatementController {
         } catch (IOException e) {
             log.error("❌ Option C: Error generating Excel statement for all customers: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+
+        } finally {
+            // Ensure resources are closed
+            if (out != null) {
+                try { out.close(); } catch (Exception ignored) {}
+            }
+            if (workbook != null) {
+                try {
+                    // SXSSF workbooks need dispose() to clean up temp files
+                    if (workbook instanceof SXSSFWorkbook) {
+                        ((SXSSFWorkbook) workbook).dispose();
+                        log.info("🗑️ SXSSF temp files disposed");
+                    }
+                    workbook.close();
+                } catch (Exception ignored) {}
+            }
+            log.info("🧹 Resources cleaned up for all-customer statement");
         }
     }
 
