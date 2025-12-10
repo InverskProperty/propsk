@@ -1078,13 +1078,12 @@ public class StatementDataExtractService {
 
         // RENT IN ADVANCE: Count cycle start dates that occurred BEFORE asOfDate
         // Full rent is due when a cycle STARTS, so we count complete cycles that have started
-        long cyclesDue = countCycleStartDatesBefore(leaseStartDate, asOfDate, cycleMonths);
-        java.math.BigDecimal totalRentDue = rentAmount.multiply(java.math.BigDecimal.valueOf(cyclesDue));
+        long cyclesDue;
+        java.math.BigDecimal totalRentDue;
 
-        // Only prorate if the lease ENDED mid-cycle (before asOfDate)
-        // This handles the case where tenant left mid-cycle
+        // If lease has ended before asOfDate, cap cycles at lease end date
         if (leaseEndDate != null && leaseEndDate.isBefore(asOfDate)) {
-            // Find the last cycle that started before the lease ended
+            // Find the last cycle that started before or on the lease end date
             LocalDate lastCycleStart = leaseStartDate;
             while (lastCycleStart.plusMonths(cycleMonths).isBefore(leaseEndDate) ||
                    lastCycleStart.plusMonths(cycleMonths).isEqual(leaseEndDate)) {
@@ -1095,7 +1094,7 @@ public class StatementDataExtractService {
 
             // If lease ended before this cycle's natural end, prorate
             if (leaseEndDate.isBefore(cycleEndDate)) {
-                // Recalculate: full cycles before the last one + prorated final cycle
+                // Full cycles before the last one + prorated final cycle
                 long fullCyclesBefore = countCycleStartDatesBefore(leaseStartDate, lastCycleStart, cycleMonths);
                 java.math.BigDecimal fullCyclesRent = rentAmount.multiply(java.math.BigDecimal.valueOf(fullCyclesBefore));
 
@@ -1111,10 +1110,22 @@ public class StatementDataExtractService {
                 proratedAmount = Math.round(proratedAmount * 100.0) / 100.0;
 
                 totalRentDue = fullCyclesRent.add(java.math.BigDecimal.valueOf(proratedAmount));
+                cyclesDue = fullCyclesBefore;
 
                 log.debug("Lease {} ended mid-cycle: {} full cycles + prorated {} months {} days = {}",
                     leaseId, fullCyclesBefore, fullMonthsInPartial, remainingDays, totalRentDue);
+            } else {
+                // Lease ended at cycle boundary - count cycles that started up to and including lastCycleStart
+                cyclesDue = countCycleStartDatesBefore(leaseStartDate, lastCycleStart.plusDays(1), cycleMonths);
+                totalRentDue = rentAmount.multiply(java.math.BigDecimal.valueOf(cyclesDue));
+
+                log.debug("Lease {} ended at cycle boundary: {} full cycles = {}",
+                    leaseId, cyclesDue, totalRentDue);
             }
+        } else {
+            // Ongoing lease or statement period is before lease end - count cycles before asOfDate
+            cyclesDue = countCycleStartDatesBefore(leaseStartDate, asOfDate, cycleMonths);
+            totalRentDue = rentAmount.multiply(java.math.BigDecimal.valueOf(cyclesDue));
         }
 
         log.debug("Lease {}: rent due before {} = {} (cycles started: {})",
