@@ -6,28 +6,38 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.dto.statement.CustomerDTO;
 import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
+import site.easy.to.build.crm.dto.statement.PaymentBatchSummaryDTO;
 import site.easy.to.build.crm.dto.statement.PropertyDTO;
+import site.easy.to.build.crm.dto.statement.RelatedPaymentDTO;
 import site.easy.to.build.crm.dto.statement.TransactionDTO;
 import site.easy.to.build.crm.entity.AssignmentType;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.HistoricalTransaction;
 import site.easy.to.build.crm.entity.Invoice;
 import site.easy.to.build.crm.entity.LettingInstruction;
+import site.easy.to.build.crm.entity.PaymentBatch;
 import site.easy.to.build.crm.entity.PayPropTenantComplete;
 import site.easy.to.build.crm.entity.Property;
+import site.easy.to.build.crm.entity.UnifiedAllocation;
 import site.easy.to.build.crm.entity.UnifiedTransaction;
 import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.InvoiceRepository;
+import site.easy.to.build.crm.repository.PaymentBatchRepository;
+import site.easy.to.build.crm.repository.UnifiedAllocationRepository;
 import site.easy.to.build.crm.repository.PayPropTenantCompleteRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.UnifiedTransactionRepository;
 import site.easy.to.build.crm.service.property.PropertyService;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -80,6 +90,12 @@ public class StatementDataExtractService {
 
     @Autowired
     private PayPropTenantCompleteRepository payPropTenantCompleteRepository;
+
+    @Autowired
+    private UnifiedAllocationRepository unifiedAllocationRepository;
+
+    @Autowired
+    private PaymentBatchRepository paymentBatchRepository;
 
     /**
      * Extract lease master data (all leases)
@@ -1426,5 +1442,147 @@ public class StatementDataExtractService {
         }
 
         return total;
+    }
+
+    // ===== RELATED PAYMENTS EXTRACTION =====
+
+    /**
+     * Extract related payments for a specific period and set of properties.
+     * This method traces:
+     * 1. Transactions in the period (by propertyId + date range)
+     * 2. Allocations linked to those transactions
+     * 3. Payment batches from those allocations
+     *
+     * Used to populate the RELATED PAYMENTS section on monthly statement tabs.
+     *
+     * @param propertyIds List of property IDs from leaseMaster
+     * @param startDate Period start
+     * @param endDate Period end
+     * @return List of payment batch summaries with allocation details
+     */
+    public List<PaymentBatchSummaryDTO> extractRelatedPaymentsForPeriod(
+            List<Long> propertyIds, LocalDate startDate, LocalDate endDate) {
+
+        log.info("Extracting related payments for {} properties from {} to {}",
+            propertyIds.size(), startDate, endDate);
+
+        if (propertyIds == null || propertyIds.isEmpty()) {
+            log.warn("No property IDs provided for related payments extraction");
+            return new ArrayList<>();
+        }
+
+        // Get all allocations for period's transactions (including unbatched)
+        List<UnifiedAllocation> allocations;
+        try {
+            allocations = unifiedAllocationRepository.findAllAllocationsForPropertiesInPeriod(
+                propertyIds, startDate, endDate);
+        } catch (Exception e) {
+            log.warn("Error fetching allocations for related payments: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+
+        if (allocations == null || allocations.isEmpty()) {
+            log.info("No allocations found for properties in period {} to {}", startDate, endDate);
+            return new ArrayList<>();
+        }
+
+        log.info("Found {} allocations for period", allocations.size());
+
+        // Group by batch ID (null batch ID = pending/unbatched)
+        Map<String, List<UnifiedAllocation>> byBatch = new HashMap<>();
+        for (UnifiedAllocation alloc : allocations) {
+            String batchKey = alloc.getPaymentBatchId() != null ? alloc.getPaymentBatchId() : "PENDING";
+            byBatch.computeIfAbsent(batchKey, k -> new ArrayList<>()).add(alloc);
+        }
+
+        List<PaymentBatchSummaryDTO> summaries = new ArrayList<>();
+
+        for (Map.Entry<String, List<UnifiedAllocation>> entry : byBatch.entrySet()) {
+            String batchId = entry.getKey();
+            List<UnifiedAllocation> batchAllocations = entry.getValue();
+
+            PaymentBatchSummaryDTO summary = new PaymentBatchSummaryDTO();
+            summary.setBatchId(batchId);
+
+            // Get batch details (if not pending)
+            if (!"PENDING".equals(batchId)) {
+                try {
+                    PaymentBatch batch = paymentBatchRepository.findByBatchId(batchId).orElse(null);
+                    if (batch != null) {
+                        summary.setPaymentDate(batch.getPaymentDate());
+                        summary.setBatchStatus(batch.getStatus() != null ? batch.getStatus().name() : "UNKNOWN");
+                    } else {
+                        summary.setBatchStatus("UNKNOWN");
+                    }
+                } catch (Exception e) {
+                    log.warn("Error fetching batch {}: {}", batchId, e.getMessage());
+                    summary.setBatchStatus("ERROR");
+                }
+            } else {
+                summary.setBatchStatus("PENDING");
+            }
+
+            // Calculate totals by type and build detail rows
+            BigDecimal ownerTotal = BigDecimal.ZERO;
+            BigDecimal expenseTotal = BigDecimal.ZERO;
+            BigDecimal commissionTotal = BigDecimal.ZERO;
+            BigDecimal disbursementTotal = BigDecimal.ZERO;
+
+            List<RelatedPaymentDTO> details = new ArrayList<>();
+            Map<Long, Boolean> propertyIdsSeen = new HashMap<>();
+
+            for (UnifiedAllocation alloc : batchAllocations) {
+                // Build detail row
+                RelatedPaymentDTO detail = new RelatedPaymentDTO();
+                detail.setAllocationId(alloc.getId());
+                detail.setBatchId(batchId);
+                detail.setPaymentDate(alloc.getPaidDate());
+                detail.setAllocationType(alloc.getAllocationType() != null ? alloc.getAllocationType().name() : "UNKNOWN");
+                detail.setAmount(alloc.getAmount());
+                detail.setPropertyName(alloc.getPropertyName());
+                detail.setBatchStatus(summary.getBatchStatus());
+                detail.setDescription(alloc.getDescription());
+                detail.setTransactionId(alloc.getIncomingTransactionId());
+                detail.setCategory(alloc.getCategory());
+
+                details.add(detail);
+
+                // Track property for count
+                if (alloc.getPropertyId() != null) {
+                    propertyIdsSeen.put(alloc.getPropertyId(), true);
+                }
+
+                // Accumulate by type
+                BigDecimal amount = alloc.getAmount() != null ? alloc.getAmount() : BigDecimal.ZERO;
+                if (alloc.getAllocationType() != null) {
+                    switch (alloc.getAllocationType()) {
+                        case OWNER -> ownerTotal = ownerTotal.add(amount);
+                        case EXPENSE -> expenseTotal = expenseTotal.add(amount);
+                        case COMMISSION -> commissionTotal = commissionTotal.add(amount);
+                        case DISBURSEMENT -> disbursementTotal = disbursementTotal.add(amount);
+                        default -> { /* OTHER type - ignore */ }
+                    }
+                }
+            }
+
+            summary.setTotalOwnerAllocations(ownerTotal);
+            summary.setTotalExpenseAllocations(expenseTotal);
+            summary.setTotalCommissionAllocations(commissionTotal);
+            summary.setTotalDisbursementAllocations(disbursementTotal);
+            summary.calculateNetPayment();
+            summary.setPropertyCount(propertyIdsSeen.size());
+            summary.setAllocations(details);
+
+            summaries.add(summary);
+        }
+
+        // Sort by payment date (nulls/pending last)
+        summaries.sort(Comparator.comparing(
+            PaymentBatchSummaryDTO::getPaymentDate,
+            Comparator.nullsLast(Comparator.naturalOrder())
+        ));
+
+        log.info("Extracted {} related payment batches for period", summaries.size());
+        return summaries;
     }
 }

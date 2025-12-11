@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
+import site.easy.to.build.crm.dto.statement.PaymentBatchSummaryDTO;
+import site.easy.to.build.crm.dto.statement.RelatedPaymentDTO;
 import site.easy.to.build.crm.dto.statement.TransactionDTO;
 import site.easy.to.build.crm.entity.Customer;
 import site.easy.to.build.crm.entity.PaymentBatch;
@@ -25,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Service for generating Excel statements with formulas (Option C)
@@ -2625,7 +2628,26 @@ public class ExcelStatementGeneratorService {
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        log.info("{} sheet created with {} rows", sheetName, rowNum - 1);
+        // ===== RELATED PAYMENTS SECTION =====
+        // Add blank rows for separation
+        rowNum += 2;
+
+        // Extract related payments for this period
+        List<Long> propertyIds = leaseMaster.stream()
+            .filter(l -> l.getPropertyId() != null)
+            .map(LeaseMasterDTO::getPropertyId)
+            .distinct()
+            .collect(Collectors.toList());
+
+        if (!propertyIds.isEmpty()) {
+            List<PaymentBatchSummaryDTO> relatedPayments =
+                dataExtractService.extractRelatedPaymentsForPeriod(
+                    propertyIds, period.periodStart, period.periodEnd);
+
+            rowNum = createRelatedPaymentsSection(sheet, rowNum, relatedPayments, styles);
+        }
+
+        log.info("{} sheet created with {} rows (including related payments)", sheetName, rowNum - 1);
     }
 
     /**
@@ -3077,6 +3099,217 @@ public class ExcelStatementGeneratorService {
 
         applyFixedColumnWidths(sheet, headers.length);
         log.info("SUMMARY_CHECK sheet created with {} rows", rowNum - 1);
+    }
+
+    /**
+     * Create the RELATED PAYMENTS section below the main statement data.
+     * Shows how the period's income and expenses were allocated to payment batches.
+     *
+     * Layout:
+     * - Section header row ("RELATED PAYMENTS")
+     * - Subtitle explaining the section
+     * - Batch summary rows (one per batch)
+     * - Detail rows (one per allocation) for full audit
+     * - Section totals
+     *
+     * @param sheet The worksheet
+     * @param startRowNum Starting row number
+     * @param payments Payment batch summaries from extractRelatedPaymentsForPeriod()
+     * @param styles Shared workbook styles
+     * @return Next available row number
+     */
+    private int createRelatedPaymentsSection(Sheet sheet, int startRowNum,
+            List<PaymentBatchSummaryDTO> payments, WorkbookStyles styles) {
+
+        int rowNum = startRowNum;
+
+        // Section header
+        Row sectionHeaderRow = sheet.createRow(rowNum++);
+        Cell sectionHeaderCell = sectionHeaderRow.createCell(0);
+        sectionHeaderCell.setCellValue("RELATED PAYMENTS");
+        sectionHeaderCell.setCellStyle(styles.boldStyle);
+
+        // Subtitle explaining the section
+        Row subtitleRow = sheet.createRow(rowNum++);
+        subtitleRow.createCell(0).setCellValue(
+            "Payment batches containing allocations for this period's transactions");
+
+        // Blank row
+        rowNum++;
+
+        // Check if no payments
+        if (payments == null || payments.isEmpty()) {
+            Row noPaymentsRow = sheet.createRow(rowNum++);
+            noPaymentsRow.createCell(0).setCellValue("No related payments found for this period");
+            return rowNum;
+        }
+
+        // ===== BATCH SUMMARY SECTION =====
+        Row summaryHeaderRow = sheet.createRow(rowNum++);
+        String[] summaryHeaders = {
+            "Batch ID", "Payment Date", "Status",
+            "Income Allocated", "Expenses Deducted", "Commission Deducted",
+            "Net Payment", "Properties"
+        };
+
+        for (int i = 0; i < summaryHeaders.length; i++) {
+            Cell cell = summaryHeaderRow.createCell(i);
+            cell.setCellValue(summaryHeaders[i]);
+            cell.setCellStyle(styles.headerStyle);
+        }
+
+        // Payment batch summary rows
+        BigDecimal totalIncome = BigDecimal.ZERO;
+        BigDecimal totalExpenses = BigDecimal.ZERO;
+        BigDecimal totalCommission = BigDecimal.ZERO;
+        BigDecimal totalNet = BigDecimal.ZERO;
+
+        for (PaymentBatchSummaryDTO batch : payments) {
+            Row row = sheet.createRow(rowNum++);
+            int col = 0;
+
+            // Batch ID
+            row.createCell(col++).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
+
+            // Payment Date
+            Cell dateCell = row.createCell(col++);
+            if (batch.getPaymentDate() != null) {
+                dateCell.setCellValue(batch.getPaymentDate());
+                dateCell.setCellStyle(styles.dateStyle);
+            } else {
+                dateCell.setCellValue("Pending");
+            }
+
+            // Status
+            row.createCell(col++).setCellValue(batch.getBatchStatus() != null ? batch.getBatchStatus() : "");
+
+            // Income Allocated (OWNER type)
+            Cell incomeCell = row.createCell(col++);
+            incomeCell.setCellValue(batch.getTotalOwnerAllocations() != null
+                ? batch.getTotalOwnerAllocations().doubleValue() : 0);
+            incomeCell.setCellStyle(styles.currencyStyle);
+
+            // Expenses Deducted
+            Cell expenseCell = row.createCell(col++);
+            expenseCell.setCellValue(batch.getTotalExpenseAllocations() != null
+                ? batch.getTotalExpenseAllocations().doubleValue() : 0);
+            expenseCell.setCellStyle(styles.currencyStyle);
+
+            // Commission Deducted
+            Cell commCell = row.createCell(col++);
+            commCell.setCellValue(batch.getTotalCommissionAllocations() != null
+                ? batch.getTotalCommissionAllocations().doubleValue() : 0);
+            commCell.setCellStyle(styles.currencyStyle);
+
+            // Net Payment
+            Cell netCell = row.createCell(col++);
+            netCell.setCellValue(batch.getNetPayment() != null
+                ? batch.getNetPayment().doubleValue() : 0);
+            netCell.setCellStyle(styles.currencyStyle);
+
+            // Property Count
+            row.createCell(col++).setCellValue(batch.getPropertyCount());
+
+            // Accumulate totals
+            if (batch.getTotalOwnerAllocations() != null)
+                totalIncome = totalIncome.add(batch.getTotalOwnerAllocations());
+            if (batch.getTotalExpenseAllocations() != null)
+                totalExpenses = totalExpenses.add(batch.getTotalExpenseAllocations());
+            if (batch.getTotalCommissionAllocations() != null)
+                totalCommission = totalCommission.add(batch.getTotalCommissionAllocations());
+            if (batch.getNetPayment() != null)
+                totalNet = totalNet.add(batch.getNetPayment());
+        }
+
+        // Summary totals row
+        Row summaryTotalsRow = sheet.createRow(rowNum++);
+        Cell summaryTotalLabelCell = summaryTotalsRow.createCell(0);
+        summaryTotalLabelCell.setCellValue("PAYMENT TOTALS");
+        summaryTotalLabelCell.setCellStyle(styles.boldStyle);
+
+        // Skip date and status columns
+        Cell totalIncomeCell = summaryTotalsRow.createCell(3);
+        totalIncomeCell.setCellValue(totalIncome.doubleValue());
+        totalIncomeCell.setCellStyle(styles.boldCurrencyStyle);
+
+        Cell totalExpenseCell = summaryTotalsRow.createCell(4);
+        totalExpenseCell.setCellValue(totalExpenses.doubleValue());
+        totalExpenseCell.setCellStyle(styles.boldCurrencyStyle);
+
+        Cell totalCommCell = summaryTotalsRow.createCell(5);
+        totalCommCell.setCellValue(totalCommission.doubleValue());
+        totalCommCell.setCellStyle(styles.boldCurrencyStyle);
+
+        Cell totalNetCell = summaryTotalsRow.createCell(6);
+        totalNetCell.setCellValue(totalNet.doubleValue());
+        totalNetCell.setCellStyle(styles.boldCurrencyStyle);
+
+        // ===== ALLOCATION DETAIL SECTION (Full Audit) =====
+        rowNum += 2; // Blank rows
+
+        Row detailHeaderLabelRow = sheet.createRow(rowNum++);
+        Cell detailHeaderLabelCell = detailHeaderLabelRow.createCell(0);
+        detailHeaderLabelCell.setCellValue("ALLOCATION DETAILS");
+        detailHeaderLabelCell.setCellStyle(styles.boldStyle);
+
+        Row detailHeaderRow = sheet.createRow(rowNum++);
+        String[] detailHeaders = {
+            "Allocation ID", "Transaction ID", "Batch ID", "Type",
+            "Amount", "Property", "Category", "Description"
+        };
+
+        for (int i = 0; i < detailHeaders.length; i++) {
+            Cell cell = detailHeaderRow.createCell(i);
+            cell.setCellValue(detailHeaders[i]);
+            cell.setCellStyle(styles.headerStyle);
+        }
+
+        // Detail rows for all allocations
+        for (PaymentBatchSummaryDTO batch : payments) {
+            if (batch.getAllocations() != null) {
+                for (RelatedPaymentDTO alloc : batch.getAllocations()) {
+                    Row row = sheet.createRow(rowNum++);
+                    int col = 0;
+
+                    // Allocation ID
+                    row.createCell(col++).setCellValue(
+                        alloc.getAllocationId() != null ? alloc.getAllocationId() : 0);
+
+                    // Transaction ID
+                    row.createCell(col++).setCellValue(
+                        alloc.getTransactionId() != null ? alloc.getTransactionId() : 0);
+
+                    // Batch ID
+                    row.createCell(col++).setCellValue(
+                        alloc.getBatchId() != null ? alloc.getBatchId() : "");
+
+                    // Type
+                    row.createCell(col++).setCellValue(
+                        alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
+
+                    // Amount
+                    Cell amountCell = row.createCell(col++);
+                    amountCell.setCellValue(alloc.getAmount() != null
+                        ? alloc.getAmount().doubleValue() : 0);
+                    amountCell.setCellStyle(styles.currencyStyle);
+
+                    // Property
+                    row.createCell(col++).setCellValue(
+                        alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+
+                    // Category
+                    row.createCell(col++).setCellValue(
+                        alloc.getCategory() != null ? alloc.getCategory() : "");
+
+                    // Description
+                    row.createCell(col++).setCellValue(
+                        alloc.getDescription() != null ? alloc.getDescription() : "");
+                }
+            }
+        }
+
+        log.info("Related payments section created with {} batches", payments.size());
+        return rowNum;
     }
 
     /**
