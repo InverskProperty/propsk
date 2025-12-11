@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import site.easy.to.build.crm.dto.statement.LeaseAllocationSummaryDTO;
 import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
 import site.easy.to.build.crm.dto.statement.PaymentBatchSummaryDTO;
 import site.easy.to.build.crm.dto.statement.RelatedPaymentDTO;
@@ -27,6 +28,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -2335,7 +2337,9 @@ public class ExcelStatementGeneratorService {
             "lease_reference", "property_name", "customer_name", "tenant_name", "lease_start_date", "rent_due_day",
             "rent_due", "rent_received", "opening_balance", "period_arrears", "closing_balance",
             "management_fee", "service_fee", "total_commission", "total_expenses", "net_to_owner",
-            "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing"
+            "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing",
+            // Reconciliation columns for payment tracking
+            "allocated_amount", "variance", "allocation_status", "batch_id", "paid_date"
         };
 
         // Use shared styles instead of creating new ones
@@ -2350,6 +2354,19 @@ public class ExcelStatementGeneratorService {
         CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
+
+        // ===== PRE-FETCH ALLOCATION SUMMARIES FOR RECONCILIATION COLUMNS =====
+        List<Long> propertyIds = leaseMaster.stream()
+            .filter(l -> l.getPropertyId() != null)
+            .map(LeaseMasterDTO::getPropertyId)
+            .distinct()
+            .collect(Collectors.toList());
+
+        Map<Long, LeaseAllocationSummaryDTO> allocationSummaries =
+            dataExtractService.extractAllocationSummaryByProperty(
+                propertyIds, period.periodStart, period.periodEnd);
+
+        log.info("Pre-fetched allocation summaries for {} properties", allocationSummaries.size());
 
         // Generate rows for each lease that has started by this period
         // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
@@ -2538,6 +2555,43 @@ public class ExcelStatementGeneratorService {
                 row.createCell(col++).setCellValue(""); // property_account_closing
             }
 
+            // ===== RECONCILIATION COLUMNS (V-Z) =====
+            LeaseAllocationSummaryDTO allocSummary = lease.getPropertyId() != null ?
+                allocationSummaries.get(lease.getPropertyId()) : null;
+
+            // V: allocated_amount (sum of OWNER allocations)
+            Cell allocatedCell = row.createCell(col++);
+            if (allocSummary != null && allocSummary.getTotalAllocatedAmount() != null) {
+                allocatedCell.setCellValue(allocSummary.getTotalAllocatedAmount().doubleValue());
+            } else {
+                allocatedCell.setCellValue(0);
+            }
+            allocatedCell.setCellStyle(currencyStyle);
+
+            // W: variance (net_to_owner - allocated_amount) - P is net_to_owner, V is allocated
+            Cell varianceCell = row.createCell(col++);
+            varianceCell.setCellFormula(String.format("P%d-V%d", rowNum + 1, rowNum + 1));
+            varianceCell.setCellStyle(currencyStyle);
+
+            // X: allocation_status (PAID, PENDING, PARTIAL, NONE)
+            Cell statusCell = row.createCell(col++);
+            String status = determineAllocationStatus(allocSummary);
+            statusCell.setCellValue(status);
+
+            // Y: batch_id
+            Cell batchCell = row.createCell(col++);
+            batchCell.setCellValue(allocSummary != null && allocSummary.getPrimaryBatchId() != null ?
+                allocSummary.getPrimaryBatchId() : "-");
+
+            // Z: paid_date
+            Cell paidDateCell = row.createCell(col++);
+            if (allocSummary != null && allocSummary.getLatestPaymentDate() != null) {
+                paidDateCell.setCellValue(allocSummary.getLatestPaymentDate());
+                paidDateCell.setCellStyle(dateStyle);
+            } else {
+                paidDateCell.setCellValue("");
+            }
+
             rowNum++;
         }
 
@@ -2632,13 +2686,7 @@ public class ExcelStatementGeneratorService {
         // Add blank rows for separation
         rowNum += 2;
 
-        // Extract related payments for this period
-        List<Long> propertyIds = leaseMaster.stream()
-            .filter(l -> l.getPropertyId() != null)
-            .map(LeaseMasterDTO::getPropertyId)
-            .distinct()
-            .collect(Collectors.toList());
-
+        // Reuse propertyIds from allocation summaries extraction above
         log.info("RELATED PAYMENTS: Sheet {}, Period {} to {}, PropertyIds: {}",
             sheetName, period.periodStart, period.periodEnd, propertyIds);
 
@@ -3943,6 +3991,27 @@ public class ExcelStatementGeneratorService {
         applyFixedColumnWidths(sheet, headers.length);
 
         log.info("Owner Payments Summary sheet created with {} batches, total: {}", batchRefs.size(), totalPayments);
+    }
+
+    /**
+     * Determine allocation status for reconciliation column.
+     *
+     * @param summary The allocation summary for the property (can be null)
+     * @return Status string: PAID, PENDING, BATCHED, or NONE
+     */
+    private String determineAllocationStatus(LeaseAllocationSummaryDTO summary) {
+        if (summary == null || summary.getAllocationCount() == 0) {
+            return "NONE";  // No allocations exist
+        }
+
+        String paymentStatus = summary.getPaymentStatus();
+        if (paymentStatus == null) {
+            return "PENDING";
+        }
+
+        // Return the payment status directly
+        // Possible values: PAID, BATCHED, PENDING
+        return paymentStatus;
     }
 
     /**

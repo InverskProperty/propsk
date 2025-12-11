@@ -517,4 +517,40 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    /**
+     * Get allocation summary per property for reconciliation columns.
+     * Groups allocations by property and calculates:
+     * - Total OWNER allocations (money going to owner)
+     * - Payment status (highest status: PAID > BATCHED > PENDING)
+     * - Batch IDs (concatenated if multiple)
+     * - Latest paid date
+     * - Allocation count
+     */
+    @Query(value = """
+        SELECT
+            ua.property_id,
+            SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_owner_allocated,
+            MAX(ua.payment_status) as max_payment_status,
+            GROUP_CONCAT(DISTINCT ua.payment_batch_id SEPARATOR ', ') as batch_ids,
+            MAX(ua.paid_date) as latest_paid_date,
+            COUNT(*) as allocation_count
+        FROM unified_allocations ua
+        LEFT JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
+        LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+        LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+        WHERE ua.property_id IN :propertyIds
+          AND (
+              (uit.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ut.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ht.transaction_date BETWEEN :startDate AND :endDate)
+              OR (DATE(ua.created_at) BETWEEN :startDate AND :endDate)
+          )
+        GROUP BY ua.property_id
+    """, nativeQuery = true)
+    List<Object[]> getLeaseAllocationSummaryForPeriod(
+        @Param("propertyIds") List<Long> propertyIds,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }

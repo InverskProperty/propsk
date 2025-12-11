@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.dto.statement.CustomerDTO;
+import site.easy.to.build.crm.dto.statement.LeaseAllocationSummaryDTO;
 import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
 import site.easy.to.build.crm.dto.statement.PaymentBatchSummaryDTO;
 import site.easy.to.build.crm.dto.statement.PropertyDTO;
@@ -1589,5 +1590,89 @@ public class StatementDataExtractService {
 
         log.info("Extracted {} related payment batches for period", summaries.size());
         return summaries;
+    }
+
+    /**
+     * Extract allocation summary per property for reconciliation columns.
+     * Returns a map of propertyId -> LeaseAllocationSummaryDTO containing:
+     * - Total OWNER allocations (money allocated to owner)
+     * - Payment status (PAID, PENDING, BATCHED)
+     * - Batch ID(s)
+     * - Latest payment date
+     *
+     * @param propertyIds List of property IDs to query
+     * @param startDate Period start
+     * @param endDate Period end
+     * @return Map of propertyId to allocation summary
+     */
+    public Map<Long, LeaseAllocationSummaryDTO> extractAllocationSummaryByProperty(
+            List<Long> propertyIds, LocalDate startDate, LocalDate endDate) {
+
+        log.info("Extracting allocation summary for {} properties from {} to {}",
+            propertyIds.size(), startDate, endDate);
+
+        Map<Long, LeaseAllocationSummaryDTO> result = new HashMap<>();
+
+        if (propertyIds == null || propertyIds.isEmpty()) {
+            log.warn("No property IDs provided for allocation summary extraction");
+            return result;
+        }
+
+        try {
+            List<Object[]> summaryRows = unifiedAllocationRepository.getLeaseAllocationSummaryForPeriod(
+                propertyIds, startDate, endDate);
+
+            log.info("Query returned {} property allocation summaries", summaryRows != null ? summaryRows.size() : 0);
+
+            if (summaryRows != null) {
+                for (Object[] row : summaryRows) {
+                    LeaseAllocationSummaryDTO summary = new LeaseAllocationSummaryDTO();
+
+                    // Column 0: property_id
+                    Long propertyId = row[0] != null ? ((Number) row[0]).longValue() : null;
+                    summary.setPropertyId(propertyId);
+
+                    // Column 1: total_owner_allocated
+                    BigDecimal totalAllocated = row[1] != null ?
+                        new BigDecimal(row[1].toString()) : BigDecimal.ZERO;
+                    summary.setTotalAllocatedAmount(totalAllocated);
+
+                    // Column 2: max_payment_status
+                    String paymentStatus = row[2] != null ? row[2].toString() : "NONE";
+                    summary.setPaymentStatus(paymentStatus);
+
+                    // Column 3: batch_ids (comma-separated)
+                    String batchIds = row[3] != null ? row[3].toString() : null;
+                    if (batchIds != null && batchIds.contains(",")) {
+                        summary.setPrimaryBatchId("MULTIPLE");
+                    } else {
+                        summary.setPrimaryBatchId(batchIds != null ? batchIds : "-");
+                    }
+
+                    // Column 4: latest_paid_date
+                    if (row[4] != null) {
+                        if (row[4] instanceof java.sql.Date) {
+                            summary.setLatestPaymentDate(((java.sql.Date) row[4]).toLocalDate());
+                        } else if (row[4] instanceof LocalDate) {
+                            summary.setLatestPaymentDate((LocalDate) row[4]);
+                        }
+                    }
+
+                    // Column 5: allocation_count
+                    int count = row[5] != null ? ((Number) row[5]).intValue() : 0;
+                    summary.setAllocationCount(count);
+
+                    if (propertyId != null) {
+                        result.put(propertyId, summary);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error fetching allocation summary: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            e.printStackTrace();
+        }
+
+        log.info("Extracted allocation summaries for {} properties", result.size());
+        return result;
     }
 }
