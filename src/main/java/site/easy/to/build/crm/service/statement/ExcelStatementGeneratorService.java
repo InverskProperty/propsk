@@ -493,6 +493,11 @@ public class ExcelStatementGeneratorService {
         createSummarySheetForCustomPeriods(workbook, leaseMaster, statementPeriods, startDate, endDate, styles);
         log.info("✅ SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
+        // Create SUMMARY_CHECK sheet (calculates from monthly period tabs for verification)
+        sheetStart = System.currentTimeMillis();
+        createSummaryCheckSheet(workbook, leaseMaster, statementPeriods, styles);
+        log.info("✅ SUMMARY_CHECK sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
         // Create allocation tracking sheets for this owner - using shared styles
         // Resolve the actual owner ID (handles delegated users who manage another owner's properties)
         Long resolvedOwnerId = resolveActualOwnerId(customerId);
@@ -2722,19 +2727,25 @@ public class ExcelStatementGeneratorService {
                 totalArrearsCell.setCellFormula(String.format("G%d - H%d", rowNum + 1, rowNum + 1));
                 totalArrearsCell.setCellStyle(currencyStyle);
 
-                // J: total_management_fee
+                // J: total_management_fee - Use property-specific rate with fallback to global
+                double mgmtFeeRate = lease.getCommissionPercentage() != null
+                    ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal (0.10)
+                    : commissionConfig.getManagementFeePercent().doubleValue();
                 Cell totalMgmtFeeCell = row.createCell(col++);
-                totalMgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                totalMgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                 totalMgmtFeeCell.setCellStyle(currencyStyle);
 
-                // K: total_service_fee
+                // K: total_service_fee - Use property-specific rate with fallback to global
+                double svcFeeRate = lease.getServiceFeePercentage() != null
+                    ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal (0.05)
+                    : commissionConfig.getServiceFeePercent().doubleValue();
                 Cell totalSvcFeeCell = row.createCell(col++);
-                totalSvcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                totalSvcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                 totalSvcFeeCell.setCellStyle(currencyStyle);
 
-                // L: total_commission
+                // L: total_commission (with ABS to match period sheets)
                 Cell totalCommCell = row.createCell(col++);
-                totalCommCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
+                totalCommCell.setCellFormula(String.format("ABS(J%d + K%d)", rowNum + 1, rowNum + 1));
                 totalCommCell.setCellStyle(currencyStyle);
 
                 // M: total_expenses (SUM all expenses for this lease in the period)
@@ -2847,6 +2858,225 @@ public class ExcelStatementGeneratorService {
         applyFixedColumnWidths(sheet, headers.length);
 
         log.info("SUMMARY sheet created with {} rows", rowNum - 1);
+    }
+
+    /**
+     * TEMPORARY: Create SUMMARY_CHECK sheet that calculates totals from monthly period tabs
+     * This allows verification of SUMMARY calculations by comparing against period sheet data
+     */
+    private void createSummaryCheckSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
+                                         List<CustomPeriod> periods, WorkbookStyles styles) {
+        log.info("Creating SUMMARY_CHECK sheet (verification from period tabs)");
+
+        Sheet sheet = workbook.createSheet("SUMMARY_CHECK");
+
+        // Header row - match SUMMARY columns for easy comparison
+        Row header = sheet.createRow(0);
+        String[] headers = {
+            "lease_reference", "property_name", "customer_name", "tenant_name", "lease_start_date", "rent_due_day",
+            "total_rent_due", "total_rent_received", "total_arrears", "total_management_fee", "total_service_fee",
+            "total_commission", "total_expenses", "total_net_to_owner", "first_opening_balance", "last_closing_balance"
+        };
+
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(styles.headerStyle);
+        }
+
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
+
+        // Build list of period sheet names for formulas
+        List<String> sheetNames = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd");
+        DateTimeFormatter yearFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
+        for (CustomPeriod period : periods) {
+            String sheetName = period.periodStart.format(formatter) + " - " + period.periodEnd.format(yearFormatter);
+            sheetNames.add(sheetName);
+        }
+
+        int rowNum = 1;
+
+        // Generate rows for each lease
+        for (LeaseMasterDTO lease : leaseMaster) {
+            LocalDate leaseStart = lease.getStartDate();
+            LocalDate leaseEnd = lease.getEndDate();
+
+            // Check if lease was active during ANY period
+            boolean wasActiveInAnyPeriod = false;
+            for (CustomPeriod period : periods) {
+                boolean leaseActive = (leaseStart == null || !leaseStart.isAfter(period.periodEnd))
+                                   && (leaseEnd == null || !leaseEnd.isBefore(period.periodStart));
+                if (leaseActive) {
+                    wasActiveInAnyPeriod = true;
+                    break;
+                }
+            }
+
+            if (wasActiveInAnyPeriod) {
+                Row row = sheet.createRow(rowNum);
+                int col = 0;
+                String leaseRef = lease.getLeaseReference();
+
+                // A: lease_reference
+                row.createCell(col++).setCellValue(leaseRef);
+
+                // B: property_name
+                row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                // C: customer_name
+                row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+
+                // D: tenant_name
+                row.createCell(col++).setCellValue(lease.getTenantName() != null ? lease.getTenantName() : "");
+
+                // E: lease_start_date
+                Cell startDateCell = row.createCell(col++);
+                if (leaseStart != null) {
+                    startDateCell.setCellValue(leaseStart);
+                    startDateCell.setCellStyle(dateStyle);
+                }
+
+                // F: rent_due_day
+                row.createCell(col++).setCellValue(lease.getPaymentDay() != null ? lease.getPaymentDay() : 0);
+
+                // Build SUMIF formulas across all period sheets
+                // Period sheet columns: G=rent_due, H=rent_received, J=period_arrears, L=management_fee,
+                // M=service_fee, N=total_commission, O=total_expenses, P=net_to_owner, I=opening_balance, K=closing_balance
+
+                // G: total_rent_due - SUM of column G across all period sheets
+                Cell totalRentDueCell = row.createCell(col++);
+                StringBuilder rentDueFormula = new StringBuilder();
+                for (int i = 0; i < sheetNames.size(); i++) {
+                    if (i > 0) rentDueFormula.append("+");
+                    rentDueFormula.append(String.format("IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$G:$G),0)",
+                        sheetNames.get(i), leaseRef, sheetNames.get(i)));
+                }
+                totalRentDueCell.setCellFormula(rentDueFormula.toString());
+                totalRentDueCell.setCellStyle(currencyStyle);
+
+                // H: total_rent_received - SUM of column H across all period sheets
+                Cell totalRentReceivedCell = row.createCell(col++);
+                StringBuilder rentReceivedFormula = new StringBuilder();
+                for (int i = 0; i < sheetNames.size(); i++) {
+                    if (i > 0) rentReceivedFormula.append("+");
+                    rentReceivedFormula.append(String.format("IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$H:$H),0)",
+                        sheetNames.get(i), leaseRef, sheetNames.get(i)));
+                }
+                totalRentReceivedCell.setCellFormula(rentReceivedFormula.toString());
+                totalRentReceivedCell.setCellStyle(currencyStyle);
+
+                // I: total_arrears (formula: total_due - total_received)
+                Cell totalArrearsCell = row.createCell(col++);
+                totalArrearsCell.setCellFormula(String.format("G%d - H%d", rowNum + 1, rowNum + 1));
+                totalArrearsCell.setCellStyle(currencyStyle);
+
+                // J: total_management_fee - SUM of column L across all period sheets
+                Cell totalMgmtFeeCell = row.createCell(col++);
+                StringBuilder mgmtFeeFormula = new StringBuilder();
+                for (int i = 0; i < sheetNames.size(); i++) {
+                    if (i > 0) mgmtFeeFormula.append("+");
+                    mgmtFeeFormula.append(String.format("IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$L:$L),0)",
+                        sheetNames.get(i), leaseRef, sheetNames.get(i)));
+                }
+                totalMgmtFeeCell.setCellFormula(mgmtFeeFormula.toString());
+                totalMgmtFeeCell.setCellStyle(currencyStyle);
+
+                // K: total_service_fee - SUM of column M across all period sheets
+                Cell totalSvcFeeCell = row.createCell(col++);
+                StringBuilder svcFeeFormula = new StringBuilder();
+                for (int i = 0; i < sheetNames.size(); i++) {
+                    if (i > 0) svcFeeFormula.append("+");
+                    svcFeeFormula.append(String.format("IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$M:$M),0)",
+                        sheetNames.get(i), leaseRef, sheetNames.get(i)));
+                }
+                totalSvcFeeCell.setCellFormula(svcFeeFormula.toString());
+                totalSvcFeeCell.setCellStyle(currencyStyle);
+
+                // L: total_commission - SUM of column N across all period sheets
+                Cell totalCommCell = row.createCell(col++);
+                StringBuilder commFormula = new StringBuilder();
+                for (int i = 0; i < sheetNames.size(); i++) {
+                    if (i > 0) commFormula.append("+");
+                    commFormula.append(String.format("IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$N:$N),0)",
+                        sheetNames.get(i), leaseRef, sheetNames.get(i)));
+                }
+                totalCommCell.setCellFormula(commFormula.toString());
+                totalCommCell.setCellStyle(currencyStyle);
+
+                // M: total_expenses - SUM of column O across all period sheets
+                Cell totalExpensesCell = row.createCell(col++);
+                StringBuilder expensesFormula = new StringBuilder();
+                for (int i = 0; i < sheetNames.size(); i++) {
+                    if (i > 0) expensesFormula.append("+");
+                    expensesFormula.append(String.format("IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$O:$O),0)",
+                        sheetNames.get(i), leaseRef, sheetNames.get(i)));
+                }
+                totalExpensesCell.setCellFormula(expensesFormula.toString());
+                totalExpensesCell.setCellStyle(currencyStyle);
+
+                // N: total_net_to_owner - SUM of column P across all period sheets
+                Cell totalNetCell = row.createCell(col++);
+                StringBuilder netFormula = new StringBuilder();
+                for (int i = 0; i < sheetNames.size(); i++) {
+                    if (i > 0) netFormula.append("+");
+                    netFormula.append(String.format("IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$P:$P),0)",
+                        sheetNames.get(i), leaseRef, sheetNames.get(i)));
+                }
+                totalNetCell.setCellFormula(netFormula.toString());
+                totalNetCell.setCellStyle(currencyStyle);
+
+                // O: first_opening_balance - Get from FIRST period sheet column I
+                Cell openingBalanceCell = row.createCell(col++);
+                if (!sheetNames.isEmpty()) {
+                    openingBalanceCell.setCellFormula(String.format(
+                        "IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$I:$I),0)",
+                        sheetNames.get(0), leaseRef, sheetNames.get(0)));
+                } else {
+                    openingBalanceCell.setCellValue(0);
+                }
+                openingBalanceCell.setCellStyle(currencyStyle);
+
+                // P: last_closing_balance - Get from LAST period sheet column K
+                Cell closingBalanceCell = row.createCell(col++);
+                if (!sheetNames.isEmpty()) {
+                    String lastSheet = sheetNames.get(sheetNames.size() - 1);
+                    closingBalanceCell.setCellFormula(String.format(
+                        "IFERROR(SUMIF('%s'!$A:$A,\"%s\",'%s'!$K:$K),0)",
+                        lastSheet, leaseRef, lastSheet));
+                } else {
+                    closingBalanceCell.setCellValue(0);
+                }
+                closingBalanceCell.setCellStyle(currencyStyle);
+
+                rowNum++;
+            }
+        }
+
+        // Add totals row
+        if (rowNum > 1) {
+            Row totalsRow = sheet.createRow(rowNum);
+            int col = 0;
+
+            Cell labelCell = totalsRow.createCell(col++);
+            labelCell.setCellValue("TOTALS");
+            labelCell.setCellStyle(styles.boldStyle);
+
+            // Skip columns B-F
+            col += 5;
+
+            // G-P: Sum totals
+            String[] sumCols = {"G", "H", "I", "J", "K", "L", "M", "N", "O", "P"};
+            for (String sumCol : sumCols) {
+                Cell totalCell = totalsRow.createCell(col++);
+                totalCell.setCellFormula(String.format("SUM(%s2:%s%d)", sumCol, sumCol, rowNum));
+                totalCell.setCellStyle(styles.boldCurrencyStyle);
+            }
+        }
+
+        applyFixedColumnWidths(sheet, headers.length);
+        log.info("SUMMARY_CHECK sheet created with {} rows", rowNum - 1);
     }
 
     /**
