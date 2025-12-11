@@ -2639,12 +2639,20 @@ public class ExcelStatementGeneratorService {
             .distinct()
             .collect(Collectors.toList());
 
+        log.info("RELATED PAYMENTS: Sheet {}, Period {} to {}, PropertyIds: {}",
+            sheetName, period.periodStart, period.periodEnd, propertyIds);
+
         if (!propertyIds.isEmpty()) {
             List<PaymentBatchSummaryDTO> relatedPayments =
                 dataExtractService.extractRelatedPaymentsForPeriod(
                     propertyIds, period.periodStart, period.periodEnd);
 
+            log.info("RELATED PAYMENTS: Found {} payment batches for sheet {}",
+                relatedPayments != null ? relatedPayments.size() : 0, sheetName);
+
             rowNum = createRelatedPaymentsSection(sheet, rowNum, relatedPayments, styles);
+        } else {
+            log.warn("RELATED PAYMENTS: No property IDs found in leaseMaster for sheet {}", sheetName);
         }
 
         log.info("{} sheet created with {} rows (including related payments)", sheetName, rowNum - 1);

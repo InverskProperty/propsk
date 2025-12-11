@@ -461,7 +461,11 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     /**
      * Find all allocations for properties within a date range.
      * Used to show RELATED PAYMENTS section on monthly statement tabs.
-     * Links allocations to transactions via incoming_transaction_id to filter by transaction date.
+     *
+     * Tries multiple join paths since allocations can be linked via:
+     * 1. unified_transaction_id -> unified_transactions (primary for PayProp data)
+     * 2. historical_transaction_id -> historical_transactions (legacy data)
+     * 3. property_id directly on allocations (fallback)
      *
      * @param propertyIds List of property IDs from the statement's lease master
      * @param startDate Period start date
@@ -469,11 +473,15 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      * @return Allocations for transactions within the period that have been assigned to payment batches
      */
     @Query(value = """
-        SELECT ua.* FROM unified_allocations ua
-        INNER JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
-        WHERE ua.property_id IN :propertyIds
-          AND uit.transaction_date BETWEEN :startDate AND :endDate
-          AND ua.payment_batch_id IS NOT NULL
+        SELECT DISTINCT ua.* FROM unified_allocations ua
+        LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+        LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+        WHERE ua.payment_batch_id IS NOT NULL
+          AND (
+            (ut.property_id IN :propertyIds AND ut.transaction_date BETWEEN :startDate AND :endDate)
+            OR (ht.property_id IN :propertyIds AND ht.transaction_date BETWEEN :startDate AND :endDate)
+            OR (ua.property_id IN :propertyIds AND DATE(ua.created_at) BETWEEN :startDate AND :endDate)
+          )
         ORDER BY ua.payment_batch_id, ua.property_name, ua.allocation_type
     """, nativeQuery = true)
     List<UnifiedAllocation> findAllocationsForPropertiesInPeriod(
@@ -485,13 +493,24 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     /**
      * Find all allocations (including unbatched) for properties within a date range.
      * Used to show both batched and pending allocations in RELATED PAYMENTS section.
+     *
+     * Joins to ALL three possible transaction sources:
+     * - unified_incoming_transactions via incoming_transaction_id (primary link)
+     * - unified_transactions via unified_transaction_id
+     * - historical_transactions via historical_transaction_id
      */
     @Query(value = """
-        SELECT ua.* FROM unified_allocations ua
-        INNER JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
-        WHERE ua.property_id IN :propertyIds
-          AND uit.transaction_date BETWEEN :startDate AND :endDate
-        ORDER BY ua.payment_batch_id NULLS LAST, ua.property_name, ua.allocation_type
+        SELECT DISTINCT ua.* FROM unified_allocations ua
+        LEFT JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
+        LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+        LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+        WHERE (
+            (uit.property_id IN :propertyIds AND uit.transaction_date BETWEEN :startDate AND :endDate)
+            OR (ut.property_id IN :propertyIds AND ut.transaction_date BETWEEN :startDate AND :endDate)
+            OR (ht.property_id IN :propertyIds AND ht.transaction_date BETWEEN :startDate AND :endDate)
+            OR (ua.property_id IN :propertyIds AND DATE(ua.created_at) BETWEEN :startDate AND :endDate)
+        )
+        ORDER BY ua.payment_batch_id, ua.property_name, ua.allocation_type
     """, nativeQuery = true)
     List<UnifiedAllocation> findAllAllocationsForPropertiesInPeriod(
         @Param("propertyIds") List<Long> propertyIds,

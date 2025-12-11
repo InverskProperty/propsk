@@ -1465,6 +1465,7 @@ public class StatementDataExtractService {
 
         log.info("Extracting related payments for {} properties from {} to {}",
             propertyIds.size(), startDate, endDate);
+        log.info("Property IDs being searched: {}", propertyIds);
 
         if (propertyIds == null || propertyIds.isEmpty()) {
             log.warn("No property IDs provided for related payments extraction");
@@ -1476,13 +1477,17 @@ public class StatementDataExtractService {
         try {
             allocations = unifiedAllocationRepository.findAllAllocationsForPropertiesInPeriod(
                 propertyIds, startDate, endDate);
+            log.info("Query returned {} allocations", allocations != null ? allocations.size() : 0);
         } catch (Exception e) {
-            log.warn("Error fetching allocations for related payments: {}", e.getMessage());
+            log.warn("Error fetching allocations for related payments: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            e.printStackTrace();
             return new ArrayList<>();
         }
 
         if (allocations == null || allocations.isEmpty()) {
-            log.info("No allocations found for properties in period {} to {}", startDate, endDate);
+            log.info("No allocations found for properties {} in period {} to {}. " +
+                    "This may mean allocations haven't been created yet for these transactions.",
+                propertyIds, startDate, endDate);
             return new ArrayList<>();
         }
 
