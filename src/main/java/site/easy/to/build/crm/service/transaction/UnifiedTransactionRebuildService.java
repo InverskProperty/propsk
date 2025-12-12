@@ -72,14 +72,20 @@ public class UnifiedTransactionRebuildService {
             result.put("paypropRecordsInserted", paypropCount);
             log.info("✅ Inserted {} records from financial_transactions", paypropCount);
 
-            // Step 4: Migrate allocations to unified layer
+            // Step 4: Migrate allocations to unified layer (link unified_transaction_id)
             log.info("📋 Step 4: Migrating allocations to unified_transactions...");
             int migratedAllocations = migrateAllocationsToUnified();
             result.put("migratedAllocations", migratedAllocations);
             log.info("✅ Migrated {} allocations to unified_transaction_id", migratedAllocations);
 
-            // Step 5: Verify rebuild
-            log.info("📋 Step 5: Verifying rebuild...");
+            // Step 5: Sync allocations to unified_allocations table
+            log.info("📋 Step 5: Syncing allocations to unified_allocations...");
+            int syncedAllocations = syncAllocationsToUnifiedAllocations(batchId);
+            result.put("syncedAllocations", syncedAllocations);
+            log.info("✅ Synced {} allocations to unified_allocations", syncedAllocations);
+
+            // Step 6: Verify rebuild
+            log.info("📋 Step 6: Verifying rebuild...");
             Map<String, Object> verification = verifyRebuild();
             result.put("verification", verification);
 
@@ -258,6 +264,88 @@ public class UnifiedTransactionRebuildService {
             )
             WHERE tba.unified_transaction_id IS NULL
               AND tba.transaction_id IS NOT NULL
+        """;
+
+        return jdbcTemplate.update(sql);
+    }
+
+    /**
+     * Sync allocations from transaction_batch_allocations to unified_allocations
+     * Maps the legacy allocation table to the new unified allocation structure
+     */
+    private int syncAllocationsToUnifiedAllocations(String batchId) {
+        // Step 5a: Truncate unified_allocations
+        log.info("  📋 Step 5a: Truncating unified_allocations...");
+        jdbcTemplate.execute("TRUNCATE TABLE unified_allocations");
+
+        // Step 5b: Insert from transaction_batch_allocations with proper mapping
+        log.info("  📋 Step 5b: Inserting from transaction_batch_allocations...");
+
+        String sql = """
+            INSERT INTO unified_allocations (
+                incoming_transaction_id,
+                unified_transaction_id,
+                historical_transaction_id,
+                allocation_type,
+                amount,
+                category,
+                description,
+                property_id,
+                property_name,
+                beneficiary_type,
+                beneficiary_id,
+                beneficiary_name,
+                payment_status,
+                payment_batch_id,
+                paid_date,
+                source,
+                source_record_id,
+                created_at,
+                updated_at,
+                created_by
+            )
+            SELECT
+                -- incoming_transaction_id: use unified_transaction_id if available
+                tba.unified_transaction_id as incoming_transaction_id,
+                tba.unified_transaction_id,
+                tba.transaction_id as historical_transaction_id,
+                -- allocation_type based on category
+                CASE
+                    WHEN ht.category IN ('management', 'agency_fee', 'commission')
+                         OR ht.category LIKE '%commission%' OR ht.category LIKE '%Commission%'
+                    THEN 'COMMISSION'
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance')
+                         OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%'
+                    THEN 'EXPENSE'
+                    ELSE 'OWNER'
+                END as allocation_type,
+                ABS(tba.allocated_amount) as amount,
+                ht.category,
+                ht.description,
+                tba.property_id,
+                COALESCE(tba.property_name, p.property_name) as property_name,
+                'OWNER' as beneficiary_type,
+                tba.beneficiary_id,
+                COALESCE(tba.beneficiary_name, c.name) as beneficiary_name,
+                -- payment_status from PaymentBatch
+                CASE
+                    WHEN pb.status = 'PAID' THEN 'PAID'
+                    WHEN pb.status IN ('PENDING', 'DRAFT') THEN 'PENDING'
+                    ELSE 'PENDING'
+                END as payment_status,
+                tba.batch_reference as payment_batch_id,
+                -- paid_date only if PAID
+                CASE WHEN pb.status = 'PAID' THEN pb.payment_date ELSE NULL END as paid_date,
+                'MANUAL' as source,
+                tba.id as source_record_id,
+                tba.created_at,
+                NOW() as updated_at,
+                tba.created_by
+            FROM transaction_batch_allocations tba
+            LEFT JOIN historical_transactions ht ON tba.transaction_id = ht.id
+            LEFT JOIN properties p ON tba.property_id = p.id
+            LEFT JOIN customers c ON tba.beneficiary_id = c.customer_id
+            LEFT JOIN payment_batches pb ON tba.batch_reference COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
         """;
 
         return jdbcTemplate.update(sql);
