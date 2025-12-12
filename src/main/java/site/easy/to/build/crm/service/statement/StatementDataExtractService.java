@@ -1675,4 +1675,130 @@ public class StatementDataExtractService {
         log.info("Extracted allocation summaries for {} properties", result.size());
         return result;
     }
+
+    /**
+     * Extract batch references by property and allocation type.
+     * Returns a nested map: propertyId -> allocationType -> batchIds (comma-separated)
+     * Used to populate batch reference columns on monthly statement rows.
+     */
+    public Map<Long, Map<String, String>> extractBatchRefsByPropertyAndType(
+            List<Long> propertyIds, LocalDate startDate, LocalDate endDate) {
+
+        log.info("Extracting batch refs for {} properties from {} to {}",
+            propertyIds.size(), startDate, endDate);
+
+        Map<Long, Map<String, String>> result = new HashMap<>();
+
+        if (propertyIds == null || propertyIds.isEmpty()) {
+            return result;
+        }
+
+        try {
+            List<Object[]> rows = unifiedAllocationRepository.getBatchRefsByPropertyAndType(
+                propertyIds, startDate, endDate);
+
+            if (rows != null) {
+                for (Object[] row : rows) {
+                    Long propertyId = row[0] != null ? ((Number) row[0]).longValue() : null;
+                    String allocationType = row[1] != null ? row[1].toString() : null;
+                    String batchIds = row[2] != null ? row[2].toString() : "";
+
+                    if (propertyId != null && allocationType != null) {
+                        result.computeIfAbsent(propertyId, k -> new HashMap<>())
+                              .put(allocationType, batchIds);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error fetching batch refs: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
+        log.info("Extracted batch refs for {} properties", result.size());
+        return result;
+    }
+
+    /**
+     * Extract payment batch summaries for reconciliation section.
+     * Returns list of batch summaries with total paid amounts.
+     */
+    public List<PaymentBatchSummaryDTO> extractPaymentBatchSummariesForPeriod(
+            List<Long> propertyIds, LocalDate startDate, LocalDate endDate) {
+
+        log.info("Extracting payment batch summaries for {} properties from {} to {}",
+            propertyIds.size(), startDate, endDate);
+
+        List<PaymentBatchSummaryDTO> result = new ArrayList<>();
+
+        if (propertyIds == null || propertyIds.isEmpty()) {
+            return result;
+        }
+
+        try {
+            List<Object[]> rows = unifiedAllocationRepository.getPaymentBatchSummariesForPeriod(
+                propertyIds, startDate, endDate);
+
+            if (rows != null) {
+                for (Object[] row : rows) {
+                    PaymentBatchSummaryDTO summary = new PaymentBatchSummaryDTO();
+
+                    // Column 0: batch_id
+                    summary.setBatchId(row[0] != null ? row[0].toString() : "");
+
+                    // Column 1: payment_date
+                    if (row[1] != null) {
+                        if (row[1] instanceof java.sql.Date) {
+                            summary.setPaymentDate(((java.sql.Date) row[1]).toLocalDate());
+                        } else if (row[1] instanceof LocalDate) {
+                            summary.setPaymentDate((LocalDate) row[1]);
+                        }
+                    }
+
+                    // Column 2: status
+                    summary.setBatchStatus(row[2] != null ? row[2].toString() : "");
+
+                    // Column 3: total_owner
+                    BigDecimal totalOwner = row[3] != null ?
+                        new BigDecimal(row[3].toString()) : BigDecimal.ZERO;
+                    summary.setTotalOwnerAllocations(totalOwner);
+
+                    // Column 4: total_expense
+                    BigDecimal totalExpense = row[4] != null ?
+                        new BigDecimal(row[4].toString()) : BigDecimal.ZERO;
+                    summary.setTotalExpenseAllocations(totalExpense);
+
+                    // Column 5: total_commission
+                    BigDecimal totalCommission = row[5] != null ?
+                        new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+                    summary.setTotalCommissionAllocations(totalCommission);
+
+                    // Column 6: net_payment
+                    BigDecimal netPayment = row[6] != null ?
+                        new BigDecimal(row[6].toString()) : BigDecimal.ZERO;
+                    summary.setNetPayment(netPayment);
+
+                    result.add(summary);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error fetching payment batch summaries: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
+        log.info("Extracted {} payment batch summaries", result.size());
+        return result;
+    }
+
+    /**
+     * Calculate total payments made for a period.
+     * Used for running balance calculation in Payment Reconciliation.
+     */
+    public BigDecimal calculateTotalPaymentsForPeriod(
+            List<Long> propertyIds, LocalDate startDate, LocalDate endDate) {
+
+        List<PaymentBatchSummaryDTO> batches = extractPaymentBatchSummariesForPeriod(
+            propertyIds, startDate, endDate);
+
+        return batches.stream()
+            .map(PaymentBatchSummaryDTO::getNetPayment)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 }

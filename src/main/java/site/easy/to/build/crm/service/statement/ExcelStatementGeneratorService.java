@@ -2335,8 +2335,11 @@ public class ExcelStatementGeneratorService {
         Row header = sheet.createRow(0);
         String[] headers = {
             "lease_reference", "property_name", "customer_name", "tenant_name", "lease_start_date", "rent_due_day",
-            "rent_due", "rent_received", "opening_balance", "period_arrears", "closing_balance",
-            "management_fee", "service_fee", "total_commission", "total_expenses", "net_to_owner",
+            "rent_due", "rent_received", "rent_batch",  // Batch ref for income
+            "opening_balance", "period_arrears", "closing_balance",
+            "management_fee", "service_fee", "total_commission", "commission_batch",  // Batch ref for commission
+            "total_expenses", "expenses_batch",  // Batch ref for expenses
+            "net_to_owner",
             "block_name", "property_account_opening", "property_account_in", "property_account_out", "property_account_closing",
             // Reconciliation columns for payment tracking
             "allocated_amount", "variance", "allocation_status", "batch_id", "paid_date"
@@ -2367,6 +2370,13 @@ public class ExcelStatementGeneratorService {
                 propertyIds, period.periodStart, period.periodEnd);
 
         log.info("Pre-fetched allocation summaries for {} properties", allocationSummaries.size());
+
+        // ===== PRE-FETCH BATCH REFS BY PROPERTY AND TYPE =====
+        Map<Long, Map<String, String>> batchRefsByPropertyAndType =
+            dataExtractService.extractBatchRefsByPropertyAndType(
+                propertyIds, period.periodStart, period.periodEnd);
+
+        log.info("Pre-fetched batch refs for {} properties", batchRefsByPropertyAndType.size());
 
         // Generate rows for each lease that has started by this period
         // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
@@ -2442,7 +2452,14 @@ public class ExcelStatementGeneratorService {
             ));
             rentReceivedCell.setCellStyle(currencyStyle);
 
-            // I: opening_balance (cumulative arrears BEFORE this period)
+            // I: rent_batch (batch references for income allocations - OWNER type)
+            Cell rentBatchCell = row.createCell(col++);
+            Map<String, String> propertyBatchRefs = lease.getPropertyId() != null ?
+                batchRefsByPropertyAndType.get(lease.getPropertyId()) : null;
+            String rentBatchRef = propertyBatchRefs != null ? propertyBatchRefs.get("OWNER") : null;
+            rentBatchCell.setCellValue(rentBatchRef != null ? rentBatchRef : "");
+
+            // J: opening_balance (cumulative arrears BEFORE this period)
             // SXSSF: Calculate via Excel formula using RENT_DUE and TRANSACTIONS sheets
             // Opening Balance = (Total Rent Due before period) - (Total Payments before period)
             // RENT_DUE columns: B=lease_reference, D=period_start, L=prorated_rent_due
@@ -2486,12 +2503,17 @@ public class ExcelStatementGeneratorService {
             svcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
             svcFeeCell.setCellStyle(currencyStyle);
 
-            // N: total_commission (formula: ABS(mgmt + svc)) - L is mgmt_fee, M is svc_fee
+            // O: total_commission (formula: ABS(mgmt + svc)) - M is mgmt_fee, N is svc_fee
             Cell totalCommCell = row.createCell(col++);
-            totalCommCell.setCellFormula(String.format("ABS(L%d + M%d)", rowNum + 1, rowNum + 1));
+            totalCommCell.setCellFormula(String.format("ABS(M%d + N%d)", rowNum + 1, rowNum + 1));
             totalCommCell.setCellStyle(currencyStyle);
 
-            // O: total_expenses (SUMIFS to EXPENSES sheet)
+            // P: commission_batch (batch references for commission allocations)
+            Cell commissionBatchCell = row.createCell(col++);
+            String commissionBatchRef = propertyBatchRefs != null ? propertyBatchRefs.get("COMMISSION") : null;
+            commissionBatchCell.setCellValue(commissionBatchRef != null ? commissionBatchRef : "");
+
+            // Q: total_expenses (SUMIFS to EXPENSES sheet)
             // ✅ NEW: Flat EXPENSES sheet - sum expenses where expense_date falls within the period
             Cell expensesCell = row.createCell(col++);
             expensesCell.setCellFormula(String.format(
@@ -2502,14 +2524,19 @@ public class ExcelStatementGeneratorService {
             ));
             expensesCell.setCellStyle(currencyStyle);
 
-            // P: net_to_owner (formula: rent_received - total_commission - expenses) - H is rent_received, N is commission, O is expenses
+            // R: expenses_batch (batch references for expense allocations)
+            Cell expensesBatchCell = row.createCell(col++);
+            String expensesBatchRef = propertyBatchRefs != null ? propertyBatchRefs.get("EXPENSE") : null;
+            expensesBatchCell.setCellValue(expensesBatchRef != null ? expensesBatchRef : "");
+
+            // S: net_to_owner (formula: rent_received - total_commission - expenses) - H is rent_received, O is commission, Q is expenses
             Cell netToOwnerCell = row.createCell(col++);
-            netToOwnerCell.setCellFormula(String.format("H%d - N%d - O%d", rowNum + 1, rowNum + 1, rowNum + 1));
+            netToOwnerCell.setCellFormula(String.format("H%d - O%d - Q%d", rowNum + 1, rowNum + 1, rowNum + 1));
             netToOwnerCell.setCellStyle(currencyStyle);
 
             // ===== Block Property and Property Account Balance Columns =====
 
-            // Q: block_name (for grouping)
+            // T: block_name (for grouping)
             Cell blockNameCell = row.createCell(col++);
             if (lease.getBlockName() != null) {
                 blockNameCell.setCellValue(lease.getBlockName());
@@ -2517,35 +2544,35 @@ public class ExcelStatementGeneratorService {
                 blockNameCell.setCellValue(""); // Not part of a block
             }
 
-            // Columns R-U: Property account balance tracking (only for properties in blocks)
+            // Columns U-X: Property account balance tracking (only for properties in blocks)
             if (lease.belongsToBlock() && lease.getBlockName() != null) {
-                // R: property_account_opening - SUMIFS from PROPERTY_ACCOUNT sheet
+                // U: property_account_opening - SUMIFS from PROPERTY_ACCOUNT sheet
                 Cell propAcctOpeningCell = row.createCell(col++);
                 propAcctOpeningCell.setCellFormula(String.format(
-                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"opening\"), 0)",
+                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, T%d, PROPERTY_ACCOUNT!B:B, \"opening\"), 0)",
                     rowNum + 1
                 ));
                 propAcctOpeningCell.setCellStyle(currencyStyle);
 
-                // S: property_account_in - inflows from PROPERTY_ACCOUNT sheet
+                // V: property_account_in - inflows from PROPERTY_ACCOUNT sheet
                 Cell propAcctInCell = row.createCell(col++);
                 propAcctInCell.setCellFormula(String.format(
-                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"in\"), 0)",
+                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, T%d, PROPERTY_ACCOUNT!B:B, \"in\"), 0)",
                     rowNum + 1
                 ));
                 propAcctInCell.setCellStyle(currencyStyle);
 
-                // T: property_account_out - outflows from PROPERTY_ACCOUNT sheet
+                // W: property_account_out - outflows from PROPERTY_ACCOUNT sheet
                 Cell propAcctOutCell = row.createCell(col++);
                 propAcctOutCell.setCellFormula(String.format(
-                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, Q%d, PROPERTY_ACCOUNT!B:B, \"out\"), 0)",
+                    "IFERROR(SUMIFS(PROPERTY_ACCOUNT!D:D, PROPERTY_ACCOUNT!A:A, T%d, PROPERTY_ACCOUNT!B:B, \"out\"), 0)",
                     rowNum + 1
                 ));
                 propAcctOutCell.setCellStyle(currencyStyle);
 
-                // U: property_account_closing (opening + in - out)
+                // X: property_account_closing (opening + in - out)
                 Cell propAcctClosingCell = row.createCell(col++);
-                propAcctClosingCell.setCellFormula(String.format("R%d + S%d - T%d", rowNum + 1, rowNum + 1, rowNum + 1));
+                propAcctClosingCell.setCellFormula(String.format("U%d + V%d - W%d", rowNum + 1, rowNum + 1, rowNum + 1));
                 propAcctClosingCell.setCellStyle(currencyStyle);
             } else {
                 // Not a block property - leave cells empty
@@ -2555,11 +2582,11 @@ public class ExcelStatementGeneratorService {
                 row.createCell(col++).setCellValue(""); // property_account_closing
             }
 
-            // ===== RECONCILIATION COLUMNS (V-Z) =====
+            // ===== RECONCILIATION COLUMNS (Y-AC) =====
             LeaseAllocationSummaryDTO allocSummary = lease.getPropertyId() != null ?
                 allocationSummaries.get(lease.getPropertyId()) : null;
 
-            // V: allocated_amount (sum of OWNER allocations)
+            // Y: allocated_amount (sum of OWNER allocations)
             Cell allocatedCell = row.createCell(col++);
             if (allocSummary != null && allocSummary.getTotalAllocatedAmount() != null) {
                 allocatedCell.setCellValue(allocSummary.getTotalAllocatedAmount().doubleValue());
@@ -2568,22 +2595,22 @@ public class ExcelStatementGeneratorService {
             }
             allocatedCell.setCellStyle(currencyStyle);
 
-            // W: variance (net_to_owner - allocated_amount) - P is net_to_owner, V is allocated
+            // Z: variance (net_to_owner - allocated_amount) - S is net_to_owner, Y is allocated
             Cell varianceCell = row.createCell(col++);
-            varianceCell.setCellFormula(String.format("P%d-V%d", rowNum + 1, rowNum + 1));
+            varianceCell.setCellFormula(String.format("S%d-Y%d", rowNum + 1, rowNum + 1));
             varianceCell.setCellStyle(currencyStyle);
 
-            // X: allocation_status (PAID, PENDING, PARTIAL, NONE)
+            // AA: allocation_status (PAID, PENDING, PARTIAL, NONE)
             Cell statusCell = row.createCell(col++);
             String status = determineAllocationStatus(allocSummary);
             statusCell.setCellValue(status);
 
-            // Y: batch_id
+            // AB: batch_id
             Cell batchCell = row.createCell(col++);
             batchCell.setCellValue(allocSummary != null && allocSummary.getPrimaryBatchId() != null ?
                 allocSummary.getPrimaryBatchId() : "-");
 
-            // Z: paid_date
+            // AC: paid_date
             Cell paidDateCell = row.createCell(col++);
             if (allocSummary != null && allocSummary.getLatestPaymentDate() != null) {
                 paidDateCell.setCellValue(allocSummary.getLatestPaymentDate());
@@ -2618,77 +2645,106 @@ public class ExcelStatementGeneratorService {
             totalRentReceivedCell.setCellFormula(String.format("SUM(H2:H%d)", rowNum));
             totalRentReceivedCell.setCellStyle(styles.boldCurrencyStyle);
 
-            // I: total_opening_balance
-            Cell totalOpeningBalanceCell = totalsRow.createCell(col++);
-            totalOpeningBalanceCell.setCellFormula(String.format("SUM(I2:I%d)", rowNum));
-            totalOpeningBalanceCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // J: total_period_arrears
-            Cell totalPeriodArrearsCell = totalsRow.createCell(col++);
-            totalPeriodArrearsCell.setCellFormula(String.format("SUM(J2:J%d)", rowNum));
-            totalPeriodArrearsCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // K: total_closing_balance
-            Cell totalClosingBalanceCell = totalsRow.createCell(col++);
-            totalClosingBalanceCell.setCellFormula(String.format("SUM(K2:K%d)", rowNum));
-            totalClosingBalanceCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // L: total_management_fee
-            Cell totalMgmtFeeCell = totalsRow.createCell(col++);
-            totalMgmtFeeCell.setCellFormula(String.format("SUM(L2:L%d)", rowNum));
-            totalMgmtFeeCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // M: total_service_fee
-            Cell totalSvcFeeCell = totalsRow.createCell(col++);
-            totalSvcFeeCell.setCellFormula(String.format("SUM(M2:M%d)", rowNum));
-            totalSvcFeeCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // N: total_commission
-            Cell totalCommCell = totalsRow.createCell(col++);
-            totalCommCell.setCellFormula(String.format("SUM(N2:N%d)", rowNum));
-            totalCommCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // O: total_expenses
-            Cell totalExpensesCell = totalsRow.createCell(col++);
-            totalExpensesCell.setCellFormula(String.format("SUM(O2:O%d)", rowNum));
-            totalExpensesCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // P: total_net_to_owner
-            Cell totalNetCell = totalsRow.createCell(col++);
-            totalNetCell.setCellFormula(String.format("SUM(P2:P%d)", rowNum));
-            totalNetCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // Q: block_name (no total - just skip)
+            // I: rent_batch (skip - no total)
             totalsRow.createCell(col++).setCellValue("");
 
-            // R-U: Property account balance totals
+            // J: total_opening_balance
+            Cell totalOpeningBalanceCell = totalsRow.createCell(col++);
+            totalOpeningBalanceCell.setCellFormula(String.format("SUM(J2:J%d)", rowNum));
+            totalOpeningBalanceCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // K: total_period_arrears
+            Cell totalPeriodArrearsCell = totalsRow.createCell(col++);
+            totalPeriodArrearsCell.setCellFormula(String.format("SUM(K2:K%d)", rowNum));
+            totalPeriodArrearsCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // L: total_closing_balance
+            Cell totalClosingBalanceCell = totalsRow.createCell(col++);
+            totalClosingBalanceCell.setCellFormula(String.format("SUM(L2:L%d)", rowNum));
+            totalClosingBalanceCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // M: total_management_fee
+            Cell totalMgmtFeeCell = totalsRow.createCell(col++);
+            totalMgmtFeeCell.setCellFormula(String.format("SUM(M2:M%d)", rowNum));
+            totalMgmtFeeCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // N: total_service_fee
+            Cell totalSvcFeeCell = totalsRow.createCell(col++);
+            totalSvcFeeCell.setCellFormula(String.format("SUM(N2:N%d)", rowNum));
+            totalSvcFeeCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // O: total_commission
+            Cell totalCommCell = totalsRow.createCell(col++);
+            totalCommCell.setCellFormula(String.format("SUM(O2:O%d)", rowNum));
+            totalCommCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // P: commission_batch (skip - no total)
+            totalsRow.createCell(col++).setCellValue("");
+
+            // Q: total_expenses
+            Cell totalExpensesCell = totalsRow.createCell(col++);
+            totalExpensesCell.setCellFormula(String.format("SUM(Q2:Q%d)", rowNum));
+            totalExpensesCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // R: expenses_batch (skip - no total)
+            totalsRow.createCell(col++).setCellValue("");
+
+            // S: total_net_to_owner
+            Cell totalNetCell = totalsRow.createCell(col++);
+            totalNetCell.setCellFormula(String.format("SUM(S2:S%d)", rowNum));
+            totalNetCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // T: block_name (no total - just skip)
+            totalsRow.createCell(col++).setCellValue("");
+
+            // U-X: Property account balance totals
             Cell totalPropAcctOpeningCell = totalsRow.createCell(col++);
-            totalPropAcctOpeningCell.setCellFormula(String.format("SUM(R2:R%d)", rowNum));
+            totalPropAcctOpeningCell.setCellFormula(String.format("SUM(U2:U%d)", rowNum));
             totalPropAcctOpeningCell.setCellStyle(styles.boldCurrencyStyle);
 
             Cell totalPropAcctInCell = totalsRow.createCell(col++);
-            totalPropAcctInCell.setCellFormula(String.format("SUM(S2:S%d)", rowNum));
+            totalPropAcctInCell.setCellFormula(String.format("SUM(V2:V%d)", rowNum));
             totalPropAcctInCell.setCellStyle(styles.boldCurrencyStyle);
 
             Cell totalPropAcctOutCell = totalsRow.createCell(col++);
-            totalPropAcctOutCell.setCellFormula(String.format("SUM(T2:T%d)", rowNum));
+            totalPropAcctOutCell.setCellFormula(String.format("SUM(W2:W%d)", rowNum));
             totalPropAcctOutCell.setCellStyle(styles.boldCurrencyStyle);
 
             Cell totalPropAcctClosingCell = totalsRow.createCell(col++);
-            totalPropAcctClosingCell.setCellFormula(String.format("SUM(U2:U%d)", rowNum));
+            totalPropAcctClosingCell.setCellFormula(String.format("SUM(X2:X%d)", rowNum));
             totalPropAcctClosingCell.setCellStyle(styles.boldCurrencyStyle);
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        // ===== RELATED PAYMENTS SECTION =====
+        // ===== PAYMENT RECONCILIATION SECTION =====
         // Add blank rows for separation
         rowNum += 2;
 
         // Reuse propertyIds from allocation summaries extraction above
-        log.info("RELATED PAYMENTS: Sheet {}, Period {} to {}, PropertyIds: {}",
+        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, PropertyIds: {}",
             sheetName, period.periodStart, period.periodEnd, propertyIds);
+
+        if (!propertyIds.isEmpty()) {
+            // Get payment batch summaries for this period
+            List<PaymentBatchSummaryDTO> paymentBatches =
+                dataExtractService.extractPaymentBatchSummariesForPeriod(
+                    propertyIds, period.periodStart, period.periodEnd);
+
+            log.info("PAYMENT RECONCILIATION: Found {} payment batches for sheet {}",
+                paymentBatches != null ? paymentBatches.size() : 0, sheetName);
+
+            // Calculate totals for reconciliation
+            int totalsRowNum = rowNum - 2; // The TOTALS row we just created
+            rowNum = createPaymentReconciliationSection(sheet, rowNum, totalsRowNum, paymentBatches, styles);
+        } else {
+            log.warn("PAYMENT RECONCILIATION: No property IDs found in leaseMaster for sheet {}", sheetName);
+        }
+
+        // ===== RELATED PAYMENTS SECTION (DETAIL) =====
+        // Add blank rows for separation
+        rowNum += 2;
 
         if (!propertyIds.isEmpty()) {
             List<PaymentBatchSummaryDTO> relatedPayments =
@@ -2699,11 +2755,116 @@ public class ExcelStatementGeneratorService {
                 relatedPayments != null ? relatedPayments.size() : 0, sheetName);
 
             rowNum = createRelatedPaymentsSection(sheet, rowNum, relatedPayments, styles);
-        } else {
-            log.warn("RELATED PAYMENTS: No property IDs found in leaseMaster for sheet {}", sheetName);
         }
 
-        log.info("{} sheet created with {} rows (including related payments)", sheetName, rowNum - 1);
+        log.info("{} sheet created with {} rows (including payment reconciliation and related payments)", sheetName, rowNum - 1);
+    }
+
+    /**
+     * Create Payment Reconciliation section showing owner balance calculation.
+     * Shows: Net to Owner, Payments Made, Balance c/f
+     */
+    private int createPaymentReconciliationSection(Sheet sheet, int startRowNum, int totalsRowNum,
+            List<PaymentBatchSummaryDTO> paymentBatches, WorkbookStyles styles) {
+
+        int rowNum = startRowNum;
+
+        // Section header
+        Row sectionHeaderRow = sheet.createRow(rowNum++);
+        Cell sectionHeaderCell = sectionHeaderRow.createCell(0);
+        sectionHeaderCell.setCellValue("PAYMENT RECONCILIATION");
+        sectionHeaderCell.setCellStyle(styles.boldStyle);
+
+        // Blank row
+        rowNum++;
+
+        // Owner Credit b/f (placeholder for now - would need prior period data)
+        Row bfRow = sheet.createRow(rowNum++);
+        bfRow.createCell(0).setCellValue("Owner Credit b/f:");
+        Cell bfValueCell = bfRow.createCell(1);
+        bfValueCell.setCellValue(0); // TODO: Calculate from prior periods
+        bfValueCell.setCellStyle(styles.currencyStyle);
+
+        // Net to Owner this period (reference to totals row column S)
+        Row netRow = sheet.createRow(rowNum++);
+        netRow.createCell(0).setCellValue("Net to Owner this period:");
+        Cell netValueCell = netRow.createCell(1);
+        netValueCell.setCellFormula(String.format("S%d", totalsRowNum + 1)); // Reference totals row
+        netValueCell.setCellStyle(styles.currencyStyle);
+
+        // Separator
+        Row separatorRow = sheet.createRow(rowNum++);
+        separatorRow.createCell(0).setCellValue("─────────────────────────────");
+
+        // Amount Due
+        Row dueRow = sheet.createRow(rowNum++);
+        dueRow.createCell(0).setCellValue("Amount Due:");
+        Cell dueValueCell = dueRow.createCell(1);
+        // Amount Due = Net to Owner - Credit b/f (credit reduces what's due)
+        dueValueCell.setCellFormula(String.format("B%d - B%d", rowNum - 2, rowNum - 4)); // Net - Credit b/f
+        dueValueCell.setCellStyle(styles.currencyStyle);
+
+        // Blank row
+        rowNum++;
+
+        // Payments Made header
+        Row paymentsHeaderRow = sheet.createRow(rowNum++);
+        paymentsHeaderRow.createCell(0).setCellValue("Payments Made:");
+
+        // Calculate total payments
+        BigDecimal totalPayments = BigDecimal.ZERO;
+
+        if (paymentBatches != null && !paymentBatches.isEmpty()) {
+            for (PaymentBatchSummaryDTO batch : paymentBatches) {
+                Row batchRow = sheet.createRow(rowNum++);
+                String batchInfo = String.format("  %s (%s)",
+                    batch.getBatchId(),
+                    batch.getPaymentDate() != null ? batch.getPaymentDate().toString() : "pending");
+                batchRow.createCell(0).setCellValue(batchInfo);
+
+                Cell batchAmountCell = batchRow.createCell(1);
+                BigDecimal netPayment = batch.getNetPayment() != null ? batch.getNetPayment() : BigDecimal.ZERO;
+                batchAmountCell.setCellValue(netPayment.doubleValue());
+                batchAmountCell.setCellStyle(styles.currencyStyle);
+
+                totalPayments = totalPayments.add(netPayment);
+            }
+        } else {
+            Row noBatchRow = sheet.createRow(rowNum++);
+            noBatchRow.createCell(0).setCellValue("  (No payments found for this period)");
+        }
+
+        // Separator
+        Row separator2Row = sheet.createRow(rowNum++);
+        separator2Row.createCell(0).setCellValue("─────────────────────────────");
+
+        // Total Paid
+        Row totalPaidRow = sheet.createRow(rowNum++);
+        totalPaidRow.createCell(0).setCellValue("Total Paid:");
+        Cell totalPaidCell = totalPaidRow.createCell(1);
+        totalPaidCell.setCellValue(totalPayments.doubleValue());
+        totalPaidCell.setCellStyle(styles.boldCurrencyStyle);
+
+        // Owner Credit c/f (Balance = Payments - Net to Owner + Credit b/f)
+        // Positive = overpayment (credit), Negative = underpayment (owed)
+        Row cfRow = sheet.createRow(rowNum++);
+        cfRow.createCell(0).setCellValue("Owner Credit c/f:");
+        Cell cfValueCell = cfRow.createCell(1);
+        // Credit c/f = Total Paid - Amount Due + Credit b/f
+        // Simplified: Credit c/f = Credit b/f + Total Paid - Net to Owner
+        double creditCf = totalPayments.doubleValue(); // Start with total paid
+        cfValueCell.setCellFormula(String.format("B%d + %f - B%d",
+            startRowNum + 3, // Credit b/f row
+            totalPayments.doubleValue(),
+            startRowNum + 4  // Net to Owner row
+        ));
+        cfValueCell.setCellStyle(styles.boldCurrencyStyle);
+
+        // Note about the balance
+        Row noteRow = sheet.createRow(rowNum++);
+        noteRow.createCell(0).setCellValue("(Positive = overpaid, Negative = still owed)");
+
+        return rowNum;
     }
 
     /**

@@ -553,4 +553,70 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    /**
+     * Get batch references by property and allocation type for period.
+     * Returns property_id, allocation_type, batch_ids (comma-separated).
+     * Used to populate batch reference columns on monthly statement rows.
+     */
+    @Query(value = """
+        SELECT
+            ua.property_id,
+            ua.allocation_type,
+            GROUP_CONCAT(DISTINCT ua.payment_batch_id SEPARATOR ', ') as batch_ids
+        FROM unified_allocations ua
+        LEFT JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
+        LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+        LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+        WHERE ua.property_id IN :propertyIds
+          AND ua.payment_batch_id IS NOT NULL
+          AND (
+              (uit.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ut.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ht.transaction_date BETWEEN :startDate AND :endDate)
+              OR (DATE(ua.created_at) BETWEEN :startDate AND :endDate)
+          )
+        GROUP BY ua.property_id, ua.allocation_type
+    """, nativeQuery = true)
+    List<Object[]> getBatchRefsByPropertyAndType(
+        @Param("propertyIds") List<Long> propertyIds,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get total payments made to owner within a period.
+     * Sums the net payment (OWNER - EXPENSE - COMMISSION) from payment batches.
+     * Used for Payment Reconciliation section.
+     */
+    @Query(value = """
+        SELECT
+            pb.batch_id,
+            pb.payment_date,
+            pb.status,
+            SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_owner,
+            SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ua.amount ELSE 0 END) as total_expense,
+            SUM(CASE WHEN ua.allocation_type = 'COMMISSION' THEN ua.amount ELSE 0 END) as total_commission,
+            SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) -
+            SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION') THEN ua.amount ELSE 0 END) as net_payment
+        FROM unified_allocations ua
+        JOIN payment_batches pb ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
+        LEFT JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
+        LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+        LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+        WHERE ua.property_id IN :propertyIds
+          AND (
+              (uit.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ut.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ht.transaction_date BETWEEN :startDate AND :endDate)
+              OR (DATE(ua.created_at) BETWEEN :startDate AND :endDate)
+          )
+        GROUP BY pb.batch_id, pb.payment_date, pb.status
+        ORDER BY pb.payment_date
+    """, nativeQuery = true)
+    List<Object[]> getPaymentBatchSummariesForPeriod(
+        @Param("propertyIds") List<Long> propertyIds,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }
