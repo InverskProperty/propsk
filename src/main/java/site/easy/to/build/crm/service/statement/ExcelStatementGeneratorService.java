@@ -291,12 +291,8 @@ public class ExcelStatementGeneratorService {
         log.info("✅ {} monthly sheets created in {}ms", periods.size(), System.currentTimeMillis() - sheetStart);
         logMemoryUsage("CUSTOMER_MONTHLY_SHEETS_COMPLETE");
 
-        // Create RECONCILIATION sheet - period-based payment reconciliation view
-        log.info("📄 Creating RECONCILIATION sheet...");
-        sheetStart = System.currentTimeMillis();
-        createReconciliationSheet(workbook, customerId, startDate, endDate, styles);
-        log.info("✅ RECONCILIATION sheet created in {}ms", System.currentTimeMillis() - sheetStart);
-        logMemoryUsage("RECONCILIATION_SHEET_COMPLETE");
+        // NOTE: Reconciliation is now integrated into each monthly statement sheet
+        // via createPeriodBasedReconciliationSection, not as a separate sheet
 
         long totalTime = System.currentTimeMillis() - startTime;
         log.info("🏁 CUSTOMER STATEMENT COMPLETE: Customer {}, {} sheets in {}ms ({}s)",
@@ -491,7 +487,7 @@ public class ExcelStatementGeneratorService {
                 period.periodEnd.format(DateTimeFormatter.ofPattern("MMM dd, yyyy"))
             );
             log.debug("📄 Creating statement sheet {}/{}: {}", sheetCount, statementPeriods.size(), sheetName);
-            createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName, styles);
+            createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName, styles, customerId);
 
             // Log memory and request GC every 3 sheets
             if (sheetCount % 3 == 0) {
@@ -2324,19 +2320,21 @@ public class ExcelStatementGeneratorService {
      * Create a monthly statement sheet for a specific custom period
      */
     /**
-     * @deprecated Use version with WorkbookStyles for memory efficiency
+     * @deprecated Use version with WorkbookStyles and customerId for memory efficiency and reconciliation
      */
     private void createMonthlyStatementSheetForCustomPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                                            CustomPeriod period, String sheetName) {
-        // Create styles on-demand for backward compatibility
-        createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName, new WorkbookStyles(workbook));
+        // Create styles on-demand for backward compatibility - no customerId for reconciliation
+        createMonthlyStatementSheetForCustomPeriod(workbook, leaseMaster, period, sheetName, new WorkbookStyles(workbook), null);
     }
 
     /**
      * Create monthly statement sheet with shared styles (memory optimized version)
+     * @param customerId Customer ID for period-based reconciliation (can be null for legacy calls)
      */
     private void createMonthlyStatementSheetForCustomPeriod(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
-                                                           CustomPeriod period, String sheetName, WorkbookStyles styles) {
+                                                           CustomPeriod period, String sheetName, WorkbookStyles styles,
+                                                           Long customerId) {
         log.info("Creating monthly statement sheet: {}", sheetName);
 
         Sheet sheet = workbook.createSheet(sheetName);
@@ -2729,46 +2727,35 @@ public class ExcelStatementGeneratorService {
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        // ===== PAYMENT RECONCILIATION SECTION =====
+        // ===== PAYMENT RECONCILIATION SECTION (Period-Based) =====
         // Add blank rows for separation
         rowNum += 2;
 
-        // Reuse propertyIds from allocation summaries extraction above
-        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, PropertyIds: {}",
-            sheetName, period.periodStart, period.periodEnd, propertyIds);
+        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, CustomerId: {}",
+            sheetName, period.periodStart, period.periodEnd, customerId);
 
-        if (!propertyIds.isEmpty()) {
-            // Get payment batch summaries for this period
-            List<PaymentBatchSummaryDTO> paymentBatches =
-                dataExtractService.extractPaymentBatchSummariesForPeriod(
-                    propertyIds, period.periodStart, period.periodEnd);
-
-            log.info("PAYMENT RECONCILIATION: Found {} payment batches for sheet {}",
-                paymentBatches != null ? paymentBatches.size() : 0, sheetName);
-
-            // Calculate totals for reconciliation
-            int totalsRowNum = rowNum - 2; // The TOTALS row we just created
-            rowNum = createPaymentReconciliationSection(sheet, rowNum, totalsRowNum, paymentBatches, styles);
+        if (customerId != null) {
+            // Use new period-based reconciliation model
+            rowNum = createPeriodBasedReconciliationSection(sheet, rowNum, customerId,
+                period.periodStart, period.periodEnd, styles);
         } else {
-            log.warn("PAYMENT RECONCILIATION: No property IDs found in leaseMaster for sheet {}", sheetName);
+            // Fallback to old model if no customerId (legacy calls)
+            if (!propertyIds.isEmpty()) {
+                List<PaymentBatchSummaryDTO> paymentBatches =
+                    dataExtractService.extractPaymentBatchSummariesForPeriod(
+                        propertyIds, period.periodStart, period.periodEnd);
+
+                log.info("PAYMENT RECONCILIATION (legacy): Found {} payment batches for sheet {}",
+                    paymentBatches != null ? paymentBatches.size() : 0, sheetName);
+
+                int totalsRowNum = rowNum - 2;
+                rowNum = createPaymentReconciliationSection(sheet, rowNum, totalsRowNum, paymentBatches, styles);
+            } else {
+                log.warn("PAYMENT RECONCILIATION: No property IDs or customerId for sheet {}", sheetName);
+            }
         }
 
-        // ===== RELATED PAYMENTS SECTION (DETAIL) =====
-        // Add blank rows for separation
-        rowNum += 2;
-
-        if (!propertyIds.isEmpty()) {
-            List<PaymentBatchSummaryDTO> relatedPayments =
-                dataExtractService.extractRelatedPaymentsForPeriod(
-                    propertyIds, period.periodStart, period.periodEnd);
-
-            log.info("RELATED PAYMENTS: Found {} payment batches for sheet {}",
-                relatedPayments != null ? relatedPayments.size() : 0, sheetName);
-
-            rowNum = createRelatedPaymentsSection(sheet, rowNum, relatedPayments, styles);
-        }
-
-        log.info("{} sheet created with {} rows (including payment reconciliation and related payments)", sheetName, rowNum - 1);
+        log.info("{} sheet created with {} rows (including payment reconciliation)", sheetName, rowNum - 1);
     }
 
     /**
@@ -2874,6 +2861,280 @@ public class ExcelStatementGeneratorService {
         // Note about the balance
         Row noteRow = sheet.createRow(rowNum++);
         noteRow.createCell(0).setCellValue("(Positive = overpaid, Negative = still owed)");
+
+        return rowNum;
+    }
+
+    /**
+     * Create Period-Based Reconciliation section showing:
+     * 1. Brought Forward - unallocated income + owner credits
+     * 2. This Period Activity - income received, expenses
+     * 3. Payments Made This Period - with allocation details
+     * 4. Carried Forward
+     * 5. Verification formula
+     */
+    private int createPeriodBasedReconciliationSection(Sheet sheet, int startRowNum, Long customerId,
+                                                        LocalDate periodStart, LocalDate periodEnd,
+                                                        WorkbookStyles styles) {
+        int rowNum = startRowNum;
+
+        CellStyle headerStyle = styles.headerStyle;
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
+        CellStyle boldStyle = styles.boldStyle;
+        CellStyle boldCurrencyStyle = styles.boldCurrencyStyle;
+
+        // ===== SECTION HEADER =====
+        Row titleRow = sheet.createRow(rowNum++);
+        Cell titleCell = titleRow.createCell(0);
+        titleCell.setCellValue("PAYMENT RECONCILIATION");
+        titleCell.setCellStyle(boldStyle);
+
+        Row periodRow = sheet.createRow(rowNum++);
+        periodRow.createCell(0).setCellValue("Period: " + periodStart.toString() + " to " + periodEnd.toString());
+
+        rowNum++; // Blank row
+
+        // ===== SECTION 1: BROUGHT FORWARD =====
+        Row bfHeaderRow = sheet.createRow(rowNum++);
+        Cell bfHeaderCell = bfHeaderRow.createCell(0);
+        bfHeaderCell.setCellValue("BROUGHT FORWARD (as of " + periodStart.toString() + ")");
+        bfHeaderCell.setCellStyle(headerStyle);
+
+        // Get B/F data
+        List<UnallocatedIncomeDTO> bfIncome = dataExtractService.extractUnallocatedIncomeAsOf(customerId, periodStart);
+        List<UnallocatedPaymentDTO> bfPayments = dataExtractService.extractUnallocatedPaymentsAsOf(customerId, periodStart);
+
+        BigDecimal totalBfIncome = BigDecimal.ZERO;
+        BigDecimal totalBfCredit = BigDecimal.ZERO;
+
+        // B/F Income summary
+        Row bfIncomeRow = sheet.createRow(rowNum++);
+        bfIncomeRow.createCell(0).setCellValue("Unallocated Income (owed to owner):");
+        Cell bfIncomeCountCell = bfIncomeRow.createCell(1);
+        bfIncomeCountCell.setCellValue(bfIncome.size() + " items");
+        for (UnallocatedIncomeDTO income : bfIncome) {
+            totalBfIncome = totalBfIncome.add(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated() : BigDecimal.ZERO);
+        }
+        Cell bfIncomeTotalCell = bfIncomeRow.createCell(2);
+        bfIncomeTotalCell.setCellValue(totalBfIncome.doubleValue());
+        bfIncomeTotalCell.setCellStyle(currencyStyle);
+
+        // B/F Credit summary
+        Row bfCreditRow = sheet.createRow(rowNum++);
+        bfCreditRow.createCell(0).setCellValue("Unallocated Payments (owner credit):");
+        Cell bfCreditCountCell = bfCreditRow.createCell(1);
+        bfCreditCountCell.setCellValue(bfPayments.size() + " items");
+        for (UnallocatedPaymentDTO payment : bfPayments) {
+            totalBfCredit = totalBfCredit.add(payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO);
+        }
+        Cell bfCreditTotalCell = bfCreditRow.createCell(2);
+        bfCreditTotalCell.setCellValue(totalBfCredit.negate().doubleValue());
+        bfCreditTotalCell.setCellStyle(currencyStyle);
+
+        // Net B/F
+        Row bfNetRow = sheet.createRow(rowNum++);
+        bfNetRow.createCell(0).setCellValue("Net Brought Forward:");
+        bfNetRow.getCell(0).setCellStyle(boldStyle);
+        Cell bfNetCell = bfNetRow.createCell(2);
+        BigDecimal netBf = totalBfIncome.subtract(totalBfCredit);
+        bfNetCell.setCellValue(netBf.doubleValue());
+        bfNetCell.setCellStyle(boldCurrencyStyle);
+
+        rowNum++; // Blank row
+
+        // ===== SECTION 2: THIS PERIOD ACTIVITY =====
+        Row activityHeaderRow = sheet.createRow(rowNum++);
+        Cell activityHeaderCell = activityHeaderRow.createCell(0);
+        activityHeaderCell.setCellValue("THIS PERIOD ACTIVITY");
+        activityHeaderCell.setCellStyle(headerStyle);
+
+        // Get activity data
+        List<UnallocatedIncomeDTO> periodIncome = dataExtractService.extractIncomeReceivedInPeriod(customerId, periodStart, periodEnd);
+        List<UnallocatedIncomeDTO> periodExpenses = dataExtractService.extractExpensesInPeriod(customerId, periodStart, periodEnd);
+
+        BigDecimal totalPeriodIncome = BigDecimal.ZERO;
+        BigDecimal totalPeriodExpenses = BigDecimal.ZERO;
+
+        // Income received
+        Row incomeRow = sheet.createRow(rowNum++);
+        incomeRow.createCell(0).setCellValue("Income Received:");
+        incomeRow.createCell(1).setCellValue(periodIncome.size() + " transactions");
+        for (UnallocatedIncomeDTO income : periodIncome) {
+            totalPeriodIncome = totalPeriodIncome.add(income.getNetDue() != null ? income.getNetDue() : BigDecimal.ZERO);
+        }
+        Cell incomeCell = incomeRow.createCell(2);
+        incomeCell.setCellValue(totalPeriodIncome.doubleValue());
+        incomeCell.setCellStyle(currencyStyle);
+
+        // Expenses incurred
+        Row expenseRow = sheet.createRow(rowNum++);
+        expenseRow.createCell(0).setCellValue("Expenses Incurred:");
+        expenseRow.createCell(1).setCellValue(periodExpenses.size() + " transactions");
+        for (UnallocatedIncomeDTO expense : periodExpenses) {
+            totalPeriodExpenses = totalPeriodExpenses.add(expense.getGrossAmount() != null ? expense.getGrossAmount() : BigDecimal.ZERO);
+        }
+        Cell expenseCell = expenseRow.createCell(2);
+        expenseCell.setCellValue(totalPeriodExpenses.doubleValue());
+        expenseCell.setCellStyle(currencyStyle);
+
+        // Net activity
+        Row activityNetRow = sheet.createRow(rowNum++);
+        activityNetRow.createCell(0).setCellValue("Net Period Activity:");
+        activityNetRow.getCell(0).setCellStyle(boldStyle);
+        BigDecimal netActivity = totalPeriodIncome.add(totalPeriodExpenses); // Expenses already negative
+        Cell activityNetCell = activityNetRow.createCell(2);
+        activityNetCell.setCellValue(netActivity.doubleValue());
+        activityNetCell.setCellStyle(boldCurrencyStyle);
+
+        rowNum++; // Blank row
+
+        // ===== SECTION 3: PAYMENTS MADE THIS PERIOD =====
+        Row paymentsHeaderRow = sheet.createRow(rowNum++);
+        Cell paymentsHeaderCell = paymentsHeaderRow.createCell(0);
+        paymentsHeaderCell.setCellValue("PAYMENTS MADE THIS PERIOD");
+        paymentsHeaderCell.setCellStyle(headerStyle);
+
+        List<PaymentWithAllocationsDTO> payments = dataExtractService.extractPaymentsWithAllocationsInPeriod(
+            customerId, periodStart, periodEnd, periodStart);
+
+        BigDecimal totalPaymentsMade = BigDecimal.ZERO;
+        BigDecimal totalPaymentsAllocated = BigDecimal.ZERO;
+
+        if (payments.isEmpty()) {
+            Row noPaymentsRow = sheet.createRow(rowNum++);
+            noPaymentsRow.createCell(0).setCellValue("(No payments made this period)");
+        } else {
+            for (PaymentWithAllocationsDTO payment : payments) {
+                // Payment line
+                Row paymentRow = sheet.createRow(rowNum++);
+                String paymentInfo = String.format("%s (%s)",
+                    payment.getBatchId() != null ? payment.getBatchId() : "Unknown",
+                    payment.getPaymentDate() != null ? payment.getPaymentDate().toString() : "pending");
+                paymentRow.createCell(0).setCellValue(paymentInfo);
+
+                Cell paymentAmountCell = paymentRow.createCell(2);
+                BigDecimal paymentAmount = payment.getTotalPayment() != null ? payment.getTotalPayment() : BigDecimal.ZERO;
+                paymentAmountCell.setCellValue(paymentAmount.doubleValue());
+                paymentAmountCell.setCellStyle(currencyStyle);
+
+                totalPaymentsMade = totalPaymentsMade.add(paymentAmount);
+
+                // Allocation summary for this payment
+                if (!payment.getAllocations().isEmpty()) {
+                    BigDecimal paymentAllocated = BigDecimal.ZERO;
+                    for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
+                        paymentAllocated = paymentAllocated.add(
+                            alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO);
+                    }
+                    totalPaymentsAllocated = totalPaymentsAllocated.add(paymentAllocated);
+
+                    Row allocRow = sheet.createRow(rowNum++);
+                    allocRow.createCell(0).setCellValue("  → Allocated to " + payment.getAllocations().size() + " items");
+                    Cell allocAmtCell = allocRow.createCell(2);
+                    allocAmtCell.setCellValue(paymentAllocated.doubleValue());
+                    allocAmtCell.setCellStyle(currencyStyle);
+                }
+
+                // Unallocated portion
+                if (payment.getUnallocatedAmount() != null && payment.getUnallocatedAmount().compareTo(BigDecimal.valueOf(0.01)) > 0) {
+                    Row unallocRow = sheet.createRow(rowNum++);
+                    unallocRow.createCell(0).setCellValue("  → Unallocated (credit)");
+                    Cell unallocAmtCell = unallocRow.createCell(2);
+                    unallocAmtCell.setCellValue(payment.getUnallocatedAmount().doubleValue());
+                    unallocAmtCell.setCellStyle(currencyStyle);
+                }
+            }
+        }
+
+        // Payments total
+        Row paymentsTotalRow = sheet.createRow(rowNum++);
+        paymentsTotalRow.createCell(0).setCellValue("Total Payments Made:");
+        paymentsTotalRow.getCell(0).setCellStyle(boldStyle);
+        Cell paymentsTotalCell = paymentsTotalRow.createCell(2);
+        paymentsTotalCell.setCellValue(totalPaymentsMade.doubleValue());
+        paymentsTotalCell.setCellStyle(boldCurrencyStyle);
+
+        rowNum++; // Blank row
+
+        // ===== SECTION 4: CARRIED FORWARD =====
+        Row cfHeaderRow = sheet.createRow(rowNum++);
+        Cell cfHeaderCell = cfHeaderRow.createCell(0);
+        cfHeaderCell.setCellValue("CARRIED FORWARD (as of " + periodEnd.toString() + ")");
+        cfHeaderCell.setCellStyle(headerStyle);
+
+        // Get C/F data
+        List<UnallocatedIncomeDTO> cfIncome = dataExtractService.extractUnallocatedIncomeAsOfEndDate(customerId, periodEnd);
+        List<UnallocatedPaymentDTO> cfPayments = dataExtractService.extractUnallocatedPaymentsAsOfEndDate(customerId, periodEnd);
+
+        BigDecimal totalCfIncome = BigDecimal.ZERO;
+        BigDecimal totalCfCredit = BigDecimal.ZERO;
+
+        // C/F Income summary
+        Row cfIncomeRow = sheet.createRow(rowNum++);
+        cfIncomeRow.createCell(0).setCellValue("Unallocated Income (owed to owner):");
+        cfIncomeRow.createCell(1).setCellValue(cfIncome.size() + " items");
+        for (UnallocatedIncomeDTO income : cfIncome) {
+            totalCfIncome = totalCfIncome.add(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated() : BigDecimal.ZERO);
+        }
+        Cell cfIncomeTotalCell = cfIncomeRow.createCell(2);
+        cfIncomeTotalCell.setCellValue(totalCfIncome.doubleValue());
+        cfIncomeTotalCell.setCellStyle(currencyStyle);
+
+        // C/F Credit summary
+        Row cfCreditRow = sheet.createRow(rowNum++);
+        cfCreditRow.createCell(0).setCellValue("Unallocated Payments (owner credit):");
+        cfCreditRow.createCell(1).setCellValue(cfPayments.size() + " items");
+        for (UnallocatedPaymentDTO payment : cfPayments) {
+            totalCfCredit = totalCfCredit.add(payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO);
+        }
+        Cell cfCreditTotalCell = cfCreditRow.createCell(2);
+        cfCreditTotalCell.setCellValue(totalCfCredit.negate().doubleValue());
+        cfCreditTotalCell.setCellStyle(currencyStyle);
+
+        // Net C/F
+        Row cfNetRow = sheet.createRow(rowNum++);
+        cfNetRow.createCell(0).setCellValue("Net Carried Forward:");
+        cfNetRow.getCell(0).setCellStyle(boldStyle);
+        BigDecimal netCf = totalCfIncome.subtract(totalCfCredit);
+        Cell cfNetCell = cfNetRow.createCell(2);
+        cfNetCell.setCellValue(netCf.doubleValue());
+        cfNetCell.setCellStyle(boldCurrencyStyle);
+
+        rowNum++; // Blank row
+
+        // ===== SECTION 5: VERIFICATION =====
+        Row verifyHeaderRow = sheet.createRow(rowNum++);
+        Cell verifyHeaderCell = verifyHeaderRow.createCell(0);
+        verifyHeaderCell.setCellValue("VERIFICATION");
+        verifyHeaderCell.setCellStyle(headerStyle);
+
+        // Expected C/F = B/F + Activity - Payments Allocated
+        BigDecimal expectedCf = netBf.add(netActivity).subtract(totalPaymentsAllocated);
+        BigDecimal variance = netCf.subtract(expectedCf);
+
+        Row formulaRow = sheet.createRow(rowNum++);
+        formulaRow.createCell(0).setCellValue("B/F + Activity - Payments = Expected C/F");
+
+        Row calcRow = sheet.createRow(rowNum++);
+        calcRow.createCell(0).setCellValue(String.format("%.2f + %.2f - %.2f = %.2f",
+            netBf.doubleValue(), netActivity.doubleValue(), totalPaymentsAllocated.doubleValue(), expectedCf.doubleValue()));
+
+        Row resultRow = sheet.createRow(rowNum++);
+        resultRow.createCell(0).setCellValue("Actual C/F:");
+        Cell actualCfCell = resultRow.createCell(1);
+        actualCfCell.setCellValue(netCf.doubleValue());
+        actualCfCell.setCellStyle(boldCurrencyStyle);
+        resultRow.createCell(2).setCellValue("Variance:");
+        Cell varianceCell = resultRow.createCell(3);
+        varianceCell.setCellValue(variance.doubleValue());
+        varianceCell.setCellStyle(boldCurrencyStyle);
+
+        if (variance.abs().compareTo(BigDecimal.valueOf(0.01)) > 0) {
+            resultRow.createCell(4).setCellValue("⚠️ CHECK");
+        } else {
+            resultRow.createCell(4).setCellValue("✓ OK");
+        }
 
         return rowNum;
     }
