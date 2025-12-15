@@ -384,12 +384,12 @@ public class UnifiedTransactionRebuildService {
                 updated_at
             )
             SELECT
-                -- incoming_transaction_id: link via unified_incoming_transactions
+                -- incoming_transaction_id: link via unified_incoming_transactions using peip date/amount
                 uit.id as incoming_transaction_id,
-                -- unified_transaction_id: link via unified_transactions
+                -- unified_transaction_id: link via unified_transactions using peip date/amount
                 ut.id as unified_transaction_id,
-                -- historical_transaction_id: link via payprop_incoming_payments if synced
-                pip.historical_transaction_id,
+                -- historical_transaction_id: not directly available for PayProp data
+                NULL as historical_transaction_id,
                 -- allocation_type based on category_name and beneficiary_type
                 CASE
                     WHEN prap.category_name IN ('Agency Fee', 'Commission', 'Management Fee')
@@ -424,15 +424,19 @@ public class UnifiedTransactionRebuildService {
             FROM payprop_report_all_payments prap
             LEFT JOIN properties prop ON prap.incoming_property_payprop_id COLLATE utf8mb4_unicode_ci = prop.payprop_id COLLATE utf8mb4_unicode_ci
             LEFT JOIN customers cust ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = cust.payprop_entity_id COLLATE utf8mb4_unicode_ci
-            LEFT JOIN payprop_incoming_payments pip ON prap.incoming_transaction_id COLLATE utf8mb4_unicode_ci = pip.incoming_transaction_id COLLATE utf8mb4_unicode_ci
+            -- Join to payprop_export_incoming_payments to get reconciliation date and amount
+            LEFT JOIN payprop_export_incoming_payments peip
+                ON prap.incoming_transaction_id COLLATE utf8mb4_unicode_ci = peip.payprop_id COLLATE utf8mb4_unicode_ci
+            -- Link to unified_incoming_transactions using peip data
             LEFT JOIN unified_incoming_transactions uit
                 ON prop.id = uit.property_id
-                AND prap.reconciliation_date = uit.transaction_date
-                AND prap.incoming_transaction_amount = uit.amount
+                AND peip.reconciliation_date = uit.transaction_date
+                AND peip.amount = uit.amount
+            -- Link to unified_transactions using peip data
             LEFT JOIN unified_transactions ut
                 ON prop.id = ut.property_id
-                AND prap.reconciliation_date = ut.transaction_date
-                AND prap.incoming_transaction_amount = ut.amount
+                AND peip.reconciliation_date = ut.transaction_date
+                AND peip.amount = ut.amount
             WHERE prap.payment_batch_id IS NOT NULL
               AND prap.beneficiary_type = 'beneficiary'
         """;
