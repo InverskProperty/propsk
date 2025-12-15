@@ -1811,7 +1811,8 @@ public class StatementDataExtractService {
 
     /**
      * Extract unallocated income as of a specific date.
-     * Returns income transactions received BEFORE the date that are not fully allocated.
+     * Returns income transactions received BEFORE the date that are not fully allocated
+     * BY PAYMENTS MADE BEFORE that date. This ensures B/F shows the true state at period start.
      * Used for "Brought Forward" section of reconciliation.
      */
     public List<UnallocatedIncomeDTO> extractUnallocatedIncomeAsOf(Long customerId, LocalDate asOfDate) {
@@ -1819,6 +1820,8 @@ public class StatementDataExtractService {
 
         List<UnallocatedIncomeDTO> result = new ArrayList<>();
 
+        // Key fix: Only count allocations from payments made BEFORE asOfDate
+        // This ensures B/F reflects the true unallocated state at period start
         String sql = """
             SELECT
                 ht.id as transaction_id,
@@ -1834,6 +1837,11 @@ public class StatementDataExtractService {
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
             LEFT JOIN transaction_batch_allocations tba ON ht.id = tba.transaction_id
+                AND EXISTS (
+                    SELECT 1 FROM payment_batches pb
+                    WHERE pb.batch_id = tba.batch_reference
+                    AND pb.payment_date < ?
+                )
             WHERE ht.owner_id = ?
               AND ht.transaction_date < ?
               AND ht.category = 'rent'
@@ -1844,7 +1852,8 @@ public class StatementDataExtractService {
         """;
 
         try {
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, customerId, asOfDate);
+            // Parameters: asOfDate (for allocation filter), customerId, asOfDate (for transaction filter)
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, asOfDate, customerId, asOfDate);
 
             for (Map<String, Object> row : rows) {
                 UnallocatedIncomeDTO dto = new UnallocatedIncomeDTO();
@@ -1927,6 +1936,148 @@ public class StatementDataExtractService {
         }
 
         log.info("Found {} unallocated payments", result.size());
+        return result;
+    }
+
+    /**
+     * Extract unallocated expenses as of a specific date.
+     * Returns expense transactions incurred BEFORE the date that are not fully allocated
+     * BY PAYMENTS MADE BEFORE that date. This ensures B/F shows the true state at period start.
+     * Used for "Brought Forward" section of reconciliation.
+     */
+    public List<UnallocatedIncomeDTO> extractUnallocatedExpensesAsOf(Long customerId, LocalDate asOfDate) {
+        log.info("Extracting unallocated expenses for customer {} as of {}", customerId, asOfDate);
+
+        List<UnallocatedIncomeDTO> result = new ArrayList<>();
+
+        // Key fix: Only count allocations from payments made BEFORE asOfDate
+        String sql = """
+            SELECT
+                ht.id as transaction_id,
+                ht.transaction_date,
+                ht.property_id,
+                p.property_name,
+                ht.lease_reference,
+                ht.description as tenant_name,
+                ht.category,
+                ABS(ht.amount) as gross_amount,
+                ABS(COALESCE(ht.net_to_owner_amount, ht.amount)) as net_due,
+                COALESCE(SUM(ABS(tba.allocated_amount)), 0) as allocated_amount
+            FROM historical_transactions ht
+            LEFT JOIN properties p ON ht.property_id = p.id
+            LEFT JOIN transaction_batch_allocations tba ON ht.id = tba.transaction_id
+                AND EXISTS (
+                    SELECT 1 FROM payment_batches pb
+                    WHERE pb.batch_id = tba.batch_reference
+                    AND pb.payment_date < ?
+                )
+            WHERE ht.owner_id = ?
+              AND ht.transaction_date < ?
+              AND ht.category != 'rent'
+              AND ht.amount < 0
+            GROUP BY ht.id, ht.transaction_date, ht.property_id, p.property_name,
+                     ht.lease_reference, ht.description, ht.category, ht.amount, ht.net_to_owner_amount
+            HAVING ABS(COALESCE(ht.net_to_owner_amount, ht.amount)) - COALESCE(SUM(ABS(tba.allocated_amount)), 0) > 0.01
+            ORDER BY ht.transaction_date, p.property_name
+        """;
+
+        try {
+            // Parameters: asOfDate (for allocation filter), customerId, asOfDate (for transaction filter)
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, asOfDate, customerId, asOfDate);
+
+            for (Map<String, Object> row : rows) {
+                UnallocatedIncomeDTO dto = new UnallocatedIncomeDTO();
+                dto.setTransactionId(((Number) row.get("transaction_id")).longValue());
+                dto.setTransactionDate(row.get("transaction_date") != null ?
+                    ((java.sql.Date) row.get("transaction_date")).toLocalDate() : null);
+                dto.setPropertyId(row.get("property_id") != null ?
+                    ((Number) row.get("property_id")).longValue() : null);
+                dto.setPropertyName((String) row.get("property_name"));
+                dto.setLeaseReference((String) row.get("lease_reference"));
+                dto.setTenantName((String) row.get("tenant_name"));
+                dto.setCategory((String) row.get("category"));
+                dto.setGrossAmount(row.get("gross_amount") != null ?
+                    new BigDecimal(row.get("gross_amount").toString()) : BigDecimal.ZERO);
+                dto.setNetDue(row.get("net_due") != null ?
+                    new BigDecimal(row.get("net_due").toString()) : BigDecimal.ZERO);
+                dto.setAllocatedAmount(row.get("allocated_amount") != null ?
+                    new BigDecimal(row.get("allocated_amount").toString()) : BigDecimal.ZERO);
+                dto.setRemainingUnallocated(dto.getNetDue().subtract(dto.getAllocatedAmount()));
+
+                result.add(dto);
+            }
+        } catch (Exception e) {
+            log.warn("Error extracting unallocated expenses: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
+        log.info("Found {} unallocated expense transactions", result.size());
+        return result;
+    }
+
+    /**
+     * Extract unallocated expenses as of period end date.
+     * Used for "Carried Forward" section of reconciliation.
+     */
+    public List<UnallocatedIncomeDTO> extractUnallocatedExpensesAsOfEndDate(Long customerId, LocalDate endDate) {
+        log.info("Extracting unallocated expenses for customer {} as of end date {}", customerId, endDate);
+
+        List<UnallocatedIncomeDTO> result = new ArrayList<>();
+
+        // For C/F, include ALL allocations (no date filter on allocations)
+        String sql = """
+            SELECT
+                ht.id as transaction_id,
+                ht.transaction_date,
+                ht.property_id,
+                p.property_name,
+                ht.lease_reference,
+                ht.description as tenant_name,
+                ht.category,
+                ABS(ht.amount) as gross_amount,
+                ABS(COALESCE(ht.net_to_owner_amount, ht.amount)) as net_due,
+                COALESCE(SUM(ABS(tba.allocated_amount)), 0) as allocated_amount
+            FROM historical_transactions ht
+            LEFT JOIN properties p ON ht.property_id = p.id
+            LEFT JOIN transaction_batch_allocations tba ON ht.id = tba.transaction_id
+            WHERE ht.owner_id = ?
+              AND ht.transaction_date <= ?
+              AND ht.category != 'rent'
+              AND ht.amount < 0
+            GROUP BY ht.id, ht.transaction_date, ht.property_id, p.property_name,
+                     ht.lease_reference, ht.description, ht.category, ht.amount, ht.net_to_owner_amount
+            HAVING ABS(COALESCE(ht.net_to_owner_amount, ht.amount)) - COALESCE(SUM(ABS(tba.allocated_amount)), 0) > 0.01
+            ORDER BY ht.transaction_date, p.property_name
+        """;
+
+        try {
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, customerId, endDate);
+
+            for (Map<String, Object> row : rows) {
+                UnallocatedIncomeDTO dto = new UnallocatedIncomeDTO();
+                dto.setTransactionId(((Number) row.get("transaction_id")).longValue());
+                dto.setTransactionDate(row.get("transaction_date") != null ?
+                    ((java.sql.Date) row.get("transaction_date")).toLocalDate() : null);
+                dto.setPropertyId(row.get("property_id") != null ?
+                    ((Number) row.get("property_id")).longValue() : null);
+                dto.setPropertyName((String) row.get("property_name"));
+                dto.setLeaseReference((String) row.get("lease_reference"));
+                dto.setTenantName((String) row.get("tenant_name"));
+                dto.setCategory((String) row.get("category"));
+                dto.setGrossAmount(row.get("gross_amount") != null ?
+                    new BigDecimal(row.get("gross_amount").toString()) : BigDecimal.ZERO);
+                dto.setNetDue(row.get("net_due") != null ?
+                    new BigDecimal(row.get("net_due").toString()) : BigDecimal.ZERO);
+                dto.setAllocatedAmount(row.get("allocated_amount") != null ?
+                    new BigDecimal(row.get("allocated_amount").toString()) : BigDecimal.ZERO);
+                dto.setRemainingUnallocated(dto.getNetDue().subtract(dto.getAllocatedAmount()));
+
+                result.add(dto);
+            }
+        } catch (Exception e) {
+            log.warn("Error extracting unallocated expenses for end date: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+
+        log.info("Found {} unallocated expense transactions at end date", result.size());
         return result;
     }
 

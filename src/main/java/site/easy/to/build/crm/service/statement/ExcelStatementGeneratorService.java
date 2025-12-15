@@ -2910,9 +2910,11 @@ public class ExcelStatementGeneratorService {
 
         // Get B/F data
         List<UnallocatedIncomeDTO> bfIncome = dataExtractService.extractUnallocatedIncomeAsOf(customerId, periodStart);
+        List<UnallocatedIncomeDTO> bfExpenses = dataExtractService.extractUnallocatedExpensesAsOf(customerId, periodStart);
         List<UnallocatedPaymentDTO> bfPayments = dataExtractService.extractUnallocatedPaymentsAsOf(customerId, periodStart);
 
         BigDecimal totalBfIncome = BigDecimal.ZERO;
+        BigDecimal totalBfExpenses = BigDecimal.ZERO;
         BigDecimal totalBfCredit = BigDecimal.ZERO;
 
         // B/F Unallocated Income
@@ -2938,12 +2940,35 @@ public class ExcelStatementGeneratorService {
             detailAmt.setCellStyle(currencyStyle);
         }
 
-        // B/F Unallocated Payments (owner credit)
+        // B/F Unallocated Expenses
+        for (UnallocatedIncomeDTO expense : bfExpenses) {
+            totalBfExpenses = totalBfExpenses.add(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated() : BigDecimal.ZERO);
+        }
+        Row bfExpenseRow = sheet.createRow(rowNum++);
+        bfExpenseRow.createCell(COL_DESC).setCellValue("  Unallocated Expenses (" + bfExpenses.size() + " items)");
+        Cell bfExpenseCell = bfExpenseRow.createCell(COL_AMT);
+        bfExpenseCell.setCellValue(totalBfExpenses.doubleValue());
+        bfExpenseCell.setCellStyle(currencyStyle);
+
+        // Show B/F expense details
+        for (UnallocatedIncomeDTO expense : bfExpenses) {
+            Row detailRow = sheet.createRow(rowNum++);
+            String detail = String.format("    %s | %s | %s",
+                expense.getTransactionDate() != null ? expense.getTransactionDate().toString() : "",
+                expense.getPropertyName() != null ? expense.getPropertyName() : "",
+                expense.getCategory() != null ? expense.getCategory() : "");
+            detailRow.createCell(COL_DESC).setCellValue(detail);
+            Cell detailAmt = detailRow.createCell(COL_AMT);
+            detailAmt.setCellValue(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated().doubleValue() : 0);
+            detailAmt.setCellStyle(currencyStyle);
+        }
+
+        // B/F Unallocated Payments (owner credit = overpayment from previous periods)
         for (UnallocatedPaymentDTO payment : bfPayments) {
             totalBfCredit = totalBfCredit.add(payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO);
         }
         Row bfCreditRow = sheet.createRow(rowNum++);
-        bfCreditRow.createCell(COL_DESC).setCellValue("  Less: Owner Credit (" + bfPayments.size() + " payments)");
+        bfCreditRow.createCell(COL_DESC).setCellValue("  Unsubscribed Payment Amounts (" + bfPayments.size() + " payments)");
         Cell bfCreditCell = bfCreditRow.createCell(COL_AMT);
         bfCreditCell.setCellValue(totalBfCredit.doubleValue());
         bfCreditCell.setCellStyle(currencyStyle);
@@ -2961,8 +2986,9 @@ public class ExcelStatementGeneratorService {
             detailAmt.setCellStyle(currencyStyle);
         }
 
-        // Net B/F
-        BigDecimal netBf = totalBfIncome.subtract(totalBfCredit);
+        // Net B/F = Income + Expenses - Unsubscribed Payments
+        // (Expenses reduce what's owed to owner, unsubscribed payments are credit to owner)
+        BigDecimal netBf = totalBfIncome.add(totalBfExpenses).subtract(totalBfCredit);
         Row bfNetRow = sheet.createRow(rowNum++);
         Cell bfNetLabel = bfNetRow.createCell(COL_DESC);
         bfNetLabel.setCellValue("  Net Brought Forward:");
@@ -3148,16 +3174,42 @@ public class ExcelStatementGeneratorService {
             detailAmt.setCellStyle(currencyStyle);
         }
 
-        // C/F owner credit = B/F credit + period unallocated
+        // Get C/F expense data
+        List<UnallocatedIncomeDTO> cfExpenses = dataExtractService.extractUnallocatedExpensesAsOfEndDate(customerId, periodEnd);
+        BigDecimal totalCfExpenses = BigDecimal.ZERO;
+        for (UnallocatedIncomeDTO expense : cfExpenses) {
+            totalCfExpenses = totalCfExpenses.add(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated() : BigDecimal.ZERO);
+        }
+
+        Row cfExpenseRow = sheet.createRow(rowNum++);
+        cfExpenseRow.createCell(COL_DESC).setCellValue("  Unallocated Expenses (" + cfExpenses.size() + " items)");
+        Cell cfExpenseCell = cfExpenseRow.createCell(COL_AMT);
+        cfExpenseCell.setCellValue(totalCfExpenses.doubleValue());
+        cfExpenseCell.setCellStyle(currencyStyle);
+
+        // Show C/F expense details
+        for (UnallocatedIncomeDTO expense : cfExpenses) {
+            Row detailRow = sheet.createRow(rowNum++);
+            String detail = String.format("    %s | %s | %s",
+                expense.getTransactionDate() != null ? expense.getTransactionDate().toString() : "",
+                expense.getPropertyName() != null ? expense.getPropertyName() : "",
+                expense.getCategory() != null ? expense.getCategory() : "");
+            detailRow.createCell(COL_DESC).setCellValue(detail);
+            Cell detailAmt = detailRow.createCell(COL_AMT);
+            detailAmt.setCellValue(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated().doubleValue() : 0);
+            detailAmt.setCellStyle(currencyStyle);
+        }
+
+        // C/F unsubscribed payment amounts = B/F credit + period unallocated
         BigDecimal totalCfCredit = totalBfCredit.add(totalPeriodUnallocated);
         Row cfCreditRow = sheet.createRow(rowNum++);
-        cfCreditRow.createCell(COL_DESC).setCellValue("  Less: Owner Credit");
+        cfCreditRow.createCell(COL_DESC).setCellValue("  Unsubscribed Payment Amounts");
         Cell cfCreditCell = cfCreditRow.createCell(COL_AMT);
         cfCreditCell.setCellValue(totalCfCredit.doubleValue());
         cfCreditCell.setCellStyle(currencyStyle);
 
-        // Net C/F
-        BigDecimal netCf = totalCfIncome.subtract(totalCfCredit);
+        // Net C/F = Income + Expenses - Unsubscribed Payments
+        BigDecimal netCf = totalCfIncome.add(totalCfExpenses).subtract(totalCfCredit);
         Row cfNetRow = sheet.createRow(rowNum++);
         Cell cfNetLabel = cfNetRow.createCell(COL_DESC);
         cfNetLabel.setCellValue("  Net Carried Forward:");
