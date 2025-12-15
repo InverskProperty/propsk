@@ -419,7 +419,7 @@ public class UnifiedTransactionRebuildService {
                 NULL as source_record_id,
                 prap.payprop_id as payprop_payment_id,
                 prap.payment_batch_id as payprop_batch_id,
-                prap.imported_at as created_at,
+                NOW() as created_at,
                 NOW() as updated_at
             FROM payprop_report_all_payments prap
             LEFT JOIN properties prop ON prap.incoming_property_payprop_id COLLATE utf8mb4_unicode_ci = prop.pay_prop_id COLLATE utf8mb4_unicode_ci
