@@ -310,23 +310,48 @@ public class UnifiedTransactionRebuildService {
                 tba.unified_transaction_id,
                 tba.transaction_id as historical_transaction_id,
                 -- allocation_type based on category
+                -- IMPORTANT: Default to EXPENSE for unrecognized categories (safer than defaulting to OWNER)
+                -- DISBURSEMENT = transfers to block property account (separate from regular EXPENSE)
                 CASE
                     WHEN ht.category IN ('management', 'agency_fee', 'commission')
                          OR ht.category LIKE '%commission%' OR ht.category LIKE '%Commission%'
                     THEN 'COMMISSION'
-                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance')
+                    WHEN ht.category IN ('rent', 'rental', 'income', 'payment', 'tenant_payment')
+                         OR ht.category LIKE '%rent%' OR ht.category LIKE '%income%'
+                    THEN 'OWNER'
+                    WHEN ht.category IN ('disbursement', 'Disbursement')
+                         OR ht.category LIKE '%disbursement%' OR ht.category LIKE '%Disbursement%'
+                         OR ht.description LIKE '%BLOCK PROPERTY%'
+                    THEN 'DISBURSEMENT'
+                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance',
+                                         'other', 'Other', 'council_tax', 'insurance', 'repairs', 'legal',
+                                         'service_charge', 'ground_rent', 'professional_fees',
+                                         'contractor', 'supplier', 'vendor')
                          OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%'
                     THEN 'EXPENSE'
-                    ELSE 'OWNER'
+                    ELSE 'EXPENSE'  -- Default to EXPENSE for safety (unrecognized = likely expense)
                 END as allocation_type,
                 ABS(tba.allocated_amount) as amount,
                 ht.category,
                 ht.description,
                 tba.property_id,
                 COALESCE(tba.property_name, p.property_name) as property_name,
-                'OWNER' as beneficiary_type,
+                -- beneficiary_type: DISBURSEMENT goes to block property, others go to owner
+                CASE
+                    WHEN ht.category IN ('disbursement', 'Disbursement')
+                         OR ht.category LIKE '%disbursement%' OR ht.description LIKE '%BLOCK PROPERTY%'
+                    THEN 'BLOCK_PROPERTY'
+                    ELSE 'OWNER'
+                END as beneficiary_type,
                 tba.beneficiary_id,
-                COALESCE(tba.beneficiary_name, c.name) as beneficiary_name,
+                -- beneficiary_name: For DISBURSEMENT, extract block name from description; otherwise use owner
+                CASE
+                    WHEN ht.description LIKE '%Beneficiary:%BLOCK PROPERTY%'
+                    THEN TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(ht.description, 'Beneficiary: ', -1), ' (', 1))
+                    WHEN ht.category IN ('disbursement', 'Disbursement') OR ht.category LIKE '%disbursement%'
+                    THEN COALESCE(ht.beneficiary_name, ht.description)
+                    ELSE COALESCE(tba.beneficiary_name, c.name)
+                END as beneficiary_name,
                 -- payment_status from PaymentBatch
                 CASE
                     WHEN pb.status = 'PAID' THEN 'PAID'
@@ -391,13 +416,26 @@ public class UnifiedTransactionRebuildService {
                 -- historical_transaction_id: not directly available for PayProp data
                 NULL as historical_transaction_id,
                 -- allocation_type based on category_name and beneficiary_type
+                -- IMPORTANT: Default to EXPENSE for unrecognized categories (safer than defaulting to OWNER)
+                -- DISBURSEMENT = transfers to block property account (separate from regular EXPENSE)
                 CASE
                     WHEN prap.category_name IN ('Agency Fee', 'Commission', 'Management Fee')
                          OR prap.category_name LIKE '%commission%' OR prap.category_name LIKE '%Commission%'
                     THEN 'COMMISSION'
-                    WHEN prap.beneficiary_type = 'vendor' OR prap.category_name LIKE '%expense%'
+                    WHEN prap.category_name IN ('Rent', 'Rental', 'Income', 'Tenant Payment')
+                         OR prap.category_name LIKE '%rent%' OR prap.category_name LIKE '%income%'
+                    THEN 'OWNER'
+                    WHEN prap.category_name IN ('Disbursement')
+                         OR prap.category_name LIKE '%disbursement%' OR prap.category_name LIKE '%Disbursement%'
+                         OR prap.description LIKE '%BLOCK PROPERTY%'
+                    THEN 'DISBURSEMENT'
+                    WHEN prap.beneficiary_type IN ('vendor', 'contractor', 'agency')
+                         OR prap.category_name LIKE '%expense%' OR prap.category_name LIKE '%Expense%'
+                         OR prap.category_name IN ('Other', 'Council Tax', 'Insurance',
+                                                   'Repairs', 'Legal', 'Service Charge', 'Ground Rent',
+                                                   'Professional Fees', 'Utilities', 'Maintenance')
                     THEN 'EXPENSE'
-                    ELSE 'OWNER'
+                    ELSE 'EXPENSE'  -- Default to EXPENSE for safety (unrecognized = likely expense)
                 END as allocation_type,
                 ABS(prap.amount) as amount,
                 prap.category_name as category,
