@@ -2365,6 +2365,62 @@ public class ExcelStatementGeneratorService {
 
                 rowNum++;
             }
+
+            // Check for post-lease payments (payments made after lease end date)
+            // These need to be captured for accurate balance calculation (e.g., late payments)
+            if (leaseEnd != null) {
+                LocalDate postLeaseEnd = leaseEnd.plusYears(1); // Look forward 1 year for post-lease payments
+                List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> postLeasePayments =
+                    dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), leaseEnd.plusDays(1), postLeaseEnd);
+
+                if (!postLeasePayments.isEmpty()) {
+                    // Add a "post-lease" row to capture payments after lease ended
+                    Row postLeaseRow = sheet.createRow(rowNum);
+                    int col = 0;
+
+                    postLeaseRow.createCell(col++).setCellValue(lease.getLeaseId());
+                    postLeaseRow.createCell(col++).setCellValue(lease.getLeaseReference());
+                    postLeaseRow.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                    Cell postDueDateCell = postLeaseRow.createCell(col++);
+                    postDueDateCell.setCellValue(leaseEnd.plusDays(1));
+                    postDueDateCell.setCellStyle(dateStyle);
+
+                    Cell postPeriodStartCell = postLeaseRow.createCell(col++);
+                    postPeriodStartCell.setCellValue(leaseEnd.plusDays(1));
+                    postPeriodStartCell.setCellStyle(dateStyle);
+
+                    Cell postPeriodEndCell = postLeaseRow.createCell(col++);
+                    postPeriodEndCell.setCellValue(postLeaseEnd);
+                    postPeriodEndCell.setCellStyle(dateStyle);
+
+                    // Payment breakdown for post-lease payments
+                    BigDecimal postLeaseTotal = BigDecimal.ZERO;
+                    for (int i = 0; i < 4; i++) {
+                        if (i < postLeasePayments.size()) {
+                            site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = postLeasePayments.get(i);
+                            Cell paymentDateCell = postLeaseRow.createCell(col++);
+                            paymentDateCell.setCellValue(payment.getPaymentDate());
+                            paymentDateCell.setCellStyle(dateStyle);
+                            Cell paymentAmountCell = postLeaseRow.createCell(col++);
+                            paymentAmountCell.setCellValue(payment.getAmount().doubleValue());
+                            paymentAmountCell.setCellStyle(currencyStyle);
+                            postLeaseTotal = postLeaseTotal.add(payment.getAmount());
+                        } else {
+                            postLeaseRow.createCell(col++);
+                            postLeaseRow.createCell(col++);
+                        }
+                    }
+
+                    Cell postTotalCell = postLeaseRow.createCell(col++);
+                    postTotalCell.setCellValue(postLeaseTotal.doubleValue());
+                    postTotalCell.setCellStyle(currencyStyle);
+
+                    rowNum++;
+                    log.info("Added post-lease payments row for {} with {} payments totaling {}",
+                        lease.getLeaseReference(), postLeasePayments.size(), postLeaseTotal);
+                }
+            }
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
