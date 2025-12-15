@@ -422,9 +422,9 @@ public class UnifiedTransactionRebuildService {
                 prap.imported_at as created_at,
                 NOW() as updated_at
             FROM payprop_report_all_payments prap
-            LEFT JOIN properties prop ON prap.incoming_property_payprop_id = prop.pay_prop_id
-            LEFT JOIN customers cust ON prap.beneficiary_payprop_id = cust.pay_prop_id
-            LEFT JOIN payprop_incoming_payments pip ON prap.incoming_transaction_id = pip.incoming_transaction_id
+            LEFT JOIN properties prop ON prap.incoming_property_payprop_id COLLATE utf8mb4_unicode_ci = prop.pay_prop_id COLLATE utf8mb4_unicode_ci
+            LEFT JOIN customers cust ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = cust.pay_prop_id COLLATE utf8mb4_unicode_ci
+            LEFT JOIN payprop_incoming_payments pip ON prap.incoming_transaction_id COLLATE utf8mb4_unicode_ci = pip.incoming_transaction_id COLLATE utf8mb4_unicode_ci
             LEFT JOIN unified_incoming_transactions uit
                 ON prop.id = uit.property_id
                 AND prap.reconciliation_date = uit.transaction_date
