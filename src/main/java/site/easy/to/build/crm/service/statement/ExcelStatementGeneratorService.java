@@ -3024,20 +3024,51 @@ public class ExcelStatementGeneratorService {
 
                 totalPaymentsMade = totalPaymentsMade.add(paymentAmount);
 
-                // Allocation summary for this payment
+                // Show each allocation detail for this payment
                 if (!payment.getAllocations().isEmpty()) {
+                    Row coversRow = sheet.createRow(rowNum++);
+                    coversRow.createCell(0).setCellValue("  Covers:");
+
                     BigDecimal paymentAllocated = BigDecimal.ZERO;
                     for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
-                        paymentAllocated = paymentAllocated.add(
-                            alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO);
+                        Row allocRow = sheet.createRow(rowNum++);
+
+                        // Build description: Date | Property | Category | Description
+                        StringBuilder desc = new StringBuilder("    ");
+                        if (alloc.getTransactionDate() != null) {
+                            desc.append(alloc.getTransactionDate().toString()).append(" | ");
+                        }
+                        if (alloc.getPropertyName() != null && !alloc.getPropertyName().isEmpty()) {
+                            desc.append(alloc.getPropertyName()).append(" | ");
+                        }
+                        if (alloc.getCategory() != null && !alloc.getCategory().isEmpty()) {
+                            desc.append(alloc.getCategory()).append(" | ");
+                        }
+                        if (alloc.getDescription() != null && !alloc.getDescription().isEmpty()) {
+                            String descText = alloc.getDescription();
+                            if (descText.length() > 30) descText = descText.substring(0, 27) + "...";
+                            desc.append(descText);
+                        }
+
+                        // Add note if partial or prior period
+                        if (alloc.isPartial() || alloc.isFromPriorPeriod()) {
+                            desc.append(" [");
+                            if (alloc.isPartial()) desc.append("SPLIT");
+                            if (alloc.isPartial() && alloc.isFromPriorPeriod()) desc.append("/");
+                            if (alloc.isFromPriorPeriod()) desc.append("PRIOR");
+                            desc.append("]");
+                        }
+
+                        allocRow.createCell(0).setCellValue(desc.toString());
+
+                        Cell allocAmtCell = allocRow.createCell(2);
+                        BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
+                        allocAmtCell.setCellValue(allocAmt.doubleValue());
+                        allocAmtCell.setCellStyle(currencyStyle);
+
+                        paymentAllocated = paymentAllocated.add(allocAmt);
                     }
                     totalPaymentsAllocated = totalPaymentsAllocated.add(paymentAllocated);
-
-                    Row allocRow = sheet.createRow(rowNum++);
-                    allocRow.createCell(0).setCellValue("  → Allocated to " + payment.getAllocations().size() + " items");
-                    Cell allocAmtCell = allocRow.createCell(2);
-                    allocAmtCell.setCellValue(paymentAllocated.doubleValue());
-                    allocAmtCell.setCellStyle(currencyStyle);
                 }
 
                 // Unallocated portion
