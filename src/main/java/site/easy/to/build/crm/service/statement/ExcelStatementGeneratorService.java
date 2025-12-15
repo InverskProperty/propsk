@@ -526,6 +526,11 @@ public class ExcelStatementGeneratorService {
         createOwnerPaymentsSummarySheet(workbook, resolvedOwnerId, styles);
         log.info("✅ OWNER_PAYMENTS_SUMMARY sheet created in {}ms", System.currentTimeMillis() - sheetStart);
 
+        // Create PAYMENT_ALLOCATIONS sheet with flat data for all payment allocations
+        sheetStart = System.currentTimeMillis();
+        createPaymentAllocationsSheet(workbook, resolvedOwnerId, startDate, endDate, styles);
+        log.info("✅ PAYMENT_ALLOCATIONS sheet created in {}ms", System.currentTimeMillis() - sheetStart);
+
         long totalTime = System.currentTimeMillis() - startTime;
         log.info("🏁 SXSSF STREAMING STATEMENT COMPLETE: Customer {}, {} sheets in {}ms ({}s)",
             customerId, workbook.getNumberOfSheets(), totalTime, totalTime / 1000);
@@ -3027,119 +3032,69 @@ public class ExcelStatementGeneratorService {
         BigDecimal totalPaymentsAllocated = BigDecimal.ZERO;
         BigDecimal totalPeriodUnallocated = BigDecimal.ZERO;
 
-        // Column positions for Covers section: B=Incoming, C=Outgoing, D=Total
-        final int COL_INCOMING = 1;
-        final int COL_OUTGOING = 2;
-        final int COL_TOTAL = 3;
-
         if (payments.isEmpty()) {
             Row noPaymentsRow = sheet.createRow(rowNum++);
             noPaymentsRow.createCell(COL_DESC).setCellValue("  (No payments made this period)");
         } else {
             for (PaymentWithAllocationsDTO payment : payments) {
-                // Payment line - amount in Amount column
+                BigDecimal paymentAmount = payment.getTotalPayment() != null ? payment.getTotalPayment() : BigDecimal.ZERO;
+                totalPaymentsMade = totalPaymentsMade.add(paymentAmount);
+
+                // Calculate income vs expense breakdown for summary
+                BigDecimal incomeAllocated = BigDecimal.ZERO;
+                BigDecimal expenseAllocated = BigDecimal.ZERO;
+                int incomeCount = 0;
+                int expenseCount = 0;
+
+                for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
+                    String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
+                    boolean isExpense = category.contains("repair") || category.contains("expense") ||
+                                       category.contains("maintenance") || category.contains("fee") ||
+                                       category.contains("cost") || category.contains("charge");
+                    BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
+
+                    if (isExpense) {
+                        expenseAllocated = expenseAllocated.add(allocAmt);
+                        expenseCount++;
+                    } else {
+                        incomeAllocated = incomeAllocated.add(allocAmt);
+                        incomeCount++;
+                    }
+                }
+                totalPaymentsAllocated = totalPaymentsAllocated.add(incomeAllocated).add(expenseAllocated);
+
+                // Payment line with amount
                 Row paymentRow = sheet.createRow(rowNum++);
                 String paymentInfo = String.format("  %s (%s)",
                     payment.getBatchId() != null ? payment.getBatchId() : "Unknown",
                     payment.getPaymentDate() != null ? payment.getPaymentDate().toString() : "pending");
                 paymentRow.createCell(COL_DESC).setCellValue(paymentInfo);
-
-                BigDecimal paymentAmount = payment.getTotalPayment() != null ? payment.getTotalPayment() : BigDecimal.ZERO;
-                Cell paymentAmountCell = paymentRow.createCell(COL_TOTAL);
+                Cell paymentAmountCell = paymentRow.createCell(COL_AMT);
                 paymentAmountCell.setCellValue(paymentAmount.doubleValue());
                 paymentAmountCell.setCellStyle(boldCurrencyStyle);
 
-                totalPaymentsMade = totalPaymentsMade.add(paymentAmount);
-
-                // Show allocation details with Incoming/Outgoing/Total columns
-                if (!payment.getAllocations().isEmpty()) {
-                    // Covers header row with sub-columns
-                    Row coversRow = sheet.createRow(rowNum++);
-                    coversRow.createCell(COL_DESC).setCellValue("    Covers:");
-                    Cell incomingHeader = coversRow.createCell(COL_INCOMING);
-                    incomingHeader.setCellValue("Incoming");
-                    incomingHeader.setCellStyle(boldStyle);
-                    Cell outgoingHeader = coversRow.createCell(COL_OUTGOING);
-                    outgoingHeader.setCellValue("Outgoing");
-                    outgoingHeader.setCellStyle(boldStyle);
-                    Cell totalHeader = coversRow.createCell(COL_TOTAL);
-                    totalHeader.setCellValue("Total");
-                    totalHeader.setCellStyle(boldStyle);
-
-                    BigDecimal paymentAllocated = BigDecimal.ZERO;
-                    BigDecimal totalIncoming = BigDecimal.ZERO;
-                    BigDecimal totalOutgoing = BigDecimal.ZERO;
-
-                    for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
-                        Row allocRow = sheet.createRow(rowNum++);
-
-                        // Determine if income or expense based on category
-                        String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
-                        boolean isExpense = category.contains("repair") || category.contains("expense") ||
-                                           category.contains("maintenance") || category.contains("fee") ||
-                                           category.contains("cost") || category.contains("charge");
-
-                        StringBuilder desc = new StringBuilder("      ");
-                        if (alloc.getTransactionDate() != null) {
-                            desc.append(alloc.getTransactionDate().toString()).append(" | ");
-                        }
-                        if (alloc.getPropertyName() != null && !alloc.getPropertyName().isEmpty()) {
-                            String prop = alloc.getPropertyName();
-                            if (prop.length() > 20) prop = prop.substring(0, 17) + "...";
-                            desc.append(prop).append(" | ");
-                        }
-                        if (alloc.getCategory() != null && !alloc.getCategory().isEmpty()) {
-                            desc.append(alloc.getCategory());
-                        }
-                        if (alloc.isPartial()) desc.append(" [SPLIT]");
-                        if (alloc.isFromPriorPeriod()) desc.append(" [PRIOR]");
-
-                        allocRow.createCell(COL_DESC).setCellValue(desc.toString());
-                        BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
-
-                        // Put amount in appropriate column
-                        if (isExpense) {
-                            Cell outgoingCell = allocRow.createCell(COL_OUTGOING);
-                            outgoingCell.setCellValue(allocAmt.doubleValue());
-                            outgoingCell.setCellStyle(currencyStyle);
-                            totalOutgoing = totalOutgoing.add(allocAmt);
-                        } else {
-                            Cell incomingCell = allocRow.createCell(COL_INCOMING);
-                            incomingCell.setCellValue(allocAmt.doubleValue());
-                            incomingCell.setCellStyle(currencyStyle);
-                            totalIncoming = totalIncoming.add(allocAmt);
-                        }
-
-                        // Total column
-                        Cell totalCell = allocRow.createCell(COL_TOTAL);
-                        totalCell.setCellValue(allocAmt.doubleValue());
-                        totalCell.setCellStyle(currencyStyle);
-
-                        paymentAllocated = paymentAllocated.add(allocAmt);
+                // Summary line showing breakdown
+                if (incomeCount > 0 || expenseCount > 0) {
+                    Row summaryRow = sheet.createRow(rowNum++);
+                    StringBuilder summary = new StringBuilder("    Covers: ");
+                    if (incomeCount > 0) {
+                        summary.append(String.format("%d income items (£%.2f)", incomeCount, incomeAllocated.doubleValue()));
                     }
-
-                    // Subtotal row for allocations
-                    Row subtotalRow = sheet.createRow(rowNum++);
-                    subtotalRow.createCell(COL_DESC).setCellValue("      Subtotal:");
-                    Cell subtotalIncoming = subtotalRow.createCell(COL_INCOMING);
-                    subtotalIncoming.setCellValue(totalIncoming.doubleValue());
-                    subtotalIncoming.setCellStyle(boldCurrencyStyle);
-                    Cell subtotalOutgoing = subtotalRow.createCell(COL_OUTGOING);
-                    subtotalOutgoing.setCellValue(totalOutgoing.doubleValue());
-                    subtotalOutgoing.setCellStyle(boldCurrencyStyle);
-                    Cell subtotalTotal = subtotalRow.createCell(COL_TOTAL);
-                    subtotalTotal.setCellValue(paymentAllocated.doubleValue());
-                    subtotalTotal.setCellStyle(boldCurrencyStyle);
-
-                    totalPaymentsAllocated = totalPaymentsAllocated.add(paymentAllocated);
+                    if (incomeCount > 0 && expenseCount > 0) {
+                        summary.append(", ");
+                    }
+                    if (expenseCount > 0) {
+                        summary.append(String.format("%d expense items (£%.2f)", expenseCount, expenseAllocated.doubleValue()));
+                    }
+                    summaryRow.createCell(COL_DESC).setCellValue(summary.toString());
                 }
 
-                // Unallocated portion (credit remaining)
+                // Unallocated portion
                 BigDecimal unalloc = payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO;
                 if (unalloc.compareTo(BigDecimal.valueOf(0.01)) > 0) {
                     Row unallocRow = sheet.createRow(rowNum++);
                     unallocRow.createCell(COL_DESC).setCellValue("    → Unallocated (owner credit)");
-                    Cell unallocAmtCell = unallocRow.createCell(COL_TOTAL);
+                    Cell unallocAmtCell = unallocRow.createCell(COL_AMT);
                     unallocAmtCell.setCellValue(unalloc.doubleValue());
                     unallocAmtCell.setCellStyle(currencyStyle);
                     totalPeriodUnallocated = totalPeriodUnallocated.add(unalloc);
@@ -3152,9 +3107,13 @@ public class ExcelStatementGeneratorService {
         Cell paymentsTotalLabel = paymentsTotalRow.createCell(COL_DESC);
         paymentsTotalLabel.setCellValue("  Total Payments Made:");
         paymentsTotalLabel.setCellStyle(boldStyle);
-        Cell paymentsTotalCell = paymentsTotalRow.createCell(COL_TOTAL);
+        Cell paymentsTotalCell = paymentsTotalRow.createCell(COL_AMT);
         paymentsTotalCell.setCellValue(totalPaymentsMade.doubleValue());
         paymentsTotalCell.setCellStyle(boldCurrencyStyle);
+
+        // Reference to detail sheet
+        Row refRow = sheet.createRow(rowNum++);
+        refRow.createCell(COL_DESC).setCellValue("  (See PAYMENT_ALLOCATIONS sheet for full details)");
 
         rowNum++; // Blank row
 
@@ -4516,6 +4475,90 @@ public class ExcelStatementGeneratorService {
         applyFixedColumnWidths(sheet, headers.length);
 
         log.info("Owner Payments Summary sheet created with {} batches, total: {}", batchRefs.size(), totalPayments);
+    }
+
+    /**
+     * Create PAYMENT_ALLOCATIONS sheet with flat data for all payment allocations.
+     * This raw data sheet can be used for filtering/lookups by other sheets.
+     * Columns: payment_batch_id, payment_date, transaction_id, transaction_date,
+     *          property_name, category, type (Income/Expense), allocated_amount
+     */
+    private void createPaymentAllocationsSheet(Workbook workbook, Long ownerId, LocalDate startDate,
+                                               LocalDate endDate, WorkbookStyles styles) {
+        log.info("Creating PAYMENT_ALLOCATIONS sheet for owner {} from {} to {}", ownerId, startDate, endDate);
+
+        Sheet sheet = workbook.createSheet("PAYMENT_ALLOCATIONS");
+        CellStyle headerStyle = styles.headerStyle;
+        CellStyle dateStyle = styles.dateStyle;
+        CellStyle currencyStyle = styles.currencyStyle;
+
+        // Headers
+        String[] headers = {"payment_batch_id", "payment_date", "transaction_id", "transaction_date",
+                           "property_name", "category", "type", "allocated_amount"};
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(headerStyle);
+        }
+
+        // Get all payments with allocations for this owner (using existing extraction method)
+        // We need to get ALL payments, not just period-specific
+        List<PaymentWithAllocationsDTO> allPayments = dataExtractService.extractPaymentsWithAllocationsInPeriod(
+            ownerId, startDate.minusYears(10), endDate.plusDays(1), startDate.minusYears(10));
+
+        int rowNum = 1;
+        for (PaymentWithAllocationsDTO payment : allPayments) {
+            String batchId = payment.getBatchId();
+            LocalDate paymentDate = payment.getPaymentDate();
+
+            for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
+                Row row = sheet.createRow(rowNum++);
+
+                // payment_batch_id
+                row.createCell(0).setCellValue(batchId != null ? batchId : "");
+
+                // payment_date
+                Cell payDateCell = row.createCell(1);
+                if (paymentDate != null) {
+                    payDateCell.setCellValue(java.sql.Date.valueOf(paymentDate));
+                    payDateCell.setCellStyle(dateStyle);
+                }
+
+                // transaction_id
+                row.createCell(2).setCellValue(alloc.getTransactionId() != null ? alloc.getTransactionId().toString() : "");
+
+                // transaction_date
+                Cell txnDateCell = row.createCell(3);
+                if (alloc.getTransactionDate() != null) {
+                    txnDateCell.setCellValue(java.sql.Date.valueOf(alloc.getTransactionDate()));
+                    txnDateCell.setCellStyle(dateStyle);
+                }
+
+                // property_name
+                row.createCell(4).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+
+                // category
+                row.createCell(5).setCellValue(alloc.getCategory() != null ? alloc.getCategory() : "");
+
+                // type (Income or Expense)
+                String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
+                boolean isExpense = category.contains("repair") || category.contains("expense") ||
+                                   category.contains("maintenance") || category.contains("fee") ||
+                                   category.contains("cost") || category.contains("charge");
+                row.createCell(6).setCellValue(isExpense ? "Expense" : "Income");
+
+                // allocated_amount
+                Cell amtCell = row.createCell(7);
+                BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
+                amtCell.setCellValue(allocAmt.doubleValue());
+                amtCell.setCellStyle(currencyStyle);
+            }
+        }
+
+        applyFixedColumnWidths(sheet, headers.length);
+        log.info("PAYMENT_ALLOCATIONS sheet created with {} rows", rowNum - 1);
     }
 
     /**
