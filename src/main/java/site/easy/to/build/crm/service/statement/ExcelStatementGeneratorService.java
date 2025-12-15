@@ -2870,25 +2870,21 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
-     * Create Period-Based Reconciliation section with column structure:
-     * Column layout: Description | Income | Expenses | Net
-     * Shows B/F, Period Activity, Payments, C/F with all positive values
+     * Create Period-Based Reconciliation section with single Amount column
+     * Uses [Income]/[Expense] text labels on allocation lines for clarity
      */
     private int createPeriodBasedReconciliationSection(Sheet sheet, int startRowNum, Long customerId,
                                                         LocalDate periodStart, LocalDate periodEnd,
                                                         WorkbookStyles styles) {
         int rowNum = startRowNum;
 
-        CellStyle headerStyle = styles.headerStyle;
         CellStyle currencyStyle = styles.currencyStyle;
         CellStyle boldStyle = styles.boldStyle;
         CellStyle boldCurrencyStyle = styles.boldCurrencyStyle;
 
-        // Column positions: A=Description, B=Income, C=Expenses, D=Net
+        // Column positions: A=Description, B=Amount
         final int COL_DESC = 0;
-        final int COL_INCOME = 1;
-        final int COL_EXPENSE = 2;
-        final int COL_NET = 3;
+        final int COL_AMT = 1;
 
         // ===== TITLE =====
         Row titleRow = sheet.createRow(rowNum++);
@@ -2898,19 +2894,6 @@ public class ExcelStatementGeneratorService {
 
         Row periodRow = sheet.createRow(rowNum++);
         periodRow.createCell(COL_DESC).setCellValue("Period: " + periodStart.toString() + " to " + periodEnd.toString());
-
-        // Column headers
-        Row headerRow = sheet.createRow(rowNum++);
-        headerRow.createCell(COL_DESC).setCellValue("");
-        Cell incomeHeader = headerRow.createCell(COL_INCOME);
-        incomeHeader.setCellValue("Income");
-        incomeHeader.setCellStyle(headerStyle);
-        Cell expenseHeader = headerRow.createCell(COL_EXPENSE);
-        expenseHeader.setCellValue("Expenses");
-        expenseHeader.setCellStyle(headerStyle);
-        Cell netHeader = headerRow.createCell(COL_NET);
-        netHeader.setCellValue("Net");
-        netHeader.setCellStyle(headerStyle);
 
         rowNum++; // Blank row
 
@@ -2933,11 +2916,11 @@ public class ExcelStatementGeneratorService {
         }
         Row bfIncomeRow = sheet.createRow(rowNum++);
         bfIncomeRow.createCell(COL_DESC).setCellValue("  Unallocated Income (" + bfIncome.size() + " items)");
-        Cell bfIncomeCell = bfIncomeRow.createCell(COL_INCOME);
+        Cell bfIncomeCell = bfIncomeRow.createCell(COL_AMT);
         bfIncomeCell.setCellValue(totalBfIncome.doubleValue());
         bfIncomeCell.setCellStyle(currencyStyle);
 
-        // Show B/F income details if any
+        // Show B/F income details
         for (UnallocatedIncomeDTO income : bfIncome) {
             Row detailRow = sheet.createRow(rowNum++);
             String detail = String.format("    %s | %s | %s",
@@ -2945,7 +2928,7 @@ public class ExcelStatementGeneratorService {
                 income.getPropertyName() != null ? income.getPropertyName() : "",
                 income.getTenantName() != null ? (income.getTenantName().length() > 20 ? income.getTenantName().substring(0, 17) + "..." : income.getTenantName()) : "");
             detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_INCOME);
+            Cell detailAmt = detailRow.createCell(COL_AMT);
             detailAmt.setCellValue(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated().doubleValue() : 0);
             detailAmt.setCellStyle(currencyStyle);
         }
@@ -2956,28 +2939,30 @@ public class ExcelStatementGeneratorService {
         }
         Row bfCreditRow = sheet.createRow(rowNum++);
         bfCreditRow.createCell(COL_DESC).setCellValue("  Less: Owner Credit (" + bfPayments.size() + " payments)");
-        Cell bfCreditCell = bfCreditRow.createCell(COL_EXPENSE);
-        bfCreditCell.setCellValue(totalBfCredit.doubleValue());
+        Cell bfCreditCell = bfCreditRow.createCell(COL_AMT);
+        bfCreditCell.setCellValue(totalBfCredit.negate().doubleValue());
         bfCreditCell.setCellStyle(currencyStyle);
 
-        // Show B/F payment details if any
+        // Show B/F payment details
         for (UnallocatedPaymentDTO payment : bfPayments) {
             Row detailRow = sheet.createRow(rowNum++);
             String detail = String.format("    %s | %s",
                 payment.getBatchId() != null ? payment.getBatchId() : "",
                 payment.getPaymentDate() != null ? payment.getPaymentDate().toString() : "");
             detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_EXPENSE);
-            detailAmt.setCellValue(payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount().doubleValue() : 0);
+            Cell detailAmt = detailRow.createCell(COL_AMT);
+            BigDecimal amt = payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO;
+            detailAmt.setCellValue(amt.negate().doubleValue());
             detailAmt.setCellStyle(currencyStyle);
         }
 
         // Net B/F
         BigDecimal netBf = totalBfIncome.subtract(totalBfCredit);
         Row bfNetRow = sheet.createRow(rowNum++);
-        bfNetRow.createCell(COL_DESC).setCellValue("  Net Brought Forward:");
-        bfNetRow.getCell(COL_DESC).setCellStyle(boldStyle);
-        Cell bfNetCell = bfNetRow.createCell(COL_NET);
+        Cell bfNetLabel = bfNetRow.createCell(COL_DESC);
+        bfNetLabel.setCellValue("  Net Brought Forward:");
+        bfNetLabel.setCellStyle(boldStyle);
+        Cell bfNetCell = bfNetRow.createCell(COL_AMT);
         bfNetCell.setCellValue(netBf.doubleValue());
         bfNetCell.setCellStyle(boldCurrencyStyle);
 
@@ -3002,27 +2987,28 @@ public class ExcelStatementGeneratorService {
         }
         Row incomeRow = sheet.createRow(rowNum++);
         incomeRow.createCell(COL_DESC).setCellValue("  Income Received (" + periodIncome.size() + " transactions)");
-        Cell incomeCell = incomeRow.createCell(COL_INCOME);
+        Cell incomeCell = incomeRow.createCell(COL_AMT);
         incomeCell.setCellValue(totalPeriodIncome.doubleValue());
         incomeCell.setCellStyle(currencyStyle);
 
-        // Period Expenses (show as positive in Expenses column)
+        // Period Expenses (show as negative)
         for (UnallocatedIncomeDTO expense : periodExpenses) {
             BigDecimal amt = expense.getGrossAmount() != null ? expense.getGrossAmount().abs() : BigDecimal.ZERO;
             totalPeriodExpenses = totalPeriodExpenses.add(amt);
         }
         Row expenseRow = sheet.createRow(rowNum++);
         expenseRow.createCell(COL_DESC).setCellValue("  Less: Expenses (" + periodExpenses.size() + " transactions)");
-        Cell expenseCell = expenseRow.createCell(COL_EXPENSE);
-        expenseCell.setCellValue(totalPeriodExpenses.doubleValue());
+        Cell expenseCell = expenseRow.createCell(COL_AMT);
+        expenseCell.setCellValue(totalPeriodExpenses.negate().doubleValue());
         expenseCell.setCellStyle(currencyStyle);
 
         // Net Activity
         BigDecimal netActivity = totalPeriodIncome.subtract(totalPeriodExpenses);
         Row activityNetRow = sheet.createRow(rowNum++);
-        activityNetRow.createCell(COL_DESC).setCellValue("  Net Period Activity:");
-        activityNetRow.getCell(COL_DESC).setCellStyle(boldStyle);
-        Cell activityNetCell = activityNetRow.createCell(COL_NET);
+        Cell activityNetLabel = activityNetRow.createCell(COL_DESC);
+        activityNetLabel.setCellValue("  Net Period Activity:");
+        activityNetLabel.setCellStyle(boldStyle);
+        Cell activityNetCell = activityNetRow.createCell(COL_AMT);
         activityNetCell.setCellValue(netActivity.doubleValue());
         activityNetCell.setCellStyle(boldCurrencyStyle);
 
@@ -3046,7 +3032,7 @@ public class ExcelStatementGeneratorService {
             noPaymentsRow.createCell(COL_DESC).setCellValue("  (No payments made this period)");
         } else {
             for (PaymentWithAllocationsDTO payment : payments) {
-                // Payment line
+                // Payment line - amount in Amount column
                 Row paymentRow = sheet.createRow(rowNum++);
                 String paymentInfo = String.format("  %s (%s)",
                     payment.getBatchId() != null ? payment.getBatchId() : "Unknown",
@@ -3054,13 +3040,13 @@ public class ExcelStatementGeneratorService {
                 paymentRow.createCell(COL_DESC).setCellValue(paymentInfo);
 
                 BigDecimal paymentAmount = payment.getTotalPayment() != null ? payment.getTotalPayment() : BigDecimal.ZERO;
-                Cell paymentAmountCell = paymentRow.createCell(COL_EXPENSE);
-                paymentAmountCell.setCellValue(paymentAmount.doubleValue());
-                paymentAmountCell.setCellStyle(currencyStyle);
+                Cell paymentAmountCell = paymentRow.createCell(COL_AMT);
+                paymentAmountCell.setCellValue(paymentAmount.negate().doubleValue());
+                paymentAmountCell.setCellStyle(boldCurrencyStyle);
 
                 totalPaymentsMade = totalPaymentsMade.add(paymentAmount);
 
-                // Show allocation details
+                // Show allocation details with [Income]/[Expense] labels
                 if (!payment.getAllocations().isEmpty()) {
                     Row coversRow = sheet.createRow(rowNum++);
                     coversRow.createCell(COL_DESC).setCellValue("    Covers:");
@@ -3069,29 +3055,32 @@ public class ExcelStatementGeneratorService {
                     for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
                         Row allocRow = sheet.createRow(rowNum++);
 
+                        // Determine if income or expense based on category
+                        String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
+                        boolean isExpense = category.contains("repair") || category.contains("expense") ||
+                                           category.contains("maintenance") || category.contains("fee") ||
+                                           category.contains("cost") || category.contains("charge");
+                        String typeLabel = isExpense ? "[Expense]" : "[Income]";
+
                         StringBuilder desc = new StringBuilder("      ");
                         if (alloc.getTransactionDate() != null) {
                             desc.append(alloc.getTransactionDate().toString()).append(" | ");
                         }
                         if (alloc.getPropertyName() != null && !alloc.getPropertyName().isEmpty()) {
                             String prop = alloc.getPropertyName();
-                            if (prop.length() > 25) prop = prop.substring(0, 22) + "...";
+                            if (prop.length() > 20) prop = prop.substring(0, 17) + "...";
                             desc.append(prop).append(" | ");
                         }
                         if (alloc.getCategory() != null && !alloc.getCategory().isEmpty()) {
-                            desc.append(alloc.getCategory());
+                            desc.append(alloc.getCategory()).append(" ");
                         }
-                        if (alloc.isPartial() || alloc.isFromPriorPeriod()) {
-                            desc.append(" [");
-                            if (alloc.isPartial()) desc.append("SPLIT");
-                            if (alloc.isPartial() && alloc.isFromPriorPeriod()) desc.append("/");
-                            if (alloc.isFromPriorPeriod()) desc.append("PRIOR");
-                            desc.append("]");
-                        }
+                        desc.append(typeLabel);
+                        if (alloc.isPartial()) desc.append(" [SPLIT]");
+                        if (alloc.isFromPriorPeriod()) desc.append(" [PRIOR]");
 
                         allocRow.createCell(COL_DESC).setCellValue(desc.toString());
                         BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
-                        Cell allocAmtCell = allocRow.createCell(COL_EXPENSE);
+                        Cell allocAmtCell = allocRow.createCell(COL_AMT);
                         allocAmtCell.setCellValue(allocAmt.doubleValue());
                         allocAmtCell.setCellStyle(currencyStyle);
 
@@ -3105,7 +3094,7 @@ public class ExcelStatementGeneratorService {
                 if (unalloc.compareTo(BigDecimal.valueOf(0.01)) > 0) {
                     Row unallocRow = sheet.createRow(rowNum++);
                     unallocRow.createCell(COL_DESC).setCellValue("    → Unallocated (owner credit)");
-                    Cell unallocAmtCell = unallocRow.createCell(COL_EXPENSE);
+                    Cell unallocAmtCell = unallocRow.createCell(COL_AMT);
                     unallocAmtCell.setCellValue(unalloc.doubleValue());
                     unallocAmtCell.setCellStyle(currencyStyle);
                     totalPeriodUnallocated = totalPeriodUnallocated.add(unalloc);
@@ -3115,10 +3104,11 @@ public class ExcelStatementGeneratorService {
 
         // Payments total
         Row paymentsTotalRow = sheet.createRow(rowNum++);
-        paymentsTotalRow.createCell(COL_DESC).setCellValue("  Total Payments Made:");
-        paymentsTotalRow.getCell(COL_DESC).setCellStyle(boldStyle);
-        Cell paymentsTotalCell = paymentsTotalRow.createCell(COL_EXPENSE);
-        paymentsTotalCell.setCellValue(totalPaymentsMade.doubleValue());
+        Cell paymentsTotalLabel = paymentsTotalRow.createCell(COL_DESC);
+        paymentsTotalLabel.setCellValue("  Total Payments Made:");
+        paymentsTotalLabel.setCellStyle(boldStyle);
+        Cell paymentsTotalCell = paymentsTotalRow.createCell(COL_AMT);
+        paymentsTotalCell.setCellValue(totalPaymentsMade.negate().doubleValue());
         paymentsTotalCell.setCellStyle(boldCurrencyStyle);
 
         rowNum++; // Blank row
@@ -3138,36 +3128,37 @@ public class ExcelStatementGeneratorService {
 
         Row cfIncomeRow = sheet.createRow(rowNum++);
         cfIncomeRow.createCell(COL_DESC).setCellValue("  Unallocated Income (" + cfIncome.size() + " items)");
-        Cell cfIncomeCell = cfIncomeRow.createCell(COL_INCOME);
+        Cell cfIncomeCell = cfIncomeRow.createCell(COL_AMT);
         cfIncomeCell.setCellValue(totalCfIncome.doubleValue());
         cfIncomeCell.setCellStyle(currencyStyle);
 
-        // Show C/F income details if any
+        // Show C/F income details
         for (UnallocatedIncomeDTO income : cfIncome) {
             Row detailRow = sheet.createRow(rowNum++);
             String detail = String.format("    %s | %s",
                 income.getTransactionDate() != null ? income.getTransactionDate().toString() : "",
                 income.getPropertyName() != null ? income.getPropertyName() : "");
             detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_INCOME);
+            Cell detailAmt = detailRow.createCell(COL_AMT);
             detailAmt.setCellValue(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated().doubleValue() : 0);
             detailAmt.setCellStyle(currencyStyle);
         }
 
-        // Calculate C/F owner credit from B/F credit + period unallocated payments
+        // C/F owner credit = B/F credit + period unallocated
         BigDecimal totalCfCredit = totalBfCredit.add(totalPeriodUnallocated);
         Row cfCreditRow = sheet.createRow(rowNum++);
-        cfCreditRow.createCell(COL_DESC).setCellValue("  Less: Owner Credit (B/F + period unallocated)");
-        Cell cfCreditCell = cfCreditRow.createCell(COL_EXPENSE);
-        cfCreditCell.setCellValue(totalCfCredit.doubleValue());
+        cfCreditRow.createCell(COL_DESC).setCellValue("  Less: Owner Credit");
+        Cell cfCreditCell = cfCreditRow.createCell(COL_AMT);
+        cfCreditCell.setCellValue(totalCfCredit.negate().doubleValue());
         cfCreditCell.setCellStyle(currencyStyle);
 
         // Net C/F
         BigDecimal netCf = totalCfIncome.subtract(totalCfCredit);
         Row cfNetRow = sheet.createRow(rowNum++);
-        cfNetRow.createCell(COL_DESC).setCellValue("  Net Carried Forward:");
-        cfNetRow.getCell(COL_DESC).setCellStyle(boldStyle);
-        Cell cfNetCell = cfNetRow.createCell(COL_NET);
+        Cell cfNetLabel = cfNetRow.createCell(COL_DESC);
+        cfNetLabel.setCellValue("  Net Carried Forward:");
+        cfNetLabel.setCellStyle(boldStyle);
+        Cell cfNetCell = cfNetRow.createCell(COL_AMT);
         cfNetCell.setCellValue(netCf.doubleValue());
         cfNetCell.setCellStyle(boldCurrencyStyle);
 
@@ -3179,32 +3170,18 @@ public class ExcelStatementGeneratorService {
         verifyHeaderCell.setCellValue("VERIFICATION");
         verifyHeaderCell.setCellStyle(boldStyle);
 
-        // Formula: Net B/F + Net Activity - Payments Allocated = Expected C/F
-        BigDecimal expectedCf = netBf.add(netActivity).subtract(totalPaymentsAllocated);
+        // Formula: Net B/F + Net Activity - Payments = Expected C/F
+        BigDecimal expectedCf = netBf.add(netActivity).subtract(totalPaymentsMade);
         BigDecimal variance = netCf.subtract(expectedCf);
 
         Row formulaRow = sheet.createRow(rowNum++);
-        formulaRow.createCell(0).setCellValue("B/F + Activity - Payments = Expected C/F");
-
-        Row calcRow = sheet.createRow(rowNum++);
-        calcRow.createCell(0).setCellValue(String.format("%.2f + %.2f - %.2f = %.2f",
-            netBf.doubleValue(), netActivity.doubleValue(), totalPaymentsAllocated.doubleValue(), expectedCf.doubleValue()));
+        formulaRow.createCell(COL_DESC).setCellValue(String.format("B/F %.2f + Activity %.2f - Payments %.2f = %.2f",
+            netBf.doubleValue(), netActivity.doubleValue(), totalPaymentsMade.doubleValue(), expectedCf.doubleValue()));
 
         Row resultRow = sheet.createRow(rowNum++);
-        resultRow.createCell(0).setCellValue("Actual C/F:");
-        Cell actualCfCell = resultRow.createCell(1);
-        actualCfCell.setCellValue(netCf.doubleValue());
-        actualCfCell.setCellStyle(boldCurrencyStyle);
-        resultRow.createCell(2).setCellValue("Variance:");
-        Cell varianceCell = resultRow.createCell(3);
-        varianceCell.setCellValue(variance.doubleValue());
-        varianceCell.setCellStyle(boldCurrencyStyle);
-
-        if (variance.abs().compareTo(BigDecimal.valueOf(0.01)) > 0) {
-            resultRow.createCell(4).setCellValue("⚠️ CHECK");
-        } else {
-            resultRow.createCell(4).setCellValue("✓ OK");
-        }
+        resultRow.createCell(COL_DESC).setCellValue("Actual C/F: " + String.format("%.2f", netCf.doubleValue()) +
+            "  |  Variance: " + String.format("%.2f", variance.doubleValue()) +
+            (variance.abs().compareTo(BigDecimal.valueOf(0.01)) > 0 ? "  ⚠️ CHECK" : "  ✓ OK"));
 
         return rowNum;
     }
