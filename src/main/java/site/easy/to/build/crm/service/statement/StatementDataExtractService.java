@@ -1834,7 +1834,7 @@ public class StatementDataExtractService {
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
             LEFT JOIN transaction_batch_allocations tba ON ht.id = tba.transaction_id
-            WHERE ht.customer_id = ?
+            WHERE ht.owner_id = ?
               AND ht.transaction_date < ?
               AND ht.category = 'rent'
             GROUP BY ht.id, ht.transaction_date, ht.property_id, p.property_name,
@@ -1955,7 +1955,7 @@ public class StatementDataExtractService {
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
             LEFT JOIN transaction_batch_allocations tba ON ht.id = tba.transaction_id
-            WHERE ht.customer_id = ?
+            WHERE ht.owner_id = ?
               AND ht.transaction_date >= ?
               AND ht.transaction_date <= ?
               AND ht.category = 'rent'
@@ -2021,7 +2021,7 @@ public class StatementDataExtractService {
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
             LEFT JOIN transaction_batch_allocations tba ON ht.id = tba.transaction_id
-            WHERE ht.customer_id = ?
+            WHERE ht.owner_id = ?
               AND ht.transaction_date >= ?
               AND ht.transaction_date <= ?
               AND ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance', 'management', 'agency_fee')
@@ -2187,7 +2187,7 @@ public class StatementDataExtractService {
             FROM historical_transactions ht
             LEFT JOIN properties p ON ht.property_id = p.id
             LEFT JOIN transaction_batch_allocations tba ON ht.id = tba.transaction_id
-            WHERE ht.customer_id = ?
+            WHERE ht.owner_id = ?
               AND ht.transaction_date <= ?
               AND ht.category = 'rent'
             GROUP BY ht.id, ht.transaction_date, ht.property_id, p.property_name,

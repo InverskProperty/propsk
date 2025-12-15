@@ -2735,8 +2735,12 @@ public class ExcelStatementGeneratorService {
             sheetName, period.periodStart, period.periodEnd, customerId);
 
         if (customerId != null) {
+            // Resolve actual owner ID for delegated users
+            Long resolvedOwnerId = resolveActualOwnerId(customerId);
+            log.info("PAYMENT RECONCILIATION: Resolved owner {} from customer {}", resolvedOwnerId, customerId);
+
             // Use new period-based reconciliation model
-            rowNum = createPeriodBasedReconciliationSection(sheet, rowNum, customerId,
+            rowNum = createPeriodBasedReconciliationSection(sheet, rowNum, resolvedOwnerId,
                 period.periodStart, period.periodEnd, styles);
         } else {
             // Fallback to old model if no customerId (legacy calls)
