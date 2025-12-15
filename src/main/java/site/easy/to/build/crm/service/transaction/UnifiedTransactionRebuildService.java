@@ -416,26 +416,23 @@ public class UnifiedTransactionRebuildService {
                 -- historical_transaction_id: not directly available for PayProp data
                 NULL as historical_transaction_id,
                 -- allocation_type based on category_name and beneficiary_type
-                -- IMPORTANT: Default to EXPENSE for unrecognized categories (safer than defaulting to OWNER)
+                -- NOTE: This query filters WHERE beneficiary_type = 'beneficiary' (owner payments only)
+                -- So the default should be OWNER for unrecognized categories in this context
                 -- DISBURSEMENT = transfers to block property account (separate from regular EXPENSE)
                 CASE
                     WHEN prap.category_name IN ('Agency Fee', 'Commission', 'Management Fee')
                          OR prap.category_name LIKE '%commission%' OR prap.category_name LIKE '%Commission%'
                     THEN 'COMMISSION'
-                    WHEN prap.category_name IN ('Rent', 'Rental', 'Income', 'Tenant Payment')
-                         OR prap.category_name LIKE '%rent%' OR prap.category_name LIKE '%income%'
-                    THEN 'OWNER'
                     WHEN prap.category_name IN ('Disbursement')
                          OR prap.category_name LIKE '%disbursement%' OR prap.category_name LIKE '%Disbursement%'
                          OR prap.description LIKE '%BLOCK PROPERTY%'
                     THEN 'DISBURSEMENT'
-                    WHEN prap.beneficiary_type IN ('vendor', 'contractor', 'agency')
-                         OR prap.category_name LIKE '%expense%' OR prap.category_name LIKE '%Expense%'
+                    WHEN prap.category_name LIKE '%expense%' OR prap.category_name LIKE '%Expense%'
                          OR prap.category_name IN ('Other', 'Council Tax', 'Insurance',
                                                    'Repairs', 'Legal', 'Service Charge', 'Ground Rent',
                                                    'Professional Fees', 'Utilities', 'Maintenance')
                     THEN 'EXPENSE'
-                    ELSE 'EXPENSE'  -- Default to EXPENSE for safety (unrecognized = likely expense)
+                    ELSE 'OWNER'  -- Default to OWNER for beneficiary_type='beneficiary' (owner distributions)
                 END as allocation_type,
                 ABS(prap.amount) as amount,
                 prap.category_name as category,
