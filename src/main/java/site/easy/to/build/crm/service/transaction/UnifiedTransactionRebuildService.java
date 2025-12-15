@@ -305,8 +305,8 @@ public class UnifiedTransactionRebuildService {
                 created_by
             )
             SELECT
-                -- incoming_transaction_id: use unified_transaction_id if available
-                tba.unified_transaction_id as incoming_transaction_id,
+                -- incoming_transaction_id: link to unified_incoming_transactions via unified_transactions match
+                uit.id as incoming_transaction_id,
                 tba.unified_transaction_id,
                 tba.transaction_id as historical_transaction_id,
                 -- allocation_type based on category
@@ -343,6 +343,11 @@ public class UnifiedTransactionRebuildService {
                 tba.created_by
             FROM transaction_batch_allocations tba
             LEFT JOIN historical_transactions ht ON tba.transaction_id = ht.id
+            LEFT JOIN unified_transactions ut ON tba.unified_transaction_id = ut.id
+            LEFT JOIN unified_incoming_transactions uit
+                ON ut.property_id = uit.property_id
+                AND ut.transaction_date = uit.transaction_date
+                AND ut.amount = uit.amount
             LEFT JOIN properties p ON tba.property_id = p.id
             LEFT JOIN customers c ON tba.beneficiary_id = c.customer_id
             LEFT JOIN payment_batches pb ON tba.batch_reference COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci

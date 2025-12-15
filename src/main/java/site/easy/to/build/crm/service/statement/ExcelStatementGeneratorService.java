@@ -2480,9 +2480,10 @@ public class ExcelStatementGeneratorService {
             periodArrearsCell.setCellFormula(String.format("G%d - H%d", rowNum + 1, rowNum + 1));
             periodArrearsCell.setCellStyle(currencyStyle);
 
-            // K: closing_balance (opening + period arrears = cumulative position at end of period)
+            // L: closing_balance (opening + period arrears = cumulative position at end of period)
+            // Column J=opening_balance, K=period_arrears
             Cell closingBalanceCell = row.createCell(col++);
-            closingBalanceCell.setCellFormula(String.format("I%d + J%d", rowNum + 1, rowNum + 1));
+            closingBalanceCell.setCellFormula(String.format("J%d + K%d", rowNum + 1, rowNum + 1));
             closingBalanceCell.setCellStyle(currencyStyle);
 
             // L: management_fee (formula: rent_received * management_fee_percent) - H is rent_received
