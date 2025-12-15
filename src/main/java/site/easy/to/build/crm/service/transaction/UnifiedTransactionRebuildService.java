@@ -353,7 +353,94 @@ public class UnifiedTransactionRebuildService {
             LEFT JOIN payment_batches pb ON tba.batch_reference COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
         """;
 
-        return jdbcTemplate.update(sql);
+        int historicalCount = jdbcTemplate.update(sql);
+        log.info("  ✓ Inserted {} allocations from transaction_batch_allocations (historical)", historicalCount);
+
+        // Step 5c: Insert from payprop_report_all_payments (PayProp data)
+        log.info("  📋 Step 5c: Inserting from payprop_report_all_payments (PayProp)...");
+
+        String paypropSql = """
+            INSERT INTO unified_allocations (
+                incoming_transaction_id,
+                unified_transaction_id,
+                historical_transaction_id,
+                allocation_type,
+                amount,
+                category,
+                description,
+                property_id,
+                property_name,
+                beneficiary_type,
+                beneficiary_id,
+                beneficiary_name,
+                payment_status,
+                payment_batch_id,
+                paid_date,
+                source,
+                source_record_id,
+                payprop_payment_id,
+                payprop_batch_id,
+                created_at,
+                updated_at
+            )
+            SELECT
+                -- incoming_transaction_id: link via unified_incoming_transactions
+                uit.id as incoming_transaction_id,
+                -- unified_transaction_id: link via unified_transactions
+                ut.id as unified_transaction_id,
+                -- historical_transaction_id: link via payprop_incoming_payments if synced
+                pip.historical_transaction_id,
+                -- allocation_type based on category_name and beneficiary_type
+                CASE
+                    WHEN prap.category_name IN ('Agency Fee', 'Commission', 'Management Fee')
+                         OR prap.category_name LIKE '%commission%' OR prap.category_name LIKE '%Commission%'
+                    THEN 'COMMISSION'
+                    WHEN prap.beneficiary_type = 'vendor' OR prap.category_name LIKE '%expense%'
+                    THEN 'EXPENSE'
+                    ELSE 'OWNER'
+                END as allocation_type,
+                ABS(prap.amount) as amount,
+                prap.category_name as category,
+                prap.description,
+                prop.id as property_id,
+                prap.incoming_property_name as property_name,
+                prap.beneficiary_type,
+                cust.customer_id as beneficiary_id,
+                prap.beneficiary_name,
+                -- payment_status from payment_batch_status
+                CASE
+                    WHEN prap.payment_batch_status = 'processed' THEN 'PAID'
+                    WHEN prap.payment_batch_status = 'pending' THEN 'PENDING'
+                    ELSE 'PAID'
+                END as payment_status,
+                prap.payment_batch_id,
+                prap.payment_batch_transfer_date as paid_date,
+                'PAYPROP' as source,
+                NULL as source_record_id,
+                prap.payprop_id as payprop_payment_id,
+                prap.payment_batch_id as payprop_batch_id,
+                prap.imported_at as created_at,
+                NOW() as updated_at
+            FROM payprop_report_all_payments prap
+            LEFT JOIN properties prop ON prap.incoming_property_payprop_id = prop.pay_prop_id
+            LEFT JOIN customers cust ON prap.beneficiary_payprop_id = cust.pay_prop_id
+            LEFT JOIN payprop_incoming_payments pip ON prap.incoming_transaction_id = pip.incoming_transaction_id
+            LEFT JOIN unified_incoming_transactions uit
+                ON prop.id = uit.property_id
+                AND prap.reconciliation_date = uit.transaction_date
+                AND prap.incoming_transaction_amount = uit.amount
+            LEFT JOIN unified_transactions ut
+                ON prop.id = ut.property_id
+                AND prap.reconciliation_date = ut.transaction_date
+                AND prap.incoming_transaction_amount = ut.amount
+            WHERE prap.payment_batch_id IS NOT NULL
+              AND prap.beneficiary_type = 'beneficiary'
+        """;
+
+        int paypropCount = jdbcTemplate.update(paypropSql);
+        log.info("  ✓ Inserted {} allocations from payprop_report_all_payments (PayProp)", paypropCount);
+
+        return historicalCount + paypropCount;
     }
 
     /**
