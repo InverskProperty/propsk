@@ -2230,26 +2230,23 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // MEMORY FIX: Only include periods within statement range - opening balances calculated separately
-        // Previously we included full history which caused OOM for customers with old leases
-        List<CustomPeriod> periods = generateCustomPeriods(startDate, endDate, periodStartDay, null);
-
-        // Generate rows for each lease × custom period that has started
-        // Show active leases AND ended leases, but NOT future leases that haven't started
+        // Generate rows for each lease using LEASE-BASED periods (like RENT_DUE)
+        // Include ALL periods from lease start for Excel formula-based opening balance calculation
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
-            for (CustomPeriod period : periods) {
-                // Skip future leases that haven't started yet (lease start is after period end)
-                if (leaseStart != null && leaseStart.isAfter(period.periodEnd)) {
-                    continue; // Don't show leases that haven't started yet
-                }
+            // Skip leases without start date
+            if (leaseStart == null) {
+                log.warn("Skipping lease {} - no start date", lease.getLeaseReference());
+                continue;
+            }
 
-                // Skip periods before this specific lease started
-                if (leaseStart != null && period.periodEnd.isBefore(leaseStart)) {
-                    continue; // This period is before the lease started
-                }
+            // Generate periods based on THIS LEASE's start date (anniversary-based)
+            // Include ALL periods from lease start for accurate opening balance calculation
+            List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, true);
+
+            for (CustomPeriod period : leasePeriods) {
 
                 // Create row for leases that have started (payments can come in even for ended leases)
                 Row row = sheet.createRow(rowNum);
@@ -2474,18 +2471,16 @@ public class ExcelStatementGeneratorService {
             rentBatchCell.setCellValue(rentBatchRef != null ? rentBatchRef : "");
 
             // J: opening_balance (cumulative arrears BEFORE this period)
-            // SXSSF: Calculate via Excel formula using RENT_DUE and TRANSACTIONS sheets
-            // Opening Balance = (Total Rent Due before period) - (Total Payments before period)
+            // Excel formula: (Rent Due before period) - (Rent Received before period)
             // RENT_DUE columns: B=lease_reference, D=period_start, L=prorated_rent_due
-            // TRANSACTIONS columns: B=transaction_date, K=lease_reference, I=amount
-            // FIX: Match both sheets on lease_reference for accurate per-lease calculation
+            // RENT_RECEIVED columns: B=lease_reference, E=period_start, O=total_received
             Cell openingBalanceCell = row.createCell(col++);
             openingBalanceCell.setCellFormula(String.format(
                 "IFERROR(SUMIFS(RENT_DUE!$L$2:$L$10000, RENT_DUE!$B$2:$B$10000, \"%s\", RENT_DUE!$D$2:$D$10000, \"<\"&DATE(%d,%d,%d)), 0) - " +
-                "IFERROR(SUMIFS(TRANSACTIONS!$I$2:$I$10000, TRANSACTIONS!$K$2:$K$10000, \"%s\", TRANSACTIONS!$B$2:$B$10000, \"<\"&DATE(%d,%d,%d)), 0)",
+                "IFERROR(SUMIFS(RENT_RECEIVED!$O$2:$O$10000, RENT_RECEIVED!$B$2:$B$10000, \"%s\", RENT_RECEIVED!$E$2:$E$10000, \"<\"&DATE(%d,%d,%d)), 0)",
                 lease.getLeaseReference(),
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
-                lease.getLeaseReference(),  // Use lease_reference for both to match correctly
+                lease.getLeaseReference(),
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()
             ));
             openingBalanceCell.setCellStyle(currencyStyle);
