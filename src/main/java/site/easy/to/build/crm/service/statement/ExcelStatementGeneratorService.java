@@ -910,7 +910,7 @@ public class ExcelStatementGeneratorService {
         Row header = sheet.createRow(0);
         String[] headers = {
             "transaction_id", "transaction_date", "invoice_id", "property_id", "property_name",
-            "customer_id", "category", "transaction_type", "amount", "description"
+            "customer_id", "category", "transaction_type", "amount", "description", "lease_reference"
         };
 
         // Use shared styles (memory optimization)
@@ -953,6 +953,7 @@ public class ExcelStatementGeneratorService {
             }
 
             row.createCell(9).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
+            row.createCell(10).setCellValue(txn.getLeaseReference() != null ? txn.getLeaseReference() : "");
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
@@ -2476,14 +2477,15 @@ public class ExcelStatementGeneratorService {
             // SXSSF: Calculate via Excel formula using RENT_DUE and TRANSACTIONS sheets
             // Opening Balance = (Total Rent Due before period) - (Total Payments before period)
             // RENT_DUE columns: B=lease_reference, D=period_start, L=prorated_rent_due
-            // TRANSACTIONS columns: B=transaction_date, E=property_name, I=amount
+            // TRANSACTIONS columns: B=transaction_date, K=lease_reference, I=amount
+            // FIX: Match both sheets on lease_reference for accurate per-lease calculation
             Cell openingBalanceCell = row.createCell(col++);
             openingBalanceCell.setCellFormula(String.format(
                 "IFERROR(SUMIFS(RENT_DUE!$L$2:$L$10000, RENT_DUE!$B$2:$B$10000, \"%s\", RENT_DUE!$D$2:$D$10000, \"<\"&DATE(%d,%d,%d)), 0) - " +
-                "IFERROR(SUMIFS(TRANSACTIONS!$I$2:$I$10000, TRANSACTIONS!$E$2:$E$10000, \"%s\", TRANSACTIONS!$B$2:$B$10000, \"<\"&DATE(%d,%d,%d)), 0)",
+                "IFERROR(SUMIFS(TRANSACTIONS!$I$2:$I$10000, TRANSACTIONS!$K$2:$K$10000, \"%s\", TRANSACTIONS!$B$2:$B$10000, \"<\"&DATE(%d,%d,%d)), 0)",
                 lease.getLeaseReference(),
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
-                lease.getPropertyName() != null ? lease.getPropertyName() : "",
+                lease.getLeaseReference(),  // Use lease_reference for both to match correctly
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth()
             ));
             openingBalanceCell.setCellStyle(currencyStyle);

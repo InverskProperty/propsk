@@ -16,6 +16,7 @@ public class TransactionDTO {
     private Long invoiceId;  // Links to LeaseMasterDTO
     private Long propertyId;
     private String propertyName;  // Property name for matching INCOMING_PAYMENT to leases
+    private String leaseReference;  // Lease reference for accurate opening balance calculation
     private Long customerId;
     private String category;  // rent, expense, owner_allocation, etc.
     private String transactionType;  // payment, charge
@@ -86,6 +87,14 @@ public class TransactionDTO {
 
     public void setPropertyName(String propertyName) {
         this.propertyName = propertyName;
+    }
+
+    public String getLeaseReference() {
+        return leaseReference;
+    }
+
+    public void setLeaseReference(String leaseReference) {
+        this.leaseReference = leaseReference;
     }
 
     public Long getCustomerId() {

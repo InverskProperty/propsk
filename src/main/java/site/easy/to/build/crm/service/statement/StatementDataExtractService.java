@@ -356,6 +356,7 @@ public class StatementDataExtractService {
             dto.setInvoiceId(ut.getInvoiceId());
             dto.setPropertyId(ut.getPropertyId());
             dto.setPropertyName(ut.getPropertyName());  // For matching INCOMING_PAYMENT to leases
+            dto.setLeaseReference(ut.getLeaseReference());  // For accurate opening balance matching
             dto.setCustomerId(ut.getCustomerId());
             dto.setCategory(ut.getCategory());
             dto.setTransactionType(ut.getTransactionType());
@@ -409,6 +410,7 @@ public class StatementDataExtractService {
             dto.setInvoiceId(ut.getInvoiceId());
             dto.setPropertyId(ut.getPropertyId());
             dto.setPropertyName(ut.getPropertyName());  // For matching INCOMING_PAYMENT to leases
+            dto.setLeaseReference(ut.getLeaseReference());  // For accurate opening balance matching
             dto.setCustomerId(ut.getCustomerId());
             dto.setCategory(ut.getCategory());
             dto.setTransactionType(ut.getTransactionType());
