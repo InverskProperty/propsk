@@ -2940,7 +2940,7 @@ public class ExcelStatementGeneratorService {
         Row bfCreditRow = sheet.createRow(rowNum++);
         bfCreditRow.createCell(COL_DESC).setCellValue("  Less: Owner Credit (" + bfPayments.size() + " payments)");
         Cell bfCreditCell = bfCreditRow.createCell(COL_AMT);
-        bfCreditCell.setCellValue(totalBfCredit.negate().doubleValue());
+        bfCreditCell.setCellValue(totalBfCredit.doubleValue());
         bfCreditCell.setCellStyle(currencyStyle);
 
         // Show B/F payment details
@@ -2952,7 +2952,7 @@ public class ExcelStatementGeneratorService {
             detailRow.createCell(COL_DESC).setCellValue(detail);
             Cell detailAmt = detailRow.createCell(COL_AMT);
             BigDecimal amt = payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO;
-            detailAmt.setCellValue(amt.negate().doubleValue());
+            detailAmt.setCellValue(amt.doubleValue());
             detailAmt.setCellStyle(currencyStyle);
         }
 
@@ -2999,7 +2999,7 @@ public class ExcelStatementGeneratorService {
         Row expenseRow = sheet.createRow(rowNum++);
         expenseRow.createCell(COL_DESC).setCellValue("  Less: Expenses (" + periodExpenses.size() + " transactions)");
         Cell expenseCell = expenseRow.createCell(COL_AMT);
-        expenseCell.setCellValue(totalPeriodExpenses.negate().doubleValue());
+        expenseCell.setCellValue(totalPeriodExpenses.doubleValue());
         expenseCell.setCellStyle(currencyStyle);
 
         // Net Activity
@@ -3027,6 +3027,11 @@ public class ExcelStatementGeneratorService {
         BigDecimal totalPaymentsAllocated = BigDecimal.ZERO;
         BigDecimal totalPeriodUnallocated = BigDecimal.ZERO;
 
+        // Column positions for Covers section: B=Incoming, C=Outgoing, D=Total
+        final int COL_INCOMING = 1;
+        final int COL_OUTGOING = 2;
+        final int COL_TOTAL = 3;
+
         if (payments.isEmpty()) {
             Row noPaymentsRow = sheet.createRow(rowNum++);
             noPaymentsRow.createCell(COL_DESC).setCellValue("  (No payments made this period)");
@@ -3040,18 +3045,31 @@ public class ExcelStatementGeneratorService {
                 paymentRow.createCell(COL_DESC).setCellValue(paymentInfo);
 
                 BigDecimal paymentAmount = payment.getTotalPayment() != null ? payment.getTotalPayment() : BigDecimal.ZERO;
-                Cell paymentAmountCell = paymentRow.createCell(COL_AMT);
-                paymentAmountCell.setCellValue(paymentAmount.negate().doubleValue());
+                Cell paymentAmountCell = paymentRow.createCell(COL_TOTAL);
+                paymentAmountCell.setCellValue(paymentAmount.doubleValue());
                 paymentAmountCell.setCellStyle(boldCurrencyStyle);
 
                 totalPaymentsMade = totalPaymentsMade.add(paymentAmount);
 
-                // Show allocation details with [Income]/[Expense] labels
+                // Show allocation details with Incoming/Outgoing/Total columns
                 if (!payment.getAllocations().isEmpty()) {
+                    // Covers header row with sub-columns
                     Row coversRow = sheet.createRow(rowNum++);
                     coversRow.createCell(COL_DESC).setCellValue("    Covers:");
+                    Cell incomingHeader = coversRow.createCell(COL_INCOMING);
+                    incomingHeader.setCellValue("Incoming");
+                    incomingHeader.setCellStyle(boldStyle);
+                    Cell outgoingHeader = coversRow.createCell(COL_OUTGOING);
+                    outgoingHeader.setCellValue("Outgoing");
+                    outgoingHeader.setCellStyle(boldStyle);
+                    Cell totalHeader = coversRow.createCell(COL_TOTAL);
+                    totalHeader.setCellValue("Total");
+                    totalHeader.setCellStyle(boldStyle);
 
                     BigDecimal paymentAllocated = BigDecimal.ZERO;
+                    BigDecimal totalIncoming = BigDecimal.ZERO;
+                    BigDecimal totalOutgoing = BigDecimal.ZERO;
+
                     for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
                         Row allocRow = sheet.createRow(rowNum++);
 
@@ -3060,7 +3078,6 @@ public class ExcelStatementGeneratorService {
                         boolean isExpense = category.contains("repair") || category.contains("expense") ||
                                            category.contains("maintenance") || category.contains("fee") ||
                                            category.contains("cost") || category.contains("charge");
-                        String typeLabel = isExpense ? "[Expense]" : "[Income]";
 
                         StringBuilder desc = new StringBuilder("      ");
                         if (alloc.getTransactionDate() != null) {
@@ -3072,20 +3089,48 @@ public class ExcelStatementGeneratorService {
                             desc.append(prop).append(" | ");
                         }
                         if (alloc.getCategory() != null && !alloc.getCategory().isEmpty()) {
-                            desc.append(alloc.getCategory()).append(" ");
+                            desc.append(alloc.getCategory());
                         }
-                        desc.append(typeLabel);
                         if (alloc.isPartial()) desc.append(" [SPLIT]");
                         if (alloc.isFromPriorPeriod()) desc.append(" [PRIOR]");
 
                         allocRow.createCell(COL_DESC).setCellValue(desc.toString());
                         BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
-                        Cell allocAmtCell = allocRow.createCell(COL_AMT);
-                        allocAmtCell.setCellValue(allocAmt.doubleValue());
-                        allocAmtCell.setCellStyle(currencyStyle);
+
+                        // Put amount in appropriate column
+                        if (isExpense) {
+                            Cell outgoingCell = allocRow.createCell(COL_OUTGOING);
+                            outgoingCell.setCellValue(allocAmt.doubleValue());
+                            outgoingCell.setCellStyle(currencyStyle);
+                            totalOutgoing = totalOutgoing.add(allocAmt);
+                        } else {
+                            Cell incomingCell = allocRow.createCell(COL_INCOMING);
+                            incomingCell.setCellValue(allocAmt.doubleValue());
+                            incomingCell.setCellStyle(currencyStyle);
+                            totalIncoming = totalIncoming.add(allocAmt);
+                        }
+
+                        // Total column
+                        Cell totalCell = allocRow.createCell(COL_TOTAL);
+                        totalCell.setCellValue(allocAmt.doubleValue());
+                        totalCell.setCellStyle(currencyStyle);
 
                         paymentAllocated = paymentAllocated.add(allocAmt);
                     }
+
+                    // Subtotal row for allocations
+                    Row subtotalRow = sheet.createRow(rowNum++);
+                    subtotalRow.createCell(COL_DESC).setCellValue("      Subtotal:");
+                    Cell subtotalIncoming = subtotalRow.createCell(COL_INCOMING);
+                    subtotalIncoming.setCellValue(totalIncoming.doubleValue());
+                    subtotalIncoming.setCellStyle(boldCurrencyStyle);
+                    Cell subtotalOutgoing = subtotalRow.createCell(COL_OUTGOING);
+                    subtotalOutgoing.setCellValue(totalOutgoing.doubleValue());
+                    subtotalOutgoing.setCellStyle(boldCurrencyStyle);
+                    Cell subtotalTotal = subtotalRow.createCell(COL_TOTAL);
+                    subtotalTotal.setCellValue(paymentAllocated.doubleValue());
+                    subtotalTotal.setCellStyle(boldCurrencyStyle);
+
                     totalPaymentsAllocated = totalPaymentsAllocated.add(paymentAllocated);
                 }
 
@@ -3094,7 +3139,7 @@ public class ExcelStatementGeneratorService {
                 if (unalloc.compareTo(BigDecimal.valueOf(0.01)) > 0) {
                     Row unallocRow = sheet.createRow(rowNum++);
                     unallocRow.createCell(COL_DESC).setCellValue("    → Unallocated (owner credit)");
-                    Cell unallocAmtCell = unallocRow.createCell(COL_AMT);
+                    Cell unallocAmtCell = unallocRow.createCell(COL_TOTAL);
                     unallocAmtCell.setCellValue(unalloc.doubleValue());
                     unallocAmtCell.setCellStyle(currencyStyle);
                     totalPeriodUnallocated = totalPeriodUnallocated.add(unalloc);
@@ -3107,8 +3152,8 @@ public class ExcelStatementGeneratorService {
         Cell paymentsTotalLabel = paymentsTotalRow.createCell(COL_DESC);
         paymentsTotalLabel.setCellValue("  Total Payments Made:");
         paymentsTotalLabel.setCellStyle(boldStyle);
-        Cell paymentsTotalCell = paymentsTotalRow.createCell(COL_AMT);
-        paymentsTotalCell.setCellValue(totalPaymentsMade.negate().doubleValue());
+        Cell paymentsTotalCell = paymentsTotalRow.createCell(COL_TOTAL);
+        paymentsTotalCell.setCellValue(totalPaymentsMade.doubleValue());
         paymentsTotalCell.setCellStyle(boldCurrencyStyle);
 
         rowNum++; // Blank row
@@ -3149,7 +3194,7 @@ public class ExcelStatementGeneratorService {
         Row cfCreditRow = sheet.createRow(rowNum++);
         cfCreditRow.createCell(COL_DESC).setCellValue("  Less: Owner Credit");
         Cell cfCreditCell = cfCreditRow.createCell(COL_AMT);
-        cfCreditCell.setCellValue(totalCfCredit.negate().doubleValue());
+        cfCreditCell.setCellValue(totalCfCredit.doubleValue());
         cfCreditCell.setCellStyle(currencyStyle);
 
         // Net C/F
