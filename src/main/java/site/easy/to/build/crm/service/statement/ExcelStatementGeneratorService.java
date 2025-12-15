@@ -3384,13 +3384,14 @@ public class ExcelStatementGeneratorService {
                 ));
                 totalRentDueCell.setCellStyle(currencyStyle);
 
-                // H: total_rent_received (SUM across ALL periods in RENT_RECEIVED sheet for this lease)
-                // NOTE: Don't filter by period_start - include pre-lease and post-lease payments
-                // The RENT_RECEIVED sheet already scopes data to the relevant timeframe
+                // H: total_rent_received (SUM payments where period_start <= statement end date)
+                // This includes pre-lease payments (period_start is before statement end)
+                // But excludes payments for periods that start AFTER the statement end date
                 Cell totalRentReceivedCell = row.createCell(col++);
                 totalRentReceivedCell.setCellFormula(String.format(
-                    "SUMIF(RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!O:O)",
-                    lease.getLeaseReference()
+                    "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, \"<=\"&DATE(%d,%d,%d))",
+                    lease.getLeaseReference(),
+                    endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
                 ));
                 totalRentReceivedCell.setCellStyle(currencyStyle);
 
