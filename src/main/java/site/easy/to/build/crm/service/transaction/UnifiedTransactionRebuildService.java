@@ -419,11 +419,11 @@ public class UnifiedTransactionRebuildService {
                 NULL as source_record_id,
                 prap.payprop_id as payprop_payment_id,
                 prap.payment_batch_id as payprop_batch_id,
-                NOW() as created_at,
+                prap.imported_at as created_at,
                 NOW() as updated_at
             FROM payprop_report_all_payments prap
-            LEFT JOIN properties prop ON prap.incoming_property_payprop_id COLLATE utf8mb4_unicode_ci = prop.pay_prop_id COLLATE utf8mb4_unicode_ci
-            LEFT JOIN customers cust ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = cust.pay_prop_id COLLATE utf8mb4_unicode_ci
+            LEFT JOIN properties prop ON prap.incoming_property_payprop_id COLLATE utf8mb4_unicode_ci = prop.payprop_id COLLATE utf8mb4_unicode_ci
+            LEFT JOIN customers cust ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = cust.payprop_entity_id COLLATE utf8mb4_unicode_ci
             LEFT JOIN payprop_incoming_payments pip ON prap.incoming_transaction_id COLLATE utf8mb4_unicode_ci = pip.incoming_transaction_id COLLATE utf8mb4_unicode_ci
             LEFT JOIN unified_incoming_transactions uit
                 ON prop.id = uit.property_id
