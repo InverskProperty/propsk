@@ -2306,9 +2306,11 @@ public class ExcelStatementGeneratorService {
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
 
-                // Get payment details for this lease/period (payments can exist even for inactive leases)
+                // Get payment details for this lease/period
+                // Cap the query end date at the statement end date to exclude payments made after statement period
+                LocalDate queryEndDate = period.periodEnd.isAfter(endDate) ? endDate : period.periodEnd;
                 List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> payments =
-                    dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), period.periodStart, period.periodEnd);
+                    dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), period.periodStart, queryEndDate);
 
                 // A: lease_id
                 row.createCell(col++).setCellValue(lease.getLeaseId());
@@ -2368,10 +2370,12 @@ public class ExcelStatementGeneratorService {
 
             // Check for post-lease payments (payments made after lease end date)
             // These need to be captured for accurate balance calculation (e.g., late payments)
-            if (leaseEnd != null) {
-                LocalDate postLeaseEnd = leaseEnd.plusYears(1); // Look forward 1 year for post-lease payments
+            // Only include payments up to the statement end date
+            if (leaseEnd != null && leaseEnd.isBefore(endDate)) {
+                // Cap post-lease query at statement end date
+                LocalDate postLeaseQueryEnd = endDate;
                 List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> postLeasePayments =
-                    dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), leaseEnd.plusDays(1), postLeaseEnd);
+                    dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), leaseEnd.plusDays(1), postLeaseQueryEnd);
 
                 if (!postLeasePayments.isEmpty()) {
                     // Add a "post-lease" row to capture payments after lease ended
@@ -2391,7 +2395,7 @@ public class ExcelStatementGeneratorService {
                     postPeriodStartCell.setCellStyle(dateStyle);
 
                     Cell postPeriodEndCell = postLeaseRow.createCell(col++);
-                    postPeriodEndCell.setCellValue(postLeaseEnd);
+                    postPeriodEndCell.setCellValue(postLeaseQueryEnd);
                     postPeriodEndCell.setCellStyle(dateStyle);
 
                     // Payment breakdown for post-lease payments
