@@ -2902,96 +2902,73 @@ public class ExcelStatementGeneratorService {
 
         rowNum++; // Blank row
 
+        // ===== GET PAYMENTS FIRST (this data is reliable) =====
+        List<PaymentWithAllocationsDTO> payments = dataExtractService.extractPaymentsWithAllocationsInPeriod(
+            customerId, periodStart, periodEnd, periodStart);
+
+        // Calculate B/F and Activity from payment allocations (more reliable than direct queries)
+        BigDecimal bfIncomeFromAllocations = BigDecimal.ZERO;
+        BigDecimal bfExpenseFromAllocations = BigDecimal.ZERO;
+        BigDecimal periodIncomeFromAllocations = BigDecimal.ZERO;
+        BigDecimal periodExpenseFromAllocations = BigDecimal.ZERO;
+        int bfIncomeCount = 0;
+        int bfExpenseCount = 0;
+        int periodIncomeCount = 0;
+        int periodExpenseCount = 0;
+
+        for (PaymentWithAllocationsDTO payment : payments) {
+            for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
+                String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
+                boolean isExpense = category.contains("repair") || category.contains("expense") ||
+                                   category.contains("maintenance") || category.contains("fee") ||
+                                   category.contains("cost") || category.contains("charge");
+                BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
+                LocalDate txnDate = alloc.getTransactionDate();
+
+                if (txnDate != null && txnDate.isBefore(periodStart)) {
+                    // B/F item (from prior period)
+                    if (isExpense) {
+                        bfExpenseFromAllocations = bfExpenseFromAllocations.add(allocAmt);
+                        bfExpenseCount++;
+                    } else {
+                        bfIncomeFromAllocations = bfIncomeFromAllocations.add(allocAmt);
+                        bfIncomeCount++;
+                    }
+                } else {
+                    // This period item
+                    if (isExpense) {
+                        periodExpenseFromAllocations = periodExpenseFromAllocations.add(allocAmt);
+                        periodExpenseCount++;
+                    } else {
+                        periodIncomeFromAllocations = periodIncomeFromAllocations.add(allocAmt);
+                        periodIncomeCount++;
+                    }
+                }
+            }
+        }
+
         // ===== BROUGHT FORWARD =====
         Row bfHeaderRow = sheet.createRow(rowNum++);
         Cell bfHeaderCell = bfHeaderRow.createCell(COL_DESC);
-        bfHeaderCell.setCellValue("BROUGHT FORWARD (as of " + periodStart.toString() + ")");
+        bfHeaderCell.setCellValue("BROUGHT FORWARD (items paid this period from prior periods)");
         bfHeaderCell.setCellStyle(boldStyle);
 
-        // Get B/F data
-        List<UnallocatedIncomeDTO> bfIncome = dataExtractService.extractUnallocatedIncomeAsOf(customerId, periodStart);
-        List<UnallocatedIncomeDTO> bfExpenses = dataExtractService.extractUnallocatedExpensesAsOf(customerId, periodStart);
-        List<UnallocatedPaymentDTO> bfPayments = dataExtractService.extractUnallocatedPaymentsAsOf(customerId, periodStart);
-
-        BigDecimal totalBfIncome = BigDecimal.ZERO;
-        BigDecimal totalBfExpenses = BigDecimal.ZERO;
-        BigDecimal totalBfCredit = BigDecimal.ZERO;
-
-        // B/F Unallocated Income
-        for (UnallocatedIncomeDTO income : bfIncome) {
-            totalBfIncome = totalBfIncome.add(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated() : BigDecimal.ZERO);
-        }
         Row bfIncomeRow = sheet.createRow(rowNum++);
-        bfIncomeRow.createCell(COL_DESC).setCellValue("  Unallocated Income (" + bfIncome.size() + " items)");
+        bfIncomeRow.createCell(COL_DESC).setCellValue("  Prior Period Income (" + bfIncomeCount + " items)");
         Cell bfIncomeCell = bfIncomeRow.createCell(COL_AMT);
-        bfIncomeCell.setCellValue(totalBfIncome.doubleValue());
+        bfIncomeCell.setCellValue(bfIncomeFromAllocations.doubleValue());
         bfIncomeCell.setCellStyle(currencyStyle);
 
-        // Show B/F income details
-        for (UnallocatedIncomeDTO income : bfIncome) {
-            Row detailRow = sheet.createRow(rowNum++);
-            String detail = String.format("    %s | %s | %s",
-                income.getTransactionDate() != null ? income.getTransactionDate().toString() : "",
-                income.getPropertyName() != null ? income.getPropertyName() : "",
-                income.getTenantName() != null ? (income.getTenantName().length() > 20 ? income.getTenantName().substring(0, 17) + "..." : income.getTenantName()) : "");
-            detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_AMT);
-            detailAmt.setCellValue(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated().doubleValue() : 0);
-            detailAmt.setCellStyle(currencyStyle);
-        }
-
-        // B/F Unallocated Expenses
-        for (UnallocatedIncomeDTO expense : bfExpenses) {
-            totalBfExpenses = totalBfExpenses.add(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated() : BigDecimal.ZERO);
-        }
         Row bfExpenseRow = sheet.createRow(rowNum++);
-        bfExpenseRow.createCell(COL_DESC).setCellValue("  Unallocated Expenses (" + bfExpenses.size() + " items)");
+        bfExpenseRow.createCell(COL_DESC).setCellValue("  Prior Period Expenses (" + bfExpenseCount + " items)");
         Cell bfExpenseCell = bfExpenseRow.createCell(COL_AMT);
-        bfExpenseCell.setCellValue(totalBfExpenses.doubleValue());
+        bfExpenseCell.setCellValue(bfExpenseFromAllocations.doubleValue());
         bfExpenseCell.setCellStyle(currencyStyle);
 
-        // Show B/F expense details
-        for (UnallocatedIncomeDTO expense : bfExpenses) {
-            Row detailRow = sheet.createRow(rowNum++);
-            String detail = String.format("    %s | %s | %s",
-                expense.getTransactionDate() != null ? expense.getTransactionDate().toString() : "",
-                expense.getPropertyName() != null ? expense.getPropertyName() : "",
-                expense.getCategory() != null ? expense.getCategory() : "");
-            detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_AMT);
-            detailAmt.setCellValue(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated().doubleValue() : 0);
-            detailAmt.setCellStyle(currencyStyle);
-        }
-
-        // B/F Unallocated Payments (owner credit = overpayment from previous periods)
-        for (UnallocatedPaymentDTO payment : bfPayments) {
-            totalBfCredit = totalBfCredit.add(payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO);
-        }
-        Row bfCreditRow = sheet.createRow(rowNum++);
-        bfCreditRow.createCell(COL_DESC).setCellValue("  Unsubscribed Payment Amounts (" + bfPayments.size() + " payments)");
-        Cell bfCreditCell = bfCreditRow.createCell(COL_AMT);
-        bfCreditCell.setCellValue(totalBfCredit.doubleValue());
-        bfCreditCell.setCellStyle(currencyStyle);
-
-        // Show B/F payment details
-        for (UnallocatedPaymentDTO payment : bfPayments) {
-            Row detailRow = sheet.createRow(rowNum++);
-            String detail = String.format("    %s | %s",
-                payment.getBatchId() != null ? payment.getBatchId() : "",
-                payment.getPaymentDate() != null ? payment.getPaymentDate().toString() : "");
-            detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_AMT);
-            BigDecimal amt = payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO;
-            detailAmt.setCellValue(amt.doubleValue());
-            detailAmt.setCellStyle(currencyStyle);
-        }
-
-        // Net B/F = Income + Expenses - Unsubscribed Payments
-        // (Expenses reduce what's owed to owner, unsubscribed payments are credit to owner)
-        BigDecimal netBf = totalBfIncome.add(totalBfExpenses).subtract(totalBfCredit);
+        BigDecimal netBf = bfIncomeFromAllocations.subtract(bfExpenseFromAllocations);
         Row bfNetRow = sheet.createRow(rowNum++);
         Cell bfNetLabel = bfNetRow.createCell(COL_DESC);
-        bfNetLabel.setCellValue("  Net Brought Forward:");
+        bfNetLabel.setCellValue("  Net B/F (Income - Expenses):");
         bfNetLabel.setCellStyle(boldStyle);
         Cell bfNetCell = bfNetRow.createCell(COL_AMT);
         bfNetCell.setCellValue(netBf.doubleValue());
@@ -3002,42 +2979,25 @@ public class ExcelStatementGeneratorService {
         // ===== THIS PERIOD ACTIVITY =====
         Row activityHeaderRow = sheet.createRow(rowNum++);
         Cell activityHeaderCell = activityHeaderRow.createCell(COL_DESC);
-        activityHeaderCell.setCellValue("THIS PERIOD ACTIVITY");
+        activityHeaderCell.setCellValue("THIS PERIOD ACTIVITY (items paid this period from this period)");
         activityHeaderCell.setCellStyle(boldStyle);
 
-        // Get activity data
-        List<UnallocatedIncomeDTO> periodIncome = dataExtractService.extractIncomeReceivedInPeriod(customerId, periodStart, periodEnd);
-        List<UnallocatedIncomeDTO> periodExpenses = dataExtractService.extractExpensesInPeriod(customerId, periodStart, periodEnd);
-
-        BigDecimal totalPeriodIncome = BigDecimal.ZERO;
-        BigDecimal totalPeriodExpenses = BigDecimal.ZERO;
-
-        // Period Income
-        for (UnallocatedIncomeDTO income : periodIncome) {
-            totalPeriodIncome = totalPeriodIncome.add(income.getNetDue() != null ? income.getNetDue() : BigDecimal.ZERO);
-        }
         Row incomeRow = sheet.createRow(rowNum++);
-        incomeRow.createCell(COL_DESC).setCellValue("  Income Received (" + periodIncome.size() + " transactions)");
+        incomeRow.createCell(COL_DESC).setCellValue("  Period Income (" + periodIncomeCount + " transactions)");
         Cell incomeCell = incomeRow.createCell(COL_AMT);
-        incomeCell.setCellValue(totalPeriodIncome.doubleValue());
+        incomeCell.setCellValue(periodIncomeFromAllocations.doubleValue());
         incomeCell.setCellStyle(currencyStyle);
 
-        // Period Expenses (show as negative)
-        for (UnallocatedIncomeDTO expense : periodExpenses) {
-            BigDecimal amt = expense.getGrossAmount() != null ? expense.getGrossAmount().abs() : BigDecimal.ZERO;
-            totalPeriodExpenses = totalPeriodExpenses.add(amt);
-        }
         Row expenseRow = sheet.createRow(rowNum++);
-        expenseRow.createCell(COL_DESC).setCellValue("  Less: Expenses (" + periodExpenses.size() + " transactions)");
+        expenseRow.createCell(COL_DESC).setCellValue("  Period Expenses (" + periodExpenseCount + " transactions)");
         Cell expenseCell = expenseRow.createCell(COL_AMT);
-        expenseCell.setCellValue(totalPeriodExpenses.doubleValue());
+        expenseCell.setCellValue(periodExpenseFromAllocations.doubleValue());
         expenseCell.setCellStyle(currencyStyle);
 
-        // Net Activity
-        BigDecimal netActivity = totalPeriodIncome.subtract(totalPeriodExpenses);
+        BigDecimal netActivity = periodIncomeFromAllocations.subtract(periodExpenseFromAllocations);
         Row activityNetRow = sheet.createRow(rowNum++);
         Cell activityNetLabel = activityNetRow.createCell(COL_DESC);
-        activityNetLabel.setCellValue("  Net Period Activity:");
+        activityNetLabel.setCellValue("  Net Activity (Income - Expenses):");
         activityNetLabel.setCellStyle(boldStyle);
         Cell activityNetCell = activityNetRow.createCell(COL_AMT);
         activityNetCell.setCellValue(netActivity.doubleValue());
@@ -3051,9 +3011,7 @@ public class ExcelStatementGeneratorService {
         paymentsHeaderCell.setCellValue("PAYMENTS MADE THIS PERIOD");
         paymentsHeaderCell.setCellStyle(boldStyle);
 
-        List<PaymentWithAllocationsDTO> payments = dataExtractService.extractPaymentsWithAllocationsInPeriod(
-            customerId, periodStart, periodEnd, periodStart);
-
+        // Note: payments already fetched at start of method
         BigDecimal totalPaymentsMade = BigDecimal.ZERO;
         BigDecimal totalPaymentsAllocated = BigDecimal.ZERO;
         BigDecimal totalPeriodUnallocated = BigDecimal.ZERO;
@@ -3143,101 +3101,49 @@ public class ExcelStatementGeneratorService {
 
         rowNum++; // Blank row
 
-        // ===== CARRIED FORWARD =====
-        Row cfHeaderRow = sheet.createRow(rowNum++);
-        Cell cfHeaderCell = cfHeaderRow.createCell(COL_DESC);
-        cfHeaderCell.setCellValue("CARRIED FORWARD (as of " + periodEnd.toString() + ")");
-        cfHeaderCell.setCellStyle(boldStyle);
+        // ===== SUMMARY =====
+        Row summaryHeaderRow = sheet.createRow(rowNum++);
+        Cell summaryHeaderCell = summaryHeaderRow.createCell(COL_DESC);
+        summaryHeaderCell.setCellValue("SUMMARY");
+        summaryHeaderCell.setCellStyle(boldStyle);
 
-        // Get C/F income data
-        List<UnallocatedIncomeDTO> cfIncome = dataExtractService.extractUnallocatedIncomeAsOfEndDate(customerId, periodEnd);
-        BigDecimal totalCfIncome = BigDecimal.ZERO;
-        for (UnallocatedIncomeDTO income : cfIncome) {
-            totalCfIncome = totalCfIncome.add(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated() : BigDecimal.ZERO);
+        // Total allocated this period = B/F items + Period items
+        BigDecimal totalAllocated = bfIncomeFromAllocations.add(periodIncomeFromAllocations)
+                                    .subtract(bfExpenseFromAllocations).subtract(periodExpenseFromAllocations);
+        Row allocatedRow = sheet.createRow(rowNum++);
+        allocatedRow.createCell(COL_DESC).setCellValue("  Total Allocated (Income - Expenses):");
+        Cell allocatedCell = allocatedRow.createCell(COL_AMT);
+        allocatedCell.setCellValue(totalAllocated.doubleValue());
+        allocatedCell.setCellStyle(currencyStyle);
+
+        Row paymentsRow = sheet.createRow(rowNum++);
+        paymentsRow.createCell(COL_DESC).setCellValue("  Total Payments Made:");
+        Cell paymentsCell = paymentsRow.createCell(COL_AMT);
+        paymentsCell.setCellValue(totalPaymentsMade.doubleValue());
+        paymentsCell.setCellStyle(currencyStyle);
+
+        // Unallocated from payments this period
+        Row unallocRow = sheet.createRow(rowNum++);
+        unallocRow.createCell(COL_DESC).setCellValue("  Unallocated Payment Amounts:");
+        Cell unallocCell = unallocRow.createCell(COL_AMT);
+        unallocCell.setCellValue(totalPeriodUnallocated.doubleValue());
+        unallocCell.setCellStyle(currencyStyle);
+
+        // Variance check: Payments = Allocated + Unallocated
+        BigDecimal expectedPayments = totalAllocated.add(totalPeriodUnallocated);
+        BigDecimal variance = totalPaymentsMade.subtract(expectedPayments);
+
+        rowNum++;
+        Row verifyRow = sheet.createRow(rowNum++);
+        String verifyText = String.format("Check: Allocated %.2f + Unallocated %.2f = %.2f vs Payments %.2f",
+            totalAllocated.doubleValue(), totalPeriodUnallocated.doubleValue(),
+            expectedPayments.doubleValue(), totalPaymentsMade.doubleValue());
+        verifyRow.createCell(COL_DESC).setCellValue(verifyText);
+
+        if (variance.abs().compareTo(BigDecimal.valueOf(0.01)) > 0) {
+            Row varianceRow = sheet.createRow(rowNum++);
+            varianceRow.createCell(COL_DESC).setCellValue("  Variance: " + String.format("%.2f", variance.doubleValue()) + " (check allocations)");
         }
-
-        Row cfIncomeRow = sheet.createRow(rowNum++);
-        cfIncomeRow.createCell(COL_DESC).setCellValue("  Unallocated Income (" + cfIncome.size() + " items)");
-        Cell cfIncomeCell = cfIncomeRow.createCell(COL_AMT);
-        cfIncomeCell.setCellValue(totalCfIncome.doubleValue());
-        cfIncomeCell.setCellStyle(currencyStyle);
-
-        // Show C/F income details
-        for (UnallocatedIncomeDTO income : cfIncome) {
-            Row detailRow = sheet.createRow(rowNum++);
-            String detail = String.format("    %s | %s",
-                income.getTransactionDate() != null ? income.getTransactionDate().toString() : "",
-                income.getPropertyName() != null ? income.getPropertyName() : "");
-            detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_AMT);
-            detailAmt.setCellValue(income.getRemainingUnallocated() != null ? income.getRemainingUnallocated().doubleValue() : 0);
-            detailAmt.setCellStyle(currencyStyle);
-        }
-
-        // Get C/F expense data
-        List<UnallocatedIncomeDTO> cfExpenses = dataExtractService.extractUnallocatedExpensesAsOfEndDate(customerId, periodEnd);
-        BigDecimal totalCfExpenses = BigDecimal.ZERO;
-        for (UnallocatedIncomeDTO expense : cfExpenses) {
-            totalCfExpenses = totalCfExpenses.add(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated() : BigDecimal.ZERO);
-        }
-
-        Row cfExpenseRow = sheet.createRow(rowNum++);
-        cfExpenseRow.createCell(COL_DESC).setCellValue("  Unallocated Expenses (" + cfExpenses.size() + " items)");
-        Cell cfExpenseCell = cfExpenseRow.createCell(COL_AMT);
-        cfExpenseCell.setCellValue(totalCfExpenses.doubleValue());
-        cfExpenseCell.setCellStyle(currencyStyle);
-
-        // Show C/F expense details
-        for (UnallocatedIncomeDTO expense : cfExpenses) {
-            Row detailRow = sheet.createRow(rowNum++);
-            String detail = String.format("    %s | %s | %s",
-                expense.getTransactionDate() != null ? expense.getTransactionDate().toString() : "",
-                expense.getPropertyName() != null ? expense.getPropertyName() : "",
-                expense.getCategory() != null ? expense.getCategory() : "");
-            detailRow.createCell(COL_DESC).setCellValue(detail);
-            Cell detailAmt = detailRow.createCell(COL_AMT);
-            detailAmt.setCellValue(expense.getRemainingUnallocated() != null ? expense.getRemainingUnallocated().doubleValue() : 0);
-            detailAmt.setCellStyle(currencyStyle);
-        }
-
-        // C/F unsubscribed payment amounts = B/F credit + period unallocated
-        BigDecimal totalCfCredit = totalBfCredit.add(totalPeriodUnallocated);
-        Row cfCreditRow = sheet.createRow(rowNum++);
-        cfCreditRow.createCell(COL_DESC).setCellValue("  Unsubscribed Payment Amounts");
-        Cell cfCreditCell = cfCreditRow.createCell(COL_AMT);
-        cfCreditCell.setCellValue(totalCfCredit.doubleValue());
-        cfCreditCell.setCellStyle(currencyStyle);
-
-        // Net C/F = Income + Expenses - Unsubscribed Payments
-        BigDecimal netCf = totalCfIncome.add(totalCfExpenses).subtract(totalCfCredit);
-        Row cfNetRow = sheet.createRow(rowNum++);
-        Cell cfNetLabel = cfNetRow.createCell(COL_DESC);
-        cfNetLabel.setCellValue("  Net Carried Forward:");
-        cfNetLabel.setCellStyle(boldStyle);
-        Cell cfNetCell = cfNetRow.createCell(COL_AMT);
-        cfNetCell.setCellValue(netCf.doubleValue());
-        cfNetCell.setCellStyle(boldCurrencyStyle);
-
-        rowNum++; // Blank row
-
-        // ===== VERIFICATION =====
-        Row verifyHeaderRow = sheet.createRow(rowNum++);
-        Cell verifyHeaderCell = verifyHeaderRow.createCell(COL_DESC);
-        verifyHeaderCell.setCellValue("VERIFICATION");
-        verifyHeaderCell.setCellStyle(boldStyle);
-
-        // Formula: Net B/F + Net Activity - Payments = Expected C/F
-        BigDecimal expectedCf = netBf.add(netActivity).subtract(totalPaymentsMade);
-        BigDecimal variance = netCf.subtract(expectedCf);
-
-        Row formulaRow = sheet.createRow(rowNum++);
-        formulaRow.createCell(COL_DESC).setCellValue(String.format("B/F %.2f + Activity %.2f - Payments %.2f = %.2f",
-            netBf.doubleValue(), netActivity.doubleValue(), totalPaymentsMade.doubleValue(), expectedCf.doubleValue()));
-
-        Row resultRow = sheet.createRow(rowNum++);
-        resultRow.createCell(COL_DESC).setCellValue("Actual C/F: " + String.format("%.2f", netCf.doubleValue()) +
-            "  |  Variance: " + String.format("%.2f", variance.doubleValue()) +
-            (variance.abs().compareTo(BigDecimal.valueOf(0.01)) > 0 ? "  ⚠️ CHECK" : "  ✓ OK"));
 
         return rowNum;
     }
