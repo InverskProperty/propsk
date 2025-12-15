@@ -2252,7 +2252,7 @@ public class StatementDataExtractService {
                 payment.setPaymentReference((String) paymentRow.get("payment_reference"));
 
                 // Get allocations for this payment from unified_allocations table
-                // Only include OWNER type allocations (not COMMISSION or EXPENSE which go elsewhere)
+                // Include OWNER (income) and EXPENSE (deductions) - not COMMISSION which goes to agency
                 String allocationSql = """
                     SELECT
                         ua.historical_transaction_id as transaction_id,
@@ -2261,18 +2261,22 @@ public class StatementDataExtractService {
                         COALESCE(ua.category, ht.category) as category,
                         COALESCE(ua.description, ht.description) as description,
                         ua.amount as allocated_amount,
+                        ua.allocation_type,
                         COALESCE(ht.net_to_owner_amount, ht.amount) as transaction_total,
                         (SELECT COUNT(*) FROM unified_allocations WHERE historical_transaction_id = ua.historical_transaction_id AND payment_batch_id IS NOT NULL) as allocation_count
                     FROM unified_allocations ua
                     LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
                     LEFT JOIN properties p ON ht.property_id = p.id
                     WHERE ua.payment_batch_id = ?
-                      AND ua.allocation_type = 'OWNER'
-                    ORDER BY ht.transaction_date, ua.property_name
+                      AND ua.allocation_type IN ('OWNER', 'EXPENSE')
+                    ORDER BY ua.allocation_type DESC, ht.transaction_date, ua.property_name
                 """;
 
                 List<Map<String, Object>> allocationRows = jdbcTemplate.queryForList(allocationSql, batchId);
                 BigDecimal totalAllocated = BigDecimal.ZERO;
+
+                BigDecimal totalIncome = BigDecimal.ZERO;
+                BigDecimal totalExpenses = BigDecimal.ZERO;
 
                 for (Map<String, Object> allocRow : allocationRows) {
                     PaymentWithAllocationsDTO.AllocationLineDTO line = new PaymentWithAllocationsDTO.AllocationLineDTO();
@@ -2287,6 +2291,10 @@ public class StatementDataExtractService {
                         new BigDecimal(allocRow.get("allocated_amount").toString()) : BigDecimal.ZERO;
                     line.setAllocatedAmount(allocAmount);
 
+                    // Set allocation type from unified_allocations
+                    String allocType = (String) allocRow.get("allocation_type");
+                    line.setAllocationType(allocType);
+
                     // Check if partial allocation
                     int allocationCount = allocRow.get("allocation_count") != null ?
                         ((Number) allocRow.get("allocation_count")).intValue() : 1;
@@ -2297,10 +2305,17 @@ public class StatementDataExtractService {
                         line.setFromPriorPeriod(line.getTransactionDate().isBefore(periodStart));
                     }
 
-                    totalAllocated = totalAllocated.add(allocAmount.abs());
+                    // Track income vs expenses separately
+                    if ("EXPENSE".equals(allocType)) {
+                        totalExpenses = totalExpenses.add(allocAmount.abs());
+                    } else {
+                        totalIncome = totalIncome.add(allocAmount.abs());
+                    }
                     payment.addAllocation(line);
                 }
 
+                // Total allocated = income - expenses (net amount matching payment)
+                totalAllocated = totalIncome.subtract(totalExpenses);
                 payment.setTotalAllocated(totalAllocated);
                 payment.setUnallocatedAmount(payment.getTotalPayment().subtract(totalAllocated));
 

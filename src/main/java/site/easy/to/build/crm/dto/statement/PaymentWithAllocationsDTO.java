@@ -29,6 +29,7 @@ public class PaymentWithAllocationsDTO {
         private String category;
         private String description;
         private BigDecimal allocatedAmount;
+        private String allocationType;  // OWNER (income) or EXPENSE (deduction)
         private boolean isPartial;  // True if transaction is split across payments
         private boolean isFromPriorPeriod;  // True if transaction date < period start
 
@@ -50,6 +51,12 @@ public class PaymentWithAllocationsDTO {
 
         public BigDecimal getAllocatedAmount() { return allocatedAmount; }
         public void setAllocatedAmount(BigDecimal allocatedAmount) { this.allocatedAmount = allocatedAmount; }
+
+        public String getAllocationType() { return allocationType; }
+        public void setAllocationType(String allocationType) { this.allocationType = allocationType; }
+
+        public boolean isExpense() { return "EXPENSE".equals(allocationType); }
+        public boolean isOwnerIncome() { return "OWNER".equals(allocationType); }
 
         public boolean isPartial() { return isPartial; }
         public void setPartial(boolean partial) { isPartial = partial; }

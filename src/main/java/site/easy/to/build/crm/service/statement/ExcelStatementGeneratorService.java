@@ -2919,10 +2919,8 @@ public class ExcelStatementGeneratorService {
 
         for (PaymentWithAllocationsDTO payment : payments) {
             for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
-                String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
-                boolean isExpense = category.contains("repair") || category.contains("expense") ||
-                                   category.contains("maintenance") || category.contains("fee") ||
-                                   category.contains("cost") || category.contains("charge");
+                // Use allocation_type from unified_allocations (more accurate than category guessing)
+                boolean isExpense = alloc.isExpense();
                 BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
                 LocalDate txnDate = alloc.getTransactionDate();
 
@@ -3072,20 +3070,16 @@ public class ExcelStatementGeneratorService {
                 BigDecimal paymentAmount = payment.getTotalPayment() != null ? payment.getTotalPayment() : BigDecimal.ZERO;
                 totalPaymentsMade = totalPaymentsMade.add(paymentAmount);
 
-                // Calculate income vs expense breakdown for summary
+                // Calculate income vs expense breakdown for summary using allocation_type
                 BigDecimal incomeAllocated = BigDecimal.ZERO;
                 BigDecimal expenseAllocated = BigDecimal.ZERO;
                 int incomeCount = 0;
                 int expenseCount = 0;
 
                 for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
-                    String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
-                    boolean isExpense = category.contains("repair") || category.contains("expense") ||
-                                       category.contains("maintenance") || category.contains("fee") ||
-                                       category.contains("cost") || category.contains("charge");
                     BigDecimal allocAmt = alloc.getAllocatedAmount() != null ? alloc.getAllocatedAmount().abs() : BigDecimal.ZERO;
 
-                    if (isExpense) {
+                    if (alloc.isExpense()) {
                         expenseAllocated = expenseAllocated.add(allocAmt);
                         expenseCount++;
                     } else {
@@ -3093,7 +3087,9 @@ public class ExcelStatementGeneratorService {
                         incomeCount++;
                     }
                 }
-                totalPaymentsAllocated = totalPaymentsAllocated.add(incomeAllocated).add(expenseAllocated);
+                // Net allocated = income - expenses (should match payment amount)
+                BigDecimal netAllocated = incomeAllocated.subtract(expenseAllocated);
+                totalPaymentsAllocated = totalPaymentsAllocated.add(netAllocated);
 
                 // Payment line with amount
                 Row paymentRow = sheet.createRow(rowNum++);
@@ -3110,14 +3106,15 @@ public class ExcelStatementGeneratorService {
                     Row summaryRow = sheet.createRow(rowNum++);
                     StringBuilder summary = new StringBuilder("    Covers: ");
                     if (incomeCount > 0) {
-                        summary.append(String.format("%d income items (£%.2f)", incomeCount, incomeAllocated.doubleValue()));
+                        summary.append(String.format("%d income (£%.2f)", incomeCount, incomeAllocated.doubleValue()));
                     }
                     if (incomeCount > 0 && expenseCount > 0) {
-                        summary.append(", ");
+                        summary.append(" - ");
                     }
                     if (expenseCount > 0) {
-                        summary.append(String.format("%d expense items (£%.2f)", expenseCount, expenseAllocated.doubleValue()));
+                        summary.append(String.format("%d expenses (£%.2f)", expenseCount, expenseAllocated.doubleValue()));
                     }
+                    summary.append(String.format(" = £%.2f", netAllocated.doubleValue()));
                     summaryRow.createCell(COL_DESC).setCellValue(summary.toString());
                 }
 
