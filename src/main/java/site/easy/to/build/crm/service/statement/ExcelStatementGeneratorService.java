@@ -2907,12 +2907,13 @@ public class ExcelStatementGeneratorService {
             customerId, periodStart, periodEnd, periodStart);
 
         // Calculate B/F and Activity from payment allocations (more reliable than direct queries)
+        // Collect B/F items with full details (these need to be listed since they don't appear elsewhere)
+        List<PaymentWithAllocationsDTO.AllocationLineDTO> bfIncomeItems = new ArrayList<>();
+        List<PaymentWithAllocationsDTO.AllocationLineDTO> bfExpenseItems = new ArrayList<>();
         BigDecimal bfIncomeFromAllocations = BigDecimal.ZERO;
         BigDecimal bfExpenseFromAllocations = BigDecimal.ZERO;
         BigDecimal periodIncomeFromAllocations = BigDecimal.ZERO;
         BigDecimal periodExpenseFromAllocations = BigDecimal.ZERO;
-        int bfIncomeCount = 0;
-        int bfExpenseCount = 0;
         int periodIncomeCount = 0;
         int periodExpenseCount = 0;
 
@@ -2926,16 +2927,16 @@ public class ExcelStatementGeneratorService {
                 LocalDate txnDate = alloc.getTransactionDate();
 
                 if (txnDate != null && txnDate.isBefore(periodStart)) {
-                    // B/F item (from prior period)
+                    // B/F item (from prior period) - collect with details
                     if (isExpense) {
                         bfExpenseFromAllocations = bfExpenseFromAllocations.add(allocAmt);
-                        bfExpenseCount++;
+                        bfExpenseItems.add(alloc);
                     } else {
                         bfIncomeFromAllocations = bfIncomeFromAllocations.add(allocAmt);
-                        bfIncomeCount++;
+                        bfIncomeItems.add(alloc);
                     }
                 } else {
-                    // This period item
+                    // This period item - just count (details appear elsewhere on sheet)
                     if (isExpense) {
                         periodExpenseFromAllocations = periodExpenseFromAllocations.add(allocAmt);
                         periodExpenseCount++;
@@ -2947,28 +2948,75 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // ===== BROUGHT FORWARD =====
+        // ===== BROUGHT FORWARD (with detail - these items don't appear elsewhere) =====
         Row bfHeaderRow = sheet.createRow(rowNum++);
         Cell bfHeaderCell = bfHeaderRow.createCell(COL_DESC);
-        bfHeaderCell.setCellValue("BROUGHT FORWARD (items paid this period from prior periods)");
+        bfHeaderCell.setCellValue("BROUGHT FORWARD (items from prior periods paid this period)");
         bfHeaderCell.setCellStyle(boldStyle);
 
-        Row bfIncomeRow = sheet.createRow(rowNum++);
-        bfIncomeRow.createCell(COL_DESC).setCellValue("  Prior Period Income (" + bfIncomeCount + " items)");
-        Cell bfIncomeCell = bfIncomeRow.createCell(COL_AMT);
-        bfIncomeCell.setCellValue(bfIncomeFromAllocations.doubleValue());
-        bfIncomeCell.setCellStyle(currencyStyle);
+        // B/F Income items - listed individually
+        if (!bfIncomeItems.isEmpty()) {
+            Row bfIncomeHeaderRow = sheet.createRow(rowNum++);
+            bfIncomeHeaderRow.createCell(COL_DESC).setCellValue("  Prior Period Income:");
 
-        Row bfExpenseRow = sheet.createRow(rowNum++);
-        bfExpenseRow.createCell(COL_DESC).setCellValue("  Prior Period Expenses (" + bfExpenseCount + " items)");
-        Cell bfExpenseCell = bfExpenseRow.createCell(COL_AMT);
-        bfExpenseCell.setCellValue(bfExpenseFromAllocations.doubleValue());
-        bfExpenseCell.setCellStyle(currencyStyle);
+            for (PaymentWithAllocationsDTO.AllocationLineDTO item : bfIncomeItems) {
+                Row itemRow = sheet.createRow(rowNum++);
+                String itemDesc = String.format("    %s | %s | %s",
+                    item.getTransactionDate() != null ? item.getTransactionDate().toString() : "N/A",
+                    item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
+                    item.getCategory() != null ? item.getCategory() : "Income");
+                itemRow.createCell(COL_DESC).setCellValue(itemDesc);
+                Cell itemAmtCell = itemRow.createCell(COL_AMT);
+                itemAmtCell.setCellValue(item.getAllocatedAmount() != null ? item.getAllocatedAmount().abs().doubleValue() : 0);
+                itemAmtCell.setCellStyle(currencyStyle);
+            }
 
+            Row bfIncomeTotalRow = sheet.createRow(rowNum++);
+            Cell bfIncomeTotalLabel = bfIncomeTotalRow.createCell(COL_DESC);
+            bfIncomeTotalLabel.setCellValue("  Prior Period Income Total (" + bfIncomeItems.size() + " items):");
+            bfIncomeTotalLabel.setCellStyle(boldStyle);
+            Cell bfIncomeTotalCell = bfIncomeTotalRow.createCell(COL_AMT);
+            bfIncomeTotalCell.setCellValue(bfIncomeFromAllocations.doubleValue());
+            bfIncomeTotalCell.setCellStyle(boldCurrencyStyle);
+        } else {
+            Row noIncomeRow = sheet.createRow(rowNum++);
+            noIncomeRow.createCell(COL_DESC).setCellValue("  Prior Period Income: None");
+        }
+
+        // B/F Expense items - listed individually
+        if (!bfExpenseItems.isEmpty()) {
+            Row bfExpenseHeaderRow = sheet.createRow(rowNum++);
+            bfExpenseHeaderRow.createCell(COL_DESC).setCellValue("  Prior Period Expenses:");
+
+            for (PaymentWithAllocationsDTO.AllocationLineDTO item : bfExpenseItems) {
+                Row itemRow = sheet.createRow(rowNum++);
+                String itemDesc = String.format("    %s | %s | %s",
+                    item.getTransactionDate() != null ? item.getTransactionDate().toString() : "N/A",
+                    item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
+                    item.getCategory() != null ? item.getCategory() : "Expense");
+                itemRow.createCell(COL_DESC).setCellValue(itemDesc);
+                Cell itemAmtCell = itemRow.createCell(COL_AMT);
+                itemAmtCell.setCellValue(item.getAllocatedAmount() != null ? item.getAllocatedAmount().abs().doubleValue() : 0);
+                itemAmtCell.setCellStyle(currencyStyle);
+            }
+
+            Row bfExpenseTotalRow = sheet.createRow(rowNum++);
+            Cell bfExpenseTotalLabel = bfExpenseTotalRow.createCell(COL_DESC);
+            bfExpenseTotalLabel.setCellValue("  Prior Period Expenses Total (" + bfExpenseItems.size() + " items):");
+            bfExpenseTotalLabel.setCellStyle(boldStyle);
+            Cell bfExpenseTotalCell = bfExpenseTotalRow.createCell(COL_AMT);
+            bfExpenseTotalCell.setCellValue(bfExpenseFromAllocations.doubleValue());
+            bfExpenseTotalCell.setCellStyle(boldCurrencyStyle);
+        } else {
+            Row noExpenseRow = sheet.createRow(rowNum++);
+            noExpenseRow.createCell(COL_DESC).setCellValue("  Prior Period Expenses: None");
+        }
+
+        // Net B/F
         BigDecimal netBf = bfIncomeFromAllocations.subtract(bfExpenseFromAllocations);
         Row bfNetRow = sheet.createRow(rowNum++);
         Cell bfNetLabel = bfNetRow.createCell(COL_DESC);
-        bfNetLabel.setCellValue("  Net B/F (Income - Expenses):");
+        bfNetLabel.setCellValue("  NET B/F (Income - Expenses):");
         bfNetLabel.setCellStyle(boldStyle);
         Cell bfNetCell = bfNetRow.createCell(COL_AMT);
         bfNetCell.setCellValue(netBf.doubleValue());
@@ -2976,10 +3024,10 @@ public class ExcelStatementGeneratorService {
 
         rowNum++; // Blank row
 
-        // ===== THIS PERIOD ACTIVITY =====
+        // ===== THIS PERIOD ACTIVITY (summary only - details appear in main sheet) =====
         Row activityHeaderRow = sheet.createRow(rowNum++);
         Cell activityHeaderCell = activityHeaderRow.createCell(COL_DESC);
-        activityHeaderCell.setCellValue("THIS PERIOD ACTIVITY (items paid this period from this period)");
+        activityHeaderCell.setCellValue("THIS PERIOD ACTIVITY (see transactions above for details)");
         activityHeaderCell.setCellStyle(boldStyle);
 
         Row incomeRow = sheet.createRow(rowNum++);
