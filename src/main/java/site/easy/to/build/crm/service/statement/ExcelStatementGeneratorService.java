@@ -2246,6 +2246,60 @@ public class ExcelStatementGeneratorService {
             // Include ALL periods from lease start for accurate opening balance calculation
             List<CustomPeriod> leasePeriods = generateLeaseBasedPeriods(leaseStart, leaseEnd, startDate, endDate, true);
 
+            // Check for pre-lease payments (payments made before lease start date)
+            // These need to be captured for accurate opening balance calculation
+            LocalDate preLeaseStart = leaseStart.minusYears(1); // Look back 1 year for pre-lease payments
+            List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> preLeasePayments =
+                dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), preLeaseStart, leaseStart.minusDays(1));
+
+            if (!preLeasePayments.isEmpty()) {
+                // Add a "pre-lease" row to capture payments before lease started
+                Row preLeaseRow = sheet.createRow(rowNum);
+                int col = 0;
+
+                preLeaseRow.createCell(col++).setCellValue(lease.getLeaseId());
+                preLeaseRow.createCell(col++).setCellValue(lease.getLeaseReference());
+                preLeaseRow.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+
+                Cell preDueDateCell = preLeaseRow.createCell(col++);
+                preDueDateCell.setCellValue(preLeaseStart);
+                preDueDateCell.setCellStyle(dateStyle);
+
+                Cell prePeriodStartCell = preLeaseRow.createCell(col++);
+                prePeriodStartCell.setCellValue(preLeaseStart);
+                prePeriodStartCell.setCellStyle(dateStyle);
+
+                Cell prePeriodEndCell = preLeaseRow.createCell(col++);
+                prePeriodEndCell.setCellValue(leaseStart.minusDays(1));
+                prePeriodEndCell.setCellStyle(dateStyle);
+
+                // Payment breakdown for pre-lease payments
+                BigDecimal preLeaseTotal = BigDecimal.ZERO;
+                for (int i = 0; i < 4; i++) {
+                    if (i < preLeasePayments.size()) {
+                        site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = preLeasePayments.get(i);
+                        Cell paymentDateCell = preLeaseRow.createCell(col++);
+                        paymentDateCell.setCellValue(payment.getPaymentDate());
+                        paymentDateCell.setCellStyle(dateStyle);
+                        Cell paymentAmountCell = preLeaseRow.createCell(col++);
+                        paymentAmountCell.setCellValue(payment.getAmount().doubleValue());
+                        paymentAmountCell.setCellStyle(currencyStyle);
+                        preLeaseTotal = preLeaseTotal.add(payment.getAmount());
+                    } else {
+                        preLeaseRow.createCell(col++);
+                        preLeaseRow.createCell(col++);
+                    }
+                }
+
+                Cell preTotalCell = preLeaseRow.createCell(col++);
+                preTotalCell.setCellValue(preLeaseTotal.doubleValue());
+                preTotalCell.setCellStyle(currencyStyle);
+
+                rowNum++;
+                log.info("Added pre-lease payments row for {} with {} payments totaling {}",
+                    lease.getLeaseReference(), preLeasePayments.size(), preLeaseTotal);
+            }
+
             for (CustomPeriod period : leasePeriods) {
 
                 // Create row for leases that have started (payments can come in even for ended leases)
