@@ -264,7 +264,9 @@ public class PayPropInvoiceToLeaseImportService {
         // Frequency
         invoice.setFrequency(parseFrequency(data.frequency));
         invoice.setFrequencyCode(data.frequencyCode);
-        invoice.setFrequencyMonths(parseFrequencyMonths(data.frequency));
+        // Use frequencyCode first (more reliable), fall back to frequency text
+        invoice.setFrequencyMonths(parseFrequencyMonths(
+            data.frequencyCode != null ? data.frequencyCode : data.frequency));
         invoice.setPaymentDay(data.paymentDay);
 
         // Dates (this is the LEASE PERIOD)
@@ -443,16 +445,16 @@ public class PayPropInvoiceToLeaseImportService {
             }
         }
 
-        // Handle standard frequency codes
+        // Handle standard frequency codes and text variations
         return switch (upper) {
             case "M", "MONTHLY" -> 1;
             case "W", "WEEKLY" -> 0;      // Weekly - special handling needed
             case "2W", "BI_WEEKLY", "BIWEEKLY" -> 0;  // Bi-weekly
             case "4W", "FOUR_WEEKLY" -> 0; // Four-weekly
             case "D", "DAILY" -> 0;        // Daily - special handling needed
-            case "Q", "QUARTERLY" -> 3;
+            case "Q", "QUARTERLY", "EVERY 3 MONTHS" -> 3;
             case "2M", "BI_MONTHLY", "BIMONTHLY" -> 2;
-            case "Y", "YEARLY", "ANNUAL", "A" -> 12;
+            case "Y", "YEARLY", "ANNUAL", "A", "ANNUALLY" -> 12;
             case "O", "ONE_TIME", "ONCE" -> 0;  // One-time - no recurring cycle
             default -> {
                 log.warn("Unknown frequency code '{}', defaulting to monthly", frequency);
