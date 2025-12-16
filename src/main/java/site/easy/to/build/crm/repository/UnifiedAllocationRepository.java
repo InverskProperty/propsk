@@ -563,7 +563,9 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      * - Latest paid date
      * - Allocation count
      *
-     * Falls back to date range + property matching for allocations without invoice_id.
+     * IMPORTANT: Date filtering ALWAYS applies to ensure allocations are shown in the correct
+     * period sheet. The invoice_id is used for grouping accuracy but does not bypass date filtering.
+     * This prevents showing cumulative allocations across all periods instead of period-specific allocations.
      */
     @Query(value = """
         SELECT
@@ -579,17 +581,12 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
         LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
         WHERE ua.property_id IN :propertyIds
+          AND (ua.invoice_id IN :invoiceIds OR ua.invoice_id IS NULL)
           AND (
-              ua.invoice_id IN :invoiceIds
-              OR (
-                  ua.invoice_id IS NULL
-                  AND (
-                      (uit.transaction_date BETWEEN :startDate AND :endDate)
-                      OR (ut.transaction_date BETWEEN :startDate AND :endDate)
-                      OR (ht.transaction_date BETWEEN :startDate AND :endDate)
-                      OR (ua.paid_date BETWEEN :startDate AND :endDate)
-                  )
-              )
+              (uit.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ut.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ht.transaction_date BETWEEN :startDate AND :endDate)
+              OR (ua.paid_date BETWEEN :startDate AND :endDate)
           )
         GROUP BY COALESCE(ua.invoice_id, 0), ua.property_id
     """, nativeQuery = true)
