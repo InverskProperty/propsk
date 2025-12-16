@@ -286,6 +286,7 @@ public class UnifiedTransactionRebuildService {
                 incoming_transaction_id,
                 unified_transaction_id,
                 historical_transaction_id,
+                invoice_id,
                 allocation_type,
                 amount,
                 category,
@@ -309,6 +310,8 @@ public class UnifiedTransactionRebuildService {
                 uit.id as incoming_transaction_id,
                 tba.unified_transaction_id,
                 tba.transaction_id as historical_transaction_id,
+                -- invoice_id: link to specific lease for per-lease allocation tracking
+                COALESCE(ht.invoice_id, ut.invoice_id) as invoice_id,
                 -- allocation_type based on category
                 -- IMPORTANT: Default to EXPENSE for unrecognized categories (safer than defaulting to OWNER)
                 -- DISBURSEMENT = transfers to block property account (separate from regular EXPENSE)
@@ -389,6 +392,7 @@ public class UnifiedTransactionRebuildService {
                 incoming_transaction_id,
                 unified_transaction_id,
                 historical_transaction_id,
+                invoice_id,
                 allocation_type,
                 amount,
                 category,
@@ -415,6 +419,9 @@ public class UnifiedTransactionRebuildService {
                 ut.id as unified_transaction_id,
                 -- historical_transaction_id: not directly available for PayProp data
                 NULL as historical_transaction_id,
+                -- invoice_id: link to specific lease for per-lease allocation tracking
+                -- Find active lease for property at the time of the transaction
+                COALESCE(ut.invoice_id, active_lease.id) as invoice_id,
                 -- allocation_type based on category_name and beneficiary_type
                 -- NOTE: This query filters WHERE beneficiary_type = 'beneficiary' (owner payments only)
                 -- So the default should be OWNER for unrecognized categories in this context
@@ -472,6 +479,11 @@ public class UnifiedTransactionRebuildService {
                 ON prop.id = ut.property_id
                 AND peip.reconciliation_date = ut.transaction_date
                 AND peip.amount = ut.amount
+            -- Find active lease for property at transaction date (fallback if ut.invoice_id is null)
+            LEFT JOIN invoices active_lease
+                ON prop.id = active_lease.property_id
+                AND peip.reconciliation_date >= active_lease.start_date
+                AND (active_lease.end_date IS NULL OR peip.reconciliation_date <= active_lease.end_date)
             WHERE prap.payment_batch_id IS NOT NULL
               AND prap.beneficiary_type = 'beneficiary'
         """;
