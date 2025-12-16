@@ -284,12 +284,13 @@ public class PropertyController {
                 }
                 
                 System.out.println("DEBUG: Found " + (properties != null ? properties.size() : "null") + " properties");
-                
+
                 // OPTIMIZED: Batch load maintenance data instead of individual queries
                 if (properties != null && !properties.isEmpty()) {
                     loadMaintenanceDataBatch(properties);
+                    loadOccupancyDataBatch(properties);
                 }
-                
+
             } catch (Exception e) {
                 System.err.println("DEBUG: Error loading properties: " + e.getMessage());
                 e.printStackTrace();
@@ -356,6 +357,11 @@ public class PropertyController {
                 .collect(Collectors.toList());
         }
         
+        // Load occupancy data for correct badge display
+        if (properties != null && !properties.isEmpty()) {
+            loadOccupancyDataBatch(properties);
+        }
+
         // Calculate lost rent potential
         BigDecimal lostRentPotential = properties.stream()
             .map(Property::getMonthlyPayment)
@@ -398,6 +404,11 @@ public class PropertyController {
                 .collect(Collectors.toList());
         }
         
+        // Load occupancy data for correct badge display
+        if (properties != null && !properties.isEmpty()) {
+            loadOccupancyDataBatch(properties);
+        }
+
         addComprehensivePortfolioStatistics(model, properties);
         model.addAttribute("properties", properties);
         model.addAttribute("pageTitle", "Occupied Properties");
@@ -416,12 +427,17 @@ public class PropertyController {
             List<Property> properties;
             if (AuthorizationUtil.hasRole(authentication, "ROLE_MANAGER")) {
                 properties = propertyService.findActiveProperties(); // Only active properties for portfolio overview
-            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") || 
+            } else if (AuthorizationUtil.hasRole(authentication, "ROLE_OWNER") ||
                       AuthorizationUtil.hasRole(authentication, "ROLE_PROPERTY_OWNER")) {
                 // FIXED: For property owners, find properties using User ID → Customer ID mapping
                 properties = findPropertiesForPropertyOwner(userId);
             } else {
                 properties = propertyService.getRecentProperties(Long.valueOf(userId), 100);
+            }
+
+            // Load occupancy data for correct badge display
+            if (properties != null && !properties.isEmpty()) {
+                loadOccupancyDataBatch(properties);
             }
 
             addComprehensivePortfolioStatistics(model, properties);
@@ -460,6 +476,11 @@ public class PropertyController {
                 .collect(Collectors.toList());
         }
         
+        // Load occupancy data for correct badge display
+        if (properties != null && !properties.isEmpty()) {
+            loadOccupancyDataBatch(properties);
+        }
+
         // For archived properties, calculate statistics based on the archived list
         calculateFilteredPropertyStatistics(model, properties, "Archived Properties");
         model.addAttribute("properties", properties);
@@ -474,6 +495,12 @@ public class PropertyController {
         }
 
         List<Property> properties = propertyService.findPropertiesReadyForSync();
+
+        // Load occupancy data for correct badge display
+        if (properties != null && !properties.isEmpty()) {
+            loadOccupancyDataBatch(properties);
+        }
+
         calculateFilteredPropertyStatistics(model, properties, "Ready for Sync");
         model.addAttribute("properties", properties);
         model.addAttribute("pageTitle", "Properties Ready for PayProp Sync");
@@ -1823,6 +1850,67 @@ public class PropertyController {
     }
 
     /**
+     * Load occupancy data for all properties in batch based on active TENANT assignments.
+     * A property is occupied if it has an active tenant assignment where:
+     * - assignment_type = 'TENANT'
+     * - start_date <= today
+     * - end_date IS NULL OR end_date > today
+     */
+    private void loadOccupancyDataBatch(List<Property> properties) {
+        try {
+            System.out.println("DEBUG: Loading occupancy data for " + properties.size() + " properties");
+
+            // Get all property IDs
+            List<Long> propertyIds = properties.stream()
+                .map(Property::getId)
+                .filter(id -> id != null)
+                .collect(Collectors.toList());
+
+            if (propertyIds.isEmpty()) {
+                return;
+            }
+
+            // Batch query: Get all active tenant assignments for these properties
+            LocalDate today = LocalDate.now();
+            List<CustomerPropertyAssignment> allTenantAssignments =
+                assignmentRepository.findByPropertyIdInAndAssignmentType(propertyIds, AssignmentType.TENANT);
+
+            // Create a set of property IDs that have active tenants
+            java.util.Set<Long> occupiedPropertyIds = new HashSet<>();
+            for (CustomerPropertyAssignment assignment : allTenantAssignments) {
+                LocalDate startDate = assignment.getStartDate();
+                LocalDate endDate = assignment.getEndDate();
+
+                // Check if assignment is currently active
+                boolean isActive = (startDate == null || !startDate.isAfter(today)) &&
+                                   (endDate == null || endDate.isAfter(today));
+
+                if (isActive && assignment.getProperty() != null) {
+                    occupiedPropertyIds.add(assignment.getProperty().getId());
+                }
+            }
+
+            // Set computed occupancy on each property
+            for (Property property : properties) {
+                boolean isOccupied = occupiedPropertyIds.contains(property.getId());
+                property.setComputedOccupied(isOccupied);
+            }
+
+            System.out.println("DEBUG: Occupancy data loaded - " + occupiedPropertyIds.size() +
+                             " occupied out of " + properties.size() + " properties");
+
+        } catch (Exception e) {
+            System.err.println("Error in batch occupancy loading: " + e.getMessage());
+            e.printStackTrace();
+
+            // Set safe defaults (vacant) for all properties
+            for (Property property : properties) {
+                property.setComputedOccupied(false);
+            }
+        }
+    }
+
+    /**
      * Create a map of property ID to ticket count from a list of tickets
      */
     private Map<Long, Integer> createPropertyTicketCountMap(List<Ticket> tickets) {
@@ -1937,9 +2025,23 @@ public class PropertyController {
                 }
             }
             
-            // Use accurate PayProp counts for occupancy
-            int occupied = payPropStats.get("occupiedProperties");
-            int vacant = payPropStats.get("vacantProperties");
+            // Calculate occupancy from computed tenant assignments (more accurate than PayProp)
+            int occupied = 0;
+            int vacant = 0;
+            if (properties != null) {
+                for (Property property : properties) {
+                    if (Boolean.TRUE.equals(property.getComputedOccupied())) {
+                        occupied++;
+                    } else if (!"Y".equals(property.getIsArchived())) {
+                        vacant++;
+                    }
+                }
+            }
+            // Fallback to PayProp stats if no properties loaded with computed occupancy
+            if (occupied == 0 && vacant == 0 && properties != null && !properties.isEmpty()) {
+                occupied = payPropStats.get("occupiedProperties");
+                vacant = payPropStats.get("vacantProperties");
+            }
             int active = payPropStats.get("activeProperties");
             int archived = payPropStats.get("archivedProperties");
             

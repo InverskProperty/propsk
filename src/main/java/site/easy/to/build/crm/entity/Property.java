@@ -331,6 +331,9 @@ public class Property {
     @Transient
     private Integer routineMaintenanceCount;
 
+    @Transient
+    private Boolean computedOccupied;
+
     // Add these getter/setter methods
     public Integer getEmergencyMaintenanceCount() {
         return emergencyMaintenanceCount != null ? emergencyMaintenanceCount : 0;
@@ -354,6 +357,14 @@ public class Property {
 
     public void setRoutineMaintenanceCount(Integer routineMaintenanceCount) {
         this.routineMaintenanceCount = routineMaintenanceCount;
+    }
+
+    public Boolean getComputedOccupied() {
+        return computedOccupied;
+    }
+
+    public void setComputedOccupied(Boolean computedOccupied) {
+        this.computedOccupied = computedOccupied;
     }
 
     public Integer getTotalMaintenanceCount() {
@@ -722,20 +733,23 @@ public class Property {
     }
 
     /**
-     * @deprecated Use PropertyService.isPropertyOccupied() instead for accurate PayProp-based occupancy status
-     * This legacy method uses status field which may not be accurate for PayProp properties
+     * Check if property is currently occupied based on tenant assignments.
+     * Uses computedOccupied when set by controller (based on actual tenant assignments),
+     * otherwise falls back to status field check.
      */
-    @Deprecated(since = "1.0", forRemoval = true)
     public Boolean isOccupied() {
-        // LEGACY METHOD: Uses status field - may not be accurate for PayProp properties
-        // For accurate occupancy status, use PropertyService.isPropertyOccupied(payPropId)
+        // Use computed value from tenant assignments if set by controller
+        if (computedOccupied != null) {
+            return computedOccupied;
+        }
+        // Fallback to status field (for cases where computedOccupied wasn't set)
         if (status != null) {
-            return "occupied".equalsIgnoreCase(status) || 
-                "rented".equalsIgnoreCase(status) || 
+            return "occupied".equalsIgnoreCase(status) ||
+                "rented".equalsIgnoreCase(status) ||
                 "let".equalsIgnoreCase(status);
         }
-        // Fallback: if property is active and has monthly payment, likely occupied
-        return isActive() && monthlyPayment != null && monthlyPayment.compareTo(BigDecimal.ZERO) > 0;
+        // Default to false (vacant) if no data available
+        return false;
     }
 
     /**
