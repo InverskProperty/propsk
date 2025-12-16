@@ -8,6 +8,7 @@ import java.time.LocalDate;
  * Used to populate reconciliation columns on monthly statement rows.
  */
 public class LeaseAllocationSummaryDTO {
+    private Long invoiceId;
     private Long propertyId;
     private String leaseReference;
     private BigDecimal totalAllocatedAmount;  // Sum of OWNER allocations
@@ -22,6 +23,14 @@ public class LeaseAllocationSummaryDTO {
     }
 
     // Getters and Setters
+    public Long getInvoiceId() {
+        return invoiceId;
+    }
+
+    public void setInvoiceId(Long invoiceId) {
+        this.invoiceId = invoiceId;
+    }
+
     public Long getPropertyId() {
         return propertyId;
     }

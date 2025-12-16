@@ -82,6 +82,11 @@ public class UnifiedAllocationService {
             allocation.setPropertyName(transaction.getProperty().getPropertyName());
         }
 
+        // Invoice/Lease info - link allocation to specific lease
+        if (transaction.getInvoice() != null) {
+            allocation.setInvoiceId(transaction.getInvoice().getId());
+        }
+
         // Beneficiary info
         allocation.setBeneficiaryType("OWNER");
         allocation.setBeneficiaryId(owner.getCustomerId());
@@ -362,6 +367,11 @@ public class UnifiedAllocationService {
         // Property info
         allocation.setPropertyId(transaction.getPropertyId());
         allocation.setPropertyName(transaction.getPropertyName());
+
+        // Invoice/Lease info - link allocation to specific lease
+        if (transaction.getInvoiceId() != null) {
+            allocation.setInvoiceId(transaction.getInvoiceId());
+        }
 
         // Beneficiary info - try to get owner from property
         if (transaction.getPropertyId() != null) {

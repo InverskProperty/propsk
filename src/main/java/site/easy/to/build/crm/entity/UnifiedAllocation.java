@@ -53,6 +53,9 @@ public class UnifiedAllocation {
     @Column(name = "property_name", length = 255)
     private String propertyName;
 
+    @Column(name = "invoice_id")
+    private Long invoiceId;
+
     @Column(name = "beneficiary_type", length = 50)
     private String beneficiaryType;
 
@@ -131,6 +134,9 @@ public class UnifiedAllocation {
 
     public String getPropertyName() { return propertyName; }
     public void setPropertyName(String propertyName) { this.propertyName = propertyName; }
+
+    public Long getInvoiceId() { return invoiceId; }
+    public void setInvoiceId(Long invoiceId) { this.invoiceId = invoiceId; }
 
     public String getBeneficiaryType() { return beneficiaryType; }
     public void setBeneficiaryType(String beneficiaryType) { this.beneficiaryType = beneficiaryType; }

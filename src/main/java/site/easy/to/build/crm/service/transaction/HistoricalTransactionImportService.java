@@ -602,6 +602,11 @@ public class HistoricalTransactionImportService {
             allocation.setPropertyId(property.getId());
             allocation.setPropertyName(property.getPropertyName());
 
+            // Invoice/Lease info - link allocation to specific lease
+            if (txn.getInvoice() != null) {
+                allocation.setInvoiceId(txn.getInvoice().getId());
+            }
+
             // Beneficiary info
             allocation.setBeneficiaryType("OWNER");
             allocation.setBeneficiaryId(owner.getCustomerId());

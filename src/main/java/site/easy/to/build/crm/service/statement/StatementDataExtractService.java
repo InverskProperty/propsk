@@ -1682,6 +1682,97 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Extract allocation summary per invoice/lease for reconciliation columns.
+     * Returns a map of invoiceId -> LeaseAllocationSummaryDTO.
+     * Uses invoice_id for precise matching, falls back to date range for allocations without invoice_id.
+     *
+     * @param propertyIds List of property IDs to query
+     * @param invoiceIds List of invoice IDs to query
+     * @param startDate Period start (used for fallback when invoice_id is null)
+     * @param endDate Period end
+     * @return Map of invoiceId to allocation summary
+     */
+    public Map<Long, LeaseAllocationSummaryDTO> extractAllocationSummaryByInvoice(
+            List<Long> propertyIds, List<Long> invoiceIds, LocalDate startDate, LocalDate endDate) {
+
+        log.info("Extracting allocation summary for {} invoices from {} to {}",
+            invoiceIds.size(), startDate, endDate);
+
+        Map<Long, LeaseAllocationSummaryDTO> result = new HashMap<>();
+
+        if (invoiceIds == null || invoiceIds.isEmpty()) {
+            log.warn("No invoice IDs provided for allocation summary extraction");
+            return result;
+        }
+
+        try {
+            List<Object[]> summaryRows = unifiedAllocationRepository.getLeaseAllocationSummaryByInvoice(
+                propertyIds, invoiceIds, startDate, endDate);
+
+            log.info("Query returned {} invoice allocation summaries", summaryRows != null ? summaryRows.size() : 0);
+
+            if (summaryRows != null) {
+                for (Object[] row : summaryRows) {
+                    LeaseAllocationSummaryDTO summary = new LeaseAllocationSummaryDTO();
+
+                    // Column 0: invoice_id (COALESCE returns 0 for nulls)
+                    Long invoiceId = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                    summary.setInvoiceId(invoiceId);
+
+                    // Column 1: property_id
+                    Long propertyId = row[1] != null ? ((Number) row[1]).longValue() : null;
+                    summary.setPropertyId(propertyId);
+
+                    // Column 2: total_owner_allocated
+                    BigDecimal totalAllocated = row[2] != null ?
+                        new BigDecimal(row[2].toString()) : BigDecimal.ZERO;
+                    summary.setTotalAllocatedAmount(totalAllocated);
+
+                    // Column 3: max_payment_status
+                    String paymentStatus = row[3] != null ? row[3].toString() : "NONE";
+                    summary.setPaymentStatus(paymentStatus);
+
+                    // Column 4: batch_ids (comma-separated)
+                    String batchIds = row[4] != null ? row[4].toString() : null;
+                    if (batchIds != null && batchIds.contains(",")) {
+                        summary.setPrimaryBatchId("MULTIPLE");
+                    } else {
+                        summary.setPrimaryBatchId(batchIds != null ? batchIds : "-");
+                    }
+
+                    // Column 5: latest_paid_date
+                    if (row[5] != null) {
+                        if (row[5] instanceof java.sql.Date) {
+                            summary.setLatestPaymentDate(((java.sql.Date) row[5]).toLocalDate());
+                        } else if (row[5] instanceof LocalDate) {
+                            summary.setLatestPaymentDate((LocalDate) row[5]);
+                        }
+                    }
+
+                    // Column 6: allocation_count
+                    int count = row[6] != null ? ((Number) row[6]).intValue() : 0;
+                    summary.setAllocationCount(count);
+
+                    // Key by invoice_id, or by property_id for legacy allocations (invoice_id = 0)
+                    if (invoiceId != null && invoiceId > 0) {
+                        result.put(invoiceId, summary);
+                    } else if (propertyId != null) {
+                        // Legacy allocations without invoice_id - store under negative property_id
+                        // to distinguish from invoice-based keys
+                        result.put(-propertyId, summary);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error fetching allocation summary by invoice: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            e.printStackTrace();
+        }
+
+        log.info("Extracted allocation summaries for {} invoices", result.size());
+        return result;
+    }
+
+    /**
      * Extract batch references by property and allocation type.
      * Returns a nested map: propertyId -> allocationType -> batchIds (comma-separated)
      * Used to populate batch reference columns on monthly statement rows.

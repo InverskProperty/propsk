@@ -2490,11 +2490,18 @@ public class ExcelStatementGeneratorService {
             .distinct()
             .collect(Collectors.toList());
 
-        Map<Long, LeaseAllocationSummaryDTO> allocationSummaries =
-            dataExtractService.extractAllocationSummaryByProperty(
-                propertyIds, period.periodStart, period.periodEnd);
+        List<Long> invoiceIds = leaseMaster.stream()
+            .filter(l -> l.getLeaseId() != null)
+            .map(LeaseMasterDTO::getLeaseId)
+            .distinct()
+            .collect(Collectors.toList());
 
-        log.info("Pre-fetched allocation summaries for {} properties", allocationSummaries.size());
+        // Use invoice-based allocation lookup for accurate per-lease allocation tracking
+        Map<Long, LeaseAllocationSummaryDTO> allocationSummaries =
+            dataExtractService.extractAllocationSummaryByInvoice(
+                propertyIds, invoiceIds, period.periodStart, period.periodEnd);
+
+        log.info("Pre-fetched allocation summaries for {} invoices", allocationSummaries.size());
 
         // ===== PRE-FETCH BATCH REFS BY PROPERTY AND TYPE =====
         Map<Long, Map<String, String>> batchRefsByPropertyAndType =
@@ -2708,8 +2715,15 @@ public class ExcelStatementGeneratorService {
             }
 
             // ===== RECONCILIATION COLUMNS (Y-AC) =====
-            LeaseAllocationSummaryDTO allocSummary = lease.getPropertyId() != null ?
-                allocationSummaries.get(lease.getPropertyId()) : null;
+            // Look up allocation by invoice_id first, fallback to property-based (negative key) for legacy data
+            LeaseAllocationSummaryDTO allocSummary = null;
+            if (lease.getLeaseId() != null) {
+                allocSummary = allocationSummaries.get(lease.getLeaseId());
+            }
+            if (allocSummary == null && lease.getPropertyId() != null) {
+                // Fallback: check for legacy allocations stored under negative property_id
+                allocSummary = allocationSummaries.get(-lease.getPropertyId());
+            }
 
             // Y: allocated_amount (sum of OWNER allocations)
             Cell allocatedCell = row.createCell(col++);

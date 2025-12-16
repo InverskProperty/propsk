@@ -555,6 +555,52 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     );
 
     /**
+     * Get allocation summary per invoice/lease for reconciliation columns.
+     * Groups allocations by invoice_id and calculates:
+     * - Total OWNER allocations (money going to owner)
+     * - Payment status (highest status: PAID > BATCHED > PENDING)
+     * - Batch IDs (concatenated if multiple)
+     * - Latest paid date
+     * - Allocation count
+     *
+     * Falls back to date range + property matching for allocations without invoice_id.
+     */
+    @Query(value = """
+        SELECT
+            COALESCE(ua.invoice_id, 0) as invoice_id,
+            ua.property_id,
+            SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_owner_allocated,
+            MAX(ua.payment_status) as max_payment_status,
+            GROUP_CONCAT(DISTINCT ua.payment_batch_id SEPARATOR ', ') as batch_ids,
+            MAX(ua.paid_date) as latest_paid_date,
+            COUNT(*) as allocation_count
+        FROM unified_allocations ua
+        LEFT JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
+        LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+        LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+        WHERE ua.property_id IN :propertyIds
+          AND (
+              ua.invoice_id IN :invoiceIds
+              OR (
+                  ua.invoice_id IS NULL
+                  AND (
+                      (uit.transaction_date BETWEEN :startDate AND :endDate)
+                      OR (ut.transaction_date BETWEEN :startDate AND :endDate)
+                      OR (ht.transaction_date BETWEEN :startDate AND :endDate)
+                      OR (ua.paid_date BETWEEN :startDate AND :endDate)
+                  )
+              )
+          )
+        GROUP BY COALESCE(ua.invoice_id, 0), ua.property_id
+    """, nativeQuery = true)
+    List<Object[]> getLeaseAllocationSummaryByInvoice(
+        @Param("propertyIds") List<Long> propertyIds,
+        @Param("invoiceIds") List<Long> invoiceIds,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
      * Get batch references by property and allocation type for period.
      * Returns property_id, allocation_type, batch_ids (comma-separated).
      * Used to populate batch reference columns on monthly statement rows.
