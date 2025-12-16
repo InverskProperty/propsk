@@ -469,16 +469,12 @@ public class UnifiedTransactionRebuildService {
             -- Join to payprop_export_incoming_payments to get reconciliation date and amount
             LEFT JOIN payprop_export_incoming_payments peip
                 ON prap.incoming_transaction_id COLLATE utf8mb4_unicode_ci = peip.payprop_id COLLATE utf8mb4_unicode_ci
-            -- Link to unified_incoming_transactions using peip data
+            -- Link to unified_incoming_transactions using payprop_id (NOT property/date/amount to avoid cartesian product)
             LEFT JOIN unified_incoming_transactions uit
-                ON prop.id = uit.property_id
-                AND peip.reconciliation_date = uit.transaction_date
-                AND peip.amount = uit.amount
-            -- Link to unified_transactions using peip data
+                ON uit.payprop_transaction_id COLLATE utf8mb4_unicode_ci = peip.payprop_id COLLATE utf8mb4_unicode_ci
+            -- Link to unified_transactions using payprop_transaction_id (NOT property/date/amount to avoid cartesian product)
             LEFT JOIN unified_transactions ut
-                ON prop.id = ut.property_id
-                AND peip.reconciliation_date = ut.transaction_date
-                AND peip.amount = ut.amount
+                ON ut.payprop_transaction_id COLLATE utf8mb4_unicode_ci = peip.payprop_id COLLATE utf8mb4_unicode_ci
             -- Find active lease for property at transaction date (fallback if ut.invoice_id is null)
             LEFT JOIN invoices active_lease
                 ON prop.id = active_lease.property_id
