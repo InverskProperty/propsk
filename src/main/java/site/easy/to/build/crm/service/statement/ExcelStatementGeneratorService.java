@@ -2503,12 +2503,13 @@ public class ExcelStatementGeneratorService {
 
         log.info("Pre-fetched allocation summaries for {} invoices", allocationSummaries.size());
 
-        // ===== PRE-FETCH BATCH REFS BY PROPERTY AND TYPE =====
-        Map<Long, Map<String, String>> batchRefsByPropertyAndType =
+        // ===== PRE-FETCH BATCH REFS BY INVOICE/LEASE AND TYPE =====
+        // Uses invoice_id to ensure batch refs match the specific lease, not all leases on same property
+        Map<Long, Map<String, String>> batchRefsByInvoiceAndType =
             dataExtractService.extractBatchRefsByPropertyAndType(
-                propertyIds, period.periodStart, period.periodEnd);
+                propertyIds, invoiceIds, period.periodStart, period.periodEnd);
 
-        log.info("Pre-fetched batch refs for {} properties", batchRefsByPropertyAndType.size());
+        log.info("Pre-fetched batch refs for {} invoices", batchRefsByInvoiceAndType.size());
 
         // Generate rows for each lease that has started by this period
         // Show active leases AND ended leases (with £0 rent due), but NOT future leases that haven't started
@@ -2585,10 +2586,17 @@ public class ExcelStatementGeneratorService {
             rentReceivedCell.setCellStyle(currencyStyle);
 
             // I: rent_batch (batch references for income allocations - OWNER type)
+            // Look up by lease ID (invoice_id), fallback to negative property_id for legacy allocations
             Cell rentBatchCell = row.createCell(col++);
-            Map<String, String> propertyBatchRefs = lease.getPropertyId() != null ?
-                batchRefsByPropertyAndType.get(lease.getPropertyId()) : null;
-            String rentBatchRef = propertyBatchRefs != null ? propertyBatchRefs.get("OWNER") : null;
+            Map<String, String> leaseBatchRefs = null;
+            if (lease.getLeaseId() != null) {
+                leaseBatchRefs = batchRefsByInvoiceAndType.get(lease.getLeaseId());
+            }
+            if (leaseBatchRefs == null && lease.getPropertyId() != null) {
+                // Fallback: check for legacy allocations stored under negative property_id
+                leaseBatchRefs = batchRefsByInvoiceAndType.get(-lease.getPropertyId());
+            }
+            String rentBatchRef = leaseBatchRefs != null ? leaseBatchRefs.get("OWNER") : null;
             rentBatchCell.setCellValue(rentBatchRef != null ? rentBatchRef : "");
 
             // J: opening_balance (cumulative arrears BEFORE this period)
@@ -2642,7 +2650,7 @@ public class ExcelStatementGeneratorService {
 
             // P: commission_batch (batch references for commission allocations)
             Cell commissionBatchCell = row.createCell(col++);
-            String commissionBatchRef = propertyBatchRefs != null ? propertyBatchRefs.get("COMMISSION") : null;
+            String commissionBatchRef = leaseBatchRefs != null ? leaseBatchRefs.get("COMMISSION") : null;
             commissionBatchCell.setCellValue(commissionBatchRef != null ? commissionBatchRef : "");
 
             // Q: total_expenses (SUMIFS to EXPENSES sheet)
@@ -2658,7 +2666,7 @@ public class ExcelStatementGeneratorService {
 
             // R: expenses_batch (batch references for expense allocations)
             Cell expensesBatchCell = row.createCell(col++);
-            String expensesBatchRef = propertyBatchRefs != null ? propertyBatchRefs.get("EXPENSE") : null;
+            String expensesBatchRef = leaseBatchRefs != null ? leaseBatchRefs.get("EXPENSE") : null;
             expensesBatchCell.setCellValue(expensesBatchRef != null ? expensesBatchRef : "");
 
             // S: net_to_owner (formula: rent_received - total_commission - expenses) - H is rent_received, O is commission, Q is expenses

@@ -598,12 +598,17 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     );
 
     /**
-     * Get batch references by property and allocation type for period.
-     * Returns property_id, allocation_type, batch_ids (comma-separated).
+     * Get batch references by invoice/lease and allocation type for period.
+     * Returns invoice_id, property_id, allocation_type, batch_ids (comma-separated).
      * Used to populate batch reference columns on monthly statement rows.
+     *
+     * IMPORTANT: Groups by invoice_id (lease) to ensure batch refs match the specific lease,
+     * not all leases on the same property. This aligns with how rent_received is calculated
+     * per lease_reference in the Excel statement.
      */
     @Query(value = """
         SELECT
+            COALESCE(ua.invoice_id, 0) as invoice_id,
             ua.property_id,
             ua.allocation_type,
             GROUP_CONCAT(DISTINCT ua.payment_batch_id SEPARATOR ', ') as batch_ids
@@ -613,16 +618,18 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
         WHERE ua.property_id IN :propertyIds
           AND ua.payment_batch_id IS NOT NULL
+          AND (ua.invoice_id IN :invoiceIds OR ua.invoice_id IS NULL)
           AND (
               (uit.transaction_date BETWEEN :startDate AND :endDate)
               OR (ut.transaction_date BETWEEN :startDate AND :endDate)
               OR (ht.transaction_date BETWEEN :startDate AND :endDate)
-              OR (DATE(ua.created_at) BETWEEN :startDate AND :endDate)
+              OR (ua.paid_date BETWEEN :startDate AND :endDate)
           )
-        GROUP BY ua.property_id, ua.allocation_type
+        GROUP BY COALESCE(ua.invoice_id, 0), ua.property_id, ua.allocation_type
     """, nativeQuery = true)
-    List<Object[]> getBatchRefsByPropertyAndType(
+    List<Object[]> getBatchRefsByInvoiceAndType(
         @Param("propertyIds") List<Long> propertyIds,
+        @Param("invoiceIds") List<Long> invoiceIds,
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );

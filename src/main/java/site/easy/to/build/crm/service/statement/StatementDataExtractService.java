@@ -1773,15 +1773,18 @@ public class StatementDataExtractService {
     }
 
     /**
-     * Extract batch references by property and allocation type.
-     * Returns a nested map: propertyId -> allocationType -> batchIds (comma-separated)
+     * Extract batch references by invoice/lease and allocation type.
+     * Returns a nested map: invoiceId -> allocationType -> batchIds (comma-separated)
      * Used to populate batch reference columns on monthly statement rows.
+     *
+     * IMPORTANT: Groups by invoice_id (lease) to ensure batch refs match the specific lease,
+     * not all leases on the same property. Fallback to negative property_id for legacy allocations.
      */
     public Map<Long, Map<String, String>> extractBatchRefsByPropertyAndType(
-            List<Long> propertyIds, LocalDate startDate, LocalDate endDate) {
+            List<Long> propertyIds, List<Long> invoiceIds, LocalDate startDate, LocalDate endDate) {
 
-        log.info("Extracting batch refs for {} properties from {} to {}",
-            propertyIds.size(), startDate, endDate);
+        log.info("Extracting batch refs for {} invoices from {} to {}",
+            invoiceIds != null ? invoiceIds.size() : 0, startDate, endDate);
 
         Map<Long, Map<String, String>> result = new HashMap<>();
 
@@ -1789,19 +1792,34 @@ public class StatementDataExtractService {
             return result;
         }
 
+        // Ensure we have invoice IDs to query
+        if (invoiceIds == null || invoiceIds.isEmpty()) {
+            log.warn("No invoice IDs provided for batch refs extraction");
+            return result;
+        }
+
         try {
-            List<Object[]> rows = unifiedAllocationRepository.getBatchRefsByPropertyAndType(
-                propertyIds, startDate, endDate);
+            List<Object[]> rows = unifiedAllocationRepository.getBatchRefsByInvoiceAndType(
+                propertyIds, invoiceIds, startDate, endDate);
 
             if (rows != null) {
                 for (Object[] row : rows) {
-                    Long propertyId = row[0] != null ? ((Number) row[0]).longValue() : null;
-                    String allocationType = row[1] != null ? row[1].toString() : null;
-                    String batchIds = row[2] != null ? row[2].toString() : "";
+                    // Column 0: invoice_id (COALESCE returns 0 for nulls)
+                    Long invoiceId = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+                    // Column 1: property_id
+                    Long propertyId = row[1] != null ? ((Number) row[1]).longValue() : null;
+                    // Column 2: allocation_type
+                    String allocationType = row[2] != null ? row[2].toString() : null;
+                    // Column 3: batch_ids
+                    String batchIds = row[3] != null ? row[3].toString() : "";
 
-                    if (propertyId != null && allocationType != null) {
-                        result.computeIfAbsent(propertyId, k -> new HashMap<>())
-                              .put(allocationType, batchIds);
+                    if (allocationType != null) {
+                        // Key by invoice_id for precise matching, or negative property_id for legacy
+                        Long key = invoiceId > 0 ? invoiceId : (propertyId != null ? -propertyId : null);
+                        if (key != null) {
+                            result.computeIfAbsent(key, k -> new HashMap<>())
+                                  .put(allocationType, batchIds);
+                        }
                     }
                 }
             }
@@ -1809,7 +1827,7 @@ public class StatementDataExtractService {
             log.warn("Error fetching batch refs: {} - {}", e.getClass().getSimpleName(), e.getMessage());
         }
 
-        log.info("Extracted batch refs for {} properties", result.size());
+        log.info("Extracted batch refs for {} invoices/properties", result.size());
         return result;
     }
 
