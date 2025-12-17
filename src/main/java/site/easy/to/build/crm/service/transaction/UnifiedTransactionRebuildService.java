@@ -55,37 +55,43 @@ public class UnifiedTransactionRebuildService {
         result.put("startTime", LocalDateTime.now());
 
         try {
-            // Step 1: Truncate unified_transactions
-            log.info("📋 Step 1: Truncating unified_transactions...");
+            // Step 1: Rebuild unified_incoming_transactions (source of truth for incoming payments)
+            log.info("📋 Step 1: Rebuilding unified_incoming_transactions...");
+            int incomingCount = rebuildUnifiedIncomingTransactions();
+            result.put("incomingTransactionsRebuilt", incomingCount);
+            log.info("✅ Rebuilt {} incoming transactions with lease linkage", incomingCount);
+
+            // Step 2: Truncate unified_transactions
+            log.info("📋 Step 2: Truncating unified_transactions...");
             jdbcTemplate.execute("TRUNCATE TABLE unified_transactions");
             log.info("✅ Table truncated");
 
-            // Step 2: Insert from historical_transactions
-            log.info("📋 Step 2: Inserting from historical_transactions...");
+            // Step 3: Insert from historical_transactions
+            log.info("📋 Step 3: Inserting from historical_transactions...");
             int historicalCount = insertFromHistoricalTransactions(batchId);
             result.put("historicalRecordsInserted", historicalCount);
             log.info("✅ Inserted {} records from historical_transactions", historicalCount);
 
-            // Step 3: Insert from financial_transactions
-            log.info("📋 Step 3: Inserting from financial_transactions...");
+            // Step 4: Insert from financial_transactions
+            log.info("📋 Step 4: Inserting from financial_transactions...");
             int paypropCount = insertFromFinancialTransactions(batchId);
             result.put("paypropRecordsInserted", paypropCount);
             log.info("✅ Inserted {} records from financial_transactions", paypropCount);
 
-            // Step 4: Migrate allocations to unified layer (link unified_transaction_id)
-            log.info("📋 Step 4: Migrating allocations to unified_transactions...");
+            // Step 5: Migrate allocations to unified layer (link unified_transaction_id)
+            log.info("📋 Step 5: Migrating allocations to unified_transactions...");
             int migratedAllocations = migrateAllocationsToUnified();
             result.put("migratedAllocations", migratedAllocations);
             log.info("✅ Migrated {} allocations to unified_transaction_id", migratedAllocations);
 
-            // Step 5: Sync allocations to unified_allocations table
-            log.info("📋 Step 5: Syncing allocations to unified_allocations...");
+            // Step 6: Sync allocations to unified_allocations table
+            log.info("📋 Step 6: Syncing allocations to unified_allocations...");
             int syncedAllocations = syncAllocationsToUnifiedAllocations(batchId);
             result.put("syncedAllocations", syncedAllocations);
             log.info("✅ Synced {} allocations to unified_allocations", syncedAllocations);
 
-            // Step 6: Verify rebuild
-            log.info("📋 Step 6: Verifying rebuild...");
+            // Step 7: Verify rebuild
+            log.info("📋 Step 7: Verifying rebuild...");
             Map<String, Object> verification = verifyRebuild();
             result.put("verification", verification);
 
@@ -246,6 +252,99 @@ public class UnifiedTransactionRebuildService {
         """;
 
         return jdbcTemplate.update(sql, batchId);
+    }
+
+    /**
+     * Rebuild unified_incoming_transactions table with proper lease linkage.
+     * This table tracks all incoming payments (rent received) and links them to leases.
+     *
+     * The lease_id is populated by joining to the source tables:
+     * - HISTORICAL: historical_transactions.invoice_id
+     * - PAYPROP: financial_transactions.invoice_id (via pay_prop_transaction_id)
+     *
+     * @return Number of records rebuilt
+     */
+    private int rebuildUnifiedIncomingTransactions() {
+        // Step 1: Truncate the table
+        log.info("  📋 Truncating unified_incoming_transactions...");
+        jdbcTemplate.execute("TRUNCATE TABLE unified_incoming_transactions");
+
+        // Step 2: Insert from historical_transactions (rent payments)
+        log.info("  📋 Inserting from historical_transactions...");
+        String historicalSql = """
+            INSERT INTO unified_incoming_transactions (
+                source, source_id, transaction_date, amount, description,
+                property_id, tenant_name, lease_id, lease_reference,
+                created_at, updated_at
+            )
+            SELECT
+                'HISTORICAL' as source,
+                CAST(ht.id AS CHAR) as source_id,
+                ht.transaction_date,
+                ht.amount,
+                ht.description,
+                ht.property_id,
+                ht.tenant_name,
+                ht.invoice_id as lease_id,
+                i.lease_reference,
+                COALESCE(ht.created_at, NOW()) as created_at,
+                NOW() as updated_at
+            FROM historical_transactions ht
+            LEFT JOIN invoices i ON ht.invoice_id = i.id
+            WHERE (ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' OR ht.category = 'income')
+              AND ht.amount > 0
+        """;
+        int historicalCount = jdbcTemplate.update(historicalSql);
+        log.info("  ✓ Inserted {} historical incoming transactions", historicalCount);
+
+        // Step 3: Insert from financial_transactions (PayProp incoming payments)
+        log.info("  📋 Inserting from financial_transactions (PayProp)...");
+        String paypropSql = """
+            INSERT INTO unified_incoming_transactions (
+                source, source_id, transaction_date, amount, description,
+                property_id, tenant_name, lease_id, lease_reference,
+                payprop_transaction_id, reconciliation_date,
+                created_at, updated_at
+            )
+            SELECT
+                'PAYPROP' as source,
+                ft.pay_prop_transaction_id as source_id,
+                ft.transaction_date,
+                ft.amount,
+                ft.description,
+                CAST(ft.property_id AS UNSIGNED) as property_id,
+                ft.tenant_name,
+                ft.invoice_id as lease_id,
+                i.lease_reference,
+                ft.pay_prop_transaction_id as payprop_transaction_id,
+                ft.transaction_date as reconciliation_date,
+                COALESCE(ft.created_at, NOW()) as created_at,
+                NOW() as updated_at
+            FROM financial_transactions ft
+            LEFT JOIN invoices i ON ft.invoice_id = i.id
+            WHERE ft.data_source = 'INCOMING_PAYMENT'
+              AND ft.amount > 0
+        """;
+        int paypropCount = jdbcTemplate.update(paypropSql);
+        log.info("  ✓ Inserted {} PayProp incoming transactions", paypropCount);
+
+        // Step 4: Backfill any remaining NULL lease_ids using date-range matching
+        log.info("  📋 Backfilling any remaining NULL lease_ids...");
+        String backfillSql = """
+            UPDATE unified_incoming_transactions uit
+            JOIN invoices i ON uit.property_id = i.property_id
+                AND uit.transaction_date >= i.start_date
+                AND (i.end_date IS NULL OR uit.transaction_date <= i.end_date)
+            SET uit.lease_id = i.id,
+                uit.lease_reference = i.lease_reference
+            WHERE uit.lease_id IS NULL
+        """;
+        int backfilledCount = jdbcTemplate.update(backfillSql);
+        if (backfilledCount > 0) {
+            log.info("  ✓ Backfilled lease_id for {} records using date-range matching", backfilledCount);
+        }
+
+        return historicalCount + paypropCount;
     }
 
     /**
