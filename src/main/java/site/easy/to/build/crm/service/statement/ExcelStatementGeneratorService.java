@@ -23,6 +23,7 @@ import site.easy.to.build.crm.repository.PaymentBatchRepository;
 import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
 import site.easy.to.build.crm.repository.UnifiedAllocationRepository;
 import site.easy.to.build.crm.entity.UnifiedAllocation;
+import site.easy.to.build.crm.entity.UnifiedTransaction;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -64,6 +65,9 @@ public class ExcelStatementGeneratorService {
 
     @Autowired
     private UnifiedAllocationRepository unifiedAllocationRepository;
+
+    @Autowired
+    private site.easy.to.build.crm.repository.UnifiedTransactionRepository unifiedTransactionRepository;
 
     /**
      * Log current memory usage for debugging statement generation issues
@@ -1118,13 +1122,18 @@ public class ExcelStatementGeneratorService {
                 rentDueCell.setCellStyle(currencyStyle);
 
                 // Column I: management_fee (formula: 10%)
+                // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
+                boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
+                double mgmtFeeRate = isBlockProperty ? 0.0 : commissionConfig.getManagementFeePercent().doubleValue();
                 Cell mgmtFeeCell = row.createCell(col++);
-                mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                mgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                 mgmtFeeCell.setCellStyle(currencyStyle);
 
                 // Column J: service_fee (formula: 5%)
+                // BLOCK PROPERTY: No service fee for block properties
+                double svcFeeRate = isBlockProperty ? 0.0 : commissionConfig.getServiceFeePercent().doubleValue();
                 Cell svcFeeCell = row.createCell(col++);
-                svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                svcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                 svcFeeCell.setCellStyle(currencyStyle);
 
                 // Column K: total_commission (formula)
@@ -1346,29 +1355,38 @@ public class ExcelStatementGeneratorService {
     /**
      * Create PROPERTY_ACCOUNT sheet for block property account balance tracking
      *
-     * This sheet provides the data source for property account balance columns in MONTHLY_STATEMENT.
-     * Structure:
-     * - Column A: block_name (e.g., "Boden House Block")
-     * - Column B: movement_type ("opening", "in", "out", "closing")
-     * - Column C: description (e.g., "Flat 24 SC", "Opening Balance")
-     * - Column D: amount
-     * - Column E: date
+     * FLAT STRUCTURE: One row per transaction (like RENT_RECEIVED and EXPENSES sheets)
      *
-     * The MONTHLY_STATEMENT uses SUMIFS to look up values from this sheet.
+     * Structure:
+     * - Column A: property_id (block property ID or source property ID)
+     * - Column B: property_name (block property name or flat name)
+     * - Column C: transaction_date
+     * - Column D: movement_type ("IN" for allocations, "OUT" for expenses)
+     * - Column E: amount (positive for both - allocations flip sign)
+     * - Column F: category
+     * - Column G: description
+     * - Column H: source_reference (payprop_transaction_id)
+     *
+     * Data sources:
+     * 1. IN: PROPERTY_ACCOUNT_ALLOCATION transactions (negative amounts flipped to positive)
+     * 2. OUT: OUTGOING transactions for block properties (expenses)
+     *
+     * Balance formula: SUMIF(movement_type="IN") - SUMIF(movement_type="OUT")
      */
     private void createPropertyAccountSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                             LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
-        log.info("Creating PROPERTY_ACCOUNT sheet for block property balance tracking");
+        log.info("Creating PROPERTY_ACCOUNT sheet (flat structure - one row per transaction)");
 
         Sheet sheet = workbook.createSheet("PROPERTY_ACCOUNT");
 
-        // Header row
+        // Header row - flat structure matching RENT_RECEIVED/EXPENSES pattern
         Row header = sheet.createRow(0);
         String[] headers = {
-            "block_name", "movement_type", "description", "amount", "date", "source_property", "batch_reference"
+            "property_id", "property_name", "transaction_date", "movement_type",
+            "amount", "category", "description", "source_reference"
         };
 
-        // Use shared styles (memory optimization - avoids creating duplicate CellStyles)
+        // Use shared styles (memory optimization)
         CellStyle headerStyle = styles.headerStyle;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
@@ -1382,155 +1400,104 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Find distinct blocks from lease master data
-        java.util.Set<String> processedBlocks = new java.util.HashSet<>();
+        // 1. Get ALL PROPERTY_ACCOUNT_ALLOCATION transactions (IN - money allocated to property account)
+        // These are stored with negative amounts, so we flip the sign for display
+        List<UnifiedTransaction> allocations = unifiedTransactionRepository.findPropertyAccountAllocations();
+        log.debug("Found {} PROPERTY_ACCOUNT_ALLOCATION transactions for property account inflows", allocations.size());
 
-        for (LeaseMasterDTO lease : leaseMaster) {
-            if (lease.getBlockName() != null && !processedBlocks.contains(lease.getBlockName())) {
-                processedBlocks.add(lease.getBlockName());
-                String blockName = lease.getBlockName();
+        for (UnifiedTransaction allocation : allocations) {
+            Row row = sheet.createRow(rowNum);
+            int col = 0;
 
-                // Get property account data from unified allocations
-                // We need to query the database for DISBURSEMENT allocations to this block
+            // Column A: property_id (the block property receiving the allocation)
+            Long propId = allocation.getPropertyId();
+            row.createCell(col++).setCellValue(propId != null ? propId : 0);
 
-                // Row 1: Opening balance (all historical inflows - outflows before start date)
-                Row openingRow = sheet.createRow(rowNum++);
-                openingRow.createCell(0).setCellValue(blockName);
-                openingRow.createCell(1).setCellValue("opening");
-                openingRow.createCell(2).setCellValue("Opening Balance (prior to " + startDate + ")");
+            // Column B: property_name
+            row.createCell(col++).setCellValue(allocation.getPropertyName() != null ? allocation.getPropertyName() : "");
 
-                // Calculate opening balance from database
-                java.math.BigDecimal openingBalance = calculatePropertyAccountOpeningBalance(blockName, startDate);
-                Cell openingAmountCell = openingRow.createCell(3);
-                openingAmountCell.setCellValue(openingBalance != null ? openingBalance.doubleValue() : 0);
-                openingAmountCell.setCellStyle(currencyStyle);
-
-                Cell openingDateCell = openingRow.createCell(4);
-                openingDateCell.setCellValue(startDate);
-                openingDateCell.setCellStyle(dateStyle);
-
-                openingRow.createCell(5).setCellValue(""); // source_property
-                openingRow.createCell(6).setCellValue(""); // batch_reference
-
-                // Row 2+: Inflows during period (DISBURSEMENT allocations to block)
-                java.math.BigDecimal totalInflows = getPropertyAccountInflows(blockName, startDate, endDate);
-                if (totalInflows != null && totalInflows.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                    Row inflowRow = sheet.createRow(rowNum++);
-                    inflowRow.createCell(0).setCellValue(blockName);
-                    inflowRow.createCell(1).setCellValue("in");
-                    inflowRow.createCell(2).setCellValue("Service charge contributions (period total)");
-
-                    Cell inflowAmountCell = inflowRow.createCell(3);
-                    inflowAmountCell.setCellValue(totalInflows.doubleValue());
-                    inflowAmountCell.setCellStyle(currencyStyle);
-
-                    Cell inflowDateCell = inflowRow.createCell(4);
-                    inflowDateCell.setCellValue(endDate);
-                    inflowDateCell.setCellStyle(dateStyle);
-
-                    inflowRow.createCell(5).setCellValue("Various units");
-                    inflowRow.createCell(6).setCellValue("");
-                }
-
-                // Row: Outflows during period (EXPENSE allocations from block)
-                java.math.BigDecimal totalOutflows = getPropertyAccountOutflows(blockName, startDate, endDate);
-                if (totalOutflows != null && totalOutflows.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                    Row outflowRow = sheet.createRow(rowNum++);
-                    outflowRow.createCell(0).setCellValue(blockName);
-                    outflowRow.createCell(1).setCellValue("out");
-                    outflowRow.createCell(2).setCellValue("Block expenses paid (period total)");
-
-                    Cell outflowAmountCell = outflowRow.createCell(3);
-                    outflowAmountCell.setCellValue(totalOutflows.doubleValue());
-                    outflowAmountCell.setCellStyle(currencyStyle);
-
-                    Cell outflowDateCell = outflowRow.createCell(4);
-                    outflowDateCell.setCellValue(endDate);
-                    outflowDateCell.setCellStyle(dateStyle);
-
-                    outflowRow.createCell(5).setCellValue("Block property");
-                    outflowRow.createCell(6).setCellValue("");
-                }
-
-                // Row: Closing balance (opening + in - out)
-                Row closingRow = sheet.createRow(rowNum++);
-                closingRow.createCell(0).setCellValue(blockName);
-                closingRow.createCell(1).setCellValue("closing");
-                closingRow.createCell(2).setCellValue("Closing Balance");
-
-                java.math.BigDecimal closingBalance = (openingBalance != null ? openingBalance : java.math.BigDecimal.ZERO)
-                    .add(totalInflows != null ? totalInflows : java.math.BigDecimal.ZERO)
-                    .subtract(totalOutflows != null ? totalOutflows : java.math.BigDecimal.ZERO);
-
-                Cell closingAmountCell = closingRow.createCell(3);
-                closingAmountCell.setCellValue(closingBalance.doubleValue());
-                closingAmountCell.setCellStyle(currencyStyle);
-
-                Cell closingDateCell = closingRow.createCell(4);
-                closingDateCell.setCellValue(endDate);
-                closingDateCell.setCellStyle(dateStyle);
-
-                closingRow.createCell(5).setCellValue("");
-                closingRow.createCell(6).setCellValue("");
+            // Column C: transaction_date
+            Cell dateCell = row.createCell(col++);
+            if (allocation.getTransactionDate() != null) {
+                dateCell.setCellValue(allocation.getTransactionDate());
+                dateCell.setCellStyle(dateStyle);
             }
+
+            // Column D: movement_type = "IN" (money coming into property account)
+            row.createCell(col++).setCellValue("IN");
+
+            // Column E: amount (flip sign - stored as negative, display as positive)
+            Cell amountCell = row.createCell(col++);
+            java.math.BigDecimal amount = allocation.getAmount();
+            if (amount != null) {
+                // Flip sign: stored as negative, show as positive IN
+                amountCell.setCellValue(amount.abs().doubleValue());
+                amountCell.setCellStyle(currencyStyle);
+            }
+
+            // Column F: category
+            row.createCell(col++).setCellValue(allocation.getCategory() != null ? allocation.getCategory() : "Property Account Allocation");
+
+            // Column G: description
+            row.createCell(col++).setCellValue(allocation.getDescription() != null ? allocation.getDescription() : "");
+
+            // Column H: source_reference
+            row.createCell(col++).setCellValue(allocation.getPaypropTransactionId() != null ? allocation.getPaypropTransactionId() : "");
+
+            rowNum++;
+        }
+
+        // 2. Get ALL OUTGOING transactions for block properties (OUT - expenses paid from property account)
+        List<UnifiedTransaction> blockExpenses = unifiedTransactionRepository.findAllBlockPropertyExpenses();
+        log.debug("Found {} OUTGOING transactions for block property expenses", blockExpenses.size());
+
+        for (UnifiedTransaction expense : blockExpenses) {
+            Row row = sheet.createRow(rowNum);
+            int col = 0;
+
+            // Column A: property_id (the block property)
+            Long propId = expense.getPropertyId();
+            row.createCell(col++).setCellValue(propId != null ? propId : 0);
+
+            // Column B: property_name
+            row.createCell(col++).setCellValue(expense.getPropertyName() != null ? expense.getPropertyName() : "");
+
+            // Column C: transaction_date
+            Cell dateCell = row.createCell(col++);
+            if (expense.getTransactionDate() != null) {
+                dateCell.setCellValue(expense.getTransactionDate());
+                dateCell.setCellStyle(dateStyle);
+            }
+
+            // Column D: movement_type = "OUT" (money going out of property account)
+            row.createCell(col++).setCellValue("OUT");
+
+            // Column E: amount (keep as positive - expenses are stored as positive OUTGOING)
+            Cell amountCell = row.createCell(col++);
+            java.math.BigDecimal amount = expense.getAmount();
+            if (amount != null) {
+                // Use absolute value for display consistency
+                amountCell.setCellValue(amount.abs().doubleValue());
+                amountCell.setCellStyle(currencyStyle);
+            }
+
+            // Column F: category
+            row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : expense.getTransactionType());
+
+            // Column G: description
+            row.createCell(col++).setCellValue(expense.getDescription() != null ? expense.getDescription() : "");
+
+            // Column H: source_reference
+            row.createCell(col++).setCellValue(expense.getPaypropTransactionId() != null ? expense.getPaypropTransactionId() : "");
+
+            rowNum++;
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        log.info("PROPERTY_ACCOUNT sheet created with {} rows for {} blocks", rowNum - 1, processedBlocks.size());
-    }
-
-    /**
-     * Calculate opening balance for a property account (all historical inflows - outflows before date)
-     */
-    private java.math.BigDecimal calculatePropertyAccountOpeningBalance(String blockName, LocalDate beforeDate) {
-        try {
-            // Convert LocalDate to LocalDateTime at start of day for query compatibility
-            java.time.LocalDateTime beforeDateTime = beforeDate.atStartOfDay();
-
-            // Get total inflows before the date
-            java.math.BigDecimal inflowsBefore = unifiedAllocationRepository.getPropertyAccountInflowsBefore(blockName, beforeDateTime);
-
-            // For outflows, we need the block property ID - for now, return just inflows
-            // TODO: Get block property ID and calculate outflows too
-            return inflowsBefore != null ? inflowsBefore : java.math.BigDecimal.ZERO;
-        } catch (Exception e) {
-            log.warn("Error calculating property account opening balance for {}: {}", blockName, e.getMessage());
-            return java.math.BigDecimal.ZERO;
-        }
-    }
-
-    /**
-     * Get total inflows (disbursements) into a property account during a period
-     */
-    private java.math.BigDecimal getPropertyAccountInflows(String blockName, LocalDate startDate, LocalDate endDate) {
-        try {
-            // Convert LocalDate to LocalDateTime for query compatibility
-            java.time.LocalDateTime startDateTime = startDate.atStartOfDay();
-            java.time.LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay(); // End of day
-
-            return unifiedAllocationRepository.getPropertyAccountInflows(blockName, startDateTime, endDateTime);
-        } catch (Exception e) {
-            log.warn("Error getting property account inflows for {}: {}", blockName, e.getMessage());
-            return java.math.BigDecimal.ZERO;
-        }
-    }
-
-    /**
-     * Get total outflows (expenses) from a property account during a period
-     */
-    private java.math.BigDecimal getPropertyAccountOutflows(String blockName, LocalDate startDate, LocalDate endDate) {
-        try {
-            // Convert LocalDate to LocalDateTime for query compatibility
-            java.time.LocalDateTime startDateTime = startDate.atStartOfDay();
-            java.time.LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay(); // End of day
-
-            return unifiedAllocationRepository.getPropertyAccountOutflowsByBlockName(blockName, startDateTime, endDateTime);
-        } catch (Exception e) {
-            log.warn("Error getting property account outflows for {}: {}", blockName, e.getMessage());
-            return java.math.BigDecimal.ZERO;
-        }
+        log.info("PROPERTY_ACCOUNT sheet created with {} rows ({} IN allocations, {} OUT expenses)",
+            rowNum - 1, allocations.size(), blockExpenses.size());
     }
 
     /**
@@ -1634,19 +1601,24 @@ public class ExcelStatementGeneratorService {
                     arrearsCell.setCellStyle(currencyStyle);
 
                     // Column J: management_fee (formula: rent_received * management_fee_percent)
+                    // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
                     // Use property-specific commission rate, fallback to global default if not set
-                    double mgmtFeeRate = lease.getCommissionPercentage() != null
-                        ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal
-                        : commissionConfig.getManagementFeePercent().doubleValue();
+                    boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
+                    double mgmtFeeRate = isBlockProperty ? 0.0
+                        : (lease.getCommissionPercentage() != null
+                            ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal
+                            : commissionConfig.getManagementFeePercent().doubleValue());
                     Cell mgmtFeeCell = row.createCell(col++);
                     mgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
                     // Column K: service_fee (formula: rent_received * service_fee_percent)
+                    // BLOCK PROPERTY: No service fee for block properties
                     // Use property-specific service fee rate, fallback to global default if not set
-                    double svcFeeRate = lease.getServiceFeePercentage() != null
-                        ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal
-                        : commissionConfig.getServiceFeePercent().doubleValue();
+                    double svcFeeRate = isBlockProperty ? 0.0
+                        : (lease.getServiceFeePercentage() != null
+                            ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal
+                            : commissionConfig.getServiceFeePercent().doubleValue());
                     Cell svcFeeCell = row.createCell(col++);
                     svcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                     svcFeeCell.setCellStyle(currencyStyle);
@@ -1880,13 +1852,18 @@ public class ExcelStatementGeneratorService {
                 arrearsCell.setCellStyle(currencyStyle);
 
                 // Column J: management_fee (formula: rent_received * management_fee_percent)
+                // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
+                boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
+                double mgmtFeeRate = isBlockProperty ? 0.0 : commissionConfig.getManagementFeePercent().doubleValue();
                 Cell managementFeeCell = row.createCell(col++);
-                managementFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                managementFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                 managementFeeCell.setCellStyle(currencyStyle);
 
                 // Column K: service_fee (formula: rent_received * service_fee_percent)
+                // BLOCK PROPERTY: No service fee for block properties
+                double svcFeeRate = isBlockProperty ? 0.0 : commissionConfig.getServiceFeePercent().doubleValue();
                 Cell serviceFeeCell = row.createCell(col++);
-                serviceFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                serviceFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                 serviceFeeCell.setCellStyle(currencyStyle);
 
                 // Column L: total_commission (formula: mgmt + svc)
@@ -2151,13 +2128,18 @@ public class ExcelStatementGeneratorService {
                 proratedRentCell.setCellStyle(currencyStyle);
 
                 // M: management_fee (from config)
+                // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
+                boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
+                double mgmtFeeRate = isBlockProperty ? 0.0 : commissionConfig.getManagementFeePercent().doubleValue();
                 Cell mgmtFeeCell = row.createCell(col++);
-                mgmtFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                mgmtFeeCell.setCellFormula(String.format("L%d * %.4f", rowNum + 1, mgmtFeeRate));
                 mgmtFeeCell.setCellStyle(currencyStyle);
 
                 // N: service_fee (from config)
+                // BLOCK PROPERTY: No service fee for block properties
+                double svcFeeRate = isBlockProperty ? 0.0 : commissionConfig.getServiceFeePercent().doubleValue();
                 Cell svcFeeCell = row.createCell(col++);
-                svcFeeCell.setCellFormula(String.format("L%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                svcFeeCell.setCellFormula(String.format("L%d * %.4f", rowNum + 1, svcFeeRate));
                 svcFeeCell.setCellStyle(currencyStyle);
 
                 // O: total_commission (15%)
@@ -2613,19 +2595,24 @@ public class ExcelStatementGeneratorService {
             closingBalanceCell.setCellStyle(currencyStyle);
 
             // L: management_fee (formula: rent_received * management_fee_percent) - H is rent_received
+            // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
             // Use property-specific commission rate, fallback to global default if not set
-            double mgmtFeeRate = lease.getCommissionPercentage() != null
-                ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal (0.10)
-                : commissionConfig.getManagementFeePercent().doubleValue();
+            boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
+            double mgmtFeeRate = isBlockProperty ? 0.0
+                : (lease.getCommissionPercentage() != null
+                    ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal (0.10)
+                    : commissionConfig.getManagementFeePercent().doubleValue());
             Cell mgmtFeeCell = row.createCell(col++);
             mgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
             mgmtFeeCell.setCellStyle(currencyStyle);
 
             // M: service_fee (formula: rent_received * service_fee_percent) - H is rent_received
+            // BLOCK PROPERTY: No service fee for block properties
             // Use property-specific service fee rate, fallback to global default if not set
-            double svcFeeRate = lease.getServiceFeePercentage() != null
-                ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal (0.05)
-                : commissionConfig.getServiceFeePercent().doubleValue();
+            double svcFeeRate = isBlockProperty ? 0.0
+                : (lease.getServiceFeePercentage() != null
+                    ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal (0.05)
+                    : commissionConfig.getServiceFeePercent().doubleValue());
             Cell svcFeeCell = row.createCell(col++);
             svcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
             svcFeeCell.setCellStyle(currencyStyle);
@@ -3477,17 +3464,22 @@ public class ExcelStatementGeneratorService {
                 totalArrearsCell.setCellStyle(currencyStyle);
 
                 // J: total_management_fee - Use property-specific rate with fallback to global
-                double mgmtFeeRate = lease.getCommissionPercentage() != null
-                    ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal (0.10)
-                    : commissionConfig.getManagementFeePercent().doubleValue();
+                // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
+                boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
+                double mgmtFeeRate = isBlockProperty ? 0.0
+                    : (lease.getCommissionPercentage() != null
+                        ? lease.getCommissionPercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 10), convert to decimal (0.10)
+                        : commissionConfig.getManagementFeePercent().doubleValue());
                 Cell totalMgmtFeeCell = row.createCell(col++);
                 totalMgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                 totalMgmtFeeCell.setCellStyle(currencyStyle);
 
                 // K: total_service_fee - Use property-specific rate with fallback to global
-                double svcFeeRate = lease.getServiceFeePercentage() != null
-                    ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal (0.05)
-                    : commissionConfig.getServiceFeePercent().doubleValue();
+                // BLOCK PROPERTY: No service fee for block properties
+                double svcFeeRate = isBlockProperty ? 0.0
+                    : (lease.getServiceFeePercentage() != null
+                        ? lease.getServiceFeePercentage().doubleValue() / 100.0  // Property stores as percentage (e.g., 5), convert to decimal (0.05)
+                        : commissionConfig.getServiceFeePercent().doubleValue());
                 Cell totalSvcFeeCell = row.createCell(col++);
                 totalSvcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                 totalSvcFeeCell.setCellStyle(currencyStyle);
@@ -4138,13 +4130,18 @@ public class ExcelStatementGeneratorService {
                     arrearsCell.setCellStyle(currencyStyle);
 
                     // J: management_fee (formula: rent_received * management_fee_percent)
+                    // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
+                    boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
+                    double mgmtFeeRate = isBlockProperty ? 0.0 : commissionConfig.getManagementFeePercent().doubleValue();
                     Cell mgmtFeeCell = row.createCell(col++);
-                    mgmtFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getManagementFeePercent().doubleValue()));
+                    mgmtFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, mgmtFeeRate));
                     mgmtFeeCell.setCellStyle(currencyStyle);
 
                     // K: service_fee (formula: rent_received * service_fee_percent)
+                    // BLOCK PROPERTY: No service fee for block properties
+                    double svcFeeRate = isBlockProperty ? 0.0 : commissionConfig.getServiceFeePercent().doubleValue();
                     Cell svcFeeCell = row.createCell(col++);
-                    svcFeeCell.setCellFormula(String.format("H%d * %.2f", rowNum + 1, commissionConfig.getServiceFeePercent().doubleValue()));
+                    svcFeeCell.setCellFormula(String.format("H%d * %.4f", rowNum + 1, svcFeeRate));
                     svcFeeCell.setCellStyle(currencyStyle);
 
                     // L: total_commission (formula: mgmt + svc)

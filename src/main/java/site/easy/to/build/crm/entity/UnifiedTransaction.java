@@ -140,7 +140,8 @@ public class UnifiedTransaction {
 
     public enum FlowDirection {
         INCOMING,   // Money received (rent, deposits)
-        OUTGOING    // Money paid out (landlord payments, agency fees, expenses)
+        OUTGOING,   // Money paid out (landlord payments, agency fees, expenses)
+        INTERNAL    // Internal transfers (property account withdrawals) - don't count as income/expense
     }
 
     // ===== CONSTRUCTORS =====

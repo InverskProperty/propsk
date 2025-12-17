@@ -208,7 +208,13 @@ public class UnifiedTransactionRebuildService {
                 'financial_transactions' as source_table,
                 ft.id as source_record_id,
                 ft.transaction_date,
-                ft.amount,
+                -- PROPERTY_ACCOUNT_ALLOCATION: Store as NEGATIVE so it offsets rent in RENT_RECEIVED
+                -- Property account sheet will flip the sign to show as positive IN
+                CASE
+                    WHEN ft.description LIKE '%global_beneficiary%'
+                    THEN -ABS(ft.amount)
+                    ELSE ft.amount
+                END as amount,
                 -- Calculate net_to_owner_amount for BATCH_PAYMENT expenses when NULL
                 CASE
                     WHEN ft.net_to_owner_amount IS NOT NULL THEN ft.net_to_owner_amount
@@ -251,6 +257,11 @@ public class UnifiedTransactionRebuildService {
                 END as category,
                 ft.invoice_id,
                 CASE
+                    -- PROPERTY_ACCOUNT_ALLOCATION: Link to the BLOCK PROPERTY (not the flat)
+                    -- This allows the block fund to track its balance correctly
+                    WHEN ft.description LIKE '%global_beneficiary%'
+                        AND b.block_property_id IS NOT NULL
+                    THEN b.block_property_id
                     WHEN ft.data_source = 'INCOMING_PAYMENT' THEN CAST(ft.property_id AS UNSIGNED)
                     ELSE p.id
                 END as property_id,
@@ -259,11 +270,26 @@ public class UnifiedTransactionRebuildService {
                     ELSE NULL
                 END as customer_id,
                 i.lease_reference,
-                ft.property_name,
+                -- PROPERTY_ACCOUNT_ALLOCATION: Use block property name so it shows in PROPERTY_ACCOUNT sheet
+                CASE
+                    WHEN ft.description LIKE '%global_beneficiary%'
+                        AND bp.property_name IS NOT NULL
+                    THEN bp.property_name
+                    ELSE ft.property_name
+                END as property_name,
                 ft.pay_prop_transaction_id as payprop_transaction_id,
                 ft.data_source as payprop_data_source,
                 ft.transaction_type as transaction_type,
                 CASE
+                    -- PROPERTY_ACCOUNT_ALLOCATION: Make INCOMING so it appears in RENT_RECEIVED
+                    -- Amount is already negative, so it will offset the positive tenant payment
+                    WHEN ft.description LIKE '%global_beneficiary%'
+                    THEN 'INCOMING'
+                    -- Property account withdrawals are INTERNAL transfers, not real income
+                    -- These fund payments but shouldn't count as tenant income
+                    WHEN ft.description LIKE '%property account%'
+                        AND ft.data_source = 'INCOMING_PAYMENT'
+                    THEN 'INTERNAL'
                     -- First check data_source (PayProp specific)
                     WHEN ft.data_source = 'INCOMING_PAYMENT' THEN 'INCOMING'
                     WHEN ft.data_source IN ('BATCH_PAYMENT', 'COMMISSION_PAYMENT', 'EXPENSE_PAYMENT') THEN 'OUTGOING'
@@ -279,6 +305,9 @@ public class UnifiedTransactionRebuildService {
             FROM financial_transactions ft
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
+            -- Join to blocks and block property for PROPERTY_ACCOUNT_ALLOCATION linkage
+            LEFT JOIN blocks b ON p.block_id = b.id
+            LEFT JOIN properties bp ON b.block_property_id = bp.id
             WHERE (ft.invoice_id IS NOT NULL OR ft.data_source IN ('INCOMING_PAYMENT', 'EXPENSE_PAYMENT'))
               AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
         """;

@@ -287,4 +287,184 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
      */
     @Query("SELECT ut FROM UnifiedTransaction ut WHERE ut.id = :id")
     java.util.Optional<UnifiedTransaction> findByIdWithDetails(@Param("id") Long id);
+
+    // ===== BLOCK PROPERTY QUERIES =====
+
+    /**
+     * Get total OUTGOING expenses for a block property within a date range.
+     * This queries unified_transactions directly (where PayProp expenses are stored).
+     *
+     * @param blockPropertyId The ID of the block property
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return Sum of expenses (negative amounts converted to positive)
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ABS(ut.amount)), 0)
+        FROM unified_transactions ut
+        WHERE ut.property_id = :blockPropertyId
+          AND ut.flow_direction = 'OUTGOING'
+          AND ut.transaction_date >= :startDate
+          AND ut.transaction_date <= :endDate
+    """, nativeQuery = true)
+    java.math.BigDecimal getBlockPropertyExpenses(
+        @Param("blockPropertyId") Long blockPropertyId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get total OUTGOING expenses for a block property by name within a date range.
+     * Matches block property by name pattern (e.g., "Boden House" matches "Boden House Block - Block Property").
+     *
+     * @param blockName The name pattern of the block (e.g., "Boden House")
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return Sum of expenses (negative amounts converted to positive)
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ABS(ut.amount)), 0)
+        FROM unified_transactions ut
+        JOIN properties p ON ut.property_id = p.id
+        WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+          AND p.property_name LIKE CONCAT('%', :blockName, '%')
+          AND ut.flow_direction = 'OUTGOING'
+          AND ut.transaction_date >= :startDate
+          AND ut.transaction_date <= :endDate
+    """, nativeQuery = true)
+    java.math.BigDecimal getBlockPropertyExpensesByName(
+        @Param("blockName") String blockName,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get total INCOMING income for a block property within a date range.
+     * This includes contributions from flats (money received into the block account).
+     *
+     * @param blockPropertyId The ID of the block property
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return Sum of income
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ut.amount), 0)
+        FROM unified_transactions ut
+        WHERE ut.property_id = :blockPropertyId
+          AND ut.flow_direction = 'INCOMING'
+          AND ut.transaction_date >= :startDate
+          AND ut.transaction_date <= :endDate
+    """, nativeQuery = true)
+    java.math.BigDecimal getBlockPropertyIncome(
+        @Param("blockPropertyId") Long blockPropertyId,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get total INCOMING income for a block property by name within a date range.
+     *
+     * @param blockName The name pattern of the block
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return Sum of income
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ut.amount), 0)
+        FROM unified_transactions ut
+        JOIN properties p ON ut.property_id = p.id
+        WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+          AND p.property_name LIKE CONCAT('%', :blockName, '%')
+          AND ut.flow_direction = 'INCOMING'
+          AND ut.transaction_date >= :startDate
+          AND ut.transaction_date <= :endDate
+    """, nativeQuery = true)
+    java.math.BigDecimal getBlockPropertyIncomeByName(
+        @Param("blockName") String blockName,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get list of OUTGOING transactions for a block property (for detailed expense breakdown).
+     */
+    @Query(value = """
+        SELECT ut.*
+        FROM unified_transactions ut
+        JOIN properties p ON ut.property_id = p.id
+        WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+          AND p.property_name LIKE CONCAT('%', :blockName, '%')
+          AND ut.flow_direction = 'OUTGOING'
+          AND ut.transaction_date >= :startDate
+          AND ut.transaction_date <= :endDate
+        ORDER BY ut.transaction_date
+    """, nativeQuery = true)
+    List<UnifiedTransaction> getBlockPropertyExpenseTransactions(
+        @Param("blockName") String blockName,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    // ===== PROPERTY ACCOUNT SHEET QUERIES (FLAT STRUCTURE) =====
+
+    /**
+     * Get all PROPERTY_ACCOUNT_ALLOCATION transactions (money allocated to property account).
+     * These are stored with negative amounts and INCOMING flow direction.
+     * The sheet will flip the sign to show as positive IN.
+     *
+     * @return List of transactions where rent was allocated to property account
+     */
+    @Query("""
+        SELECT ut FROM UnifiedTransaction ut
+        WHERE ut.transactionType = 'PROPERTY_ACCOUNT_ALLOCATION'
+        ORDER BY ut.transactionDate, ut.id
+    """)
+    List<UnifiedTransaction> findPropertyAccountAllocations();
+
+    /**
+     * Get PROPERTY_ACCOUNT_ALLOCATION transactions within a date range.
+     */
+    @Query("""
+        SELECT ut FROM UnifiedTransaction ut
+        WHERE ut.transactionType = 'PROPERTY_ACCOUNT_ALLOCATION'
+          AND ut.transactionDate >= :startDate
+          AND ut.transactionDate <= :endDate
+        ORDER BY ut.transactionDate, ut.id
+    """)
+    List<UnifiedTransaction> findPropertyAccountAllocationsByDateRange(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Get ALL OUTGOING transactions for block properties (expenses paid from property accounts).
+     * Used for PROPERTY_ACCOUNT sheet flat structure.
+     */
+    @Query(value = """
+        SELECT ut.*
+        FROM unified_transactions ut
+        JOIN properties p ON ut.property_id = p.id
+        WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+          AND ut.flow_direction = 'OUTGOING'
+        ORDER BY ut.transaction_date, ut.id
+    """, nativeQuery = true)
+    List<UnifiedTransaction> findAllBlockPropertyExpenses();
+
+    /**
+     * Get OUTGOING transactions for block properties within a date range.
+     */
+    @Query(value = """
+        SELECT ut.*
+        FROM unified_transactions ut
+        JOIN properties p ON ut.property_id = p.id
+        WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+          AND ut.flow_direction = 'OUTGOING'
+          AND ut.transaction_date >= :startDate
+          AND ut.transaction_date <= :endDate
+        ORDER BY ut.transaction_date, ut.id
+    """, nativeQuery = true)
+    List<UnifiedTransaction> findBlockPropertyExpensesByDateRange(
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
 }
