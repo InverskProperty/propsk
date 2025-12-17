@@ -355,8 +355,8 @@ public class ExcelStatementGeneratorService {
         log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
-        log.info("✅ RENT_RECEIVED (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate, styles);
+        log.info("✅ RENT_RECEIVED (flat) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
         createExpensesSheet(workbook, leaseMaster, startDate, endDate, styles);
@@ -453,8 +453,8 @@ public class ExcelStatementGeneratorService {
         log.info("✅ RENT_DUE (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         sheetStart = System.currentTimeMillis();
-        createRentReceivedSheetWithCustomPeriods(workbook, leaseMaster, startDate, endDate, periodStartDay, styles);
-        log.info("✅ RENT_RECEIVED (custom) created in {}ms", System.currentTimeMillis() - sheetStart);
+        createRentReceivedSheet(workbook, leaseMaster, startDate, endDate, styles);
+        log.info("✅ RENT_RECEIVED (flat) created in {}ms", System.currentTimeMillis() - sheetStart);
 
         // GC hint after rent sheets
         requestGC("RENT_SHEETS");

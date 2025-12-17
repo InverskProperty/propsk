@@ -801,34 +801,50 @@ public class StatementDataExtractService {
             // Batch query for all transaction batch info
             List<Object[]> batchInfoList = unifiedAllocationRepository.getBatchInfoForTransactions(transactionIds);
 
-            // Build map: transactionId -> [batchId, status, paidDate]
-            Map<Long, Object[]> batchInfoMap = new HashMap<>();
+            // Build maps with batch ID concatenation for split payments
+            // (a single incoming payment can be split across multiple batches)
+            Map<Long, String> batchIdMap = new HashMap<>();
+            Map<Long, String> statusMap = new HashMap<>();
+            Map<Long, LocalDate> paidDateMap = new HashMap<>();
+
             for (Object[] row : batchInfoList) {
                 Long txnId = row[0] != null ? ((Number) row[0]).longValue() : null;
                 if (txnId != null) {
-                    batchInfoMap.put(txnId, row);
+                    String batchId = row[1] != null ? row[1].toString() : null;
+                    String status = row[2] != null ? row[2].toString() : null;
+                    LocalDate paidDate = null;
+                    if (row[3] != null) {
+                        if (row[3] instanceof java.sql.Date) {
+                            paidDate = ((java.sql.Date) row[3]).toLocalDate();
+                        } else if (row[3] instanceof LocalDate) {
+                            paidDate = (LocalDate) row[3];
+                        }
+                    }
+
+                    // Concatenate batch IDs for split payments (same transaction in multiple batches)
+                    if (batchIdMap.containsKey(txnId)) {
+                        if (batchId != null && !batchIdMap.get(txnId).contains(batchId)) {
+                            batchIdMap.put(txnId, batchIdMap.get(txnId) + ", " + batchId);
+                        }
+                    } else {
+                        batchIdMap.put(txnId, batchId);
+                        statusMap.put(txnId, status);
+                        paidDateMap.put(txnId, paidDate);
+                    }
                 }
             }
 
             // Populate batch info on each payment detail
             for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail : paymentDetails) {
                 Long txnId = detail.getTransactionId();
-                if (txnId != null && batchInfoMap.containsKey(txnId)) {
-                    Object[] info = batchInfoMap.get(txnId);
-                    // info[0] = transactionId, info[1] = batchId, info[2] = status, info[3] = paidDate
-                    detail.setBatchId(info[1] != null ? info[1].toString() : null);
-                    detail.setPaymentStatus(info[2] != null ? info[2].toString() : null);
-                    if (info[3] != null) {
-                        if (info[3] instanceof java.sql.Date) {
-                            detail.setPaidDate(((java.sql.Date) info[3]).toLocalDate());
-                        } else if (info[3] instanceof LocalDate) {
-                            detail.setPaidDate((LocalDate) info[3]);
-                        }
-                    }
+                if (txnId != null && batchIdMap.containsKey(txnId)) {
+                    detail.setBatchId(batchIdMap.get(txnId));
+                    detail.setPaymentStatus(statusMap.get(txnId));
+                    detail.setPaidDate(paidDateMap.get(txnId));
                 }
             }
 
-            log.debug("Populated batch info for {} of {} payments", batchInfoMap.size(), paymentDetails.size());
+            log.debug("Populated batch info for {} of {} payments", batchIdMap.size(), paymentDetails.size());
         } catch (Exception e) {
             log.warn("Error populating batch info: {} - {}", e.getClass().getSimpleName(), e.getMessage());
         }
