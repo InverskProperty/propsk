@@ -284,6 +284,23 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     long countByOccupancyStatus(site.easy.to.build.crm.entity.OccupancyStatus status);
 
     /**
+     * Count lettable properties (excludes parking and block properties) for occupancy calculations
+     */
+    @Query("SELECT COUNT(p) FROM Property p WHERE p.isArchived = 'N' " +
+           "AND (p.propertyType IS NULL OR p.propertyType <> 'PARKING') " +
+           "AND (p.isBlockProperty IS NULL OR p.isBlockProperty = false)")
+    long countLettableProperties();
+
+    /**
+     * Count lettable properties by portfolio
+     */
+    @Query("SELECT COUNT(p) FROM Property p JOIN PropertyPortfolioAssignment ppa ON p.id = ppa.propertyId " +
+           "WHERE ppa.portfolioId = :portfolioId AND p.isArchived = 'N' " +
+           "AND (p.propertyType IS NULL OR p.propertyType <> 'PARKING') " +
+           "AND (p.isBlockProperty IS NULL OR p.isBlockProperty = false)")
+    long countLettablePropertiesByPortfolio(@Param("portfolioId") Long portfolioId);
+
+    /**
      * Find properties suitable for a lead's requirements
      * (available + matches bedrooms + within budget)
      */

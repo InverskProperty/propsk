@@ -625,6 +625,7 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         int occupiedCount = 0;
         int vacantCount = 0;
+        int lettablePropertyCount = 0; // Properties that count for occupancy (excludes parking, block properties)
         BigDecimal totalRent = BigDecimal.ZERO;
         BigDecimal actualIncome = BigDecimal.ZERO;
         int totalTenants = 0;
@@ -645,11 +646,18 @@ public class PortfolioServiceImpl implements PortfolioService {
                 Customer currentTenant = propertyService.getCurrentTenant(property.getId());
                 boolean isOccupied = (currentTenant != null);
 
-                if (isOccupied) {
-                    occupiedCount++;
+                // Only count lettable properties (not parking, not block properties) for occupancy
+                if (property.countsForOccupancy()) {
+                    lettablePropertyCount++;
+                    if (isOccupied) {
+                        occupiedCount++;
+                        totalTenants++;
+                    } else {
+                        vacantCount++;
+                    }
+                } else if (isOccupied) {
+                    // Parking/block properties with tenants still count toward total tenants
                     totalTenants++;
-                } else {
-                    vacantCount++;
                 }
 
                 // === COMPREHENSIVE FINANCIAL METRICS (Last 12 months) ===
@@ -721,12 +729,14 @@ public class PortfolioServiceImpl implements PortfolioService {
             analytics.setPropertiesPendingSync(0);
         }
         
-        // Calculate occupancy rate
-        if (analytics.getTotalProperties() > 0) {
+        // Calculate occupancy rate based on lettable properties only (excludes parking, block properties)
+        if (lettablePropertyCount > 0) {
             BigDecimal occupancyRate = BigDecimal.valueOf(occupiedCount)
-                .divide(BigDecimal.valueOf(analytics.getTotalProperties()), 4, RoundingMode.HALF_UP)
+                .divide(BigDecimal.valueOf(lettablePropertyCount), 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
             analytics.setOccupancyRate(occupancyRate);
+        } else {
+            analytics.setOccupancyRate(BigDecimal.ZERO);
         }
         
         // Calculate variances against targets

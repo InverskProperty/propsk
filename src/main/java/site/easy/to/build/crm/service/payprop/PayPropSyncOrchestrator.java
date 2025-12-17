@@ -1205,36 +1205,45 @@ public class PayPropSyncOrchestrator {
     private SyncResult detectOccupancyFromTenancies(Long initiatedBy) {
         try {
             int totalProperties = 0;
+            int lettableProperties = 0; // Properties that count for occupancy (excludes parking)
             int occupiedProperties = 0;
-            
+
             List<Property> allProperties = propertyService.findAll();
-            
+
             for (Property property : allProperties) {
                 if (property.getPayPropId() != null) {
                     totalProperties++;
+
+                    // Only count lettable properties for occupancy rate
+                    if (!property.countsForOccupancy()) {
+                        continue;
+                    }
+                    lettableProperties++;
+
                     try {
-                        PayPropExportResult tenants = 
+                        PayPropExportResult tenants =
                             payPropSyncService.exportTenantsByProperty(property.getPayPropId());
-                        
+
                         if (!tenants.getItems().isEmpty()) {
                             occupiedProperties++;
                         }
                     } catch (Exception e) {
-                        log.warn("Failed to check occupancy for property {}: {}", 
+                        log.warn("Failed to check occupancy for property {}: {}",
                             property.getPayPropId(), e.getMessage());
                     }
                 }
             }
-            
+
             Map<String, Object> details = Map.of(
                 "totalProperties", totalProperties,
+                "lettableProperties", lettableProperties,
                 "occupiedProperties", occupiedProperties,
-                "vacantProperties", totalProperties - occupiedProperties,
-                "occupancyRate", totalProperties > 0 ? (occupiedProperties * 100.0 / totalProperties) : 0
+                "vacantProperties", lettableProperties - occupiedProperties,
+                "occupancyRate", lettableProperties > 0 ? (occupiedProperties * 100.0 / lettableProperties) : 0
             );
-            
+
             return SyncResult.success("Occupancy detection completed", details);
-            
+
         } catch (Exception e) {
             return SyncResult.failure("Occupancy detection failed: " + e.getMessage());
         }
