@@ -61,9 +61,11 @@ public class UnifiedTransactionRebuildService {
             result.put("incomingTransactionsRebuilt", incomingCount);
             log.info("✅ Rebuilt {} incoming transactions with lease linkage", incomingCount);
 
-            // Step 2: Truncate unified_transactions
+            // Step 2: Truncate unified_transactions (disable FK checks for safety)
             log.info("📋 Step 2: Truncating unified_transactions...");
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
             jdbcTemplate.execute("TRUNCATE TABLE unified_transactions");
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
             log.info("✅ Table truncated");
 
             // Step 3: Insert from historical_transactions
@@ -358,9 +360,11 @@ public class UnifiedTransactionRebuildService {
             log.warn("  ⚠️ Could not create unified_incoming_transactions table: {}", e.getMessage());
         }
 
-        // Step 1: Truncate the table
+        // Step 1: Truncate the table (disable FK checks due to unified_allocations reference)
         log.info("  📋 Truncating unified_incoming_transactions...");
+        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
         jdbcTemplate.execute("TRUNCATE TABLE unified_incoming_transactions");
+        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
 
         // Step 2: Insert from historical_transactions (rent payments)
         log.info("  📋 Inserting from historical_transactions...");
@@ -507,9 +511,11 @@ public class UnifiedTransactionRebuildService {
             log.warn("  ⚠️ Could not create unified_allocations table: {}", e.getMessage());
         }
 
-        // Step 5a: Truncate unified_allocations
+        // Step 5a: Truncate unified_allocations (disable FK checks for safety)
         log.info("  📋 Step 5a: Truncating unified_allocations...");
+        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
         jdbcTemplate.execute("TRUNCATE TABLE unified_allocations");
+        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
 
         // Step 5b: Insert from transaction_batch_allocations with proper mapping
         log.info("  📋 Step 5b: Inserting from transaction_batch_allocations...");

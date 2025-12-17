@@ -759,6 +759,22 @@ public class Property {
         return payPropPropertyId != null && !payPropPropertyId.trim().isEmpty();
     }
 
+    /**
+     * Check if property is a parking space.
+     * Parking spaces should be excluded from occupancy calculations.
+     */
+    public boolean isParking() {
+        return "PARKING".equalsIgnoreCase(propertyType);
+    }
+
+    /**
+     * Check if property should be included in occupancy calculations.
+     * Excludes parking spaces and block properties.
+     */
+    public boolean countsForOccupancy() {
+        return !isParking() && !Boolean.TRUE.equals(isBlockProperty);
+    }
+
     // Property Valuation Helper Methods
     /**
      * Calculate total acquisition cost (purchase price + purchaser costs)
