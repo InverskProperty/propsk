@@ -1522,9 +1522,11 @@ public class ExcelStatementGeneratorService {
      */
     private java.math.BigDecimal getPropertyAccountOutflows(String blockName, LocalDate startDate, LocalDate endDate) {
         try {
-            // TODO: Need to get block property ID to query outflows properly
-            // For now, return 0 - outflows need the property_id, not the beneficiary_name
-            return java.math.BigDecimal.ZERO;
+            // Convert LocalDate to LocalDateTime for query compatibility
+            java.time.LocalDateTime startDateTime = startDate.atStartOfDay();
+            java.time.LocalDateTime endDateTime = endDate.plusDays(1).atStartOfDay(); // End of day
+
+            return unifiedAllocationRepository.getPropertyAccountOutflowsByBlockName(blockName, startDateTime, endDateTime);
         } catch (Exception e) {
             log.warn("Error getting property account outflows for {}: {}", blockName, e.getMessage());
             return java.math.BigDecimal.ZERO;

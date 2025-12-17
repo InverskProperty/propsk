@@ -466,6 +466,43 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         @Param("beforeDateTime") LocalDateTime beforeDateTime
     );
 
+    /**
+     * Get total outflows (expenses) from a block property account by block name
+     * Joins to properties table to find the block property ID
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ABS(ua.amount)), 0)
+        FROM unified_allocations ua
+        JOIN properties p ON ua.property_id = p.id
+        WHERE ua.allocation_type = 'EXPENSE'
+        AND (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+        AND p.property_name LIKE CONCAT('%', :blockName, '%')
+        AND ua.created_at >= :startDateTime
+        AND ua.created_at < :endDateTime
+    """, nativeQuery = true)
+    BigDecimal getPropertyAccountOutflowsByBlockName(
+        @Param("blockName") String blockName,
+        @Param("startDateTime") LocalDateTime startDateTime,
+        @Param("endDateTime") LocalDateTime endDateTime
+    );
+
+    /**
+     * Get total outflows before a date from a block property account by block name
+     */
+    @Query(value = """
+        SELECT COALESCE(SUM(ABS(ua.amount)), 0)
+        FROM unified_allocations ua
+        JOIN properties p ON ua.property_id = p.id
+        WHERE ua.allocation_type = 'EXPENSE'
+        AND (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+        AND p.property_name LIKE CONCAT('%', :blockName, '%')
+        AND ua.created_at < :beforeDateTime
+    """, nativeQuery = true)
+    BigDecimal getPropertyAccountOutflowsBeforeByBlockName(
+        @Param("blockName") String blockName,
+        @Param("beforeDateTime") LocalDateTime beforeDateTime
+    );
+
     // ===== RELATED PAYMENTS QUERIES (for Excel Statement Period Sheets) =====
 
     /**
