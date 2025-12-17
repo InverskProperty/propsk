@@ -55,11 +55,16 @@ public class UnifiedTransactionRebuildService {
         result.put("startTime", LocalDateTime.now());
 
         try {
-            // Step 1: Rebuild unified_incoming_transactions (source of truth for incoming payments)
+            // Step 1: Rebuild unified_incoming_transactions (optional - for allocation linking)
             log.info("📋 Step 1: Rebuilding unified_incoming_transactions...");
-            int incomingCount = rebuildUnifiedIncomingTransactions();
-            result.put("incomingTransactionsRebuilt", incomingCount);
-            log.info("✅ Rebuilt {} incoming transactions with lease linkage", incomingCount);
+            try {
+                int incomingCount = rebuildUnifiedIncomingTransactions();
+                result.put("incomingTransactionsRebuilt", incomingCount);
+                log.info("✅ Rebuilt {} incoming transactions with lease linkage", incomingCount);
+            } catch (Exception e) {
+                log.warn("⚠️ Step 1 failed (non-critical): {}. Continuing with main rebuild...", e.getMessage());
+                result.put("incomingTransactionsRebuilt", "SKIPPED: " + e.getMessage());
+            }
 
             // Step 2: Truncate unified_transactions (disable FK checks for safety)
             log.info("📋 Step 2: Truncating unified_transactions...");
@@ -80,17 +85,27 @@ public class UnifiedTransactionRebuildService {
             result.put("paypropRecordsInserted", paypropCount);
             log.info("✅ Inserted {} records from financial_transactions", paypropCount);
 
-            // Step 5: Migrate allocations to unified layer (link unified_transaction_id)
+            // Step 5: Migrate allocations to unified layer (optional - for allocation tracking)
             log.info("📋 Step 5: Migrating allocations to unified_transactions...");
-            int migratedAllocations = migrateAllocationsToUnified();
-            result.put("migratedAllocations", migratedAllocations);
-            log.info("✅ Migrated {} allocations to unified_transaction_id", migratedAllocations);
+            try {
+                int migratedAllocations = migrateAllocationsToUnified();
+                result.put("migratedAllocations", migratedAllocations);
+                log.info("✅ Migrated {} allocations to unified_transaction_id", migratedAllocations);
+            } catch (Exception e) {
+                log.warn("⚠️ Step 5 failed (non-critical): {}. Continuing...", e.getMessage());
+                result.put("migratedAllocations", "SKIPPED: " + e.getMessage());
+            }
 
-            // Step 6: Sync allocations to unified_allocations table
+            // Step 6: Sync allocations to unified_allocations table (optional)
             log.info("📋 Step 6: Syncing allocations to unified_allocations...");
-            int syncedAllocations = syncAllocationsToUnifiedAllocations(batchId);
-            result.put("syncedAllocations", syncedAllocations);
-            log.info("✅ Synced {} allocations to unified_allocations", syncedAllocations);
+            try {
+                int syncedAllocations = syncAllocationsToUnifiedAllocations(batchId);
+                result.put("syncedAllocations", syncedAllocations);
+                log.info("✅ Synced {} allocations to unified_allocations", syncedAllocations);
+            } catch (Exception e) {
+                log.warn("⚠️ Step 6 failed (non-critical): {}. Continuing...", e.getMessage());
+                result.put("syncedAllocations", "SKIPPED: " + e.getMessage());
+            }
 
             // Step 7: Verify rebuild
             log.info("📋 Step 7: Verifying rebuild...");

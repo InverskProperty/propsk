@@ -6,7 +6,8 @@
       "Bash(git add:*)",
       "Bash(mvn clean package:*)",
       "mcp__render__list_logs",
-      "WebFetch(domain:spoutproperty-hub.onrender.com)"
+      "WebFetch(domain:spoutproperty-hub.onrender.com)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": [],
