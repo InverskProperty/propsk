@@ -576,6 +576,10 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      * IMPORTANT: Date filtering ALWAYS applies to ensure allocations are shown in the correct
      * period sheet. The invoice_id is used for grouping accuracy but does not bypass date filtering.
      * This prevents showing cumulative allocations across all periods instead of period-specific allocations.
+     *
+     * NOTE: Filters by transaction_date (when payment was received), NOT by ua.paid_date
+     * (when allocation was processed). This ensures allocated_amount aligns with rent_received,
+     * using the linked incoming_transaction_id. Both use the same date criteria.
      */
     @Query(value = """
         SELECT
@@ -596,7 +600,6 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
               (uit.transaction_date BETWEEN :startDate AND :endDate)
               OR (ut.transaction_date BETWEEN :startDate AND :endDate)
               OR (ht.transaction_date BETWEEN :startDate AND :endDate)
-              OR (ua.paid_date BETWEEN :startDate AND :endDate)
           )
         GROUP BY COALESCE(ua.invoice_id, 0), ua.property_id
     """, nativeQuery = true)
