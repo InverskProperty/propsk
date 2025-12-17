@@ -292,12 +292,13 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     long countLettableProperties();
 
     /**
-     * Count lettable properties by portfolio
+     * Count lettable properties by portfolio (native query due to junction table)
      */
-    @Query("SELECT COUNT(p) FROM Property p JOIN PropertyPortfolioAssignment ppa ON p.id = ppa.propertyId " +
-           "WHERE ppa.portfolioId = :portfolioId AND p.isArchived = 'N' " +
-           "AND (p.propertyType IS NULL OR p.propertyType <> 'PARKING') " +
-           "AND (p.isBlockProperty IS NULL OR p.isBlockProperty = false)")
+    @Query(value = "SELECT COUNT(p.id) FROM properties p " +
+           "INNER JOIN property_portfolio_assignments ppa ON p.id = ppa.property_id " +
+           "WHERE ppa.portfolio_id = :portfolioId AND p.is_archived = 'N' " +
+           "AND (p.property_type IS NULL OR p.property_type <> 'PARKING') " +
+           "AND (p.is_block_property IS NULL OR p.is_block_property = false)", nativeQuery = true)
     long countLettablePropertiesByPortfolio(@Param("portfolioId") Long portfolioId);
 
     /**
