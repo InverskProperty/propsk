@@ -4,8 +4,10 @@ package site.easy.to.build.crm.service.payprop;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import site.easy.to.build.crm.event.PayPropDataSyncedEvent;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 import org.slf4j.Logger;
@@ -53,6 +55,10 @@ public class PayPropSyncOrchestrator {
     private final GoogleDriveFileService googleDriveFileService;
     private final UserRepository userRepository;
     private final JdbcTemplate jdbcTemplate;
+
+    // Event publisher for triggering unified_transactions rebuild
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     // Tenant sync repositories
     @Autowired
@@ -231,6 +237,23 @@ public class PayPropSyncOrchestrator {
                 result.setOverallError("One or more core sync operations failed");
             }
             log.info("✅ Enhanced scope-aware sync completed: {}", success);
+
+            // Publish event to trigger unified_transactions rebuild
+            try {
+                // Constructor: (source, recordsProcessed, syncTime, syncType, success)
+                PayPropDataSyncedEvent event = new PayPropDataSyncedEvent(
+                    this,
+                    0, // recordsProcessed - not critical for rebuild trigger
+                    LocalDateTime.now(),
+                    "COMPLETE_SYNC",
+                    success
+                );
+                eventPublisher.publishEvent(event);
+                log.info("📤 Published PayPropDataSyncedEvent to trigger unified_transactions rebuild");
+            } catch (Exception e) {
+                log.warn("⚠️ Failed to publish sync event (rebuild may not trigger): {}", e.getMessage());
+            }
+
             return result;
 
         } catch (Exception e) {
