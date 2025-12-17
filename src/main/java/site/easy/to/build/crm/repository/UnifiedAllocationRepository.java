@@ -209,6 +209,16 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     boolean existsByHistoricalTransactionId(Long historicalTransactionId);
 
     /**
+     * Get batch info (batch_id, status, paid_date) for multiple unified transactions.
+     * Used for populating batch columns in RENT_RECEIVED and EXPENSES sheets.
+     * Returns: [unifiedTransactionId, paymentBatchId, paymentStatus, paidDate]
+     */
+    @Query("SELECT ua.unifiedTransactionId, ua.paymentBatchId, ua.paymentStatus, ua.paidDate " +
+           "FROM UnifiedAllocation ua WHERE ua.unifiedTransactionId IN :transactionIds " +
+           "AND ua.allocationType = 'OWNER'")
+    List<Object[]> getBatchInfoForTransactions(@Param("transactionIds") List<Long> transactionIds);
+
+    /**
      * Get remaining unallocated amount for a unified transaction
      */
     @Query("""

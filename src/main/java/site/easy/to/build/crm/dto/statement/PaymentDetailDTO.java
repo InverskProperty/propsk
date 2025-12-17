@@ -14,6 +14,11 @@ public class PaymentDetailDTO {
     private String category;
     private Long transactionId;
 
+    // Batch/allocation tracking fields
+    private String batchId;
+    private String paymentStatus;
+    private LocalDate paidDate;
+
     public PaymentDetailDTO() {
     }
 
@@ -67,5 +72,29 @@ public class PaymentDetailDTO {
 
     public void setTransactionId(Long transactionId) {
         this.transactionId = transactionId;
+    }
+
+    public String getBatchId() {
+        return batchId;
+    }
+
+    public void setBatchId(String batchId) {
+        this.batchId = batchId;
+    }
+
+    public String getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(String paymentStatus) {
+        this.paymentStatus = paymentStatus;
+    }
+
+    public LocalDate getPaidDate() {
+        return paidDate;
+    }
+
+    public void setPaidDate(LocalDate paidDate) {
+        this.paidDate = paidDate;
     }
 }

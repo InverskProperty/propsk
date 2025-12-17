@@ -1155,20 +1155,16 @@ public class ExcelStatementGeneratorService {
      */
     private void createRentReceivedSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                         LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
-        log.info("Creating RENT_RECEIVED sheet with payment breakdown");
+        log.info("Creating RENT_RECEIVED sheet (flat structure - one row per payment)");
 
         Sheet sheet = workbook.createSheet("RENT_RECEIVED");
 
-        // Header row with payment breakdown columns
+        // Header row - flat structure with batch tracking columns
         Row header = sheet.createRow(0);
         String[] headers = {
-            "lease_id", "lease_reference", "property_name", "rent_due_date",
-            "month_start", "month_end",
-            "payment_1_date", "payment_1_amount",
-            "payment_2_date", "payment_2_amount",
-            "payment_3_date", "payment_3_amount",
-            "payment_4_date", "payment_4_amount",
-            "total_received"
+            "lease_id", "lease_reference", "property_name",
+            "payment_date", "amount",
+            "batch_id", "payment_status", "paid_date"
         };
 
         // Use shared styles (memory optimization)
@@ -1185,33 +1181,22 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
-        // Generate one row per lease per month that has started
-        // Show active leases AND ended leases, but NOT future leases that haven't started
+        // Generate one row per payment (flat structure)
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
-            LocalDate leaseEnd = lease.getEndDate();
 
-            // Start from lease start to capture all historical payments for opening balance calculation
-            YearMonth currentMonth = leaseStart != null ? YearMonth.from(leaseStart) : YearMonth.from(startDate);
-            YearMonth endMonth = YearMonth.from(endDate);
+            // Determine query start date: from lease start or statement start (whichever is earlier)
+            // This captures all historical payments for opening balance calculations
+            LocalDate queryStart = leaseStart != null && leaseStart.isBefore(startDate) ? leaseStart : startDate;
 
-            while (!currentMonth.isAfter(endMonth)) {
-                LocalDate monthStart = currentMonth.atDay(1);
-                LocalDate monthEnd = currentMonth.atEndOfMonth();
+            // Get ALL payments for this lease across the entire date range
+            List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> payments =
+                dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), queryStart, endDate);
 
-                // Skip future leases that haven't started yet (lease start is after month end)
-                if (leaseStart != null && leaseStart.isAfter(monthEnd)) {
-                    currentMonth = currentMonth.plusMonths(1);
-                    continue; // Don't show leases that haven't started yet
-                }
-
-                // Create row for leases that have started (payments can come in even for ended leases)
+            // Create one row per payment
+            for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment : payments) {
                 Row row = sheet.createRow(rowNum);
                 int col = 0;
-
-                // Get payment details for this lease/month (payments can exist even for inactive leases)
-                List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> payments =
-                    dataExtractService.extractRentReceivedDetails(lease.getLeaseId(), monthStart, monthEnd);
 
                 // Column A: lease_id
                 row.createCell(col++).setCellValue(lease.getLeaseId());
@@ -1222,65 +1207,47 @@ public class ExcelStatementGeneratorService {
                 // Column C: property_name
                 row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
 
-                // Column D: rent_due_date (1st of the month by default)
-                Cell dueDateCell = row.createCell(col++);
-                dueDateCell.setCellValue(monthStart);
-                dueDateCell.setCellStyle(dateStyle);
-
-                // Column E: month_start
-                Cell monthStartCell = row.createCell(col++);
-                monthStartCell.setCellValue(monthStart);
-                monthStartCell.setCellStyle(dateStyle);
-
-                // Column F: month_end
-                Cell monthEndCell = row.createCell(col++);
-                monthEndCell.setCellValue(monthEnd);
-                monthEndCell.setCellStyle(dateStyle);
-
-                // Columns G-N: Payment breakdown (up to 4 payments)
-                BigDecimal total = BigDecimal.ZERO;
-                for (int i = 0; i < 4; i++) {
-                    if (i < payments.size()) {
-                        site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = payments.get(i);
-
-                        // Payment date
-                        Cell paymentDateCell = row.createCell(col++);
-                        paymentDateCell.setCellValue(payment.getPaymentDate());
-                        paymentDateCell.setCellStyle(dateStyle);
-
-                        // Payment amount
-                        Cell paymentAmountCell = row.createCell(col++);
-                        paymentAmountCell.setCellValue(payment.getAmount().doubleValue());
-                        paymentAmountCell.setCellStyle(currencyStyle);
-
-                        total = total.add(payment.getAmount());
-                    } else {
-                        // Empty payment columns
-                        row.createCell(col++); // date
-                        row.createCell(col++); // amount
-                    }
+                // Column D: payment_date
+                Cell paymentDateCell = row.createCell(col++);
+                if (payment.getPaymentDate() != null) {
+                    paymentDateCell.setCellValue(payment.getPaymentDate());
+                    paymentDateCell.setCellStyle(dateStyle);
                 }
 
-                // Column O: total_received
-                Cell totalReceivedCell = row.createCell(col++);
-                totalReceivedCell.setCellValue(total.doubleValue());
-                totalReceivedCell.setCellStyle(currencyStyle);
+                // Column E: amount
+                Cell amountCell = row.createCell(col++);
+                if (payment.getAmount() != null) {
+                    amountCell.setCellValue(payment.getAmount().doubleValue());
+                    amountCell.setCellStyle(currencyStyle);
+                }
+
+                // Column F: batch_id
+                row.createCell(col++).setCellValue(payment.getBatchId() != null ? payment.getBatchId() : "");
+
+                // Column G: payment_status
+                row.createCell(col++).setCellValue(payment.getPaymentStatus() != null ? payment.getPaymentStatus() : "");
+
+                // Column H: paid_date
+                Cell paidDateCell = row.createCell(col++);
+                if (payment.getPaidDate() != null) {
+                    paidDateCell.setCellValue(payment.getPaidDate());
+                    paidDateCell.setCellStyle(dateStyle);
+                }
 
                 rowNum++;
-
-                currentMonth = currentMonth.plusMonths(1);
             }
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        log.info("RENT_RECEIVED sheet created with {} rows", rowNum - 1);
+        log.info("RENT_RECEIVED sheet created with {} rows (flat structure)", rowNum - 1);
     }
 
     /**
      * Create EXPENSES sheet with expense breakdown by date, amount, and category
      * Shows property expenses (cleaning, maintenance, furnishings, etc.)
+     * Includes batch tracking columns for payment reconciliation.
      */
     private void createExpensesSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                      LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
@@ -1288,11 +1255,12 @@ public class ExcelStatementGeneratorService {
 
         Sheet sheet = workbook.createSheet("EXPENSES");
 
-        // ✅ RESTRUCTURED: Flat format with one row per expense for proper date range filtering
+        // Flat format with batch tracking columns
         Row header = sheet.createRow(0);
         String[] headers = {
             "lease_id", "lease_reference", "property_name",
-            "expense_date", "expense_amount", "expense_category", "expense_description"
+            "expense_date", "expense_amount", "expense_category", "expense_description",
+            "batch_id", "payment_status", "paid_date"
         };
 
         // Use shared styles (memory optimization)
@@ -1334,19 +1302,36 @@ public class ExcelStatementGeneratorService {
 
                 // Column D: expense_date
                 Cell expenseDateCell = row.createCell(col++);
-                expenseDateCell.setCellValue(expense.getPaymentDate());
-                expenseDateCell.setCellStyle(dateStyle);
+                if (expense.getPaymentDate() != null) {
+                    expenseDateCell.setCellValue(expense.getPaymentDate());
+                    expenseDateCell.setCellStyle(dateStyle);
+                }
 
                 // Column E: expense_amount
                 Cell expenseAmountCell = row.createCell(col++);
-                expenseAmountCell.setCellValue(expense.getAmount().doubleValue());
-                expenseAmountCell.setCellStyle(currencyStyle);
+                if (expense.getAmount() != null) {
+                    expenseAmountCell.setCellValue(expense.getAmount().doubleValue());
+                    expenseAmountCell.setCellStyle(currencyStyle);
+                }
 
                 // Column F: expense_category
                 row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
 
                 // Column G: expense_description
                 row.createCell(col++).setCellValue(expense.getDescription() != null ? expense.getDescription() : "");
+
+                // Column H: batch_id
+                row.createCell(col++).setCellValue(expense.getBatchId() != null ? expense.getBatchId() : "");
+
+                // Column I: payment_status
+                row.createCell(col++).setCellValue(expense.getPaymentStatus() != null ? expense.getPaymentStatus() : "");
+
+                // Column J: paid_date
+                Cell paidDateCell = row.createCell(col++);
+                if (expense.getPaidDate() != null) {
+                    paidDateCell.setCellValue(expense.getPaidDate());
+                    paidDateCell.setCellStyle(dateStyle);
+                }
 
                 rowNum++;
             }
@@ -2575,10 +2560,10 @@ public class ExcelStatementGeneratorService {
             rentDueCell.setCellStyle(currencyStyle);
 
             // H: rent_received (SUMIFS to RENT_RECEIVED sheet) - payments can come in even for inactive leases
-            // Use date range to sum ALL months within a quarterly/semi-annual/annual statement period
+            // Use date range to sum ALL payments within the period (flat structure: D=payment_date, E=amount)
             Cell rentReceivedCell = row.createCell(col++);
             rentReceivedCell.setCellFormula(String.format(
-                "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$1000=\"%s\")*(RENT_RECEIVED!$E$2:$E$1000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$E$2:$E$1000<=DATE(%d,%d,%d))*RENT_RECEIVED!$O$2:$O$1000), 0)",
+                "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$10000=\"%s\")*(RENT_RECEIVED!$D$2:$D$10000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$D$2:$D$10000<=DATE(%d,%d,%d))*RENT_RECEIVED!$E$2:$E$10000), 0)",
                 lease.getLeaseReference(),
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
                 period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
@@ -2602,11 +2587,11 @@ public class ExcelStatementGeneratorService {
             // J: opening_balance (cumulative arrears BEFORE this period)
             // Excel formula: (Rent Due before period) - (Rent Received before period)
             // RENT_DUE columns: B=lease_reference, D=period_start, L=prorated_rent_due
-            // RENT_RECEIVED columns: B=lease_reference, E=period_start, O=total_received
+            // RENT_RECEIVED columns (flat): B=lease_reference, D=payment_date, E=amount
             Cell openingBalanceCell = row.createCell(col++);
             openingBalanceCell.setCellFormula(String.format(
                 "IFERROR(SUMIFS(RENT_DUE!$L$2:$L$10000, RENT_DUE!$B$2:$B$10000, \"%s\", RENT_DUE!$D$2:$D$10000, \"<\"&DATE(%d,%d,%d)), 0) - " +
-                "IFERROR(SUMIFS(RENT_RECEIVED!$O$2:$O$10000, RENT_RECEIVED!$B$2:$B$10000, \"%s\", RENT_RECEIVED!$E$2:$E$10000, \"<\"&DATE(%d,%d,%d)), 0)",
+                "IFERROR(SUMIFS(RENT_RECEIVED!$E$2:$E$10000, RENT_RECEIVED!$B$2:$B$10000, \"%s\", RENT_RECEIVED!$D$2:$D$10000, \"<\"&DATE(%d,%d,%d)), 0)",
                 lease.getLeaseReference(),
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
                 lease.getLeaseReference(),
@@ -4072,10 +4057,10 @@ public class ExcelStatementGeneratorService {
                     ));
                     rentDueCell.setCellStyle(currencyStyle);
 
-                    // H: rent_received (SUMPRODUCT to RENT_RECEIVED sheet - sum all payments in periods starting within this billing period)
+                    // H: rent_received (SUMPRODUCT to RENT_RECEIVED sheet - flat structure: D=payment_date, E=amount)
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$1000=\"%s\")*(RENT_RECEIVED!$E$2:$E$1000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$E$2:$E$1000<=DATE(%d,%d,%d))*RENT_RECEIVED!$O$2:$O$1000), 0)",
+                        "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$10000=\"%s\")*(RENT_RECEIVED!$D$2:$D$10000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$D$2:$D$10000<=DATE(%d,%d,%d))*RENT_RECEIVED!$E$2:$E$10000), 0)",
                         lease.getLeaseReference(),
                         period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
                         period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
