@@ -209,12 +209,44 @@ public class UnifiedTransactionRebuildService {
                 ft.id as source_record_id,
                 ft.transaction_date,
                 ft.amount,
-                ft.net_to_owner_amount,
+                -- Calculate net_to_owner_amount for BATCH_PAYMENT expenses when NULL
+                CASE
+                    WHEN ft.net_to_owner_amount IS NOT NULL THEN ft.net_to_owner_amount
+                    -- Property account withdrawals: Internal transfer, no impact on owner balance
+                    WHEN ft.description LIKE '%property account%'
+                        AND ft.data_source = 'INCOMING_PAYMENT'
+                    THEN 0
+                    -- BLOCK PROPERTY: Income stays in block account, not owed to owner
+                    WHEN (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+                        AND ft.data_source = 'INCOMING_PAYMENT'
+                    THEN 0
+                    -- BATCH_PAYMENT to beneficiary/agency are expenses (negative impact on owner)
+                    WHEN ft.data_source = 'BATCH_PAYMENT'
+                        AND ft.transaction_type IN ('payment_to_beneficiary', 'payment_to_agency')
+                        AND ft.category_name NOT IN ('Owner', 'owner_payment')
+                    THEN -ABS(ft.amount)
+                    -- INCOMING_PAYMENT is income (positive impact on owner after commission)
+                    WHEN ft.data_source = 'INCOMING_PAYMENT' THEN ft.amount * 0.85
+                    ELSE ft.net_to_owner_amount
+                END as net_to_owner_amount,
                 ft.commission_rate,
                 ft.commission_amount,
                 ft.description,
                 CASE
                     WHEN ft.description LIKE '%global_beneficiary%' THEN 'PROPERTY_ACCOUNT_ALLOCATION'
+                    -- Property account withdrawals (not real tenant payments)
+                    WHEN ft.description LIKE '%property account%'
+                        AND ft.data_source = 'INCOMING_PAYMENT'
+                    THEN 'property_account_withdrawal'
+                    -- BLOCK PROPERTY: Real tenant income is block fund contribution
+                    WHEN (p.is_block_property = 1 OR p.property_type = 'BLOCK')
+                        AND ft.data_source = 'INCOMING_PAYMENT'
+                    THEN 'block_fund_contribution'
+                    -- Categorize utility payments properly
+                    WHEN ft.description LIKE '%EON%' OR ft.description LIKE '%Scottish Power%'
+                        OR ft.description LIKE '%Utility%' OR ft.description LIKE '%Electric%'
+                        OR ft.description LIKE '%Gas%' OR ft.description LIKE '%Water%'
+                    THEN 'utilities'
                     ELSE ft.category_name
                 END as category,
                 ft.invoice_id,
