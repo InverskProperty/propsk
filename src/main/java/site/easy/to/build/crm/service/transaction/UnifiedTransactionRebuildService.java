@@ -326,6 +326,38 @@ public class UnifiedTransactionRebuildService {
      * @return Number of records rebuilt
      */
     private int rebuildUnifiedIncomingTransactions() {
+        // Step 0: Ensure table exists (may not have been created by Hibernate DDL)
+        log.info("  📋 Ensuring unified_incoming_transactions table exists...");
+        try {
+            jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS unified_incoming_transactions (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    source VARCHAR(20) NOT NULL,
+                    source_id VARCHAR(100),
+                    transaction_date DATE NOT NULL,
+                    amount DECIMAL(12,2) NOT NULL,
+                    description VARCHAR(500),
+                    property_id BIGINT NOT NULL,
+                    tenant_id BIGINT,
+                    tenant_name VARCHAR(255),
+                    lease_id BIGINT,
+                    lease_reference VARCHAR(100),
+                    payprop_transaction_id VARCHAR(100),
+                    reconciliation_date DATE,
+                    bank_statement_date DATE,
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    INDEX idx_property_id (property_id),
+                    INDEX idx_lease_id (lease_id),
+                    INDEX idx_transaction_date (transaction_date),
+                    INDEX idx_payprop_transaction_id (payprop_transaction_id)
+                )
+            """);
+            log.info("  ✓ Table unified_incoming_transactions verified/created");
+        } catch (Exception e) {
+            log.warn("  ⚠️ Could not create unified_incoming_transactions table: {}", e.getMessage());
+        }
+
         // Step 1: Truncate the table
         log.info("  📋 Truncating unified_incoming_transactions...");
         jdbcTemplate.execute("TRUNCATE TABLE unified_incoming_transactions");
@@ -434,6 +466,47 @@ public class UnifiedTransactionRebuildService {
      * Maps the legacy allocation table to the new unified allocation structure
      */
     private int syncAllocationsToUnifiedAllocations(String batchId) {
+        // Step 5a-0: Ensure table exists
+        log.info("  📋 Ensuring unified_allocations table exists...");
+        try {
+            jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS unified_allocations (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    incoming_transaction_id BIGINT,
+                    unified_transaction_id BIGINT,
+                    historical_transaction_id BIGINT,
+                    invoice_id BIGINT,
+                    allocation_type VARCHAR(50),
+                    amount DECIMAL(12,2),
+                    category VARCHAR(100),
+                    description TEXT,
+                    property_id BIGINT,
+                    property_name VARCHAR(255),
+                    beneficiary_type VARCHAR(50),
+                    beneficiary_id BIGINT,
+                    beneficiary_name VARCHAR(255),
+                    payment_status VARCHAR(20),
+                    payment_batch_id VARCHAR(100),
+                    paid_date DATE,
+                    source VARCHAR(20),
+                    source_record_id BIGINT,
+                    payprop_payment_id VARCHAR(100),
+                    payprop_batch_id VARCHAR(100),
+                    created_at DATETIME,
+                    updated_at DATETIME,
+                    created_by BIGINT,
+                    INDEX idx_incoming_transaction_id (incoming_transaction_id),
+                    INDEX idx_unified_transaction_id (unified_transaction_id),
+                    INDEX idx_invoice_id (invoice_id),
+                    INDEX idx_property_id (property_id),
+                    INDEX idx_payment_status (payment_status)
+                )
+            """);
+            log.info("  ✓ Table unified_allocations verified/created");
+        } catch (Exception e) {
+            log.warn("  ⚠️ Could not create unified_allocations table: {}", e.getMessage());
+        }
+
         // Step 5a: Truncate unified_allocations
         log.info("  📋 Step 5a: Truncating unified_allocations...");
         jdbcTemplate.execute("TRUNCATE TABLE unified_allocations");
