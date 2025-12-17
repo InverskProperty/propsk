@@ -386,7 +386,7 @@ public class UnifiedTransactionRebuildService {
         String historicalSql = """
             INSERT INTO unified_incoming_transactions (
                 source, source_id, transaction_date, amount, description,
-                property_id, tenant_name, lease_id, lease_reference,
+                property_id, tenant_id, tenant_name, lease_id, lease_reference,
                 created_at, updated_at
             )
             SELECT
@@ -396,13 +396,15 @@ public class UnifiedTransactionRebuildService {
                 ht.amount,
                 ht.description,
                 ht.property_id,
-                ht.tenant_name,
+                ht.tenant_id,
+                c.name as tenant_name,
                 ht.invoice_id as lease_id,
                 i.lease_reference,
                 COALESCE(ht.created_at, NOW()) as created_at,
                 NOW() as updated_at
             FROM historical_transactions ht
             LEFT JOIN invoices i ON ht.invoice_id = i.id
+            LEFT JOIN customers c ON ht.tenant_id = c.customer_id
             WHERE (ht.category LIKE '%rent%' OR ht.category LIKE '%Rent%' OR ht.category = 'income')
               AND ht.amount > 0
         """;
@@ -414,7 +416,7 @@ public class UnifiedTransactionRebuildService {
         String paypropSql = """
             INSERT INTO unified_incoming_transactions (
                 source, source_id, transaction_date, amount, description,
-                property_id, tenant_name, lease_id, lease_reference,
+                property_id, tenant_id, tenant_name, lease_id, lease_reference,
                 payprop_transaction_id, reconciliation_date,
                 created_at, updated_at
             )
@@ -425,6 +427,7 @@ public class UnifiedTransactionRebuildService {
                 ft.amount,
                 ft.description,
                 CAST(ft.property_id AS UNSIGNED) as property_id,
+                CAST(ft.tenant_id AS UNSIGNED) as tenant_id,
                 ft.tenant_name,
                 ft.invoice_id as lease_id,
                 i.lease_reference,
