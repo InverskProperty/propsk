@@ -32,6 +32,7 @@ public class PaymentWithAllocationsDTO {
         private String allocationType;  // OWNER (income) or EXPENSE (deduction)
         private boolean isPartial;  // True if transaction is split across payments
         private boolean isFromPriorPeriod;  // True if transaction date < period start
+        private String batchId;  // Payment batch this allocation belongs to
 
         // Getters and Setters
         public Long getTransactionId() { return transactionId; }
@@ -63,6 +64,9 @@ public class PaymentWithAllocationsDTO {
 
         public boolean isFromPriorPeriod() { return isFromPriorPeriod; }
         public void setFromPriorPeriod(boolean fromPriorPeriod) { isFromPriorPeriod = fromPriorPeriod; }
+
+        public String getBatchId() { return batchId; }
+        public void setBatchId(String batchId) { this.batchId = batchId; }
     }
 
     // Getters and Setters

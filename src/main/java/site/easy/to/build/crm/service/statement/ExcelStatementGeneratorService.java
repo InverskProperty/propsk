@@ -3077,10 +3077,11 @@ public class ExcelStatementGeneratorService {
 
             for (PaymentWithAllocationsDTO.AllocationLineDTO item : bfIncomeItems) {
                 Row itemRow = sheet.createRow(rowNum++);
-                String itemDesc = String.format("    %s | %s | %s",
+                String itemDesc = String.format("    %s | %s | %s | Batch: %s",
                     item.getTransactionDate() != null ? item.getTransactionDate().toString() : "N/A",
                     item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
-                    item.getCategory() != null ? item.getCategory() : "Income");
+                    item.getCategory() != null ? item.getCategory() : "Income",
+                    item.getBatchId() != null ? item.getBatchId() : "N/A");
                 itemRow.createCell(COL_DESC).setCellValue(itemDesc);
                 Cell itemAmtCell = itemRow.createCell(COL_AMT);
                 itemAmtCell.setCellValue(item.getAllocatedAmount() != null ? item.getAllocatedAmount().abs().doubleValue() : 0);
@@ -3106,10 +3107,11 @@ public class ExcelStatementGeneratorService {
 
             for (PaymentWithAllocationsDTO.AllocationLineDTO item : bfExpenseItems) {
                 Row itemRow = sheet.createRow(rowNum++);
-                String itemDesc = String.format("    %s | %s | %s",
+                String itemDesc = String.format("    %s | %s | %s | Batch: %s",
                     item.getTransactionDate() != null ? item.getTransactionDate().toString() : "N/A",
                     item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
-                    item.getCategory() != null ? item.getCategory() : "Expense");
+                    item.getCategory() != null ? item.getCategory() : "Expense",
+                    item.getBatchId() != null ? item.getBatchId() : "N/A");
                 itemRow.createCell(COL_DESC).setCellValue(itemDesc);
                 Cell itemAmtCell = itemRow.createCell(COL_AMT);
                 itemAmtCell.setCellValue(item.getAllocatedAmount() != null ? item.getAllocatedAmount().abs().doubleValue() : 0);
@@ -3219,21 +3221,82 @@ public class ExcelStatementGeneratorService {
                 paymentAmountCell.setCellValue(paymentAmount.doubleValue());
                 paymentAmountCell.setCellStyle(boldCurrencyStyle);
 
-                // Summary line showing breakdown
+                // Detailed breakdown - list each allocation for reconciliation
+                // Separate income and expense items
+                List<PaymentWithAllocationsDTO.AllocationLineDTO> incomeItems = new ArrayList<>();
+                List<PaymentWithAllocationsDTO.AllocationLineDTO> expenseItems = new ArrayList<>();
+                for (PaymentWithAllocationsDTO.AllocationLineDTO alloc : payment.getAllocations()) {
+                    if (alloc.isExpense()) {
+                        expenseItems.add(alloc);
+                    } else {
+                        incomeItems.add(alloc);
+                    }
+                }
+
+                // List income items
+                if (!incomeItems.isEmpty()) {
+                    Row incomeHeaderRow = sheet.createRow(rowNum++);
+                    incomeHeaderRow.createCell(COL_DESC).setCellValue("    Income:");
+
+                    for (PaymentWithAllocationsDTO.AllocationLineDTO item : incomeItems) {
+                        Row itemRow = sheet.createRow(rowNum++);
+                        String partialMarker = item.isPartial() ? " [PARTIAL]" : "";
+                        String priorMarker = item.isFromPriorPeriod() ? " [B/F]" : "";
+                        String itemDesc = String.format("      %s | %s | %s%s%s",
+                            item.getTransactionDate() != null ? item.getTransactionDate().toString() : "N/A",
+                            item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
+                            item.getCategory() != null ? item.getCategory() : "income",
+                            partialMarker, priorMarker);
+                        itemRow.createCell(COL_DESC).setCellValue(itemDesc);
+                        Cell itemAmtCell = itemRow.createCell(COL_AMT);
+                        itemAmtCell.setCellValue(item.getAllocatedAmount() != null ? item.getAllocatedAmount().abs().doubleValue() : 0);
+                        itemAmtCell.setCellStyle(currencyStyle);
+                    }
+
+                    // Income subtotal
+                    Row incomeSubtotalRow = sheet.createRow(rowNum++);
+                    incomeSubtotalRow.createCell(COL_DESC).setCellValue("    Income Subtotal:");
+                    Cell incomeSubtotalCell = incomeSubtotalRow.createCell(COL_AMT);
+                    incomeSubtotalCell.setCellValue(incomeAllocated.doubleValue());
+                    incomeSubtotalCell.setCellStyle(currencyStyle);
+                }
+
+                // List expense items
+                if (!expenseItems.isEmpty()) {
+                    Row expenseHeaderRow = sheet.createRow(rowNum++);
+                    expenseHeaderRow.createCell(COL_DESC).setCellValue("    Expenses:");
+
+                    for (PaymentWithAllocationsDTO.AllocationLineDTO item : expenseItems) {
+                        Row itemRow = sheet.createRow(rowNum++);
+                        String partialMarker = item.isPartial() ? " [PARTIAL]" : "";
+                        String priorMarker = item.isFromPriorPeriod() ? " [B/F]" : "";
+                        String itemDesc = String.format("      %s | %s | %s%s%s",
+                            item.getTransactionDate() != null ? item.getTransactionDate().toString() : "N/A",
+                            item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
+                            item.getCategory() != null ? item.getCategory() : "expense",
+                            partialMarker, priorMarker);
+                        itemRow.createCell(COL_DESC).setCellValue(itemDesc);
+                        Cell itemAmtCell = itemRow.createCell(COL_AMT);
+                        itemAmtCell.setCellValue(item.getAllocatedAmount() != null ? item.getAllocatedAmount().abs().doubleValue() : 0);
+                        itemAmtCell.setCellStyle(currencyStyle);
+                    }
+
+                    // Expense subtotal
+                    Row expenseSubtotalRow = sheet.createRow(rowNum++);
+                    expenseSubtotalRow.createCell(COL_DESC).setCellValue("    Expenses Subtotal:");
+                    Cell expenseSubtotalCell = expenseSubtotalRow.createCell(COL_AMT);
+                    expenseSubtotalCell.setCellValue(expenseAllocated.doubleValue());
+                    expenseSubtotalCell.setCellStyle(currencyStyle);
+                }
+
+                // Net summary line
                 if (incomeCount > 0 || expenseCount > 0) {
                     Row summaryRow = sheet.createRow(rowNum++);
-                    StringBuilder summary = new StringBuilder("    Covers: ");
-                    if (incomeCount > 0) {
-                        summary.append(String.format("%d income (£%.2f)", incomeCount, incomeAllocated.doubleValue()));
-                    }
-                    if (incomeCount > 0 && expenseCount > 0) {
-                        summary.append(" - ");
-                    }
-                    if (expenseCount > 0) {
-                        summary.append(String.format("%d expenses (£%.2f)", expenseCount, expenseAllocated.doubleValue()));
-                    }
-                    summary.append(String.format(" = £%.2f", netAllocated.doubleValue()));
-                    summaryRow.createCell(COL_DESC).setCellValue(summary.toString());
+                    String summaryText = String.format("    Net: £%.2f (Income £%.2f - Expenses £%.2f)",
+                        netAllocated.doubleValue(), incomeAllocated.doubleValue(), expenseAllocated.doubleValue());
+                    Cell summaryCell = summaryRow.createCell(COL_DESC);
+                    summaryCell.setCellValue(summaryText);
+                    summaryCell.setCellStyle(boldStyle);
                 }
 
                 // Unallocated portion
@@ -4664,12 +4727,8 @@ public class ExcelStatementGeneratorService {
                 // category
                 row.createCell(5).setCellValue(alloc.getCategory() != null ? alloc.getCategory() : "");
 
-                // type (Income or Expense)
-                String category = alloc.getCategory() != null ? alloc.getCategory().toLowerCase() : "";
-                boolean isExpense = category.contains("repair") || category.contains("expense") ||
-                                   category.contains("maintenance") || category.contains("fee") ||
-                                   category.contains("cost") || category.contains("charge");
-                row.createCell(6).setCellValue(isExpense ? "Expense" : "Income");
+                // type (Income or Expense) - use actual allocation_type from unified_allocations
+                row.createCell(6).setCellValue(alloc.isExpense() ? "Expense" : "Income");
 
                 // allocated_amount
                 Cell amtCell = row.createCell(7);

@@ -2494,6 +2494,9 @@ public class StatementDataExtractService {
                         line.setFromPriorPeriod(line.getTransactionDate().isBefore(periodStart));
                     }
 
+                    // Set batch ID so each allocation knows which batch it belongs to
+                    line.setBatchId(batchId);
+
                     // Track income vs expenses separately
                     if ("EXPENSE".equals(allocType)) {
                         totalExpenses = totalExpenses.add(allocAmount.abs());
