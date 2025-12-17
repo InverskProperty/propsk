@@ -615,6 +615,10 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      * IMPORTANT: Groups by invoice_id (lease) to ensure batch refs match the specific lease,
      * not all leases on the same property. This aligns with how rent_received is calculated
      * per lease_reference in the Excel statement.
+     *
+     * NOTE: Filters by transaction_date (when payment was received), NOT by ua.paid_date
+     * (when allocation was processed). This ensures batch refs appear only when the
+     * corresponding rent_received appears, using the linked incoming_transaction_id.
      */
     @Query(value = """
         SELECT
@@ -633,7 +637,6 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
               (uit.transaction_date BETWEEN :startDate AND :endDate)
               OR (ut.transaction_date BETWEEN :startDate AND :endDate)
               OR (ht.transaction_date BETWEEN :startDate AND :endDate)
-              OR (ua.paid_date BETWEEN :startDate AND :endDate)
           )
         GROUP BY COALESCE(ua.invoice_id, 0), ua.property_id, ua.allocation_type
     """, nativeQuery = true)
