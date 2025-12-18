@@ -909,7 +909,7 @@
                                         <hr>
                                         <div class="text-center">
                                             <h5 th:class="${(annualNetCashFlow != null and annualNetCashFlow >= 0) ? 'text-success' : 'text-danger'}"
-                                                th:text="${(annualNetCashFlow != null and annualNetCashFlow >= 0) ? '£' : '-£'} + ${#numbers.formatDecimal(annualNetCashFlow != null ? annualNetCashFlow.abs() : 0, 1, 2)}">£0</h5>
+                                                th:text="${((annualNetCashFlow != null and annualNetCashFlow >= 0) ? '£' : '-£') + #numbers.formatDecimal(annualNetCashFlow != null ? annualNetCashFlow.abs() : 0, 1, 2)}">£0</h5>
                                             <small>Annual Net Cash Flow</small>
                                         </div>
                                     </div>
