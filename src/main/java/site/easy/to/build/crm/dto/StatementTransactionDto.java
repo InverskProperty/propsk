@@ -137,8 +137,13 @@ public class StatementTransactionDto {
     /**
      * Check if this is an expense (outgoing)
      * payment_to_beneficiary with beneficiaryType='contractor' is an expense
+     * Disbursement category is always an expense (e.g., block property contributions)
      */
     public boolean isExpense() {
+        // Disbursement category is always an expense (e.g., block property contributions)
+        if ("Disbursement".equalsIgnoreCase(category)) {
+            return true;
+        }
         return "expense".equalsIgnoreCase(transactionType) ||
                "maintenance".equalsIgnoreCase(transactionType) ||
                "payment_to_contractor".equalsIgnoreCase(transactionType) ||
