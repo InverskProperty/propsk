@@ -2582,6 +2582,7 @@ public class PropertyOwnerController {
             BigDecimal totalCommission = BigDecimal.ZERO;
             BigDecimal totalNetToOwner = BigDecimal.ZERO;
             BigDecimal totalArrears = BigDecimal.ZERO; // ✨ PHASE 1: Track arrears
+            BigDecimal totalExpenses = BigDecimal.ZERO; // ✨ Track total expenses for cash flow
             Long totalTransactions = 0L;
 
             // Map to hold property-level financial data
@@ -2608,6 +2609,7 @@ public class PropertyOwnerController {
                     totalCommission = totalCommission.add(propCommissions);
                     totalNetToOwner = totalNetToOwner.add(propNetIncome);
                     totalArrears = totalArrears.add(propArrears); // ✨ Aggregate arrears
+                    totalExpenses = totalExpenses.add(propExpenses); // ✨ Aggregate expenses for cash flow
                     totalTransactions += propTxCount;
 
                     // Store property-level data for breakdown table
@@ -2737,8 +2739,53 @@ public class PropertyOwnerController {
             model.addAttribute("totalCommission", totalCommission);
             model.addAttribute("totalNetToOwner", totalNetToOwner);
             model.addAttribute("totalArrears", totalArrears); // ✨ PHASE 1: Expose arrears
+            model.addAttribute("totalExpenses", totalExpenses); // ✨ Total expenses for cash flow
             model.addAttribute("totalTransactions", totalTransactions);
             model.addAttribute("commissionRate", commissionRate);
+
+            // 💸 Cash Flow Analysis Data
+            // Calculate total monthly mortgage payments from all properties
+            BigDecimal totalMonthlyMortgage = BigDecimal.ZERO;
+            for (Property property : customerProperties) {
+                if (property.getMortgageAmount() != null && property.getMortgageInterestRate() != null
+                    && property.getMortgageAmount().compareTo(BigDecimal.ZERO) > 0) {
+                    // Simple monthly interest payment: (principal × rate) / 12
+                    BigDecimal monthlyInterest = property.getMortgageAmount()
+                        .multiply(property.getMortgageInterestRate())
+                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP)
+                        .divide(BigDecimal.valueOf(12), 2, RoundingMode.HALF_UP);
+                    totalMonthlyMortgage = totalMonthlyMortgage.add(monthlyInterest);
+                }
+            }
+
+            // Calculate number of months in the selected period
+            long monthsInPeriod = java.time.temporal.ChronoUnit.MONTHS.between(startDate, endDate);
+            if (monthsInPeriod < 1) monthsInPeriod = 1;
+
+            // Monthly averages for cash flow display
+            BigDecimal monthlyIncome = totalRent.divide(BigDecimal.valueOf(monthsInPeriod), 2, RoundingMode.HALF_UP);
+            BigDecimal monthlyExpenses = totalExpenses.divide(BigDecimal.valueOf(monthsInPeriod), 2, RoundingMode.HALF_UP);
+            BigDecimal monthlyCommission = totalCommission.divide(BigDecimal.valueOf(monthsInPeriod), 2, RoundingMode.HALF_UP);
+
+            // Net cash flow = income - expenses - commission - mortgage
+            BigDecimal monthlyNetCashFlow = monthlyIncome
+                .subtract(monthlyExpenses)
+                .subtract(monthlyCommission)
+                .subtract(totalMonthlyMortgage);
+            BigDecimal annualNetCashFlow = monthlyNetCashFlow.multiply(BigDecimal.valueOf(12));
+
+            model.addAttribute("monthlyIncome", monthlyIncome);
+            model.addAttribute("monthlyExpenses", monthlyExpenses);
+            model.addAttribute("monthlyCommission", monthlyCommission);
+            model.addAttribute("monthlyMortgage", totalMonthlyMortgage);
+            model.addAttribute("monthlyNetCashFlow", monthlyNetCashFlow);
+            model.addAttribute("annualNetCashFlow", annualNetCashFlow);
+
+            System.out.println("💸 Cash Flow - Monthly Income: £" + monthlyIncome +
+                             ", Expenses: £" + monthlyExpenses +
+                             ", Commission: £" + monthlyCommission +
+                             ", Mortgage: £" + totalMonthlyMortgage +
+                             ", Net: £" + monthlyNetCashFlow);
 
             // ✨ PHASE 1: Add date range and timestamp to model
             model.addAttribute("startDate", startDate);
@@ -2822,14 +2869,14 @@ public class PropertyOwnerController {
                     System.out.println("   Last month: " + monthlyTrends.get(monthlyTrends.size() - 1));
 
                     // Calculate totals for debugging
-                    BigDecimal totalIncome = monthlyTrends.stream()
+                    BigDecimal debugTotalIncome = monthlyTrends.stream()
                         .map(m -> (BigDecimal) m.get("income"))
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    BigDecimal totalExpenses = monthlyTrends.stream()
+                    BigDecimal debugTotalExpenses = monthlyTrends.stream()
                         .map(m -> (BigDecimal) m.get("expenses"))
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    System.out.println("   Total Income across all months: £" + totalIncome);
-                    System.out.println("   Total Expenses across all months: £" + totalExpenses);
+                    System.out.println("   Total Income across all months: £" + debugTotalIncome);
+                    System.out.println("   Total Expenses across all months: £" + debugTotalExpenses);
                 }
             } catch (Exception e) {
                 System.err.println("❌ ERROR calling getMonthlyTrendsForCustomer: " + e.getMessage());

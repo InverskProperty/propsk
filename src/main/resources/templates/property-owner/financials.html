@@ -884,29 +884,32 @@
                                         <table class="table table-sm">
                                             <tr>
                                                 <td>Monthly Income:</td>
-                                                <td class="text-success">+£<span th:text="${#numbers.formatDecimal(totalNetToOwner ?: 0, 1, 2)}">3000</span></td>
+                                                <td class="text-success">+£<span th:text="${#numbers.formatDecimal(monthlyIncome ?: 0, 1, 2)}">3000</span></td>
                                             </tr>
                                             <tr>
                                                 <td>Mortgage Payments:</td>
-                                                <td class="text-danger">-£1,200</td>
+                                                <td class="text-danger">-£<span th:text="${#numbers.formatDecimal(monthlyMortgage ?: 0, 1, 2)}">0</span></td>
                                             </tr>
                                             <tr>
                                                 <td>Property Expenses:</td>
-                                                <td class="text-danger">-£270</td>
+                                                <td class="text-danger">-£<span th:text="${#numbers.formatDecimal(monthlyExpenses ?: 0, 1, 2)}">0</span></td>
                                             </tr>
                                             <tr>
                                                 <td>Management Fees:</td>
-                                                <td class="text-danger">-£150</td>
+                                                <td class="text-danger">-£<span th:text="${#numbers.formatDecimal(monthlyCommission ?: 0, 1, 2)}">0</span></td>
                                             </tr>
                                             <tr class="table-primary">
                                                 <td><strong>Net Cash Flow:</strong></td>
-                                                <td class="text-primary"><strong>+£1,380</strong></td>
+                                                <td th:class="${(monthlyNetCashFlow ?: 0) >= 0} ? 'text-success' : 'text-danger'">
+                                                    <strong th:text="${(monthlyNetCashFlow ?: 0) >= 0 ? '+' : ''}">+</strong><strong>£<span th:text="${#numbers.formatDecimal(monthlyNetCashFlow ?: 0, 1, 2)}">0</span></strong>
+                                                </td>
                                             </tr>
                                         </table>
-                                        
+
                                         <hr>
                                         <div class="text-center">
-                                            <h5 class="text-success">£16,560</h5>
+                                            <h5 th:class="${(annualNetCashFlow ?: 0) >= 0} ? 'text-success' : 'text-danger'"
+                                                th:text="${(annualNetCashFlow ?: 0) >= 0 ? '£' : '-£'} + ${#numbers.formatDecimal(T(java.lang.Math).abs(annualNetCashFlow ?: 0), 1, 2)}">£0</h5>
                                             <small>Annual Net Cash Flow</small>
                                         </div>
                                     </div>
@@ -952,7 +955,7 @@
                                         </div>
                                         <hr>
                                         <div class="text-center">
-                                            <h4 class="text-warning">19.7%</h4>
+                                            <h4 class="text-warning" th:text="${#numbers.formatDecimal((portfolioRentalYield ?: 0) + (capitalGainPercentage ?: 0), 1, 2)} + '%'">19.7%</h4>
                                             <small>Total ROI (Yield + Growth)</small>
                                         </div>
                                     </div>
@@ -972,9 +975,9 @@
                                         <tbody>
                                             <tr th:each="propertyData : ${enhancedProperties}">
                                                 <td th:text="${propertyData.property.propertyName ?: propertyData.property.addressLine1}">Property</td>
-                                                <td><span class="text-success" th:text="${propertyData.annualRentalYield ?: '0'} + '%'">7.2%</span></td>
-                                                <td><span class="text-primary" th:text="${propertyData.estimatedCapitalGainPercentage ?: '0'} + '%'">12.5%</span></td>
-                                                <td><strong>19.7%</strong></td>
+                                                <td><span class="text-success" th:text="${#numbers.formatDecimal(propertyData.annualRentalYield ?: 0, 1, 2)} + '%'">7.2%</span></td>
+                                                <td><span class="text-primary" th:text="${#numbers.formatDecimal(propertyData.estimatedCapitalGainPercentage ?: 0, 1, 2)} + '%'">12.5%</span></td>
+                                                <td><strong th:text="${#numbers.formatDecimal((propertyData.annualRentalYield ?: 0) + (propertyData.estimatedCapitalGainPercentage ?: 0), 1, 2)} + '%'">19.7%</strong></td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -1038,6 +1041,9 @@
         <div th:replace="~{general/footer.html}"></div>
     </div>
 </div>
+
+<!-- Hidden data elements for JavaScript -->
+<script type="application/json" id="monthlyTrendsData" th:utext="${monthlyTrendsJson} ?: '[]'"></script>
 
 <!-- Scripts -->
 <script th:src="@{/js/library/jquery-3.2.1.min.js}"></script>
@@ -1173,26 +1179,65 @@ function openROICalculator() {
 function initializeCashFlowChart() {
     const ctx = document.getElementById('cashflowChart');
     if (ctx && typeof Chart !== 'undefined') {
+        // Get real monthly data from server
+        let monthlyTrendsData = [];
+        try {
+            const jsonData = document.getElementById('monthlyTrendsData');
+            if (jsonData && jsonData.textContent) {
+                monthlyTrendsData = JSON.parse(jsonData.textContent);
+            }
+        } catch (e) {
+            console.warn('Could not parse monthly trends data:', e);
+        }
+
+        // Extract labels and net cash flow values
+        let labels = [];
+        let netCashFlowData = [];
+
+        if (monthlyTrendsData && monthlyTrendsData.length > 0) {
+            // Sort by month and take last 12 months
+            monthlyTrendsData.sort((a, b) => a.month.localeCompare(b.month));
+            const recentData = monthlyTrendsData.slice(-12);
+
+            labels = recentData.map(m => {
+                const [year, month] = m.month.split('-');
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return monthNames[parseInt(month) - 1] + ' ' + year.slice(2);
+            });
+
+            // Net cash flow = income - expenses - commission (mortgage handled separately in summary)
+            netCashFlowData = recentData.map(m => {
+                const income = parseFloat(m.income) || 0;
+                const expenses = parseFloat(m.expenses) || 0;
+                const commission = parseFloat(m.commission) || 0;
+                return Math.round(income - expenses - commission);
+            });
+        } else {
+            // Fallback to empty chart with placeholder labels
+            labels = ['No Data'];
+            netCashFlowData = [0];
+        }
+
         new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                labels: labels,
                 datasets: [{
                     label: 'Net Cash Flow',
-                    data: [1380, 1420, 1350, 1380, 1400, 1380, 1450, 1380, 1380, 1420, 1380, 1380],
+                    data: netCashFlowData,
                     borderColor: '#28a745',
                     backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                    tension: 0.4
+                    tension: 0.4,
+                    fill: true
                 }]
             },
             options: {
                 responsive: true,
                 scales: {
                     y: {
-                        beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return '£' + value;
+                                return '£' + value.toLocaleString();
                             }
                         }
                     }
@@ -1200,6 +1245,13 @@ function initializeCashFlowChart() {
                 plugins: {
                     legend: {
                         display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Net Cash Flow: £' + context.raw.toLocaleString();
+                            }
+                        }
                     }
                 }
             }
