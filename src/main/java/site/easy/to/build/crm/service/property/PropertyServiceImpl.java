@@ -721,13 +721,16 @@ public class PropertyServiceImpl implements PropertyService {
         try {
             if ("PAYPROP".equals(dataSource)) {
                 // Use PayProp data: active properties without rent instructions
+                // Excludes parking spaces and block properties from vacancy list
                 String sql = """
                     SELECT DISTINCT p.* FROM properties p
                     INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id
                     WHERE pep.is_archived = 0
+                    AND (p.property_type IS NULL OR p.property_type <> 'PARKING')
+                    AND (p.is_block_property IS NULL OR p.is_block_property = 0)
                     AND NOT EXISTS (
-                        SELECT 1 FROM payprop_export_invoices pei 
-                        WHERE pei.property_payprop_id = pep.payprop_id 
+                        SELECT 1 FROM payprop_export_invoices pei
+                        WHERE pei.property_payprop_id = pep.payprop_id
                         AND pei.invoice_type = 'Rent'
                         AND pei.sync_status = 'active'
                     )

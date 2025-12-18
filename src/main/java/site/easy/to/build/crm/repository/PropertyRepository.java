@@ -127,9 +127,12 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     List<Property> findOccupiedProperties();
     
     // ✅ UPDATED: PayProp-based vacancy detection - active properties WITHOUT rent instructions
+    // Excludes parking spaces and block properties from vacancy list
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +
                    "INNER JOIN payprop_export_properties pep ON p.payprop_id = pep.payprop_id " +
                    "WHERE pep.is_archived = 0 " +
+                   "AND (p.property_type IS NULL OR p.property_type <> 'PARKING') " +
+                   "AND (p.is_block_property IS NULL OR p.is_block_property = 0) " +
                    "AND NOT EXISTS ( " +
                    "    SELECT 1 FROM payprop_export_invoices pei " +
                    "    WHERE pei.property_payprop_id = pep.payprop_id " +
@@ -162,9 +165,12 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
                    ")", nativeQuery = true)
     List<Property> findLegacyOccupiedProperties();
     
+    // Excludes parking spaces and block properties from vacancy list
     @Query(value = "SELECT DISTINCT p.* FROM properties p " +
                    "WHERE p.is_archived = 'N' " +
                    "AND p.payprop_id IS NULL " +
+                   "AND (p.property_type IS NULL OR p.property_type <> 'PARKING') " +
+                   "AND (p.is_block_property IS NULL OR p.is_block_property = 0) " +
                    "AND NOT EXISTS ( " +
                    "    SELECT 1 FROM customer_property_assignments cpa " +
                    "    WHERE cpa.property_id = p.id " +

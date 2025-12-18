@@ -1588,9 +1588,10 @@ public class ExcelStatementGeneratorService {
                     rentDueCell.setCellStyle(currencyStyle);
 
                     // Column H: rent_received (SUMIFS to RENT_RECEIVED sheet - simpler than array formula)
+                    // RENT_RECEIVED columns: A=lease_id, B=lease_reference, C=property_name, D=payment_date, E=amount
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, F%d)",
+                        "SUMIFS(RENT_RECEIVED!E:E, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!D:D, F%d)",
                         lease.getLeaseId(), rowNum + 1
                     ));
                     rentReceivedCell.setCellStyle(currencyStyle);
@@ -1839,9 +1840,10 @@ public class ExcelStatementGeneratorService {
                 rentDueCell.setCellStyle(currencyStyle);
 
                 // Column H: rent_received (SUMIFS to RENT_RECEIVED sheet) - payments can come in even for inactive leases
+                // RENT_RECEIVED columns: A=lease_id, B=lease_reference, C=property_name, D=payment_date, E=amount
                 Cell rentReceivedCell = row.createCell(col++);
                 rentReceivedCell.setCellFormula(String.format(
-                    "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, F%d)",
+                    "SUMIFS(RENT_RECEIVED!E:E, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!D:D, F%d)",
                     lease.getLeaseId(), rowNum + 1
                 ));
                 rentReceivedCell.setCellStyle(currencyStyle);
@@ -3447,12 +3449,11 @@ public class ExcelStatementGeneratorService {
                 ));
                 totalRentDueCell.setCellStyle(currencyStyle);
 
-                // H: total_rent_received (SUM payments where period_start <= statement end date)
-                // This includes pre-lease payments (period_start is before statement end)
-                // But excludes payments for periods that start AFTER the statement end date
+                // H: total_rent_received (SUM payments where payment_date <= statement end date)
+                // RENT_RECEIVED columns: A=lease_id, B=lease_reference, C=property_name, D=payment_date, E=amount
                 Cell totalRentReceivedCell = row.createCell(col++);
                 totalRentReceivedCell.setCellFormula(String.format(
-                    "SUMIFS(RENT_RECEIVED!O:O, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!E:E, \"<=\"&DATE(%d,%d,%d))",
+                    "SUMIFS(RENT_RECEIVED!E:E, RENT_RECEIVED!B:B, \"%s\", RENT_RECEIVED!D:D, \"<=\"&DATE(%d,%d,%d))",
                     lease.getLeaseReference(),
                     endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
                 ));
