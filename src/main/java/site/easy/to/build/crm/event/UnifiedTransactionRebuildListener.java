@@ -63,6 +63,9 @@ public class UnifiedTransactionRebuildListener {
     @EventListener
     @Async
     public void handlePayPropDataSynced(PayPropDataSyncedEvent event) {
+        log.info("🔔 REBUILD LISTENER: Received PayPropDataSyncedEvent - success={}, type={}",
+                event.isSuccess(), event.getSyncType());
+
         if (!event.isSuccess()) {
             log.warn("⚠️  PayProp sync was not successful, skipping unified rebuild");
             return;
@@ -72,6 +75,7 @@ public class UnifiedTransactionRebuildListener {
                 event.getSyncType(), event.getRecordsProcessed());
 
         try {
+            log.info("🔄 REBUILD LISTENER: About to call rebuildService.rebuildComplete()...");
             // Check if this is a comprehensive sync that should trigger full rebuild
             String syncType = event.getSyncType();
             boolean isComprehensiveSync = syncType != null &&
@@ -101,8 +105,10 @@ public class UnifiedTransactionRebuildListener {
             }
 
         } catch (Exception e) {
-            log.error("❌ Failed to auto-rebuild unified_transactions after PayProp sync", e);
+            log.error("❌ REBUILD LISTENER: Failed to auto-rebuild unified_transactions after PayProp sync: {}",
+                    e.getMessage(), e);
             // Don't throw - we don't want to fail the sync if rebuild fails
         }
+        log.info("🔔 REBUILD LISTENER: handlePayPropDataSynced completed");
     }
 }
