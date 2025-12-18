@@ -135,19 +135,51 @@ public class StatementTransactionDto {
     }
 
     /**
-     * Check if this is an expense (outgoing)
-     * payment_to_beneficiary with beneficiaryType='contractor' is an expense
-     * Disbursement category is always an expense (e.g., block property contributions)
+     * Check if this is an expense (outgoing that is NOT rent, commission, or owner payment)
+     *
+     * Business rule: If a payment is outgoing AND not commission AND not owner category = EXPENSE
+     * - payment_to_beneficiary where category != 'Owner' and != 'owner_payment' = EXPENSE
+     * - payment_to_agency where category != 'Commission' = EXPENSE (e.g., Council, Contractor payments)
+     * - Disbursement category = EXPENSE (block property contributions)
+     * - expense/maintenance/payment_to_contractor types = EXPENSE
      */
     public boolean isExpense() {
-        // Disbursement category is always an expense (e.g., block property contributions)
-        if ("Disbursement".equalsIgnoreCase(category)) {
+        // Skip incoming payments (rent)
+        if (isRentPayment()) {
+            return false;
+        }
+
+        // payment_to_beneficiary: expense if NOT owner category
+        if ("payment_to_beneficiary".equalsIgnoreCase(transactionType)) {
+            // Owner payments are NOT expenses
+            if ("Owner".equalsIgnoreCase(category) || "owner_payment".equalsIgnoreCase(category)) {
+                return false;
+            }
+            // Everything else (Disbursement, Council, PROPERTY_ACCOUNT_ALLOCATION, etc.) IS an expense
             return true;
         }
+
+        // payment_to_agency: expense if NOT commission category
+        if ("payment_to_agency".equalsIgnoreCase(transactionType)) {
+            // Commission payments are NOT expenses (tracked separately)
+            if ("Commission".equalsIgnoreCase(category)) {
+                return false;
+            }
+            // Everything else (Council, Contractor, utilities, Other, etc.) IS an expense
+            return true;
+        }
+
+        // commission_payment is NOT an expense (tracked separately)
+        if ("commission_payment".equalsIgnoreCase(transactionType)) {
+            return false;
+        }
+
+        // Explicit expense types
         return "expense".equalsIgnoreCase(transactionType) ||
                "maintenance".equalsIgnoreCase(transactionType) ||
                "payment_to_contractor".equalsIgnoreCase(transactionType) ||
-               "contractor".equalsIgnoreCase(beneficiaryType);  // payment_to_beneficiary where beneficiary is contractor
+               "Disbursement".equalsIgnoreCase(category) ||
+               "contractor".equalsIgnoreCase(beneficiaryType);
     }
 
     /**
@@ -160,11 +192,21 @@ public class StatementTransactionDto {
 
     /**
      * Check if this is an agency fee / commission
+     * Only counts actual commission payments, not other agency payments (Council, Contractor, etc.)
      */
     public boolean isAgencyFee() {
+        // commission_payment is always an agency fee
+        if ("commission_payment".equalsIgnoreCase(transactionType)) {
+            return true;
+        }
+
+        // payment_to_agency is only an agency fee if category is Commission
+        if ("payment_to_agency".equalsIgnoreCase(transactionType)) {
+            return "Commission".equalsIgnoreCase(category);
+        }
+
+        // Other commission indicators
         return "fee".equalsIgnoreCase(transactionType) ||
-               "commission_payment".equalsIgnoreCase(transactionType) ||  // PayProp/Historical commission
-               "payment_to_agency".equalsIgnoreCase(transactionType) ||    // Payment to agency (commission)
                "agency".equalsIgnoreCase(beneficiaryType) ||
                "management_fee".equalsIgnoreCase(category) ||
                "commission".equalsIgnoreCase(category);

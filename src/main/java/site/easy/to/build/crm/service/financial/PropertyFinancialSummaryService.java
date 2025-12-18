@@ -167,9 +167,15 @@ public class PropertyFinancialSummaryService {
      * CENTRALIZED CLASSIFICATION LOGIC - SINGLE SOURCE OF TRUTH
      *
      * Determines if a transaction is an EXPENSE
+     *
+     * Business rule: If a payment is outgoing AND not commission AND not owner category = EXPENSE
+     * - payment_to_beneficiary where category != 'Owner' and != 'owner_payment' = EXPENSE
+     * - payment_to_agency where category != 'Commission' = EXPENSE (e.g., Council, Contractor payments)
+     * - Disbursement category = EXPENSE (block property contributions)
+     * - expense/maintenance/payment_to_contractor types = EXPENSE
      */
     public boolean isExpenseTransaction(UnifiedTransaction tx) {
-        if (tx.getFlowDirection() != UnifiedTransaction.FlowDirection.OUTGOING) {
+        if (tx.getFlowDirection() != null && tx.getFlowDirection() != UnifiedTransaction.FlowDirection.OUTGOING) {
             return false;
         }
 
@@ -182,25 +188,28 @@ public class PropertyFinancialSummaryService {
         if (type == null) return false;
 
         String typeLower = type.toLowerCase();
+        String category = tx.getCategory();
 
-        // Exclude payment_to_agency - it's a commission disbursement, not an expense
+        // payment_to_agency: expense if NOT commission category
         if (typeLower.equals("payment_to_agency")) {
-            return false;
+            // Commission payments are NOT expenses (tracked separately)
+            if (category != null && category.equalsIgnoreCase("Commission")) {
+                return false;
+            }
+            // Everything else (Council, Contractor, utilities, Other, etc.) IS an expense
+            return true;
         }
 
-        // Special handling for payment_to_beneficiary - these can be either:
-        // 1. Owner payments (beneficiary) - NOT an expense
-        // 2. Contractor/vendor payments - IS an expense
-        // 3. Disbursements to block property - IS an expense
-        // We distinguish by checking the category and description
+        // payment_to_beneficiary: expense if NOT owner category
         if (typeLower.equals("payment_to_beneficiary")) {
-            String category = tx.getCategory();
-            // Disbursement category is always an expense (e.g., block property contributions)
-            if (category != null && category.equalsIgnoreCase("Disbursement")) {
-                return true;
+            // Owner payments are NOT expenses
+            if (category != null && (category.equalsIgnoreCase("Owner") || category.equalsIgnoreCase("owner_payment"))) {
+                return false;
             }
+            // Fallback check using description for legacy data
             String description = tx.getDescription();
-            if (description != null && description.toLowerCase().contains("(beneficiary)")) {
+            if (description != null && description.toLowerCase().contains("(beneficiary)") &&
+                (category == null || category.equalsIgnoreCase("Owner"))) {
                 // This is a payment to the property owner, NOT an expense
                 return false;
             }
