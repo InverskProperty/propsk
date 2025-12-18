@@ -439,6 +439,7 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
     /**
      * Get ALL OUTGOING transactions for block properties (expenses paid from property accounts).
      * Used for PROPERTY_ACCOUNT sheet flat structure.
+     * Excludes £0 amounts (agency fee placeholders with no actual value).
      */
     @Query(value = """
         SELECT ut.*
@@ -446,12 +447,14 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
         JOIN properties p ON ut.property_id = p.id
         WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK')
           AND ut.flow_direction = 'OUTGOING'
+          AND ut.amount <> 0
         ORDER BY ut.transaction_date, ut.id
     """, nativeQuery = true)
     List<UnifiedTransaction> findAllBlockPropertyExpenses();
 
     /**
      * Get OUTGOING transactions for block properties within a date range.
+     * Excludes £0 amounts (agency fee placeholders with no actual value).
      */
     @Query(value = """
         SELECT ut.*
@@ -459,6 +462,7 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
         JOIN properties p ON ut.property_id = p.id
         WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK')
           AND ut.flow_direction = 'OUTGOING'
+          AND ut.amount <> 0
           AND ut.transaction_date >= :startDate
           AND ut.transaction_date <= :endDate
         ORDER BY ut.transaction_date, ut.id

@@ -191,8 +191,14 @@ public class PropertyFinancialSummaryService {
         // Special handling for payment_to_beneficiary - these can be either:
         // 1. Owner payments (beneficiary) - NOT an expense
         // 2. Contractor/vendor payments - IS an expense
-        // We distinguish by checking the description for "(beneficiary)" which indicates owner payment
+        // 3. Disbursements to block property - IS an expense
+        // We distinguish by checking the category and description
         if (typeLower.equals("payment_to_beneficiary")) {
+            String category = tx.getCategory();
+            // Disbursement category is always an expense (e.g., block property contributions)
+            if (category != null && category.equalsIgnoreCase("Disbursement")) {
+                return true;
+            }
             String description = tx.getDescription();
             if (description != null && description.toLowerCase().contains("(beneficiary)")) {
                 // This is a payment to the property owner, NOT an expense
