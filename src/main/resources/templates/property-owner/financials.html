@@ -908,8 +908,8 @@
 
                                         <hr>
                                         <div class="text-center">
-                                            <h5 th:class="${(annualNetCashFlow ?: 0) >= 0} ? 'text-success' : 'text-danger'"
-                                                th:text="${(annualNetCashFlow ?: 0) >= 0 ? '£' : '-£'} + ${#numbers.formatDecimal(T(java.lang.Math).abs(annualNetCashFlow ?: 0), 1, 2)}">£0</h5>
+                                            <h5 th:class="${(annualNetCashFlow != null ? annualNetCashFlow : 0) >= 0} ? 'text-success' : 'text-danger'"
+                                                th:text="${(annualNetCashFlow != null ? annualNetCashFlow : 0) >= 0 ? '£' : '-£'} + ${#numbers.formatDecimal(T(java.lang.Math).abs(annualNetCashFlow != null ? annualNetCashFlow : 0), 1, 2)}">£0</h5>
                                             <small>Annual Net Cash Flow</small>
                                         </div>
                                     </div>
