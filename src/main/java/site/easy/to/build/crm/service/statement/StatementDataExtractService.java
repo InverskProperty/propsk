@@ -2442,23 +2442,25 @@ public class StatementDataExtractService {
 
                 // Get allocations for this payment from unified_allocations table
                 // Include OWNER (income) and EXPENSE (deductions) - not COMMISSION which goes to agency
+                // Use COALESCE to get transaction_date from historical_transactions or unified_transactions
                 String allocationSql = """
                     SELECT
                         ua.historical_transaction_id as transaction_id,
-                        ht.transaction_date,
+                        COALESCE(ht.transaction_date, ut.transaction_date) as transaction_date,
                         COALESCE(ua.property_name, p.property_name) as property_name,
-                        COALESCE(ua.category, ht.category) as category,
-                        COALESCE(ua.description, ht.description) as description,
+                        COALESCE(ua.category, ht.category, ut.category) as category,
+                        COALESCE(ua.description, ht.description, ut.description) as description,
                         ua.amount as allocated_amount,
                         ua.allocation_type,
-                        COALESCE(ht.net_to_owner_amount, ht.amount) as transaction_total,
+                        COALESCE(ht.net_to_owner_amount, ht.amount, ut.net_amount) as transaction_total,
                         (SELECT COUNT(*) FROM unified_allocations WHERE historical_transaction_id = ua.historical_transaction_id AND payment_batch_id IS NOT NULL) as allocation_count
                     FROM unified_allocations ua
                     LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
-                    LEFT JOIN properties p ON ht.property_id = p.id
+                    LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+                    LEFT JOIN properties p ON COALESCE(ht.property_id, ut.property_id) = p.id
                     WHERE ua.payment_batch_id = ?
                       AND ua.allocation_type IN ('OWNER', 'EXPENSE')
-                    ORDER BY ua.allocation_type DESC, ht.transaction_date, ua.property_name
+                    ORDER BY ua.allocation_type DESC, COALESCE(ht.transaction_date, ut.transaction_date), ua.property_name
                 """;
 
                 List<Map<String, Object>> allocationRows = jdbcTemplate.queryForList(allocationSql, batchId);
