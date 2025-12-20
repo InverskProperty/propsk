@@ -3254,7 +3254,7 @@ public class StatementDataExtractService {
             // Step 2: For each batch, get full allocation details
             for (String batchId : batchIds) {
                 site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batchStatus =
-                    buildBatchAllocationStatus(batchId, periodStart, customerId);
+                    buildBatchAllocationStatus(batchId, periodStart, periodEnd, customerId);
                 if (batchStatus != null) {
                     result.add(batchStatus);
                 }
@@ -3279,7 +3279,7 @@ public class StatementDataExtractService {
      * Build complete allocation status for a batch
      */
     private site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO buildBatchAllocationStatus(
-            String batchId, LocalDate periodStart, Long customerId) {
+            String batchId, LocalDate periodStart, LocalDate periodEnd, Long customerId) {
 
         // Get batch info
         java.util.Optional<PaymentBatch> batchOpt = paymentBatchRepository.findByBatchId(batchId);
@@ -3317,7 +3317,7 @@ public class StatementDataExtractService {
                     isPartial
                 );
 
-            status.addAllocation(detail, periodStart);
+            status.addAllocation(detail, periodStart, periodEnd);
 
             // If no payment date from batch, try to get from allocation
             if (status.getPaymentDate() == null && alloc.getPaidDate() != null) {

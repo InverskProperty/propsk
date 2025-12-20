@@ -3010,7 +3010,7 @@ public class ExcelStatementGeneratorService {
 
         Row unallocRow = sheet.createRow(rowNum++);
         Cell unallocLabel = unallocRow.createCell(0);
-        unallocLabel.setCellValue("  Unallocated at period end:");
+        unallocLabel.setCellValue("  For Future Periods (after this period):");
         unallocLabel.setCellStyle(styles.boldStyle);
         Cell unallocCell = unallocRow.createCell(1);
         unallocCell.setCellValue(((Number) unallocated.get("amount")).doubleValue());
@@ -3031,108 +3031,184 @@ public class ExcelStatementGeneratorService {
 
         rowNum++; // Blank row
 
-        // Table headers - batch summary columns + allocation detail columns
+        // Column layout:
+        // 0: Batch ID, 1: Payment Date, 2: Gross Income, 3: Commission, 4: Expenses, 5: Net to Owner
+        // PRIOR section: 6: Property, 7: Txn Date, 8: Type, 9: Amount
+        // THIS PERIOD section: 10: Property, 11: Txn Date, 12: Type, 13: Amount
+        // FUTURE section: 14: Property, 15: Txn Date, 16: Type, 17: Amount
+
+        // First header row - main categories with "Prior", "This Period" and "Future" spanning columns
+        Row periodHeaderRow = sheet.createRow(rowNum++);
+        periodHeaderRow.createCell(6).setCellValue("Prior");
+        periodHeaderRow.getCell(6).setCellStyle(styles.boldStyle);
+        periodHeaderRow.createCell(10).setCellValue("This Period");
+        periodHeaderRow.getCell(10).setCellStyle(styles.boldStyle);
+        periodHeaderRow.createCell(14).setCellValue("Future");
+        periodHeaderRow.getCell(14).setCellStyle(styles.boldStyle);
+
+        // Table headers - batch summary columns + allocation detail columns for all three periods
         Row tableHeaderRow = sheet.createRow(rowNum++);
-        String[] paymentHeaders = {"Batch ID", "Payment Date", "Status", "Gross Income", "Commission", "Expenses",
-                                   "Net to Owner", "From Prior Periods", "From This Period",
-                                   "Period", "Property", "Txn Date", "Type", "Amount"};
+        String[] paymentHeaders = {"Batch ID", "Payment Date", "Gross Income", "Commission", "Expenses", "Net to Owner",
+                                   "Property", "Txn Date", "Type", "Amount",
+                                   "Property", "Txn Date", "Type", "Amount",
+                                   "Property", "Txn Date", "Type", "Amount"};
         for (int i = 0; i < paymentHeaders.length; i++) {
             Cell headerCell = tableHeaderRow.createCell(i);
             headerCell.setCellValue(paymentHeaders[i]);
             headerCell.setCellStyle(styles.headerStyle);
         }
 
+        // Subtitle row for income/expense/commission under each period section
+        Row subtitleRow = sheet.createRow(rowNum++);
+        // Prior subtitles - show type hints under the Amount column
+        Cell priorSubCell = subtitleRow.createCell(9);
+        priorSubCell.setCellValue("income | expense | commission");
+        // This Period subtitles
+        Cell thisSubCell = subtitleRow.createCell(13);
+        thisSubCell.setCellValue("income | expense | commission");
+        // Future subtitles
+        Cell futureSubCell = subtitleRow.createCell(17);
+        futureSubCell.setCellValue("income | expense | commission");
+
         if (batchStatuses.isEmpty()) {
             Row noPaymentsRow = sheet.createRow(rowNum++);
             noPaymentsRow.createCell(0).setCellValue("(No payments made during this period)");
         } else {
             for (site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batch : batchStatuses) {
-                // First row: batch summary
-                Row batchRow = sheet.createRow(rowNum++);
+                // Separate allocations by period (three categories: Prior, This Period, Future)
+                List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO> priorAllocations = new ArrayList<>();
+                List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO> currentAllocations = new ArrayList<>();
+                List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO> futureAllocations = new ArrayList<>();
 
-                // Batch ID
-                batchRow.createCell(0).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "Unknown");
-
-                // Payment Date
-                Cell paymentDateCell = batchRow.createCell(1);
-                if (batch.getPaymentDate() != null) {
-                    paymentDateCell.setCellValue(batch.getPaymentDate());
-                    paymentDateCell.setCellStyle(styles.dateStyle);
-                } else {
-                    paymentDateCell.setCellValue("Pending");
-                }
-
-                // Status
-                batchRow.createCell(2).setCellValue(batch.getStatus() != null ? batch.getStatus() : "UNKNOWN");
-
-                // Gross Income
-                Cell grossCell = batchRow.createCell(3);
-                grossCell.setCellValue(batch.getGrossIncome().doubleValue());
-                grossCell.setCellStyle(styles.boldCurrencyStyle);
-
-                // Commission
-                Cell commCell = batchRow.createCell(4);
-                commCell.setCellValue(batch.getCommission().doubleValue());
-                commCell.setCellStyle(styles.currencyStyle);
-
-                // Expenses
-                Cell expCell = batchRow.createCell(5);
-                expCell.setCellValue(batch.getExpenses().doubleValue());
-                expCell.setCellStyle(styles.currencyStyle);
-
-                // Net to Owner
-                Cell netCell = batchRow.createCell(6);
-                netCell.setCellValue(batch.getNetToOwner().doubleValue());
-                netCell.setCellStyle(styles.boldCurrencyStyle);
-
-                // From Prior Periods (amount)
-                Cell priorCell = batchRow.createCell(7);
-                priorCell.setCellValue(batch.getAllocatedFromPriorPeriods().doubleValue());
-                priorCell.setCellStyle(styles.currencyStyle);
-
-                // From This Period (amount)
-                Cell thisCell = batchRow.createCell(8);
-                thisCell.setCellValue(batch.getAllocatedFromThisPeriod().doubleValue());
-                thisCell.setCellStyle(styles.currencyStyle);
-
-                // Add allocation detail rows - first allocation on same row as batch, rest on new rows
-                List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO> allocations = batch.getAllocations();
-                boolean firstAlloc = true;
-                for (site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc : allocations) {
-                    Row detailRow;
-                    if (firstAlloc) {
-                        // First allocation goes on the same row as batch summary
-                        detailRow = batchRow;
-                        firstAlloc = false;
+                for (site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc : batch.getAllocations()) {
+                    if ("B/F".equals(alloc.getPeriodClassification())) {
+                        priorAllocations.add(alloc);
+                    } else if ("FUTURE".equals(alloc.getPeriodClassification())) {
+                        futureAllocations.add(alloc);
                     } else {
-                        // Subsequent allocations get their own rows
-                        detailRow = sheet.createRow(rowNum++);
-                    }
-
-                    // Column 9: Period classification (B/F or THIS_PERIOD)
-                    String periodLabel = "B/F".equals(alloc.getPeriodClassification()) ? "Prior" : "Current";
-                    detailRow.createCell(9).setCellValue(periodLabel);
-
-                    // Column 10: Property name
-                    detailRow.createCell(10).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
-
-                    // Column 11: Transaction date
-                    Cell txnDateCell = detailRow.createCell(11);
-                    if (alloc.getTransactionDate() != null) {
-                        txnDateCell.setCellValue(alloc.getTransactionDate());
-                        txnDateCell.setCellStyle(styles.dateStyle);
-                    }
-
-                    // Column 12: Allocation type
-                    detailRow.createCell(12).setCellValue(alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
-
-                    // Column 13: Amount
-                    Cell amountCell = detailRow.createCell(13);
-                    if (alloc.getAmount() != null) {
-                        amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
-                        amountCell.setCellStyle(styles.currencyStyle);
+                        currentAllocations.add(alloc);
                     }
                 }
+
+                // Determine how many rows we need for this batch (max of all three allocation lists, minimum 1)
+                int maxRows = Math.max(1, Math.max(priorAllocations.size(), Math.max(currentAllocations.size(), futureAllocations.size())));
+
+                for (int rowIdx = 0; rowIdx < maxRows; rowIdx++) {
+                    Row batchRow = sheet.createRow(rowNum++);
+
+                    // Only show batch summary on first row
+                    if (rowIdx == 0) {
+                        // Batch ID
+                        batchRow.createCell(0).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "Unknown");
+
+                        // Payment Date
+                        Cell paymentDateCell = batchRow.createCell(1);
+                        if (batch.getPaymentDate() != null) {
+                            paymentDateCell.setCellValue(batch.getPaymentDate());
+                            paymentDateCell.setCellStyle(styles.dateStyle);
+                        } else {
+                            paymentDateCell.setCellValue("Pending");
+                        }
+
+                        // Gross Income
+                        Cell grossCell = batchRow.createCell(2);
+                        grossCell.setCellValue(batch.getGrossIncome().doubleValue());
+                        grossCell.setCellStyle(styles.boldCurrencyStyle);
+
+                        // Commission
+                        Cell commCell = batchRow.createCell(3);
+                        commCell.setCellValue(batch.getCommission().doubleValue());
+                        commCell.setCellStyle(styles.currencyStyle);
+
+                        // Expenses
+                        Cell expCell = batchRow.createCell(4);
+                        expCell.setCellValue(batch.getExpenses().doubleValue());
+                        expCell.setCellStyle(styles.currencyStyle);
+
+                        // Net to Owner
+                        Cell netCell = batchRow.createCell(5);
+                        netCell.setCellValue(batch.getNetToOwner().doubleValue());
+                        netCell.setCellStyle(styles.boldCurrencyStyle);
+                    }
+
+                    // Prior Period allocation (columns 6-9)
+                    if (rowIdx < priorAllocations.size()) {
+                        site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc = priorAllocations.get(rowIdx);
+
+                        // Column 6: Property name
+                        batchRow.createCell(6).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+
+                        // Column 7: Transaction date
+                        Cell txnDateCell = batchRow.createCell(7);
+                        if (alloc.getTransactionDate() != null) {
+                            txnDateCell.setCellValue(alloc.getTransactionDate());
+                            txnDateCell.setCellStyle(styles.dateStyle);
+                        }
+
+                        // Column 8: Allocation type
+                        batchRow.createCell(8).setCellValue(alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
+
+                        // Column 9: Amount
+                        Cell amountCell = batchRow.createCell(9);
+                        if (alloc.getAmount() != null) {
+                            amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
+                            amountCell.setCellStyle(styles.currencyStyle);
+                        }
+                    }
+
+                    // This Period allocation (columns 10-13)
+                    if (rowIdx < currentAllocations.size()) {
+                        site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc = currentAllocations.get(rowIdx);
+
+                        // Column 10: Property name
+                        batchRow.createCell(10).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+
+                        // Column 11: Transaction date
+                        Cell txnDateCell = batchRow.createCell(11);
+                        if (alloc.getTransactionDate() != null) {
+                            txnDateCell.setCellValue(alloc.getTransactionDate());
+                            txnDateCell.setCellStyle(styles.dateStyle);
+                        }
+
+                        // Column 12: Allocation type
+                        batchRow.createCell(12).setCellValue(alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
+
+                        // Column 13: Amount
+                        Cell amountCell = batchRow.createCell(13);
+                        if (alloc.getAmount() != null) {
+                            amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
+                            amountCell.setCellStyle(styles.currencyStyle);
+                        }
+                    }
+
+                    // Future Period allocation (columns 14-17)
+                    if (rowIdx < futureAllocations.size()) {
+                        site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc = futureAllocations.get(rowIdx);
+
+                        // Column 14: Property name
+                        batchRow.createCell(14).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+
+                        // Column 15: Transaction date
+                        Cell txnDateCell = batchRow.createCell(15);
+                        if (alloc.getTransactionDate() != null) {
+                            txnDateCell.setCellValue(alloc.getTransactionDate());
+                            txnDateCell.setCellStyle(styles.dateStyle);
+                        }
+
+                        // Column 16: Allocation type
+                        batchRow.createCell(16).setCellValue(alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
+
+                        // Column 17: Amount
+                        Cell amountCell = batchRow.createCell(17);
+                        if (alloc.getAmount() != null) {
+                            amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
+                            amountCell.setCellStyle(styles.currencyStyle);
+                        }
+                    }
+                }
+
+                // Add blank row between batches for readability
+                rowNum++;
             }
 
             // Totals row
@@ -3152,29 +3228,22 @@ public class ExcelStatementGeneratorService {
                 totalExp = totalExp.add(batch.getExpenses());
             }
 
-            Cell totalGrossCell = totalsRow.createCell(3);
+            // New column indices: 2=Gross, 3=Commission, 4=Expenses, 5=Net
+            Cell totalGrossCell = totalsRow.createCell(2);
             totalGrossCell.setCellValue(totalGross.doubleValue());
             totalGrossCell.setCellStyle(styles.boldCurrencyStyle);
 
-            Cell totalCommCell = totalsRow.createCell(4);
+            Cell totalCommCell = totalsRow.createCell(3);
             totalCommCell.setCellValue(totalComm.doubleValue());
             totalCommCell.setCellStyle(styles.boldCurrencyStyle);
 
-            Cell totalExpCell = totalsRow.createCell(5);
+            Cell totalExpCell = totalsRow.createCell(4);
             totalExpCell.setCellValue(totalExp.doubleValue());
             totalExpCell.setCellStyle(styles.boldCurrencyStyle);
 
-            Cell totalNetCell = totalsRow.createCell(6);
+            Cell totalNetCell = totalsRow.createCell(5);
             totalNetCell.setCellValue(totalPaymentsMade.doubleValue());
             totalNetCell.setCellStyle(styles.boldCurrencyStyle);
-
-            Cell totalPriorCell = totalsRow.createCell(7);
-            totalPriorCell.setCellValue(totalFromPriorPeriods.doubleValue());
-            totalPriorCell.setCellStyle(styles.boldCurrencyStyle);
-
-            Cell totalThisCell = totalsRow.createCell(8);
-            totalThisCell.setCellValue(totalFromThisPeriod.doubleValue());
-            totalThisCell.setCellStyle(styles.boldCurrencyStyle);
         }
 
         rowNum++; // Blank row
@@ -3651,7 +3720,7 @@ public class ExcelStatementGeneratorService {
                 BigDecimal unalloc = payment.getUnallocatedAmount() != null ? payment.getUnallocatedAmount() : BigDecimal.ZERO;
                 if (unalloc.compareTo(BigDecimal.valueOf(0.01)) > 0) {
                     Row unallocRow = sheet.createRow(rowNum++);
-                    unallocRow.createCell(COL_DESC).setCellValue("    → Unallocated (owner credit)");
+                    unallocRow.createCell(COL_DESC).setCellValue("    → For Future Periods (owner credit)");
                     Cell unallocAmtCell = unallocRow.createCell(COL_AMT);
                     unallocAmtCell.setCellValue(unalloc.doubleValue());
                     unallocAmtCell.setCellStyle(currencyStyle);
@@ -3696,9 +3765,9 @@ public class ExcelStatementGeneratorService {
         paymentsCell.setCellValue(totalPaymentsMade.doubleValue());
         paymentsCell.setCellStyle(currencyStyle);
 
-        // Unallocated from payments this period
+        // For future periods - amounts not yet allocated
         Row unallocRow = sheet.createRow(rowNum++);
-        unallocRow.createCell(COL_DESC).setCellValue("  Unallocated Payment Amounts:");
+        unallocRow.createCell(COL_DESC).setCellValue("  For Future Periods (not yet allocated):");
         Cell unallocCell = unallocRow.createCell(COL_AMT);
         unallocCell.setCellValue(totalPeriodUnallocated.doubleValue());
         unallocCell.setCellStyle(currencyStyle);
@@ -3709,7 +3778,7 @@ public class ExcelStatementGeneratorService {
 
         rowNum++;
         Row verifyRow = sheet.createRow(rowNum++);
-        String verifyText = String.format("Check: Allocated %.2f + Unallocated %.2f = %.2f vs Payments %.2f",
+        String verifyText = String.format("Check: Allocated %.2f + For Future %.2f = %.2f vs Payments %.2f",
             totalAllocated.doubleValue(), totalPeriodUnallocated.doubleValue(),
             expectedPayments.doubleValue(), totalPaymentsMade.doubleValue());
         verifyRow.createCell(COL_DESC).setCellValue(verifyText);
@@ -5184,21 +5253,21 @@ public class ExcelStatementGeneratorService {
         // ===== SECTION 1: BROUGHT FORWARD =====
         Row bfHeaderRow = sheet.createRow(rowNum++);
         Cell bfHeaderCell = bfHeaderRow.createCell(0);
-        bfHeaderCell.setCellValue("BROUGHT FORWARD (Unallocated as of " + startDate.toString() + ")");
+        bfHeaderCell.setCellValue("BROUGHT FORWARD (For Future Periods as of " + startDate.toString() + ")");
         bfHeaderCell.setCellStyle(headerStyle);
 
-        // Unallocated Income (owed to owner)
+        // For Future Periods Income (owed to owner)
         List<UnallocatedIncomeDTO> bfIncome = dataExtractService.extractUnallocatedIncomeAsOf(customerId, startDate);
         BigDecimal totalBfIncome = BigDecimal.ZERO;
 
         if (!bfIncome.isEmpty()) {
             Row bfIncomeHeaderRow = sheet.createRow(rowNum++);
-            bfIncomeHeaderRow.createCell(0).setCellValue("Unallocated Income (owed to owner):");
+            bfIncomeHeaderRow.createCell(0).setCellValue("For Future Periods - Income (owed to owner):");
             bfIncomeHeaderRow.getCell(0).setCellStyle(boldStyle);
 
             // Sub-headers
             Row subHeaderRow = sheet.createRow(rowNum++);
-            String[] incomeHeaders = {"Date", "Property", "Tenant", "Gross", "Commission", "Net Due", "Allocated", "Unallocated"};
+            String[] incomeHeaders = {"Date", "Property", "Tenant", "Gross", "Commission", "Net Due", "Allocated", "For Future"};
             for (int i = 0; i < incomeHeaders.length; i++) {
                 Cell cell = subHeaderRow.createCell(i);
                 cell.setCellValue(incomeHeaders[i]);
@@ -5242,19 +5311,19 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Unallocated Payments (owner credit - overpayments)
+        // For Future Periods (owner credit - overpayments)
         List<UnallocatedPaymentDTO> bfPayments = dataExtractService.extractUnallocatedPaymentsAsOf(customerId, startDate);
         BigDecimal totalBfCredit = BigDecimal.ZERO;
 
         if (!bfPayments.isEmpty()) {
             rowNum++; // Blank row
             Row bfCreditHeaderRow = sheet.createRow(rowNum++);
-            bfCreditHeaderRow.createCell(0).setCellValue("Unallocated Payments (owner credit):");
+            bfCreditHeaderRow.createCell(0).setCellValue("For Future Periods (owner credit):");
             bfCreditHeaderRow.getCell(0).setCellStyle(boldStyle);
 
             // Sub-headers
             Row subHeaderRow = sheet.createRow(rowNum++);
-            String[] paymentHeaders = {"Date", "Batch Ref", "Total Payment", "Total Allocated", "Unallocated (Credit)"};
+            String[] paymentHeaders = {"Date", "Batch Ref", "Total Payment", "Total Allocated", "For Future (Credit)"};
             for (int i = 0; i < paymentHeaders.length; i++) {
                 Cell cell = subHeaderRow.createCell(i);
                 cell.setCellValue(paymentHeaders[i]);
@@ -5521,10 +5590,10 @@ public class ExcelStatementGeneratorService {
                 }
             }
 
-            // Unallocated portion of this payment
+            // For Future Periods portion of this payment
             if (payment.getUnallocatedAmount() != null && payment.getUnallocatedAmount().compareTo(BigDecimal.valueOf(0.01)) > 0) {
                 Row unallocRow = sheet.createRow(rowNum++);
-                unallocRow.createCell(1).setCellValue("Unallocated (Owner Credit):");
+                unallocRow.createCell(1).setCellValue("For Future Periods (Owner Credit):");
                 Cell unallocAmtCell = unallocRow.createCell(5);
                 unallocAmtCell.setCellValue(payment.getUnallocatedAmount().doubleValue());
                 unallocAmtCell.setCellStyle(currencyStyle);
@@ -5551,21 +5620,21 @@ public class ExcelStatementGeneratorService {
         // ===== SECTION 4: CARRIED FORWARD =====
         Row cfHeaderRow = sheet.createRow(rowNum++);
         Cell cfHeaderCell = cfHeaderRow.createCell(0);
-        cfHeaderCell.setCellValue("CARRIED FORWARD (Unallocated as of " + endDate.toString() + ")");
+        cfHeaderCell.setCellValue("CARRIED FORWARD (For Future Periods as of " + endDate.toString() + ")");
         cfHeaderCell.setCellStyle(headerStyle);
 
-        // Unallocated Income at end
+        // For Future Periods Income at end
         List<UnallocatedIncomeDTO> cfIncome = dataExtractService.extractUnallocatedIncomeAsOfEndDate(customerId, endDate);
         BigDecimal totalCfIncome = BigDecimal.ZERO;
 
         if (!cfIncome.isEmpty()) {
             Row cfIncomeHeaderRow = sheet.createRow(rowNum++);
-            cfIncomeHeaderRow.createCell(0).setCellValue("Unallocated Income (owed to owner):");
+            cfIncomeHeaderRow.createCell(0).setCellValue("For Future Periods - Income (owed to owner):");
             cfIncomeHeaderRow.getCell(0).setCellStyle(boldStyle);
 
             // Sub-headers
             Row subHeaderRow = sheet.createRow(rowNum++);
-            String[] incomeHeaders = {"Date", "Property", "Tenant", "Gross", "Commission", "Net Due", "Allocated", "Unallocated"};
+            String[] incomeHeaders = {"Date", "Property", "Tenant", "Gross", "Commission", "Net Due", "Allocated", "For Future"};
             for (int i = 0; i < incomeHeaders.length; i++) {
                 Cell cell = subHeaderRow.createCell(i);
                 cell.setCellValue(incomeHeaders[i]);
@@ -5609,19 +5678,19 @@ public class ExcelStatementGeneratorService {
             }
         }
 
-        // Unallocated Payments at end (owner credit)
+        // For Future Periods at end (owner credit)
         List<UnallocatedPaymentDTO> cfPayments = dataExtractService.extractUnallocatedPaymentsAsOfEndDate(customerId, endDate);
         BigDecimal totalCfCredit = BigDecimal.ZERO;
 
         if (!cfPayments.isEmpty()) {
             rowNum++; // Blank row
             Row cfCreditHeaderRow = sheet.createRow(rowNum++);
-            cfCreditHeaderRow.createCell(0).setCellValue("Unallocated Payments (owner credit):");
+            cfCreditHeaderRow.createCell(0).setCellValue("For Future Periods (owner credit):");
             cfCreditHeaderRow.getCell(0).setCellStyle(boldStyle);
 
             // Sub-headers
             Row subHeaderRow = sheet.createRow(rowNum++);
-            String[] paymentHeaders = {"Date", "Batch Ref", "Total Payment", "Total Allocated", "Unallocated (Credit)"};
+            String[] paymentHeaders = {"Date", "Batch Ref", "Total Payment", "Total Allocated", "For Future (Credit)"};
             for (int i = 0; i < paymentHeaders.length; i++) {
                 Cell cell = subHeaderRow.createCell(i);
                 cell.setCellValue(paymentHeaders[i]);

@@ -26,11 +26,13 @@ public class BatchAllocationStatusDTO {
     // Allocation status - amounts by period
     private BigDecimal allocatedFromPriorPeriods = BigDecimal.ZERO; // B/F - transactions before period start
     private BigDecimal allocatedFromThisPeriod = BigDecimal.ZERO;   // Transactions within period
+    private BigDecimal allocatedFromFuturePeriods = BigDecimal.ZERO; // Transactions after period end (beyond this statement)
     private BigDecimal totalAllocated = BigDecimal.ZERO;
 
     // Counts
     private int priorPeriodAllocations = 0;
     private int thisPeriodAllocations = 0;
+    private int futurePeriodAllocations = 0;
 
     // Individual allocations for detailed view
     private List<AllocationDetailDTO> allocations = new ArrayList<>();
@@ -45,8 +47,13 @@ public class BatchAllocationStatusDTO {
         this.status = status;
     }
 
-    // Add an allocation and classify it
+    // Add an allocation and classify it (legacy method for backward compatibility)
     public void addAllocation(AllocationDetailDTO allocation, LocalDate periodStart) {
+        addAllocation(allocation, periodStart, null);
+    }
+
+    // Add an allocation and classify it with three-way period classification
+    public void addAllocation(AllocationDetailDTO allocation, LocalDate periodStart, LocalDate periodEnd) {
         allocations.add(allocation);
 
         BigDecimal amount = allocation.getAmount() != null ? allocation.getAmount().abs() : BigDecimal.ZERO;
@@ -62,11 +69,16 @@ public class BatchAllocationStatusDTO {
         }
 
         // Classify by period (based on transaction date, not payment date)
+        // Three categories: PRIOR (before periodStart), THIS_PERIOD (within), FUTURE (after periodEnd)
         LocalDate txnDate = allocation.getTransactionDate();
         if (txnDate != null && txnDate.isBefore(periodStart)) {
             allocatedFromPriorPeriods = allocatedFromPriorPeriods.add(amount);
             priorPeriodAllocations++;
             allocation.setPeriodClassification("B/F");
+        } else if (periodEnd != null && txnDate != null && txnDate.isAfter(periodEnd)) {
+            allocatedFromFuturePeriods = allocatedFromFuturePeriods.add(amount);
+            futurePeriodAllocations++;
+            allocation.setPeriodClassification("FUTURE");
         } else {
             allocatedFromThisPeriod = allocatedFromThisPeriod.add(amount);
             thisPeriodAllocations++;
@@ -178,6 +190,22 @@ public class BatchAllocationStatusDTO {
         this.thisPeriodAllocations = thisPeriodAllocations;
     }
 
+    public BigDecimal getAllocatedFromFuturePeriods() {
+        return allocatedFromFuturePeriods;
+    }
+
+    public void setAllocatedFromFuturePeriods(BigDecimal allocatedFromFuturePeriods) {
+        this.allocatedFromFuturePeriods = allocatedFromFuturePeriods;
+    }
+
+    public int getFuturePeriodAllocations() {
+        return futurePeriodAllocations;
+    }
+
+    public void setFuturePeriodAllocations(int futurePeriodAllocations) {
+        this.futurePeriodAllocations = futurePeriodAllocations;
+    }
+
     public List<AllocationDetailDTO> getAllocations() {
         return allocations;
     }
@@ -196,7 +224,7 @@ public class BatchAllocationStatusDTO {
         private String category;
         private String allocationType; // OWNER, EXPENSE, COMMISSION
         private BigDecimal amount;
-        private String periodClassification; // B/F, THIS_PERIOD
+        private String periodClassification; // B/F, THIS_PERIOD, FUTURE
         private boolean isPartial;
 
         public AllocationDetailDTO() {
