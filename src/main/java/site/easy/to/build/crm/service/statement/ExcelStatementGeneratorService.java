@@ -2686,6 +2686,13 @@ public class ExcelStatementGeneratorService {
                                                            Long customerId) {
         log.info("Creating monthly statement sheet (batch-based): {}", sheetName);
 
+        // Resolve the actual owner ID for reconciliation queries
+        // This handles delegated users who manage another owner's properties
+        Long resolvedOwnerId = resolveActualOwnerId(customerId);
+        if (!resolvedOwnerId.equals(customerId)) {
+            log.info("Resolved customer {} to owner {} for reconciliation", customerId, resolvedOwnerId);
+        }
+
         Sheet sheet = workbook.createSheet(sheetName);
 
         // Header row - batch-based structure with individual payment columns
@@ -2936,8 +2943,8 @@ public class ExcelStatementGeneratorService {
         // Add blank rows for separation
         rowNum += 3;
 
-        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, Customer {}",
-            sheetName, period.periodStart, period.periodEnd, customerId);
+        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, Customer {} (resolved owner: {})",
+            sheetName, period.periodStart, period.periodEnd, customerId, resolvedOwnerId);
 
         // Section header
         Row reconcileHeaderRow = sheet.createRow(rowNum++);
@@ -2951,8 +2958,9 @@ public class ExcelStatementGeneratorService {
         rowNum++; // Blank row
 
         // Get all batches that have allocations from transactions in this period
+        // Use resolvedOwnerId to handle delegated users managing another owner's properties
         List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> batchStatuses =
-            dataExtractService.getBatchesWithPeriodAllocations(customerId, period.periodStart, period.periodEnd);
+            dataExtractService.getBatchesWithPeriodAllocations(resolvedOwnerId, period.periodStart, period.periodEnd);
 
         log.info("Found {} batches with period allocations", batchStatuses.size());
 
@@ -2978,8 +2986,9 @@ public class ExcelStatementGeneratorService {
         statusHeaderCell.setCellStyle(styles.boldStyle);
 
         // Get full allocation status summary
+        // Use resolvedOwnerId to handle delegated users managing another owner's properties
         Map<String, Object> allocationSummary = dataExtractService.getAllocationStatusSummary(
-            customerId, period.periodStart, period.periodEnd);
+            resolvedOwnerId, period.periodStart, period.periodEnd);
 
         Map<String, Object> priorAllocated = (Map<String, Object>) allocationSummary.get("allocatedBeforePeriod");
         Map<String, Object> periodAllocated = (Map<String, Object>) allocationSummary.get("allocatedDuringPeriod");
