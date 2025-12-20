@@ -2804,12 +2804,12 @@ public class ExcelStatementGeneratorService {
             }
             rentDueCell.setCellStyle(currencyStyle);
 
-            // H: rent_received (SUMIFS to RENT_RECEIVED sheet) - payments can come in even for inactive leases
-            // Use date range to sum ALL payments within the period (flat structure: D=payment_date, E=amount)
+            // H: rent_received (SUMIFS to batch-based RENT_RECEIVED sheet)
+            // RENT_RECEIVED columns: A=lease_id, E=owner_payment_date, N=total_rent
             Cell rentReceivedCell = row.createCell(col++);
             rentReceivedCell.setCellFormula(String.format(
-                "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$10000=\"%s\")*(RENT_RECEIVED!$D$2:$D$10000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$D$2:$D$10000<=DATE(%d,%d,%d))*RENT_RECEIVED!$E$2:$E$10000), 0)",
-                lease.getLeaseReference(),
+                "SUMIFS(RENT_RECEIVED!N:N, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \">=\"&DATE(%d,%d,%d), RENT_RECEIVED!E:E, \"<=\"&DATE(%d,%d,%d))",
+                lease.getLeaseId(),
                 period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
                 period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
             ));
@@ -4376,11 +4376,12 @@ public class ExcelStatementGeneratorService {
                     ));
                     rentDueCell.setCellStyle(currencyStyle);
 
-                    // H: rent_received (SUMPRODUCT to RENT_RECEIVED sheet - flat structure: D=payment_date, E=amount)
+                    // H: rent_received (SUMIFS to batch-based RENT_RECEIVED sheet)
+                    // RENT_RECEIVED columns: A=lease_id, E=owner_payment_date, N=total_rent
                     Cell rentReceivedCell = row.createCell(col++);
                     rentReceivedCell.setCellFormula(String.format(
-                        "IFERROR(SUMPRODUCT((RENT_RECEIVED!$B$2:$B$10000=\"%s\")*(RENT_RECEIVED!$D$2:$D$10000>=DATE(%d,%d,%d))*(RENT_RECEIVED!$D$2:$D$10000<=DATE(%d,%d,%d))*RENT_RECEIVED!$E$2:$E$10000), 0)",
-                        lease.getLeaseReference(),
+                        "SUMIFS(RENT_RECEIVED!N:N, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \">=\"&DATE(%d,%d,%d), RENT_RECEIVED!E:E, \"<=\"&DATE(%d,%d,%d))",
+                        lease.getLeaseId(),
                         period.periodStart.getYear(), period.periodStart.getMonthValue(), period.periodStart.getDayOfMonth(),
                         period.periodEnd.getYear(), period.periodEnd.getMonthValue(), period.periodEnd.getDayOfMonth()
                     ));
