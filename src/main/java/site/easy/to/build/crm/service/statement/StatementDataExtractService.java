@@ -2437,7 +2437,27 @@ public class StatementDataExtractService {
         """;
 
         try {
+            log.info("RECONCILIATION DEBUG: Querying unified_allocations for beneficiary_id={}, paid_date between {} and {}",
+                customerId, startDate, endDate);
+
+            // Debug: Check what allocations exist for this customer
+            String debugSql = """
+                SELECT COUNT(*) as cnt,
+                       SUM(CASE WHEN payment_batch_id IS NOT NULL THEN 1 ELSE 0 END) as with_batch,
+                       SUM(CASE WHEN paid_date IS NOT NULL THEN 1 ELSE 0 END) as with_paid_date
+                FROM unified_allocations
+                WHERE beneficiary_id = ?
+            """;
+            try {
+                Map<String, Object> debugResult = jdbcTemplate.queryForMap(debugSql, customerId);
+                log.info("RECONCILIATION DEBUG: Total allocations for beneficiary {}: count={}, with_batch={}, with_paid_date={}",
+                    customerId, debugResult.get("cnt"), debugResult.get("with_batch"), debugResult.get("with_paid_date"));
+            } catch (Exception e) {
+                log.warn("RECONCILIATION DEBUG: Error checking allocations: {}", e.getMessage());
+            }
+
             List<Map<String, Object>> paymentRows = jdbcTemplate.queryForList(paymentSql, customerId, startDate, endDate);
+            log.info("RECONCILIATION DEBUG: Found {} payment batches for period {} to {}", paymentRows.size(), startDate, endDate);
 
             for (Map<String, Object> paymentRow : paymentRows) {
                 PaymentWithAllocationsDTO payment = new PaymentWithAllocationsDTO();
