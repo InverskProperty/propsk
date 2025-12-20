@@ -94,6 +94,15 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
     );
 
     /**
+     * Find transactions by invoice ID and flow direction (no date filter)
+     * Used for batch-based statement generation where filtering is done by paidDate
+     */
+    List<UnifiedTransaction> findByInvoiceIdAndFlowDirection(
+        Long invoiceId,
+        UnifiedTransaction.FlowDirection flowDirection
+    );
+
+    /**
      * Find transactions by invoice ID, date range, and flow direction
      * Use this for statement generation to separate rent received (INCOMING) from payments (OUTGOING)
      */

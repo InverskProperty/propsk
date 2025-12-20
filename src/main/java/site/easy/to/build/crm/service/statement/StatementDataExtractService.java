@@ -2647,4 +2647,237 @@ public class StatementDataExtractService {
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    // ===== BATCH-GROUPED PAYMENT EXTRACTION =====
+
+    /**
+     * Extract rent payments grouped by batch for a lease.
+     * Returns only payments that have been assigned to a batch (excludes pending).
+     * Filters by owner_payment_date (paidDate) within the given period.
+     *
+     * @param leaseId The lease/invoice ID
+     * @param periodStart Start of period (filters by paidDate, not transactionDate)
+     * @param periodEnd End of period (filters by paidDate, not transactionDate)
+     * @return Map of batchId -> list of payments in that batch
+     */
+    public Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> extractRentReceivedByBatch(
+            Long leaseId, LocalDate periodStart, LocalDate periodEnd) {
+
+        log.info("Extracting rent received by batch for lease {} from {} to {} (by paidDate)",
+            leaseId, periodStart, periodEnd);
+
+        // Get all payments for this lease (no date filter on transaction date)
+        // We'll filter by paidDate after populating batch info
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByInvoiceIdAndFlowDirection(leaseId, UnifiedTransaction.FlowDirection.INCOMING);
+
+        List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> allPayments = new ArrayList<>();
+
+        for (UnifiedTransaction txn : transactions) {
+            site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail =
+                new site.easy.to.build.crm.dto.statement.PaymentDetailDTO();
+
+            detail.setPaymentDate(txn.getTransactionDate());
+            detail.setAmount(txn.getAmount());
+            detail.setDescription(txn.getDescription());
+            detail.setCategory(txn.getCategory());
+            detail.setTransactionId(txn.getId());
+
+            allPayments.add(detail);
+        }
+
+        // Populate batch info from unified_allocations
+        populateBatchInfo(allPayments);
+
+        // Group by batch, filtering by paidDate and excluding unbatched
+        Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> result = new HashMap<>();
+
+        for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment : allPayments) {
+            String batchId = payment.getBatchId();
+            LocalDate paidDate = payment.getPaidDate();
+
+            // Skip payments without batch (pending) or outside date range
+            if (batchId == null || batchId.isEmpty()) {
+                continue;
+            }
+            if (paidDate == null) {
+                continue;
+            }
+            if (paidDate.isBefore(periodStart) || paidDate.isAfter(periodEnd)) {
+                continue;
+            }
+
+            result.computeIfAbsent(batchId, k -> new ArrayList<>()).add(payment);
+        }
+
+        // Sort payments within each batch by payment date
+        for (List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> payments : result.values()) {
+            payments.sort((a, b) -> a.getPaymentDate().compareTo(b.getPaymentDate()));
+        }
+
+        log.info("Extracted {} batches with payments for lease {}", result.size(), leaseId);
+        return result;
+    }
+
+    /**
+     * Extract expenses grouped by batch for a lease.
+     * Returns only expenses that have been assigned to a batch (excludes pending).
+     * Filters by owner_payment_date (paidDate) within the given period.
+     *
+     * @param leaseId The lease/invoice ID
+     * @param periodStart Start of period (filters by paidDate, not transactionDate)
+     * @param periodEnd End of period (filters by paidDate, not transactionDate)
+     * @return Map of batchId -> list of expenses in that batch
+     */
+    public Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> extractExpensesByBatch(
+            Long leaseId, LocalDate periodStart, LocalDate periodEnd) {
+
+        log.info("Extracting expenses by batch for lease {} from {} to {} (by paidDate)",
+            leaseId, periodStart, periodEnd);
+
+        // Get all outgoing transactions for this lease
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByInvoiceIdAndFlowDirection(leaseId, UnifiedTransaction.FlowDirection.OUTGOING);
+
+        List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> allExpenses = new ArrayList<>();
+
+        for (UnifiedTransaction txn : transactions) {
+            // Filter out Owner and Commission categories - these are NOT expenses
+            String category = txn.getCategory();
+            if (category != null) {
+                String lowerCategory = category.toLowerCase();
+                if (lowerCategory.equals("owner") || lowerCategory.equals("commission") ||
+                    lowerCategory.contains("owner_payment")) {
+                    continue;
+                }
+            }
+
+            site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail =
+                new site.easy.to.build.crm.dto.statement.PaymentDetailDTO();
+
+            detail.setPaymentDate(txn.getTransactionDate());
+            detail.setAmount(txn.getAmount());
+            detail.setDescription(txn.getDescription());
+            detail.setCategory(txn.getCategory());
+            detail.setTransactionId(txn.getId());
+
+            allExpenses.add(detail);
+        }
+
+        // Populate batch info from unified_allocations
+        populateBatchInfo(allExpenses);
+
+        // Group by batch, filtering by paidDate and excluding unbatched
+        Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> result = new HashMap<>();
+
+        for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense : allExpenses) {
+            String batchId = expense.getBatchId();
+            LocalDate paidDate = expense.getPaidDate();
+
+            // Skip expenses without batch (pending) or outside date range
+            if (batchId == null || batchId.isEmpty()) {
+                continue;
+            }
+            if (paidDate == null) {
+                continue;
+            }
+            if (paidDate.isBefore(periodStart) || paidDate.isAfter(periodEnd)) {
+                continue;
+            }
+
+            result.computeIfAbsent(batchId, k -> new ArrayList<>()).add(expense);
+        }
+
+        // Sort expenses within each batch by expense date
+        for (List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenses : result.values()) {
+            expenses.sort((a, b) -> a.getPaymentDate().compareTo(b.getPaymentDate()));
+        }
+
+        log.info("Extracted {} batches with expenses for lease {}", result.size(), leaseId);
+        return result;
+    }
+
+    /**
+     * Extract batch payment groups for a lease - combines rent, expenses, and commission.
+     * Returns one BatchPaymentGroupDTO per batch per lease.
+     * Filters by owner_payment_date (paidDate) within the given period.
+     *
+     * @param lease The lease master DTO (includes commission rate)
+     * @param periodStart Start of period (filters by paidDate)
+     * @param periodEnd End of period (filters by paidDate)
+     * @return List of batch payment groups, sorted by owner payment date
+     */
+    public List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> extractBatchPaymentGroups(
+            LeaseMasterDTO lease, LocalDate periodStart, LocalDate periodEnd) {
+
+        log.info("Extracting batch payment groups for lease {} from {} to {}",
+            lease.getLeaseReference(), periodStart, periodEnd);
+
+        // Get rent payments grouped by batch
+        Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> rentByBatch =
+            extractRentReceivedByBatch(lease.getLeaseId(), periodStart, periodEnd);
+
+        // Get expenses grouped by batch
+        Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> expensesByBatch =
+            extractExpensesByBatch(lease.getLeaseId(), periodStart, periodEnd);
+
+        // Collect all unique batch IDs
+        java.util.Set<String> allBatchIds = new java.util.HashSet<>();
+        allBatchIds.addAll(rentByBatch.keySet());
+        allBatchIds.addAll(expensesByBatch.keySet());
+
+        // Build batch payment groups
+        List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> result = new ArrayList<>();
+
+        for (String batchId : allBatchIds) {
+            site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO group =
+                new site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO();
+
+            group.setLeaseId(lease.getLeaseId());
+            group.setLeaseReference(lease.getLeaseReference());
+            group.setPropertyName(lease.getPropertyName());
+            group.setBatchId(batchId);
+            group.setCommissionRate(lease.getCommissionPercentage() != null ?
+                lease.getCommissionPercentage().divide(new BigDecimal("100")) : null);
+
+            // Add rent payments (up to 4)
+            List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> rentPayments =
+                rentByBatch.getOrDefault(batchId, new ArrayList<>());
+            LocalDate ownerPaymentDate = null;
+            for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO rent : rentPayments) {
+                group.addRentPayment(rent);
+                // Use the paidDate from the first payment as the owner payment date
+                if (ownerPaymentDate == null && rent.getPaidDate() != null) {
+                    ownerPaymentDate = rent.getPaidDate();
+                }
+            }
+
+            // Add expenses (up to 4)
+            List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenses =
+                expensesByBatch.getOrDefault(batchId, new ArrayList<>());
+            for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense : expenses) {
+                group.addExpense(expense);
+                // If no owner payment date from rent, use expense paid date
+                if (ownerPaymentDate == null && expense.getPaidDate() != null) {
+                    ownerPaymentDate = expense.getPaidDate();
+                }
+            }
+
+            group.setOwnerPaymentDate(ownerPaymentDate);
+            group.calculateTotals();
+
+            result.add(group);
+        }
+
+        // Sort by owner payment date
+        result.sort((a, b) -> {
+            if (a.getOwnerPaymentDate() == null && b.getOwnerPaymentDate() == null) return 0;
+            if (a.getOwnerPaymentDate() == null) return 1;
+            if (b.getOwnerPaymentDate() == null) return -1;
+            return a.getOwnerPaymentDate().compareTo(b.getOwnerPaymentDate());
+        });
+
+        log.info("Extracted {} batch payment groups for lease {}", result.size(), lease.getLeaseReference());
+        return result;
+    }
 }

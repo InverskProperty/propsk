@@ -1447,38 +1447,28 @@ public class PropertyOwnerBlockController {
         dto.put("postcode", property.getPostcode());
         dto.put("countryCode", property.getCountryCode());
 
-        // Get current letting instruction status instead of legacy property.status field
-        String currentStatus = "Vacant"; // Default for properties with no instruction
-        try {
-            if (property.getLettingInstructions() != null && !property.getLettingInstructions().isEmpty()) {
-                // Get the most recent letting instruction
-                property.getLettingInstructions().stream()
-                    .filter(instruction -> instruction.getStatus() != InstructionStatus.CANCELLED &&
-                                         instruction.getStatus() != InstructionStatus.CLOSED)
-                    .max((i1, i2) -> {
-                        if (i1.getInstructionReceivedDate() == null) return -1;
-                        if (i2.getInstructionReceivedDate() == null) return 1;
-                        return i1.getInstructionReceivedDate().compareTo(i2.getInstructionReceivedDate());
-                    })
-                    .ifPresent(instruction -> {
-                        // Use the instruction status display name
-                        InstructionStatus status = instruction.getStatus();
-                        if (status == InstructionStatus.ACTIVE_LEASE) {
-                            dto.put("status", "Occupied");
-                        } else if (status == InstructionStatus.ADVERTISING) {
-                            dto.put("status", "Available");
-                        } else {
-                            dto.put("status", status.getDisplayName());
-                        }
-                    });
+        // Use property's occupancy status directly (avoids lazy loading issues with lettingInstructions)
+        OccupancyStatus occupancyStatus = property.getOccupancyStatus();
+        if (occupancyStatus != null) {
+            switch (occupancyStatus) {
+                case OCCUPIED:
+                    dto.put("status", "Occupied");
+                    break;
+                case NOTICE_GIVEN:
+                    dto.put("status", "Notice Given");
+                    break;
+                case ADVERTISING:
+                    dto.put("status", "Available");
+                    break;
+                case AVAILABLE:
+                    dto.put("status", "Available");
+                    break;
+                default:
+                    dto.put("status", occupancyStatus.getDisplayName());
             }
-        } catch (Exception e) {
-            log.warn("Failed to get letting instruction status for property {}: {}", property.getId(), e.getMessage());
-        }
-
-        // Set default if not set by letting instruction
-        if (!dto.containsKey("status")) {
-            dto.put("status", currentStatus);
+        } else {
+            // Default to Occupied if status not set (most properties are occupied)
+            dto.put("status", "Occupied");
         }
 
         dto.put("isArchived", property.getIsArchived());
