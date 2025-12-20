@@ -3137,6 +3137,30 @@ public class StatementDataExtractService {
         List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> result = new ArrayList<>();
 
         try {
+            // DEBUG: Check what beneficiary_ids exist for allocations with batches
+            String debugSql1 = "SELECT DISTINCT beneficiary_id FROM unified_allocations WHERE payment_batch_id IS NOT NULL LIMIT 10";
+            List<Long> existingBeneficiaries = jdbcTemplate.queryForList(debugSql1, Long.class);
+            log.info("DEBUG: Existing beneficiary_ids with batches: {}", existingBeneficiaries);
+
+            // DEBUG: Check allocations count for this customer
+            String debugSql2 = "SELECT COUNT(*) FROM unified_allocations WHERE beneficiary_id = ?";
+            Integer allocCount = jdbcTemplate.queryForObject(debugSql2, Integer.class, customerId);
+            log.info("DEBUG: Total allocations for customer {}: {}", customerId, allocCount);
+
+            // DEBUG: Check allocations with payment_batch_id for this customer
+            String debugSql3 = "SELECT COUNT(*) FROM unified_allocations WHERE beneficiary_id = ? AND payment_batch_id IS NOT NULL";
+            Integer batchedAllocCount = jdbcTemplate.queryForObject(debugSql3, Integer.class, customerId);
+            log.info("DEBUG: Allocations with batch for customer {}: {}", customerId, batchedAllocCount);
+
+            // DEBUG: Check transactions in period
+            String debugSql4 = "SELECT COUNT(*) FROM unified_transactions WHERE transaction_date >= ? AND transaction_date <= ?";
+            Integer txnCount = jdbcTemplate.queryForObject(debugSql4, Integer.class, periodStart, periodEnd);
+            log.info("DEBUG: Unified transactions in period {} to {}: {}", periodStart, periodEnd, txnCount);
+
+            String debugSql5 = "SELECT COUNT(*) FROM historical_transactions WHERE transaction_date >= ? AND transaction_date <= ?";
+            Integer histCount = jdbcTemplate.queryForObject(debugSql5, Integer.class, periodStart, periodEnd);
+            log.info("DEBUG: Historical transactions in period {} to {}: {}", periodStart, periodEnd, histCount);
+
             // Step 1: Find all batch IDs from allocations linked to transactions in this period
             String findBatchesSql = """
                 SELECT DISTINCT ua.payment_batch_id
