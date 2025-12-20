@@ -2721,6 +2721,13 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
+        // Collect all batches for reconciliation section
+        List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> allBatchesForReconciliation = new ArrayList<>();
+        java.math.BigDecimal grandTotalRent = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal grandTotalCommission = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal grandTotalExpenses = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal grandTotalNetToOwner = java.math.BigDecimal.ZERO;
+
         // Generate one row per batch per lease
         for (LeaseMasterDTO lease : leaseMaster) {
             LocalDate leaseStart = lease.getStartDate();
@@ -2733,6 +2740,9 @@ public class ExcelStatementGeneratorService {
             // Get batch payment groups for this lease within the statement period
             List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> batchGroups =
                 dataExtractService.extractBatchPaymentGroups(lease, period.periodStart, period.periodEnd);
+
+            // Add to collection for reconciliation
+            allBatchesForReconciliation.addAll(batchGroups);
 
             // Get commission rate for this lease
             boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
@@ -2859,6 +2869,12 @@ public class ExcelStatementGeneratorService {
                 netToOwnerCell.setCellValue(netToOwner);
                 netToOwnerCell.setCellStyle(currencyStyle);
 
+                // Accumulate grand totals for reconciliation
+                grandTotalRent = grandTotalRent.add(totalRent);
+                grandTotalCommission = grandTotalCommission.add(java.math.BigDecimal.valueOf(totalCommission));
+                grandTotalExpenses = grandTotalExpenses.add(totalExpenses);
+                grandTotalNetToOwner = grandTotalNetToOwner.add(java.math.BigDecimal.valueOf(netToOwner));
+
                 rowNum++;
             }
         }
@@ -2909,24 +2925,168 @@ public class ExcelStatementGeneratorService {
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        // ===== PAYMENT RECONCILIATION SECTION (Period-Based) =====
+        // ===== PAYMENT RECONCILIATION SECTION (Using collected batch data) =====
         // Add blank rows for separation
-        rowNum += 2;
+        rowNum += 3;
 
-        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, CustomerId: {}",
-            sheetName, period.periodStart, period.periodEnd, customerId);
+        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, Batches collected: {}",
+            sheetName, period.periodStart, period.periodEnd, allBatchesForReconciliation.size());
 
-        if (customerId != null) {
-            // Resolve actual owner ID for delegated users
-            Long resolvedOwnerId = resolveActualOwnerId(customerId);
-            log.info("PAYMENT RECONCILIATION: Resolved owner {} from customer {}", resolvedOwnerId, customerId);
+        // Section header
+        Row reconcileHeaderRow = sheet.createRow(rowNum++);
+        Cell reconcileHeaderCell = reconcileHeaderRow.createCell(0);
+        reconcileHeaderCell.setCellValue("PAYMENT RECONCILIATION");
+        reconcileHeaderCell.setCellStyle(styles.boldStyle);
 
-            // Use new period-based reconciliation model
-            rowNum = createPeriodBasedReconciliationSection(sheet, rowNum, resolvedOwnerId,
-                period.periodStart, period.periodEnd, styles);
+        Row periodInfoRow = sheet.createRow(rowNum++);
+        periodInfoRow.createCell(0).setCellValue("Period: " + period.periodStart.toString() + " to " + period.periodEnd.toString());
+
+        rowNum++; // Blank row
+
+        // Summary of payments by batch
+        Row batchHeaderRow = sheet.createRow(rowNum++);
+        Cell batchHeaderCell = batchHeaderRow.createCell(0);
+        batchHeaderCell.setCellValue("OWNER PAYMENTS THIS PERIOD (" + allBatchesForReconciliation.size() + " batches)");
+        batchHeaderCell.setCellStyle(styles.boldStyle);
+
+        // Group batches by batch_id to show payment summary
+        java.util.Map<String, java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO>> batchesByBatchId =
+            allBatchesForReconciliation.stream()
+                .filter(b -> b.getBatchId() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                    site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO::getBatchId));
+
+        java.math.BigDecimal totalPaymentsMade = java.math.BigDecimal.ZERO;
+
+        if (batchesByBatchId.isEmpty()) {
+            Row noPaymentsRow = sheet.createRow(rowNum++);
+            noPaymentsRow.createCell(0).setCellValue("  (No payments made this period)");
         } else {
-            log.warn("PAYMENT RECONCILIATION: No customerId for sheet {} - skipping reconciliation section", sheetName);
+            // Column headers for payment details
+            Row paymentColHeaderRow = sheet.createRow(rowNum++);
+            paymentColHeaderRow.createCell(0).setCellValue("Batch ID");
+            paymentColHeaderRow.createCell(1).setCellValue("Payment Date");
+            paymentColHeaderRow.createCell(2).setCellValue("Properties");
+            paymentColHeaderRow.createCell(3).setCellValue("Total Rent");
+            paymentColHeaderRow.createCell(4).setCellValue("Commission");
+            paymentColHeaderRow.createCell(5).setCellValue("Expenses");
+            paymentColHeaderRow.createCell(6).setCellValue("Net to Owner");
+            for (int i = 0; i <= 6; i++) {
+                paymentColHeaderRow.getCell(i).setCellStyle(styles.headerStyle);
+            }
+
+            for (java.util.Map.Entry<String, java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO>> entry : batchesByBatchId.entrySet()) {
+                String batchId = entry.getKey();
+                java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> batchItems = entry.getValue();
+
+                // Aggregate totals for this batch
+                java.math.BigDecimal batchRent = java.math.BigDecimal.ZERO;
+                java.math.BigDecimal batchCommission = java.math.BigDecimal.ZERO;
+                java.math.BigDecimal batchExpenses = java.math.BigDecimal.ZERO;
+                java.math.BigDecimal batchNet = java.math.BigDecimal.ZERO;
+                LocalDate paymentDate = null;
+                java.util.Set<String> propertyNames = new java.util.HashSet<>();
+
+                for (site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO item : batchItems) {
+                    batchRent = batchRent.add(item.getTotalRent() != null ? item.getTotalRent() : java.math.BigDecimal.ZERO);
+                    batchCommission = batchCommission.add(item.getTotalCommission() != null ? item.getTotalCommission() : java.math.BigDecimal.ZERO);
+                    batchExpenses = batchExpenses.add(item.getTotalExpenses() != null ? item.getTotalExpenses() : java.math.BigDecimal.ZERO);
+                    batchNet = batchNet.add(item.getNetToOwner() != null ? item.getNetToOwner() : java.math.BigDecimal.ZERO);
+                    if (paymentDate == null && item.getOwnerPaymentDate() != null) {
+                        paymentDate = item.getOwnerPaymentDate();
+                    }
+                    if (item.getPropertyName() != null) {
+                        propertyNames.add(item.getPropertyName());
+                    }
+                }
+
+                totalPaymentsMade = totalPaymentsMade.add(batchNet);
+
+                Row paymentRow = sheet.createRow(rowNum++);
+                paymentRow.createCell(0).setCellValue(batchId);
+
+                Cell payDateCell = paymentRow.createCell(1);
+                if (paymentDate != null) {
+                    payDateCell.setCellValue(paymentDate);
+                    payDateCell.setCellStyle(styles.dateStyle);
+                }
+
+                // Show property count or first few names
+                String propertiesStr = propertyNames.size() <= 2 ?
+                    String.join(", ", propertyNames) :
+                    propertyNames.size() + " properties";
+                paymentRow.createCell(2).setCellValue(propertiesStr);
+
+                Cell rentCell = paymentRow.createCell(3);
+                rentCell.setCellValue(batchRent.doubleValue());
+                rentCell.setCellStyle(styles.currencyStyle);
+
+                Cell commCell = paymentRow.createCell(4);
+                commCell.setCellValue(batchCommission.doubleValue());
+                commCell.setCellStyle(styles.currencyStyle);
+
+                Cell expCell = paymentRow.createCell(5);
+                expCell.setCellValue(batchExpenses.doubleValue());
+                expCell.setCellStyle(styles.currencyStyle);
+
+                Cell netCell = paymentRow.createCell(6);
+                netCell.setCellValue(batchNet.doubleValue());
+                netCell.setCellStyle(styles.currencyStyle);
+            }
         }
+
+        rowNum++; // Blank row
+
+        // Grand totals summary
+        Row summaryHeaderRow = sheet.createRow(rowNum++);
+        Cell summaryHeaderCell = summaryHeaderRow.createCell(0);
+        summaryHeaderCell.setCellValue("PERIOD SUMMARY");
+        summaryHeaderCell.setCellStyle(styles.boldStyle);
+
+        Row totalRentRow = sheet.createRow(rowNum++);
+        totalRentRow.createCell(0).setCellValue("Total Rent Received:");
+        Cell totalRentCell = totalRentRow.createCell(1);
+        totalRentCell.setCellValue(grandTotalRent.doubleValue());
+        totalRentCell.setCellStyle(styles.currencyStyle);
+
+        Row totalCommRow = sheet.createRow(rowNum++);
+        totalCommRow.createCell(0).setCellValue("Less: Commission:");
+        Cell totalCommCell = totalCommRow.createCell(1);
+        totalCommCell.setCellValue(grandTotalCommission.negate().doubleValue());
+        totalCommCell.setCellStyle(styles.currencyStyle);
+
+        Row totalExpRow = sheet.createRow(rowNum++);
+        totalExpRow.createCell(0).setCellValue("Less: Expenses:");
+        Cell totalExpCell = totalExpRow.createCell(1);
+        totalExpCell.setCellValue(grandTotalExpenses.negate().doubleValue());
+        totalExpCell.setCellStyle(styles.currencyStyle);
+
+        Row separatorRow = sheet.createRow(rowNum++);
+        separatorRow.createCell(0).setCellValue("─────────────────────────────");
+
+        Row netToOwnerRow = sheet.createRow(rowNum++);
+        Cell netToOwnerLabel = netToOwnerRow.createCell(0);
+        netToOwnerLabel.setCellValue("Net to Owner:");
+        netToOwnerLabel.setCellStyle(styles.boldStyle);
+        Cell netToOwnerTotal = netToOwnerRow.createCell(1);
+        netToOwnerTotal.setCellValue(grandTotalNetToOwner.doubleValue());
+        netToOwnerTotal.setCellStyle(styles.boldCurrencyStyle);
+
+        Row paidRow = sheet.createRow(rowNum++);
+        Cell paidLabel = paidRow.createCell(0);
+        paidLabel.setCellValue("Total Paid to Owner:");
+        paidLabel.setCellStyle(styles.boldStyle);
+        Cell paidTotal = paidRow.createCell(1);
+        paidTotal.setCellValue(totalPaymentsMade.doubleValue());
+        paidTotal.setCellStyle(styles.boldCurrencyStyle);
+
+        Row balanceRow = sheet.createRow(rowNum++);
+        Cell balanceLabel = balanceRow.createCell(0);
+        balanceLabel.setCellValue("Balance (should be £0):");
+        balanceLabel.setCellStyle(styles.boldStyle);
+        Cell balanceCell = balanceRow.createCell(1);
+        balanceCell.setCellValue(grandTotalNetToOwner.subtract(totalPaymentsMade).doubleValue());
+        balanceCell.setCellStyle(styles.boldCurrencyStyle);
 
         log.info("{} sheet created with {} rows (batch-based, including reconciliation)", sheetName, rowNum);
     }
