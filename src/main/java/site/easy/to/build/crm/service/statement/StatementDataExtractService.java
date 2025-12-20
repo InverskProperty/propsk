@@ -2670,6 +2670,96 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Get all allocations for a specific batch ID.
+     * Uses the repository method to fetch from unified_allocations.
+     */
+    public List<UnifiedAllocation> getAllocationsForBatch(String batchId) {
+        if (batchId == null || batchId.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return unifiedAllocationRepository.getAllocationsForBatchWithDetails(batchId);
+    }
+
+    /**
+     * Get the transaction date for an allocation.
+     * Looks up from unified_transactions or historical_transactions based on what's linked.
+     */
+    public LocalDate getTransactionDateForAllocation(UnifiedAllocation alloc) {
+        if (alloc == null) {
+            return null;
+        }
+
+        try {
+            // Try unified_transaction first
+            if (alloc.getUnifiedTransactionId() != null) {
+                String sql = "SELECT transaction_date FROM unified_transactions WHERE id = ?";
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, alloc.getUnifiedTransactionId());
+                if (!rows.isEmpty() && rows.get(0).get("transaction_date") != null) {
+                    Object dateObj = rows.get(0).get("transaction_date");
+                    if (dateObj instanceof java.sql.Date) {
+                        return ((java.sql.Date) dateObj).toLocalDate();
+                    } else if (dateObj instanceof LocalDate) {
+                        return (LocalDate) dateObj;
+                    }
+                }
+            }
+
+            // Try historical_transaction
+            if (alloc.getHistoricalTransactionId() != null) {
+                String sql = "SELECT transaction_date FROM historical_transactions WHERE id = ?";
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, alloc.getHistoricalTransactionId());
+                if (!rows.isEmpty() && rows.get(0).get("transaction_date") != null) {
+                    Object dateObj = rows.get(0).get("transaction_date");
+                    if (dateObj instanceof java.sql.Date) {
+                        return ((java.sql.Date) dateObj).toLocalDate();
+                    } else if (dateObj instanceof LocalDate) {
+                        return (LocalDate) dateObj;
+                    }
+                }
+            }
+
+            // Fall back to created_at on allocation itself
+            if (alloc.getCreatedAt() != null) {
+                return alloc.getCreatedAt().toLocalDate();
+            }
+        } catch (Exception e) {
+            log.warn("Error getting transaction date for allocation {}: {}", alloc.getId(), e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if an allocation is partial (the transaction has multiple allocations).
+     */
+    public boolean isPartialAllocation(UnifiedAllocation alloc) {
+        if (alloc == null) {
+            return false;
+        }
+
+        try {
+            Long txnId = alloc.getUnifiedTransactionId();
+            if (txnId == null) {
+                txnId = alloc.getHistoricalTransactionId();
+            }
+            if (txnId == null) {
+                return false;
+            }
+
+            // Count allocations for this transaction
+            String sql = alloc.getUnifiedTransactionId() != null
+                ? "SELECT COUNT(*) FROM unified_allocations WHERE unified_transaction_id = ? AND payment_batch_id IS NOT NULL"
+                : "SELECT COUNT(*) FROM unified_allocations WHERE historical_transaction_id = ? AND payment_batch_id IS NOT NULL";
+
+            Integer count = jdbcTemplate.queryForObject(sql, Integer.class, txnId);
+            return count != null && count > 1;
+        } catch (Exception e) {
+            log.warn("Error checking partial allocation for {}: {}", alloc.getId(), e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Extract unallocated income as of end of period.
      * Returns income transactions received up to and including endDate that are not fully allocated.
      * Used for "Carried Forward" section of reconciliation.
