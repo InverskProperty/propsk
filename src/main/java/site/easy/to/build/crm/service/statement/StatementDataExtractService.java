@@ -851,6 +851,78 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Populate batch info (batchId, paymentStatus, paidDate) from unified_allocations
+     * for a list of EXPENSE payment details. Updates the DTOs in place.
+     * Uses EXPENSE, DISBURSEMENT, and COMMISSION allocation types.
+     */
+    private void populateBatchInfoForExpenses(List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> paymentDetails) {
+        if (paymentDetails == null || paymentDetails.isEmpty()) {
+            return;
+        }
+
+        // Collect transaction IDs
+        List<Long> transactionIds = paymentDetails.stream()
+            .map(site.easy.to.build.crm.dto.statement.PaymentDetailDTO::getTransactionId)
+            .filter(id -> id != null)
+            .collect(java.util.stream.Collectors.toList());
+
+        if (transactionIds.isEmpty()) {
+            return;
+        }
+
+        try {
+            // Batch query for expense transaction batch info
+            List<Object[]> batchInfoList = unifiedAllocationRepository.getBatchInfoForExpenseTransactions(transactionIds);
+
+            // Build maps
+            Map<Long, String> batchIdMap = new HashMap<>();
+            Map<Long, String> statusMap = new HashMap<>();
+            Map<Long, LocalDate> paidDateMap = new HashMap<>();
+
+            for (Object[] row : batchInfoList) {
+                Long txnId = row[0] != null ? ((Number) row[0]).longValue() : null;
+                if (txnId != null) {
+                    String batchId = row[1] != null ? row[1].toString() : null;
+                    String status = row[2] != null ? row[2].toString() : null;
+                    LocalDate paidDate = null;
+                    if (row[3] != null) {
+                        if (row[3] instanceof java.sql.Date) {
+                            paidDate = ((java.sql.Date) row[3]).toLocalDate();
+                        } else if (row[3] instanceof LocalDate) {
+                            paidDate = (LocalDate) row[3];
+                        }
+                    }
+
+                    // Concatenate batch IDs for split payments
+                    if (batchIdMap.containsKey(txnId)) {
+                        if (batchId != null && !batchIdMap.get(txnId).contains(batchId)) {
+                            batchIdMap.put(txnId, batchIdMap.get(txnId) + ", " + batchId);
+                        }
+                    } else {
+                        batchIdMap.put(txnId, batchId);
+                        statusMap.put(txnId, status);
+                        paidDateMap.put(txnId, paidDate);
+                    }
+                }
+            }
+
+            // Populate batch info on each payment detail
+            for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail : paymentDetails) {
+                Long txnId = detail.getTransactionId();
+                if (txnId != null && batchIdMap.containsKey(txnId)) {
+                    detail.setBatchId(batchIdMap.get(txnId));
+                    detail.setPaymentStatus(statusMap.get(txnId));
+                    detail.setPaidDate(paidDateMap.get(txnId));
+                }
+            }
+
+            log.debug("Populated expense batch info for {} of {} expenses", batchIdMap.size(), paymentDetails.size());
+        } catch (Exception e) {
+            log.warn("Error populating expense batch info: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+        }
+    }
+
+    /**
      * Extract all properties (for reference)
      *
      * @return List of properties
@@ -2999,8 +3071,8 @@ public class StatementDataExtractService {
             allExpenses.add(detail);
         }
 
-        // Populate batch info from unified_allocations
-        populateBatchInfo(allExpenses);
+        // Populate batch info from unified_allocations using EXPENSE/DISBURSEMENT/COMMISSION allocation types
+        populateBatchInfoForExpenses(allExpenses);
 
         // Group by batch, filtering by paidDate and excluding unbatched
         Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> result = new HashMap<>();

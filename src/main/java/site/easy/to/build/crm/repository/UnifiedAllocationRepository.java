@@ -210,13 +210,25 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
 
     /**
      * Get batch info (batch_id, status, paid_date) for multiple unified transactions.
-     * Used for populating batch columns in RENT_RECEIVED and EXPENSES sheets.
+     * Used for populating batch columns in RENT_RECEIVED sheets.
      * Returns: [unifiedTransactionId, paymentBatchId, paymentStatus, paidDate]
+     * Only returns OWNER allocations (for rent income).
      */
     @Query("SELECT ua.unifiedTransactionId, ua.paymentBatchId, ua.paymentStatus, ua.paidDate " +
            "FROM UnifiedAllocation ua WHERE ua.unifiedTransactionId IN :transactionIds " +
            "AND ua.allocationType = 'OWNER'")
     List<Object[]> getBatchInfoForTransactions(@Param("transactionIds") List<Long> transactionIds);
+
+    /**
+     * Get batch info (batch_id, status, paid_date) for multiple unified transactions.
+     * Used for populating batch columns in EXPENSES sheets.
+     * Returns: [unifiedTransactionId, paymentBatchId, paymentStatus, paidDate]
+     * Returns EXPENSE, DISBURSEMENT, and COMMISSION allocations.
+     */
+    @Query("SELECT ua.unifiedTransactionId, ua.paymentBatchId, ua.paymentStatus, ua.paidDate " +
+           "FROM UnifiedAllocation ua WHERE ua.unifiedTransactionId IN :transactionIds " +
+           "AND ua.allocationType IN ('EXPENSE', 'DISBURSEMENT', 'COMMISSION')")
+    List<Object[]> getBatchInfoForExpenseTransactions(@Param("transactionIds") List<Long> transactionIds);
 
     /**
      * Get remaining unallocated amount for a unified transaction
