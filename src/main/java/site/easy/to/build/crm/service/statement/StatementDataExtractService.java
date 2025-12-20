@@ -3134,52 +3134,54 @@ public class StatementDataExtractService {
         log.info("Finding batches with allocations from period {} to {} for customer {}",
             periodStart, periodEnd, customerId);
 
-        // Step 1: Find all allocation IDs from transactions in this period for this owner
-        // We need to find unified_transactions in the period, then find their allocations
-        String findBatchesSql = """
-            SELECT DISTINCT ua.payment_batch_id
-            FROM unified_allocations ua
-            WHERE ua.beneficiary_id = ?
-              AND ua.payment_batch_id IS NOT NULL
-              AND (
-                  -- Link via unified_transaction
-                  ua.unified_transaction_id IN (
-                      SELECT id FROM unified_transactions
-                      WHERE transaction_date >= ? AND transaction_date <= ?
-                  )
-                  OR
-                  -- Link via historical_transaction
-                  ua.historical_transaction_id IN (
-                      SELECT id FROM historical_transactions
-                      WHERE transaction_date >= ? AND transaction_date <= ?
-                  )
-              )
-            """;
-
-        List<String> batchIds = jdbcTemplate.queryForList(
-            findBatchesSql, String.class,
-            customerId, periodStart, periodEnd, periodStart, periodEnd);
-
-        log.info("Found {} batches with allocations from period transactions", batchIds.size());
-
-        // Step 2: For each batch, get full allocation details
         List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> result = new ArrayList<>();
 
-        for (String batchId : batchIds) {
-            site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batchStatus =
-                buildBatchAllocationStatus(batchId, periodStart, customerId);
-            if (batchStatus != null) {
-                result.add(batchStatus);
-            }
-        }
+        try {
+            // Step 1: Find all batch IDs from allocations linked to transactions in this period
+            String findBatchesSql = """
+                SELECT DISTINCT ua.payment_batch_id
+                FROM unified_allocations ua
+                WHERE ua.beneficiary_id = ?
+                  AND ua.payment_batch_id IS NOT NULL
+                  AND (
+                      ua.unified_transaction_id IN (
+                          SELECT id FROM unified_transactions
+                          WHERE transaction_date >= ? AND transaction_date <= ?
+                      )
+                      OR ua.historical_transaction_id IN (
+                          SELECT id FROM historical_transactions
+                          WHERE transaction_date >= ? AND transaction_date <= ?
+                      )
+                  )
+                """;
 
-        // Sort by payment date
-        result.sort((a, b) -> {
-            if (a.getPaymentDate() == null && b.getPaymentDate() == null) return 0;
-            if (a.getPaymentDate() == null) return 1;
-            if (b.getPaymentDate() == null) return -1;
-            return a.getPaymentDate().compareTo(b.getPaymentDate());
-        });
+            List<String> batchIds = jdbcTemplate.query(
+                findBatchesSql,
+                (rs, rowNum) -> rs.getString("payment_batch_id"),
+                customerId, periodStart, periodEnd, periodStart, periodEnd);
+
+            log.info("Found {} batches with allocations from period transactions", batchIds.size());
+
+            // Step 2: For each batch, get full allocation details
+            for (String batchId : batchIds) {
+                site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batchStatus =
+                    buildBatchAllocationStatus(batchId, periodStart, customerId);
+                if (batchStatus != null) {
+                    result.add(batchStatus);
+                }
+            }
+
+            // Sort by payment date
+            result.sort((a, b) -> {
+                if (a.getPaymentDate() == null && b.getPaymentDate() == null) return 0;
+                if (a.getPaymentDate() == null) return 1;
+                if (b.getPaymentDate() == null) return -1;
+                return a.getPaymentDate().compareTo(b.getPaymentDate());
+            });
+
+        } catch (Exception e) {
+            log.error("Error finding batches with period allocations for customer {}: {}", customerId, e.getMessage(), e);
+        }
 
         return result;
     }
@@ -3251,41 +3253,51 @@ public class StatementDataExtractService {
     public Map<String, Object> getAllocationStatusSummary(Long customerId, LocalDate periodStart, LocalDate periodEnd) {
         Map<String, Object> summary = new java.util.LinkedHashMap<>();
 
-        // Count allocations made BEFORE period start (for transactions before period)
-        String priorAllocatedSql = """
-            SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
-            FROM unified_allocations ua
-            WHERE ua.beneficiary_id = ?
-              AND ua.payment_batch_id IS NOT NULL
-              AND ua.paid_date < ?
-            """;
+        try {
+            // Count allocations made BEFORE period start (for transactions before period)
+            String priorAllocatedSql = """
+                SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
+                FROM unified_allocations ua
+                WHERE ua.beneficiary_id = ?
+                  AND ua.payment_batch_id IS NOT NULL
+                  AND ua.paid_date < ?
+                """;
 
-        Map<String, Object> priorAllocated = jdbcTemplate.queryForMap(priorAllocatedSql, customerId, periodStart);
-        summary.put("allocatedBeforePeriod", priorAllocated);
+            Map<String, Object> priorAllocated = jdbcTemplate.queryForMap(priorAllocatedSql, customerId, periodStart);
+            summary.put("allocatedBeforePeriod", priorAllocated);
 
-        // Count allocations made DURING period
-        String periodAllocatedSql = """
-            SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
-            FROM unified_allocations ua
-            WHERE ua.beneficiary_id = ?
-              AND ua.payment_batch_id IS NOT NULL
-              AND ua.paid_date >= ? AND ua.paid_date <= ?
-            """;
+            // Count allocations made DURING period
+            String periodAllocatedSql = """
+                SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
+                FROM unified_allocations ua
+                WHERE ua.beneficiary_id = ?
+                  AND ua.payment_batch_id IS NOT NULL
+                  AND ua.paid_date >= ? AND ua.paid_date <= ?
+                """;
 
-        Map<String, Object> periodAllocated = jdbcTemplate.queryForMap(periodAllocatedSql, customerId, periodStart, periodEnd);
-        summary.put("allocatedDuringPeriod", periodAllocated);
+            Map<String, Object> periodAllocated = jdbcTemplate.queryForMap(periodAllocatedSql, customerId, periodStart, periodEnd);
+            summary.put("allocatedDuringPeriod", periodAllocated);
 
-        // Count UNALLOCATED at end of period (transactions up to period end without batch)
-        String unallocatedSql = """
-            SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
-            FROM unified_allocations ua
-            WHERE ua.beneficiary_id = ?
-              AND ua.payment_batch_id IS NULL
-              AND ua.allocation_type = 'OWNER'
-            """;
+            // Count UNALLOCATED at end of period (transactions up to period end without batch)
+            String unallocatedSql = """
+                SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
+                FROM unified_allocations ua
+                WHERE ua.beneficiary_id = ?
+                  AND ua.payment_batch_id IS NULL
+                  AND ua.allocation_type = 'OWNER'
+                """;
 
-        Map<String, Object> unallocated = jdbcTemplate.queryForMap(unallocatedSql, customerId);
-        summary.put("unallocatedAtEnd", unallocated);
+            Map<String, Object> unallocated = jdbcTemplate.queryForMap(unallocatedSql, customerId);
+            summary.put("unallocatedAtEnd", unallocated);
+
+        } catch (Exception e) {
+            log.error("Error getting allocation status summary for customer {}: {}", customerId, e.getMessage(), e);
+            // Return empty defaults
+            Map<String, Object> empty = Map.of("amount", BigDecimal.ZERO, "count", 0);
+            summary.put("allocatedBeforePeriod", empty);
+            summary.put("allocatedDuringPeriod", empty);
+            summary.put("unallocatedAtEnd", empty);
+        }
 
         return summary;
     }
