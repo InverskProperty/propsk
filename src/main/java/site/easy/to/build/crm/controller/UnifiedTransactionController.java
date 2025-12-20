@@ -176,4 +176,64 @@ public class UnifiedTransactionController {
 
         return ResponseEntity.ok(result);
     }
+
+    // ===== BENEFICIARY LINKAGE FIX ENDPOINTS =====
+
+    /**
+     * Link customers to PayProp beneficiaries by name matching.
+     *
+     * This updates customer.payprop_entity_id for customers that exist but aren't
+     * linked to PayProp. Run this BEFORE fixBeneficiaryLinkage if you have
+     * customers created before PayProp sync.
+     *
+     * @return Statistics on how many customers were linked
+     */
+    @PostMapping("/fix/link-customers")
+    public ResponseEntity<Map<String, Object>> linkCustomersToPayProp() {
+        Map<String, Object> result = rebuildService.linkCustomersToPayPropBeneficiaries();
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Fix beneficiary_id in unified_allocations and payment_batches.
+     *
+     * This updates NULL beneficiary_id values by looking up through:
+     * 1. payprop_report_all_payments -> customers.payprop_entity_id
+     * 2. property owner (properties.property_owner_id)
+     * 3. payment_batches.beneficiary_id
+     *
+     * Run AFTER linkCustomersToPayProp for best results.
+     *
+     * @return Statistics on how many records were updated
+     */
+    @PostMapping("/fix/beneficiary-linkage")
+    public ResponseEntity<Map<String, Object>> fixBeneficiaryLinkage() {
+        Map<String, Object> result = rebuildService.fixBeneficiaryLinkage();
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Combined fix: Link customers then fix allocations.
+     *
+     * Convenience endpoint that runs both operations in sequence:
+     * 1. Link customers to PayProp beneficiaries by name
+     * 2. Fix beneficiary_id in unified_allocations and payment_batches
+     *
+     * @return Combined statistics from both operations
+     */
+    @PostMapping("/fix/beneficiary-all")
+    public ResponseEntity<Map<String, Object>> fixBeneficiaryAll() {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        // Step 1: Link customers
+        Map<String, Object> linkResult = rebuildService.linkCustomersToPayPropBeneficiaries();
+        result.put("step1_linkCustomers", linkResult);
+
+        // Step 2: Fix allocations
+        Map<String, Object> fixResult = rebuildService.fixBeneficiaryLinkage();
+        result.put("step2_fixAllocations", fixResult);
+
+        result.put("status", "COMPLETED");
+        return ResponseEntity.ok(result);
+    }
 }

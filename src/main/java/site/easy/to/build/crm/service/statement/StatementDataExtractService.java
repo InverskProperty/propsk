@@ -3115,4 +3115,178 @@ public class StatementDataExtractService {
         log.info("Extracted {} batch payment groups for lease {}", result.size(), lease.getLeaseReference());
         return result;
     }
+
+    // ===== BATCH ALLOCATION STATUS FOR RECONCILIATION =====
+
+    /**
+     * Find all payment batches that have ANY allocation from transactions in the given period.
+     * This is different from finding batches paid in the period - we want batches that contain
+     * allocations from income/expenses that occurred in the period, regardless of when paid.
+     *
+     * @param customerId The owner's customer ID
+     * @param periodStart Start of the period
+     * @param periodEnd End of the period
+     * @return List of batch status DTOs with allocation breakdown
+     */
+    public List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> getBatchesWithPeriodAllocations(
+            Long customerId, LocalDate periodStart, LocalDate periodEnd) {
+
+        log.info("Finding batches with allocations from period {} to {} for customer {}",
+            periodStart, periodEnd, customerId);
+
+        // Step 1: Find all allocation IDs from transactions in this period for this owner
+        // We need to find unified_transactions in the period, then find their allocations
+        String findBatchesSql = """
+            SELECT DISTINCT ua.payment_batch_id
+            FROM unified_allocations ua
+            WHERE ua.beneficiary_id = ?
+              AND ua.payment_batch_id IS NOT NULL
+              AND (
+                  -- Link via unified_transaction
+                  ua.unified_transaction_id IN (
+                      SELECT id FROM unified_transactions
+                      WHERE transaction_date >= ? AND transaction_date <= ?
+                  )
+                  OR
+                  -- Link via historical_transaction
+                  ua.historical_transaction_id IN (
+                      SELECT id FROM historical_transactions
+                      WHERE transaction_date >= ? AND transaction_date <= ?
+                  )
+              )
+            """;
+
+        List<String> batchIds = jdbcTemplate.queryForList(
+            findBatchesSql, String.class,
+            customerId, periodStart, periodEnd, periodStart, periodEnd);
+
+        log.info("Found {} batches with allocations from period transactions", batchIds.size());
+
+        // Step 2: For each batch, get full allocation details
+        List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> result = new ArrayList<>();
+
+        for (String batchId : batchIds) {
+            site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batchStatus =
+                buildBatchAllocationStatus(batchId, periodStart, customerId);
+            if (batchStatus != null) {
+                result.add(batchStatus);
+            }
+        }
+
+        // Sort by payment date
+        result.sort((a, b) -> {
+            if (a.getPaymentDate() == null && b.getPaymentDate() == null) return 0;
+            if (a.getPaymentDate() == null) return 1;
+            if (b.getPaymentDate() == null) return -1;
+            return a.getPaymentDate().compareTo(b.getPaymentDate());
+        });
+
+        return result;
+    }
+
+    /**
+     * Build complete allocation status for a batch
+     */
+    private site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO buildBatchAllocationStatus(
+            String batchId, LocalDate periodStart, Long customerId) {
+
+        // Get batch info
+        java.util.Optional<PaymentBatch> batchOpt = paymentBatchRepository.findByBatchId(batchId);
+
+        site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO status =
+            new site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO();
+        status.setBatchId(batchId);
+
+        if (batchOpt.isPresent()) {
+            PaymentBatch batch = batchOpt.get();
+            status.setPaymentDate(batch.getPaymentDate());
+            status.setStatus(batch.getStatus() != null ? batch.getStatus().name() : "UNKNOWN");
+        }
+
+        // Get all allocations for this batch (for this owner)
+        List<UnifiedAllocation> allocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
+
+        for (UnifiedAllocation alloc : allocations) {
+            // Only include allocations for this owner
+            if (customerId != null && !customerId.equals(alloc.getBeneficiaryId())) {
+                continue;
+            }
+
+            LocalDate txnDate = getTransactionDateForAllocation(alloc);
+            boolean isPartial = isPartialAllocation(alloc);
+
+            site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO detail =
+                new site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO(
+                    alloc.getId(),
+                    txnDate,
+                    alloc.getPropertyName(),
+                    alloc.getCategory(),
+                    alloc.getAllocationType() != null ? alloc.getAllocationType().name() : "UNKNOWN",
+                    alloc.getAmount(),
+                    isPartial
+                );
+
+            status.addAllocation(detail, periodStart);
+
+            // If no payment date from batch, try to get from allocation
+            if (status.getPaymentDate() == null && alloc.getPaidDate() != null) {
+                status.setPaymentDate(alloc.getPaidDate());
+                status.setStatus(alloc.getPaymentStatus() != null ? alloc.getPaymentStatus().name() : "PAID");
+            }
+        }
+
+        status.calculateNet();
+        return status;
+    }
+
+    /**
+     * Get allocation status summary for a period.
+     * Shows: allocated at start of period, allocated during period, unallocated at end.
+     *
+     * @param customerId The owner's customer ID
+     * @param periodStart Start of the period
+     * @param periodEnd End of the period
+     * @return Map with status counts and amounts
+     */
+    public Map<String, Object> getAllocationStatusSummary(Long customerId, LocalDate periodStart, LocalDate periodEnd) {
+        Map<String, Object> summary = new java.util.LinkedHashMap<>();
+
+        // Count allocations made BEFORE period start (for transactions before period)
+        String priorAllocatedSql = """
+            SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
+            FROM unified_allocations ua
+            WHERE ua.beneficiary_id = ?
+              AND ua.payment_batch_id IS NOT NULL
+              AND ua.paid_date < ?
+            """;
+
+        Map<String, Object> priorAllocated = jdbcTemplate.queryForMap(priorAllocatedSql, customerId, periodStart);
+        summary.put("allocatedBeforePeriod", priorAllocated);
+
+        // Count allocations made DURING period
+        String periodAllocatedSql = """
+            SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
+            FROM unified_allocations ua
+            WHERE ua.beneficiary_id = ?
+              AND ua.payment_batch_id IS NOT NULL
+              AND ua.paid_date >= ? AND ua.paid_date <= ?
+            """;
+
+        Map<String, Object> periodAllocated = jdbcTemplate.queryForMap(periodAllocatedSql, customerId, periodStart, periodEnd);
+        summary.put("allocatedDuringPeriod", periodAllocated);
+
+        // Count UNALLOCATED at end of period (transactions up to period end without batch)
+        String unallocatedSql = """
+            SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
+            FROM unified_allocations ua
+            WHERE ua.beneficiary_id = ?
+              AND ua.payment_batch_id IS NULL
+              AND ua.allocation_type = 'OWNER'
+            """;
+
+        Map<String, Object> unallocated = jdbcTemplate.queryForMap(unallocatedSql, customerId);
+        summary.put("unallocatedAtEnd", unallocated);
+
+        return summary;
+    }
 }

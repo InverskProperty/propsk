@@ -983,4 +983,184 @@ public class UnifiedTransactionRebuildService {
 
         return stats;
     }
+
+    // ===== BENEFICIARY LINKAGE FIX =====
+
+    /**
+     * Fix beneficiary linkage for unified_allocations and payment_batches.
+     *
+     * This method should be called after a rebuild if beneficiary_id values are NULL.
+     * It attempts to link allocations to customers through multiple paths:
+     * 1. Via payprop_report_all_payments.beneficiary_payprop_id -> customers.payprop_entity_id
+     * 2. Via property owner (properties.property_owner_id)
+     * 3. Via payment_batches.beneficiary_id
+     *
+     * @return Map containing counts of updates made
+     */
+    @Transactional
+    public Map<String, Object> fixBeneficiaryLinkage() {
+        log.info("🔗 Starting beneficiary linkage fix...");
+        Map<String, Object> result = new HashMap<>();
+
+        // Step 1: Update unified_allocations via payprop_report_all_payments
+        String updateViaPrapSql = """
+            UPDATE unified_allocations ua
+            JOIN payprop_report_all_payments prap
+                ON ua.payprop_payment_id COLLATE utf8mb4_unicode_ci = prap.payprop_id COLLATE utf8mb4_unicode_ci
+            JOIN customers c
+                ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = c.payprop_entity_id COLLATE utf8mb4_unicode_ci
+            SET ua.beneficiary_id = c.customer_id,
+                ua.beneficiary_name = c.name,
+                ua.updated_at = NOW()
+            WHERE ua.beneficiary_id IS NULL
+              AND ua.source = 'PAYPROP'
+            """;
+
+        int updatedViaPrap = jdbcTemplate.update(updateViaPrapSql);
+        log.info("  ✓ Updated {} allocations via PayProp beneficiary link", updatedViaPrap);
+        result.put("allocationsUpdatedViaPrap", updatedViaPrap);
+
+        // Step 2: Update unified_allocations via property owner
+        String updateViaPropertySql = """
+            UPDATE unified_allocations ua
+            JOIN properties p ON ua.property_id = p.id
+            JOIN customers c ON p.property_owner_id = c.customer_id
+            SET ua.beneficiary_id = c.customer_id,
+                ua.beneficiary_name = c.name,
+                ua.updated_at = NOW()
+            WHERE ua.beneficiary_id IS NULL
+              AND ua.allocation_type = 'OWNER'
+            """;
+
+        int updatedViaProperty = jdbcTemplate.update(updateViaPropertySql);
+        log.info("  ✓ Updated {} allocations via property owner", updatedViaProperty);
+        result.put("allocationsUpdatedViaProperty", updatedViaProperty);
+
+        // Step 2b: Update unified_allocations via historical_transactions.owner_id
+        String updateViaHistOwnerSql = """
+            UPDATE unified_allocations ua
+            JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+            JOIN customers c ON ht.owner_id = c.customer_id
+            SET ua.beneficiary_id = c.customer_id,
+                ua.beneficiary_name = c.name,
+                ua.updated_at = NOW()
+            WHERE ua.beneficiary_id IS NULL
+              AND ht.owner_id IS NOT NULL
+            """;
+
+        int updatedViaHistOwner = jdbcTemplate.update(updateViaHistOwnerSql);
+        log.info("  ✓ Updated {} allocations via historical_transactions.owner_id", updatedViaHistOwner);
+        result.put("allocationsUpdatedViaHistOwner", updatedViaHistOwner);
+
+        // Step 3: Update unified_allocations via payment_batch
+        String updateViaBatchSql = """
+            UPDATE unified_allocations ua
+            JOIN payment_batches pb
+                ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
+            SET ua.beneficiary_id = pb.beneficiary_id,
+                ua.updated_at = NOW()
+            WHERE ua.beneficiary_id IS NULL
+              AND pb.beneficiary_id IS NOT NULL
+            """;
+
+        int updatedViaBatch = jdbcTemplate.update(updateViaBatchSql);
+        log.info("  ✓ Updated {} allocations via payment_batch link", updatedViaBatch);
+        result.put("allocationsUpdatedViaBatch", updatedViaBatch);
+
+        // Step 4: Update payment_batches.beneficiary_id from payprop_report_all_payments
+        String updateBatchesSql = """
+            UPDATE payment_batches pb
+            JOIN (
+                SELECT DISTINCT
+                    prap.payment_batch_id,
+                    c.customer_id
+                FROM payprop_report_all_payments prap
+                JOIN customers c
+                    ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = c.payprop_entity_id COLLATE utf8mb4_unicode_ci
+                WHERE prap.beneficiary_type = 'beneficiary'
+                  AND prap.payment_batch_id IS NOT NULL
+            ) matched
+                ON pb.batch_id COLLATE utf8mb4_unicode_ci = matched.payment_batch_id COLLATE utf8mb4_unicode_ci
+            SET pb.beneficiary_id = matched.customer_id,
+                pb.updated_at = NOW()
+            WHERE pb.beneficiary_id IS NULL
+            """;
+
+        int batchesUpdated = jdbcTemplate.update(updateBatchesSql);
+        log.info("  ✓ Updated {} payment_batches with beneficiary_id", batchesUpdated);
+        result.put("batchesUpdated", batchesUpdated);
+
+        // Get remaining counts
+        String remainingAllocSql = "SELECT COUNT(*) FROM unified_allocations WHERE beneficiary_id IS NULL";
+        Integer remainingAllocs = jdbcTemplate.queryForObject(remainingAllocSql, Integer.class);
+        result.put("remainingAllocationsWithoutBeneficiary", remainingAllocs);
+
+        String remainingBatchSql = "SELECT COUNT(*) FROM payment_batches WHERE beneficiary_id IS NULL";
+        Integer remainingBatches = jdbcTemplate.queryForObject(remainingBatchSql, Integer.class);
+        result.put("remainingBatchesWithoutBeneficiary", remainingBatches);
+
+        int totalUpdated = updatedViaPrap + updatedViaProperty + updatedViaHistOwner + updatedViaBatch + batchesUpdated;
+        result.put("totalUpdated", totalUpdated);
+
+        log.info("✅ Beneficiary linkage fix complete: {} total updates, {} allocations and {} batches still without beneficiary",
+                totalUpdated, remainingAllocs, remainingBatches);
+
+        return result;
+    }
+
+    /**
+     * Link customers to PayProp beneficiaries by matching names.
+     *
+     * This updates customer.payprop_entity_id for customers that exist but aren't linked to PayProp.
+     * Should be run before fixBeneficiaryLinkage() if customers were created before PayProp sync.
+     *
+     * @return Map containing counts of links made
+     */
+    @Transactional
+    public Map<String, Object> linkCustomersToPayPropBeneficiaries() {
+        log.info("🔗 Linking customers to PayProp beneficiaries by name...");
+        Map<String, Object> result = new HashMap<>();
+
+        // Link customers by exact name match
+        String linkByNameSql = """
+            UPDATE customers c
+            JOIN (
+                SELECT DISTINCT
+                    prap.beneficiary_payprop_id,
+                    prap.beneficiary_name
+                FROM payprop_report_all_payments prap
+                LEFT JOIN customers c_existing
+                    ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = c_existing.payprop_entity_id COLLATE utf8mb4_unicode_ci
+                WHERE prap.beneficiary_type = 'beneficiary'
+                  AND prap.beneficiary_payprop_id IS NOT NULL
+                  AND c_existing.customer_id IS NULL
+            ) unlinked ON LOWER(TRIM(c.name)) = LOWER(TRIM(unlinked.beneficiary_name))
+            SET c.payprop_entity_id = unlinked.beneficiary_payprop_id,
+                c.payprop_synced = 1,
+                c.payprop_last_sync = NOW()
+            WHERE c.payprop_entity_id IS NULL OR c.payprop_entity_id = ''
+            """;
+
+        int linkedByName = jdbcTemplate.update(linkByNameSql);
+        log.info("  ✓ Linked {} customers by exact name match", linkedByName);
+        result.put("linkedByExactName", linkedByName);
+
+        // Get remaining unlinked beneficiaries count
+        String remainingSql = """
+            SELECT COUNT(DISTINCT prap.beneficiary_payprop_id)
+            FROM payprop_report_all_payments prap
+            LEFT JOIN customers c
+                ON prap.beneficiary_payprop_id COLLATE utf8mb4_unicode_ci = c.payprop_entity_id COLLATE utf8mb4_unicode_ci
+            WHERE prap.beneficiary_type = 'beneficiary'
+              AND prap.beneficiary_payprop_id IS NOT NULL
+              AND c.customer_id IS NULL
+            """;
+
+        Integer remaining = jdbcTemplate.queryForObject(remainingSql, Integer.class);
+        result.put("remainingUnlinkedBeneficiaries", remaining);
+
+        log.info("✅ Customer linking complete: {} linked, {} still unlinked", linkedByName, remaining);
+
+        return result;
+    }
 }

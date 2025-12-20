@@ -2931,18 +2931,13 @@ public class ExcelStatementGeneratorService {
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        // ===== PAYMENT RECONCILIATION SECTION (Using collected batch data) =====
+        // ===== PAYMENT RECONCILIATION SECTION =====
+        // Shows all batches that have ANY allocation from transactions in this period
         // Add blank rows for separation
         rowNum += 3;
 
-        // Collect unique batch IDs from the main table data
-        java.util.Set<String> uniqueBatchIds = allBatchesForReconciliation.stream()
-            .map(b -> b.getBatchId())
-            .filter(id -> id != null && !id.isEmpty())
-            .collect(java.util.stream.Collectors.toSet());
-
-        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, Unique batch IDs: {}",
-            sheetName, period.periodStart, period.periodEnd, uniqueBatchIds);
+        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, Customer {}",
+            sheetName, period.periodStart, period.periodEnd, customerId);
 
         // Section header
         Row reconcileHeaderRow = sheet.createRow(rowNum++);
@@ -2955,291 +2950,175 @@ public class ExcelStatementGeneratorService {
 
         rowNum++; // Blank row
 
-        // Collect B/F (brought forward) and this period items
-        java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation> bfIncomeItems = new ArrayList<>();
-        java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation> bfExpenseItems = new ArrayList<>();
-        java.math.BigDecimal bfIncome = java.math.BigDecimal.ZERO;
-        java.math.BigDecimal bfExpense = java.math.BigDecimal.ZERO;
-        java.math.BigDecimal periodIncome = java.math.BigDecimal.ZERO;
-        java.math.BigDecimal periodExpense = java.math.BigDecimal.ZERO;
-        int periodIncomeCount = 0;
-        int periodExpenseCount = 0;
+        // Get all batches that have allocations from transactions in this period
+        List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> batchStatuses =
+            dataExtractService.getBatchesWithPeriodAllocations(customerId, period.periodStart, period.periodEnd);
 
-        // Map to store allocations by batch for detailed payment section
-        java.util.Map<String, java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation>> allocationsByBatch = new java.util.LinkedHashMap<>();
-        java.util.Map<String, LocalDate> batchPaymentDates = new java.util.HashMap<>();
+        log.info("Found {} batches with period allocations", batchStatuses.size());
 
-        // For each batch ID, get all allocations
-        for (String batchId : uniqueBatchIds) {
-            java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation> allocations =
-                dataExtractService.getAllocationsForBatch(batchId);
+        // Calculate totals
+        java.math.BigDecimal totalFromPriorPeriods = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalFromThisPeriod = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal totalPaymentsMade = java.math.BigDecimal.ZERO;
+        int priorCount = 0;
+        int thisPeriodCount = 0;
 
-            if (!allocations.isEmpty()) {
-                allocationsByBatch.put(batchId, allocations);
-
-                // Get payment date from first allocation
-                for (site.easy.to.build.crm.entity.UnifiedAllocation alloc : allocations) {
-                    if (alloc.getPaidDate() != null) {
-                        batchPaymentDates.put(batchId, alloc.getPaidDate());
-                        break;
-                    }
-                }
-
-                // Classify each allocation
-                for (site.easy.to.build.crm.entity.UnifiedAllocation alloc : allocations) {
-                    boolean isExpense = alloc.getAllocationType() == site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType.EXPENSE
-                        || alloc.getAllocationType() == site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType.COMMISSION;
-                    java.math.BigDecimal amount = alloc.getAmount() != null ? alloc.getAmount().abs() : java.math.BigDecimal.ZERO;
-
-                    // Determine transaction date (need to look up from linked transaction)
-                    LocalDate txnDate = dataExtractService.getTransactionDateForAllocation(alloc);
-
-                    if (txnDate != null && txnDate.isBefore(period.periodStart)) {
-                        // B/F item
-                        if (isExpense) {
-                            bfExpenseItems.add(alloc);
-                            bfExpense = bfExpense.add(amount);
-                        } else if (alloc.getAllocationType() == site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType.OWNER) {
-                            bfIncomeItems.add(alloc);
-                            bfIncome = bfIncome.add(amount);
-                        }
-                    } else {
-                        // This period
-                        if (isExpense) {
-                            periodExpense = periodExpense.add(amount);
-                            periodExpenseCount++;
-                        } else if (alloc.getAllocationType() == site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType.OWNER) {
-                            periodIncome = periodIncome.add(amount);
-                            periodIncomeCount++;
-                        }
-                    }
-                }
-            }
+        for (site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batch : batchStatuses) {
+            totalFromPriorPeriods = totalFromPriorPeriods.add(batch.getAllocatedFromPriorPeriods());
+            totalFromThisPeriod = totalFromThisPeriod.add(batch.getAllocatedFromThisPeriod());
+            totalPaymentsMade = totalPaymentsMade.add(batch.getNetToOwner());
+            priorCount += batch.getPriorPeriodAllocations();
+            thisPeriodCount += batch.getThisPeriodAllocations();
         }
 
-        // ===== BROUGHT FORWARD SECTION =====
-        Row bfHeaderRow = sheet.createRow(rowNum++);
-        Cell bfHeaderCell = bfHeaderRow.createCell(0);
-        bfHeaderCell.setCellValue("BROUGHT FORWARD (items from prior periods paid this period)");
-        bfHeaderCell.setCellStyle(styles.boldStyle);
+        // ===== ALLOCATION STATUS SUMMARY =====
+        Row statusHeaderRow = sheet.createRow(rowNum++);
+        Cell statusHeaderCell = statusHeaderRow.createCell(0);
+        statusHeaderCell.setCellValue("ALLOCATION STATUS");
+        statusHeaderCell.setCellStyle(styles.boldStyle);
 
-        // B/F Income
-        if (!bfIncomeItems.isEmpty()) {
-            Row bfIncomeHeaderRow = sheet.createRow(rowNum++);
-            bfIncomeHeaderRow.createCell(0).setCellValue("  Prior Period Income:");
+        // Get full allocation status summary
+        Map<String, Object> allocationSummary = dataExtractService.getAllocationStatusSummary(
+            customerId, period.periodStart, period.periodEnd);
 
-            for (site.easy.to.build.crm.entity.UnifiedAllocation item : bfIncomeItems) {
-                LocalDate txnDate = dataExtractService.getTransactionDateForAllocation(item);
-                Row itemRow = sheet.createRow(rowNum++);
-                String itemDesc = String.format("    %s | %s | %s | Batch: %s",
-                    txnDate != null ? txnDate.toString() : "N/A",
-                    item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
-                    item.getCategory() != null ? item.getCategory() : "rent",
-                    item.getPaymentBatchId() != null ? item.getPaymentBatchId() : "N/A");
-                itemRow.createCell(0).setCellValue(itemDesc);
-                Cell itemAmtCell = itemRow.createCell(1);
-                itemAmtCell.setCellValue(item.getAmount() != null ? item.getAmount().abs().doubleValue() : 0);
-                itemAmtCell.setCellStyle(styles.currencyStyle);
-            }
+        Map<String, Object> priorAllocated = (Map<String, Object>) allocationSummary.get("allocatedBeforePeriod");
+        Map<String, Object> periodAllocated = (Map<String, Object>) allocationSummary.get("allocatedDuringPeriod");
+        Map<String, Object> unallocated = (Map<String, Object>) allocationSummary.get("unallocatedAtEnd");
 
-            Row bfIncomeTotalRow = sheet.createRow(rowNum++);
-            Cell bfIncomeTotalLabel = bfIncomeTotalRow.createCell(0);
-            bfIncomeTotalLabel.setCellValue("  Prior Period Income Total (" + bfIncomeItems.size() + " items):");
-            bfIncomeTotalLabel.setCellStyle(styles.boldStyle);
-            Cell bfIncomeTotalCell = bfIncomeTotalRow.createCell(1);
-            bfIncomeTotalCell.setCellValue(bfIncome.doubleValue());
-            bfIncomeTotalCell.setCellStyle(styles.boldCurrencyStyle);
-        } else {
-            Row noIncomeRow = sheet.createRow(rowNum++);
-            noIncomeRow.createCell(0).setCellValue("  Prior Period Income: None");
-        }
+        Row allocStartRow = sheet.createRow(rowNum++);
+        allocStartRow.createCell(0).setCellValue("  Allocated before period start:");
+        Cell allocStartCell = allocStartRow.createCell(1);
+        allocStartCell.setCellValue(((Number) priorAllocated.get("amount")).doubleValue());
+        allocStartCell.setCellStyle(styles.currencyStyle);
+        allocStartRow.createCell(2).setCellValue("(" + priorAllocated.get("count") + " items)");
 
-        // B/F Expenses
-        if (!bfExpenseItems.isEmpty()) {
-            Row bfExpenseHeaderRow = sheet.createRow(rowNum++);
-            bfExpenseHeaderRow.createCell(0).setCellValue("  Prior Period Expenses:");
+        Row allocPeriodRow = sheet.createRow(rowNum++);
+        allocPeriodRow.createCell(0).setCellValue("  Allocated during this period:");
+        Cell allocPeriodCell = allocPeriodRow.createCell(1);
+        allocPeriodCell.setCellValue(((Number) periodAllocated.get("amount")).doubleValue());
+        allocPeriodCell.setCellStyle(styles.currencyStyle);
+        allocPeriodRow.createCell(2).setCellValue("(" + periodAllocated.get("count") + " items)");
 
-            for (site.easy.to.build.crm.entity.UnifiedAllocation item : bfExpenseItems) {
-                LocalDate txnDate = dataExtractService.getTransactionDateForAllocation(item);
-                Row itemRow = sheet.createRow(rowNum++);
-                String itemDesc = String.format("    %s | %s | %s | Batch: %s",
-                    txnDate != null ? txnDate.toString() : "N/A",
-                    item.getPropertyName() != null ? item.getPropertyName() : "Unknown",
-                    item.getCategory() != null ? item.getCategory() : "expense",
-                    item.getPaymentBatchId() != null ? item.getPaymentBatchId() : "N/A");
-                itemRow.createCell(0).setCellValue(itemDesc);
-                Cell itemAmtCell = itemRow.createCell(1);
-                itemAmtCell.setCellValue(item.getAmount() != null ? item.getAmount().abs().doubleValue() : 0);
-                itemAmtCell.setCellStyle(styles.currencyStyle);
-            }
-
-            Row bfExpenseTotalRow = sheet.createRow(rowNum++);
-            Cell bfExpenseTotalLabel = bfExpenseTotalRow.createCell(0);
-            bfExpenseTotalLabel.setCellValue("  Prior Period Expenses Total (" + bfExpenseItems.size() + " items):");
-            bfExpenseTotalLabel.setCellStyle(styles.boldStyle);
-            Cell bfExpenseTotalCell = bfExpenseTotalRow.createCell(1);
-            bfExpenseTotalCell.setCellValue(bfExpense.doubleValue());
-            bfExpenseTotalCell.setCellStyle(styles.boldCurrencyStyle);
-        } else {
-            Row noExpenseRow = sheet.createRow(rowNum++);
-            noExpenseRow.createCell(0).setCellValue("  Prior Period Expenses: None");
-        }
-
-        // Net B/F
-        java.math.BigDecimal netBf = bfIncome.subtract(bfExpense);
-        Row bfNetRow = sheet.createRow(rowNum++);
-        Cell bfNetLabel = bfNetRow.createCell(0);
-        bfNetLabel.setCellValue("  NET B/F (Income - Expenses):");
-        bfNetLabel.setCellStyle(styles.boldStyle);
-        Cell bfNetCell = bfNetRow.createCell(1);
-        bfNetCell.setCellValue(netBf.doubleValue());
-        bfNetCell.setCellStyle(styles.boldCurrencyStyle);
+        Row unallocRow = sheet.createRow(rowNum++);
+        Cell unallocLabel = unallocRow.createCell(0);
+        unallocLabel.setCellValue("  Unallocated at period end:");
+        unallocLabel.setCellStyle(styles.boldStyle);
+        Cell unallocCell = unallocRow.createCell(1);
+        unallocCell.setCellValue(((Number) unallocated.get("amount")).doubleValue());
+        unallocCell.setCellStyle(styles.boldCurrencyStyle);
+        unallocRow.createCell(2).setCellValue("(" + unallocated.get("count") + " items)");
 
         rowNum++; // Blank row
 
-        // ===== THIS PERIOD ACTIVITY =====
-        Row activityHeaderRow = sheet.createRow(rowNum++);
-        Cell activityHeaderCell = activityHeaderRow.createCell(0);
-        activityHeaderCell.setCellValue("THIS PERIOD ACTIVITY (see transactions above for details)");
-        activityHeaderCell.setCellStyle(styles.boldStyle);
-
-        Row incomeRow = sheet.createRow(rowNum++);
-        incomeRow.createCell(0).setCellValue("  Period Income (" + periodIncomeCount + " transactions)");
-        Cell incomeCell = incomeRow.createCell(1);
-        incomeCell.setCellValue(periodIncome.doubleValue());
-        incomeCell.setCellStyle(styles.currencyStyle);
-
-        Row expenseRow = sheet.createRow(rowNum++);
-        expenseRow.createCell(0).setCellValue("  Period Expenses (" + periodExpenseCount + " transactions)");
-        Cell expenseCell = expenseRow.createCell(1);
-        expenseCell.setCellValue(periodExpense.doubleValue());
-        expenseCell.setCellStyle(styles.currencyStyle);
-
-        java.math.BigDecimal netActivity = periodIncome.subtract(periodExpense);
-        Row activityNetRow = sheet.createRow(rowNum++);
-        Cell activityNetLabel = activityNetRow.createCell(0);
-        activityNetLabel.setCellValue("  Net Activity (Income - Expenses):");
-        activityNetLabel.setCellStyle(styles.boldStyle);
-        Cell activityNetCell = activityNetRow.createCell(1);
-        activityNetCell.setCellValue(netActivity.doubleValue());
-        activityNetCell.setCellStyle(styles.boldCurrencyStyle);
-
-        rowNum++; // Blank row
-
-        // ===== PAYMENTS MADE THIS PERIOD (detailed) =====
+        // ===== OWNER PAYMENTS THIS PERIOD (detailed) =====
+        // Shows all batches that include any transactions from this period
         Row paymentsHeaderRow = sheet.createRow(rowNum++);
         Cell paymentsHeaderCell = paymentsHeaderRow.createCell(0);
-        paymentsHeaderCell.setCellValue("PAYMENTS MADE THIS PERIOD");
+        paymentsHeaderCell.setCellValue("OWNER PAYMENTS THIS PERIOD");
         paymentsHeaderCell.setCellStyle(styles.boldStyle);
 
-        java.math.BigDecimal totalPaymentsMade = java.math.BigDecimal.ZERO;
+        Row paymentsSubHeaderRow = sheet.createRow(rowNum++);
+        paymentsSubHeaderRow.createCell(0).setCellValue("(Batches containing allocations from transactions in this period)");
 
-        if (allocationsByBatch.isEmpty()) {
+        rowNum++; // Blank row
+
+        // Table headers
+        Row tableHeaderRow = sheet.createRow(rowNum++);
+        String[] paymentHeaders = {"Batch ID", "Payment Date", "Status", "Gross Income", "Commission", "Expenses",
+                                   "Net to Owner", "From Prior Periods", "From This Period"};
+        for (int i = 0; i < paymentHeaders.length; i++) {
+            Cell headerCell = tableHeaderRow.createCell(i);
+            headerCell.setCellValue(paymentHeaders[i]);
+            headerCell.setCellStyle(styles.headerStyle);
+        }
+
+        if (batchStatuses.isEmpty()) {
             Row noPaymentsRow = sheet.createRow(rowNum++);
-            noPaymentsRow.createCell(0).setCellValue("  (No payments made this period)");
+            noPaymentsRow.createCell(0).setCellValue("(No payments linked to transactions from this period)");
         } else {
-            for (java.util.Map.Entry<String, java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation>> entry : allocationsByBatch.entrySet()) {
-                String batchId = entry.getKey();
-                java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation> allocations = entry.getValue();
-                LocalDate paymentDate = batchPaymentDates.get(batchId);
+            for (site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batch : batchStatuses) {
+                Row batchRow = sheet.createRow(rowNum++);
 
-                // Calculate batch totals
-                java.math.BigDecimal batchIncome = java.math.BigDecimal.ZERO;
-                java.math.BigDecimal batchExpenses = java.math.BigDecimal.ZERO;
-                java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation> incomeAllocations = new ArrayList<>();
-                java.util.List<site.easy.to.build.crm.entity.UnifiedAllocation> expenseAllocations = new ArrayList<>();
+                // Batch ID
+                batchRow.createCell(0).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "Unknown");
 
-                for (site.easy.to.build.crm.entity.UnifiedAllocation alloc : allocations) {
-                    java.math.BigDecimal amount = alloc.getAmount() != null ? alloc.getAmount().abs() : java.math.BigDecimal.ZERO;
-                    if (alloc.getAllocationType() == site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType.OWNER) {
-                        batchIncome = batchIncome.add(amount);
-                        incomeAllocations.add(alloc);
-                    } else if (alloc.getAllocationType() == site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType.EXPENSE
-                            || alloc.getAllocationType() == site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType.COMMISSION) {
-                        batchExpenses = batchExpenses.add(amount);
-                        expenseAllocations.add(alloc);
-                    }
-                }
+                // Payment Date
+                batchRow.createCell(1).setCellValue(batch.getPaymentDate() != null ? batch.getPaymentDate().toString() : "Pending");
 
-                java.math.BigDecimal batchNet = batchIncome.subtract(batchExpenses);
-                totalPaymentsMade = totalPaymentsMade.add(batchNet);
+                // Status
+                batchRow.createCell(2).setCellValue(batch.getStatus() != null ? batch.getStatus() : "UNKNOWN");
 
-                // Batch header
-                Row batchHeaderRowDetail = sheet.createRow(rowNum++);
-                String batchHeaderText = String.format("  %s (%s)", batchId,
-                    paymentDate != null ? paymentDate.toString() : "date unknown");
-                batchHeaderRowDetail.createCell(0).setCellValue(batchHeaderText);
-                Cell batchNetCell = batchHeaderRowDetail.createCell(1);
-                batchNetCell.setCellValue(batchNet.doubleValue());
-                batchNetCell.setCellStyle(styles.boldCurrencyStyle);
+                // Gross Income
+                Cell grossCell = batchRow.createCell(3);
+                grossCell.setCellValue(batch.getGrossIncome().doubleValue());
+                grossCell.setCellStyle(styles.currencyStyle);
 
-                // Income allocations
-                if (!incomeAllocations.isEmpty()) {
-                    Row incomeHeaderRow = sheet.createRow(rowNum++);
-                    incomeHeaderRow.createCell(0).setCellValue("    Income:");
+                // Commission
+                Cell commCell = batchRow.createCell(4);
+                commCell.setCellValue(batch.getCommission().doubleValue());
+                commCell.setCellStyle(styles.currencyStyle);
 
-                    for (site.easy.to.build.crm.entity.UnifiedAllocation alloc : incomeAllocations) {
-                        LocalDate txnDate = dataExtractService.getTransactionDateForAllocation(alloc);
-                        boolean isPartial = dataExtractService.isPartialAllocation(alloc);
-                        boolean isBf = txnDate != null && txnDate.isBefore(period.periodStart);
+                // Expenses
+                Cell expCell = batchRow.createCell(5);
+                expCell.setCellValue(batch.getExpenses().doubleValue());
+                expCell.setCellStyle(styles.currencyStyle);
 
-                        Row allocRow = sheet.createRow(rowNum++);
-                        StringBuilder allocDesc = new StringBuilder();
-                        allocDesc.append("      ");
-                        allocDesc.append(txnDate != null ? txnDate.toString() : "N/A");
-                        allocDesc.append(" | ");
-                        allocDesc.append(alloc.getPropertyName() != null ? alloc.getPropertyName() : "Unknown");
-                        allocDesc.append(" | ");
-                        allocDesc.append(alloc.getCategory() != null ? alloc.getCategory() : "rent");
-                        if (isPartial) allocDesc.append(" [PARTIAL]");
-                        if (isBf) allocDesc.append(" [B/F]");
-                        allocRow.createCell(0).setCellValue(allocDesc.toString());
-                        Cell allocAmtCell = allocRow.createCell(1);
-                        allocAmtCell.setCellValue(alloc.getAmount() != null ? alloc.getAmount().abs().doubleValue() : 0);
-                        allocAmtCell.setCellStyle(styles.currencyStyle);
-                    }
+                // Net to Owner
+                Cell netCell = batchRow.createCell(6);
+                netCell.setCellValue(batch.getNetToOwner().doubleValue());
+                netCell.setCellStyle(styles.boldCurrencyStyle);
 
-                    Row incomeSubtotalRow = sheet.createRow(rowNum++);
-                    incomeSubtotalRow.createCell(0).setCellValue("    Income Subtotal:");
-                    Cell incomeSubtotalCell = incomeSubtotalRow.createCell(1);
-                    incomeSubtotalCell.setCellValue(batchIncome.doubleValue());
-                    incomeSubtotalCell.setCellStyle(styles.currencyStyle);
-                }
+                // From Prior Periods
+                Cell priorCell = batchRow.createCell(7);
+                priorCell.setCellValue(batch.getAllocatedFromPriorPeriods().doubleValue());
+                priorCell.setCellStyle(styles.currencyStyle);
 
-                // Expense allocations
-                if (!expenseAllocations.isEmpty()) {
-                    Row expenseHeaderRow = sheet.createRow(rowNum++);
-                    expenseHeaderRow.createCell(0).setCellValue("    Expenses:");
-
-                    for (site.easy.to.build.crm.entity.UnifiedAllocation alloc : expenseAllocations) {
-                        LocalDate txnDate = dataExtractService.getTransactionDateForAllocation(alloc);
-
-                        Row allocRow = sheet.createRow(rowNum++);
-                        StringBuilder allocDesc = new StringBuilder();
-                        allocDesc.append("      ");
-                        allocDesc.append(txnDate != null ? txnDate.toString() : "N/A");
-                        allocDesc.append(" | ");
-                        allocDesc.append(alloc.getPropertyName() != null ? alloc.getPropertyName() : "Unknown");
-                        allocDesc.append(" | ");
-                        allocDesc.append(alloc.getCategory() != null ? alloc.getCategory() : "expense");
-                        allocRow.createCell(0).setCellValue(allocDesc.toString());
-                        Cell allocAmtCell = allocRow.createCell(1);
-                        allocAmtCell.setCellValue(alloc.getAmount() != null ? alloc.getAmount().abs().doubleValue() : 0);
-                        allocAmtCell.setCellStyle(styles.currencyStyle);
-                    }
-
-                    Row expenseSubtotalRow = sheet.createRow(rowNum++);
-                    expenseSubtotalRow.createCell(0).setCellValue("    Expenses Subtotal:");
-                    Cell expenseSubtotalCell = expenseSubtotalRow.createCell(1);
-                    expenseSubtotalCell.setCellValue(batchExpenses.doubleValue());
-                    expenseSubtotalCell.setCellStyle(styles.currencyStyle);
-                }
-
-                // Net line
-                Row netLineRow = sheet.createRow(rowNum++);
-                netLineRow.createCell(0).setCellValue(String.format("    Net: £%.2f (Income £%.2f - Expenses £%.2f)",
-                    batchNet.doubleValue(), batchIncome.doubleValue(), batchExpenses.doubleValue()));
+                // From This Period
+                Cell thisCell = batchRow.createCell(8);
+                thisCell.setCellValue(batch.getAllocatedFromThisPeriod().doubleValue());
+                thisCell.setCellStyle(styles.currencyStyle);
             }
+
+            // Totals row
+            Row totalsRow = sheet.createRow(rowNum++);
+            Cell totalsLabel = totalsRow.createCell(0);
+            totalsLabel.setCellValue("TOTALS");
+            totalsLabel.setCellStyle(styles.boldStyle);
+
+            // Skip to column 6 for net total
+            java.math.BigDecimal totalGross = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal totalComm = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal totalExp = java.math.BigDecimal.ZERO;
+
+            for (site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO batch : batchStatuses) {
+                totalGross = totalGross.add(batch.getGrossIncome());
+                totalComm = totalComm.add(batch.getCommission());
+                totalExp = totalExp.add(batch.getExpenses());
+            }
+
+            Cell totalGrossCell = totalsRow.createCell(3);
+            totalGrossCell.setCellValue(totalGross.doubleValue());
+            totalGrossCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalCommCell = totalsRow.createCell(4);
+            totalCommCell.setCellValue(totalComm.doubleValue());
+            totalCommCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalExpCell = totalsRow.createCell(5);
+            totalExpCell.setCellValue(totalExp.doubleValue());
+            totalExpCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalNetCell = totalsRow.createCell(6);
+            totalNetCell.setCellValue(totalPaymentsMade.doubleValue());
+            totalNetCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalPriorCell = totalsRow.createCell(7);
+            totalPriorCell.setCellValue(totalFromPriorPeriods.doubleValue());
+            totalPriorCell.setCellStyle(styles.boldCurrencyStyle);
+
+            Cell totalThisCell = totalsRow.createCell(8);
+            totalThisCell.setCellValue(totalFromThisPeriod.doubleValue());
+            totalThisCell.setCellStyle(styles.boldCurrencyStyle);
         }
 
         rowNum++; // Blank row
