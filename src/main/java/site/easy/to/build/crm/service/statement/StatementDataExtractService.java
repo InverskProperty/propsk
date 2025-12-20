@@ -2404,84 +2404,122 @@ public class StatementDataExtractService {
      * Extract payments made within a period with their allocation details.
      * Shows what each payment covered (which income/expenses).
      *
-     * NOTE: Changed to query unified_allocations grouped by payment_batch_id instead of
-     * querying payment_batches directly, because PayProp imported batches may not have
-     * corresponding records in payment_batches table, or may have incorrect beneficiary_id.
+     * REWRITTEN: Simpler approach using historical_transactions.owner_id and property assignments.
+     * The query now:
+     * 1. First finds all properties owned by this customer
+     * 2. Then finds all allocations for those properties where paid_date is in range
+     * 3. Groups by payment_batch_id
      */
     public List<PaymentWithAllocationsDTO> extractPaymentsWithAllocationsInPeriod(
             Long customerId, LocalDate startDate, LocalDate endDate, LocalDate periodStart) {
-        log.info("Extracting payments with allocations for customer {} from {} to {}", customerId, startDate, endDate);
+        log.info("RECONCILIATION: Extracting payments for customer {} from {} to {}", customerId, startDate, endDate);
 
         List<PaymentWithAllocationsDTO> result = new ArrayList<>();
 
-        // Query unified_allocations grouped by payment_batch_id for this owner's properties
-        // This captures both PayProp batches (which may not exist in payment_batches table)
-        // and manual batches
-        // NOTE: Historical allocations may have NULL beneficiary_id, so we also match by property owner
-        String paymentSql = """
-            SELECT
-                ua.payment_batch_id as batch_id,
-                ua.paid_date as payment_date,
-                SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_income,
-                SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION') THEN ABS(ua.amount) ELSE 0 END) as total_deductions,
-                MAX(pb.status) as status,
-                MAX(pb.payment_reference) as payment_reference
-            FROM unified_allocations ua
-            LEFT JOIN payment_batches pb ON ua.payment_batch_id = pb.batch_id
-            LEFT JOIN customer_property_assignments cpa ON ua.property_id = cpa.property_id
-                AND cpa.assignment_type IN ('OWNER', 'MANAGER')
-            WHERE (ua.beneficiary_id = ? OR cpa.customer_id = ?)
-              AND ua.paid_date >= ?
-              AND ua.paid_date <= ?
-              AND ua.payment_batch_id IS NOT NULL
-              AND ua.allocation_type IN ('OWNER', 'EXPENSE', 'COMMISSION')
-            GROUP BY ua.payment_batch_id, ua.paid_date
-            ORDER BY ua.paid_date, ua.payment_batch_id
-        """;
-
         try {
-            log.info("RECONCILIATION DEBUG: Querying unified_allocations for beneficiary_id={}, paid_date between {} and {}",
-                customerId, startDate, endDate);
+            // STEP 1: Debug - check what data exists in unified_allocations
+            log.info("RECONCILIATION DEBUG: Checking unified_allocations table structure...");
 
-            // Debug: Check what allocations exist for this customer
-            String debugSql = """
-                SELECT COUNT(*) as cnt,
-                       SUM(CASE WHEN payment_batch_id IS NOT NULL THEN 1 ELSE 0 END) as with_batch,
-                       SUM(CASE WHEN paid_date IS NOT NULL THEN 1 ELSE 0 END) as with_paid_date
-                FROM unified_allocations
-                WHERE beneficiary_id = ?
+            String countAllSql = "SELECT COUNT(*) FROM unified_allocations WHERE payment_batch_id IS NOT NULL AND paid_date IS NOT NULL";
+            Integer totalAllocations = jdbcTemplate.queryForObject(countAllSql, Integer.class);
+            log.info("RECONCILIATION DEBUG: Total allocations with batch and paid_date: {}", totalAllocations);
+
+            // Check allocations in date range (any owner)
+            String countInRangeSql = "SELECT COUNT(*) FROM unified_allocations WHERE payment_batch_id IS NOT NULL AND paid_date >= ? AND paid_date <= ?";
+            Integer allocsInRange = jdbcTemplate.queryForObject(countInRangeSql, Integer.class, startDate, endDate);
+            log.info("RECONCILIATION DEBUG: Allocations in date range {} to {}: {}", startDate, endDate, allocsInRange);
+
+            // Check what beneficiary_ids exist
+            String beneficiariesSql = "SELECT DISTINCT beneficiary_id FROM unified_allocations WHERE payment_batch_id IS NOT NULL LIMIT 10";
+            List<Map<String, Object>> beneficiaries = jdbcTemplate.queryForList(beneficiariesSql);
+            log.info("RECONCILIATION DEBUG: Distinct beneficiary_ids: {}", beneficiaries);
+
+            // Check historical_transactions owner_id
+            String ownerIdsSql = "SELECT DISTINCT owner_id FROM historical_transactions WHERE owner_id IS NOT NULL LIMIT 10";
+            List<Map<String, Object>> ownerIds = jdbcTemplate.queryForList(ownerIdsSql);
+            log.info("RECONCILIATION DEBUG: Distinct owner_ids in historical_transactions: {}", ownerIds);
+
+            // Get properties for this owner
+            String propertiesSql = """
+                SELECT p.id, p.property_name
+                FROM properties p
+                JOIN customer_property_assignments cpa ON p.id = cpa.property_id
+                WHERE cpa.customer_id = ? AND cpa.assignment_type IN ('OWNER', 'MANAGER')
             """;
-            try {
-                Map<String, Object> debugResult = jdbcTemplate.queryForMap(debugSql, customerId);
-                log.info("RECONCILIATION DEBUG: Total allocations for beneficiary {}: count={}, with_batch={}, with_paid_date={}",
-                    customerId, debugResult.get("cnt"), debugResult.get("with_batch"), debugResult.get("with_paid_date"));
-            } catch (Exception e) {
-                log.warn("RECONCILIATION DEBUG: Error checking allocations: {}", e.getMessage());
+            List<Map<String, Object>> properties = jdbcTemplate.queryForList(propertiesSql, customerId);
+            log.info("RECONCILIATION DEBUG: Properties for customer {}: {}", customerId, properties);
+
+            if (properties.isEmpty()) {
+                log.warn("RECONCILIATION: No properties found for customer {} - checking historical_transactions.owner_id", customerId);
             }
 
-            List<Map<String, Object>> paymentRows = jdbcTemplate.queryForList(paymentSql, customerId, customerId, startDate, endDate);
-            log.info("RECONCILIATION DEBUG: Found {} payment batches for period {} to {}", paymentRows.size(), startDate, endDate);
+            // STEP 2: Query using BOTH beneficiary_id AND historical_transactions.owner_id
+            // This covers:
+            // - Allocations where beneficiary_id is set to the customer
+            // - Allocations linked to historical_transactions where owner_id matches
+            // - Allocations for properties owned by this customer
+            String paymentSql = """
+                SELECT
+                    ua.payment_batch_id as batch_id,
+                    ua.paid_date as payment_date,
+                    SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_income,
+                    SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION') THEN ABS(ua.amount) ELSE 0 END) as total_deductions,
+                    MAX(pb.status) as status,
+                    MAX(pb.payment_reference) as payment_reference
+                FROM unified_allocations ua
+                LEFT JOIN payment_batches pb ON ua.payment_batch_id = pb.batch_id
+                LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+                LEFT JOIN customer_property_assignments cpa ON ua.property_id = cpa.property_id
+                    AND cpa.assignment_type IN ('OWNER', 'MANAGER')
+                WHERE ua.paid_date >= ?
+                  AND ua.paid_date <= ?
+                  AND ua.payment_batch_id IS NOT NULL
+                  AND ua.allocation_type IN ('OWNER', 'EXPENSE', 'COMMISSION')
+                  AND (
+                      ua.beneficiary_id = ?
+                      OR ht.owner_id = ?
+                      OR cpa.customer_id = ?
+                  )
+                GROUP BY ua.payment_batch_id, ua.paid_date
+                ORDER BY ua.paid_date, ua.payment_batch_id
+            """;
+
+            log.info("RECONCILIATION: Executing payment query with customerId={}, startDate={}, endDate={}",
+                customerId, startDate, endDate);
+
+            List<Map<String, Object>> paymentRows = jdbcTemplate.queryForList(paymentSql,
+                startDate, endDate, customerId, customerId, customerId);
+            log.info("RECONCILIATION: Found {} payment batches", paymentRows.size());
 
             for (Map<String, Object> paymentRow : paymentRows) {
                 PaymentWithAllocationsDTO payment = new PaymentWithAllocationsDTO();
                 String batchId = (String) paymentRow.get("batch_id");
                 payment.setBatchId(batchId);
-                payment.setPaymentDate(paymentRow.get("payment_date") != null ?
-                    ((java.sql.Date) paymentRow.get("payment_date")).toLocalDate() : null);
+
+                Object paymentDateObj = paymentRow.get("payment_date");
+                if (paymentDateObj != null) {
+                    if (paymentDateObj instanceof java.sql.Date) {
+                        payment.setPaymentDate(((java.sql.Date) paymentDateObj).toLocalDate());
+                    } else if (paymentDateObj instanceof LocalDate) {
+                        payment.setPaymentDate((LocalDate) paymentDateObj);
+                    }
+                }
+
                 // Calculate net payment from income - deductions
                 BigDecimal totalIncome = paymentRow.get("total_income") != null ?
                     new BigDecimal(paymentRow.get("total_income").toString()) : BigDecimal.ZERO;
                 BigDecimal totalDeductions = paymentRow.get("total_deductions") != null ?
                     new BigDecimal(paymentRow.get("total_deductions").toString()) : BigDecimal.ZERO;
                 payment.setTotalPayment(totalIncome.subtract(totalDeductions));
-                // Status may be null if no payment_batches record exists (PayProp imported batch)
+
                 String status = (String) paymentRow.get("status");
-                payment.setStatus(status != null ? status : "PAID");  // Default to PAID for imported batches
+                payment.setStatus(status != null ? status : "PAID");
                 payment.setPaymentReference((String) paymentRow.get("payment_reference"));
 
-                // Get allocations for this payment from unified_allocations table
-                // Include OWNER (income) and EXPENSE (deductions) - not COMMISSION which goes to agency
-                // Use COALESCE to get transaction_date from historical_transactions or unified_transactions
+                log.info("RECONCILIATION: Processing batch {} - income={}, deductions={}, net={}",
+                    batchId, totalIncome, totalDeductions, payment.getTotalPayment());
+
+                // Get allocations for this batch
                 String allocationSql = """
                     SELECT
                         ua.historical_transaction_id as transaction_id,
@@ -2492,7 +2530,9 @@ public class StatementDataExtractService {
                         ua.amount as allocated_amount,
                         ua.allocation_type,
                         COALESCE(ht.net_to_owner_amount, ht.amount, ut.net_amount) as transaction_total,
-                        (SELECT COUNT(*) FROM unified_allocations WHERE historical_transaction_id = ua.historical_transaction_id AND payment_batch_id IS NOT NULL) as allocation_count
+                        (SELECT COUNT(*) FROM unified_allocations ua2
+                         WHERE ua2.historical_transaction_id = ua.historical_transaction_id
+                         AND ua2.payment_batch_id IS NOT NULL) as allocation_count
                     FROM unified_allocations ua
                     LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
                     LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
@@ -2503,8 +2543,6 @@ public class StatementDataExtractService {
                 """;
 
                 List<Map<String, Object>> allocationRows = jdbcTemplate.queryForList(allocationSql, batchId);
-                BigDecimal totalAllocated = BigDecimal.ZERO;
-
                 BigDecimal allocatedIncome = BigDecimal.ZERO;
                 BigDecimal allocatedExpenses = BigDecimal.ZERO;
 
@@ -2512,8 +2550,16 @@ public class StatementDataExtractService {
                     PaymentWithAllocationsDTO.AllocationLineDTO line = new PaymentWithAllocationsDTO.AllocationLineDTO();
                     line.setTransactionId(allocRow.get("transaction_id") != null ?
                         ((Number) allocRow.get("transaction_id")).longValue() : null);
-                    line.setTransactionDate(allocRow.get("transaction_date") != null ?
-                        ((java.sql.Date) allocRow.get("transaction_date")).toLocalDate() : null);
+
+                    Object txnDateObj = allocRow.get("transaction_date");
+                    if (txnDateObj != null) {
+                        if (txnDateObj instanceof java.sql.Date) {
+                            line.setTransactionDate(((java.sql.Date) txnDateObj).toLocalDate());
+                        } else if (txnDateObj instanceof LocalDate) {
+                            line.setTransactionDate((LocalDate) txnDateObj);
+                        }
+                    }
+
                     line.setPropertyName((String) allocRow.get("property_name"));
                     line.setCategory((String) allocRow.get("category"));
                     line.setDescription((String) allocRow.get("description"));
@@ -2521,24 +2567,19 @@ public class StatementDataExtractService {
                         new BigDecimal(allocRow.get("allocated_amount").toString()) : BigDecimal.ZERO;
                     line.setAllocatedAmount(allocAmount);
 
-                    // Set allocation type from unified_allocations
                     String allocType = (String) allocRow.get("allocation_type");
                     line.setAllocationType(allocType);
 
-                    // Check if partial allocation
                     int allocationCount = allocRow.get("allocation_count") != null ?
                         ((Number) allocRow.get("allocation_count")).intValue() : 1;
                     line.setPartial(allocationCount > 1);
 
-                    // Check if from prior period
                     if (line.getTransactionDate() != null && periodStart != null) {
                         line.setFromPriorPeriod(line.getTransactionDate().isBefore(periodStart));
                     }
 
-                    // Set batch ID so each allocation knows which batch it belongs to
                     line.setBatchId(batchId);
 
-                    // Track income vs expenses separately
                     if ("EXPENSE".equals(allocType)) {
                         allocatedExpenses = allocatedExpenses.add(allocAmount.abs());
                     } else {
@@ -2547,19 +2588,18 @@ public class StatementDataExtractService {
                     payment.addAllocation(line);
                 }
 
-                // Total allocated = income - expenses (net amount matching payment)
-                totalAllocated = allocatedIncome.subtract(allocatedExpenses);
+                BigDecimal totalAllocated = allocatedIncome.subtract(allocatedExpenses);
                 payment.setTotalAllocated(totalAllocated);
                 payment.setUnallocatedAmount(payment.getTotalPayment().subtract(totalAllocated));
 
                 result.add(payment);
             }
         } catch (Exception e) {
-            log.warn("Error extracting payments with allocations: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            log.error("RECONCILIATION ERROR: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             e.printStackTrace();
         }
 
-        log.info("Found {} payments with allocations in period", result.size());
+        log.info("RECONCILIATION: Found {} payments with allocations in period", result.size());
         return result;
     }
 
