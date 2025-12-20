@@ -2417,6 +2417,7 @@ public class StatementDataExtractService {
         // Query unified_allocations grouped by payment_batch_id for this owner's properties
         // This captures both PayProp batches (which may not exist in payment_batches table)
         // and manual batches
+        // NOTE: Historical allocations may have NULL beneficiary_id, so we also match by property owner
         String paymentSql = """
             SELECT
                 ua.payment_batch_id as batch_id,
@@ -2427,7 +2428,9 @@ public class StatementDataExtractService {
                 MAX(pb.payment_reference) as payment_reference
             FROM unified_allocations ua
             LEFT JOIN payment_batches pb ON ua.payment_batch_id = pb.batch_id
-            WHERE ua.beneficiary_id = ?
+            LEFT JOIN customer_property_assignments cpa ON ua.property_id = cpa.property_id
+                AND cpa.assignment_type IN ('OWNER', 'MANAGER')
+            WHERE (ua.beneficiary_id = ? OR cpa.customer_id = ?)
               AND ua.paid_date >= ?
               AND ua.paid_date <= ?
               AND ua.payment_batch_id IS NOT NULL
@@ -2456,7 +2459,7 @@ public class StatementDataExtractService {
                 log.warn("RECONCILIATION DEBUG: Error checking allocations: {}", e.getMessage());
             }
 
-            List<Map<String, Object>> paymentRows = jdbcTemplate.queryForList(paymentSql, customerId, startDate, endDate);
+            List<Map<String, Object>> paymentRows = jdbcTemplate.queryForList(paymentSql, customerId, customerId, startDate, endDate);
             log.info("RECONCILIATION DEBUG: Found {} payment batches for period {} to {}", paymentRows.size(), startDate, endDate);
 
             for (Map<String, Object> paymentRow : paymentRows) {
