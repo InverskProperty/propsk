@@ -2403,6 +2403,10 @@ public class StatementDataExtractService {
     /**
      * Extract payments made within a period with their allocation details.
      * Shows what each payment covered (which income/expenses).
+     *
+     * NOTE: Changed to query unified_allocations grouped by payment_batch_id instead of
+     * querying payment_batches directly, because PayProp imported batches may not have
+     * corresponding records in payment_batches table, or may have incorrect beneficiary_id.
      */
     public List<PaymentWithAllocationsDTO> extractPaymentsWithAllocationsInPeriod(
             Long customerId, LocalDate startDate, LocalDate endDate, LocalDate periodStart) {
@@ -2410,20 +2414,26 @@ public class StatementDataExtractService {
 
         List<PaymentWithAllocationsDTO> result = new ArrayList<>();
 
-        // First get all payments in the period
+        // Query unified_allocations grouped by payment_batch_id for this owner's properties
+        // This captures both PayProp batches (which may not exist in payment_batches table)
+        // and manual batches
         String paymentSql = """
             SELECT
-                pb.batch_id,
-                pb.payment_date,
-                pb.total_payment,
-                pb.status,
-                pb.payment_reference
-            FROM payment_batches pb
-            WHERE pb.beneficiary_id = ?
-              AND pb.payment_date >= ?
-              AND pb.payment_date <= ?
-              AND pb.batch_type = 'OWNER_PAYMENT'
-            ORDER BY pb.payment_date, pb.batch_id
+                ua.payment_batch_id as batch_id,
+                ua.paid_date as payment_date,
+                SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_income,
+                SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION') THEN ABS(ua.amount) ELSE 0 END) as total_deductions,
+                MAX(pb.status) as status,
+                MAX(pb.payment_reference) as payment_reference
+            FROM unified_allocations ua
+            LEFT JOIN payment_batches pb ON ua.payment_batch_id = pb.batch_id
+            WHERE ua.beneficiary_id = ?
+              AND ua.paid_date >= ?
+              AND ua.paid_date <= ?
+              AND ua.payment_batch_id IS NOT NULL
+              AND ua.allocation_type IN ('OWNER', 'EXPENSE', 'COMMISSION')
+            GROUP BY ua.payment_batch_id, ua.paid_date
+            ORDER BY ua.paid_date, ua.payment_batch_id
         """;
 
         try {
@@ -2435,9 +2445,15 @@ public class StatementDataExtractService {
                 payment.setBatchId(batchId);
                 payment.setPaymentDate(paymentRow.get("payment_date") != null ?
                     ((java.sql.Date) paymentRow.get("payment_date")).toLocalDate() : null);
-                payment.setTotalPayment(paymentRow.get("total_payment") != null ?
-                    new BigDecimal(paymentRow.get("total_payment").toString()) : BigDecimal.ZERO);
-                payment.setStatus((String) paymentRow.get("status"));
+                // Calculate net payment from income - deductions
+                BigDecimal totalIncome = paymentRow.get("total_income") != null ?
+                    new BigDecimal(paymentRow.get("total_income").toString()) : BigDecimal.ZERO;
+                BigDecimal totalDeductions = paymentRow.get("total_deductions") != null ?
+                    new BigDecimal(paymentRow.get("total_deductions").toString()) : BigDecimal.ZERO;
+                payment.setTotalPayment(totalIncome.subtract(totalDeductions));
+                // Status may be null if no payment_batches record exists (PayProp imported batch)
+                String status = (String) paymentRow.get("status");
+                payment.setStatus(status != null ? status : "PAID");  // Default to PAID for imported batches
                 payment.setPaymentReference((String) paymentRow.get("payment_reference"));
 
                 // Get allocations for this payment from unified_allocations table
@@ -2466,8 +2482,8 @@ public class StatementDataExtractService {
                 List<Map<String, Object>> allocationRows = jdbcTemplate.queryForList(allocationSql, batchId);
                 BigDecimal totalAllocated = BigDecimal.ZERO;
 
-                BigDecimal totalIncome = BigDecimal.ZERO;
-                BigDecimal totalExpenses = BigDecimal.ZERO;
+                BigDecimal allocatedIncome = BigDecimal.ZERO;
+                BigDecimal allocatedExpenses = BigDecimal.ZERO;
 
                 for (Map<String, Object> allocRow : allocationRows) {
                     PaymentWithAllocationsDTO.AllocationLineDTO line = new PaymentWithAllocationsDTO.AllocationLineDTO();
@@ -2501,15 +2517,15 @@ public class StatementDataExtractService {
 
                     // Track income vs expenses separately
                     if ("EXPENSE".equals(allocType)) {
-                        totalExpenses = totalExpenses.add(allocAmount.abs());
+                        allocatedExpenses = allocatedExpenses.add(allocAmount.abs());
                     } else {
-                        totalIncome = totalIncome.add(allocAmount.abs());
+                        allocatedIncome = allocatedIncome.add(allocAmount.abs());
                     }
                     payment.addAllocation(line);
                 }
 
                 // Total allocated = income - expenses (net amount matching payment)
-                totalAllocated = totalIncome.subtract(totalExpenses);
+                totalAllocated = allocatedIncome.subtract(allocatedExpenses);
                 payment.setTotalAllocated(totalAllocated);
                 payment.setUnallocatedAmount(payment.getTotalPayment().subtract(totalAllocated));
 
