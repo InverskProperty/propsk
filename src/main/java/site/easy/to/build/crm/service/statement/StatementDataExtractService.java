@@ -3161,30 +3161,23 @@ public class StatementDataExtractService {
             Integer histCount = jdbcTemplate.queryForObject(debugSql5, Integer.class, periodStart, periodEnd);
             log.info("DEBUG: Historical transactions in period {} to {}: {}", periodStart, periodEnd, histCount);
 
-            // Step 1: Find all batch IDs from allocations linked to transactions in this period
+            // Step 1: Find all batch IDs that were PAID during this period
+            // Changed from finding batches with transactions in period to batches PAID in period
+            // This ensures the "Owner Payments This Period" section shows actual payments made during the period
             String findBatchesSql = """
                 SELECT DISTINCT ua.payment_batch_id
                 FROM unified_allocations ua
                 WHERE ua.beneficiary_id = ?
                   AND ua.payment_batch_id IS NOT NULL
-                  AND (
-                      ua.unified_transaction_id IN (
-                          SELECT id FROM unified_transactions
-                          WHERE transaction_date >= ? AND transaction_date <= ?
-                      )
-                      OR ua.historical_transaction_id IN (
-                          SELECT id FROM historical_transactions
-                          WHERE transaction_date >= ? AND transaction_date <= ?
-                      )
-                  )
+                  AND ua.paid_date >= ? AND ua.paid_date <= ?
                 """;
 
             List<String> batchIds = jdbcTemplate.query(
                 findBatchesSql,
                 (rs, rowNum) -> rs.getString("payment_batch_id"),
-                customerId, periodStart, periodEnd, periodStart, periodEnd);
+                customerId, periodStart, periodEnd);
 
-            log.info("Found {} batches with allocations from period transactions", batchIds.size());
+            log.info("Found {} batches PAID during period {} to {}", batchIds.size(), periodStart, periodEnd);
 
             // Step 2: For each batch, get full allocation details
             for (String batchId : batchIds) {
