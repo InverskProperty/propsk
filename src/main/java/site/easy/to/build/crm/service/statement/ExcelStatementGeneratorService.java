@@ -2723,6 +2723,7 @@ public class ExcelStatementGeneratorService {
 
         // Collect all batches for reconciliation section
         List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> allBatchesForReconciliation = new ArrayList<>();
+        java.util.Set<Long> allPropertyIds = new java.util.HashSet<>();
         java.math.BigDecimal grandTotalRent = java.math.BigDecimal.ZERO;
         java.math.BigDecimal grandTotalCommission = java.math.BigDecimal.ZERO;
         java.math.BigDecimal grandTotalExpenses = java.math.BigDecimal.ZERO;
@@ -2743,6 +2744,11 @@ public class ExcelStatementGeneratorService {
 
             // Add to collection for reconciliation
             allBatchesForReconciliation.addAll(batchGroups);
+
+            // Collect property ID for payment batch query
+            if (lease.getPropertyId() != null) {
+                allPropertyIds.add(lease.getPropertyId());
+            }
 
             // Get commission rate for this lease
             boolean isBlockProperty = Boolean.TRUE.equals(lease.getIsBlockProperty());
@@ -2929,8 +2935,17 @@ public class ExcelStatementGeneratorService {
         // Add blank rows for separation
         rowNum += 3;
 
-        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, Batches collected: {}",
-            sheetName, period.periodStart, period.periodEnd, allBatchesForReconciliation.size());
+        log.info("PAYMENT RECONCILIATION: Sheet {}, Period {} to {}, Batches from table: {}, Property IDs: {}",
+            sheetName, period.periodStart, period.periodEnd, allBatchesForReconciliation.size(), allPropertyIds.size());
+
+        // Also query payment batches from repository (unified_allocations + payment_batches)
+        // This captures ALL allocations for the properties, not just those matching lease structure
+        List<PaymentBatchSummaryDTO> repositoryBatches = new ArrayList<>();
+        if (!allPropertyIds.isEmpty()) {
+            repositoryBatches = dataExtractService.extractPaymentBatchesByProperties(
+                new ArrayList<>(allPropertyIds), period.periodStart, period.periodEnd);
+            log.info("PAYMENT RECONCILIATION: Found {} batches from repository query", repositoryBatches.size());
+        }
 
         // Section header
         Row reconcileHeaderRow = sheet.createRow(rowNum++);
@@ -2943,31 +2958,31 @@ public class ExcelStatementGeneratorService {
 
         rowNum++; // Blank row
 
-        // Summary of payments by batch
+        // Show payment batches from repository query (more complete)
         Row batchHeaderRow = sheet.createRow(rowNum++);
         Cell batchHeaderCell = batchHeaderRow.createCell(0);
-        batchHeaderCell.setCellValue("OWNER PAYMENTS THIS PERIOD (" + allBatchesForReconciliation.size() + " batches)");
+        batchHeaderCell.setCellValue("OWNER PAYMENTS THIS PERIOD");
         batchHeaderCell.setCellStyle(styles.boldStyle);
-
-        // Group batches by batch_id to show payment summary
-        java.util.Map<String, java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO>> batchesByBatchId =
-            allBatchesForReconciliation.stream()
-                .filter(b -> b.getBatchId() != null)
-                .collect(java.util.stream.Collectors.groupingBy(
-                    site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO::getBatchId));
 
         java.math.BigDecimal totalPaymentsMade = java.math.BigDecimal.ZERO;
 
-        if (batchesByBatchId.isEmpty()) {
+        if (repositoryBatches.isEmpty()) {
             Row noPaymentsRow = sheet.createRow(rowNum++);
-            noPaymentsRow.createCell(0).setCellValue("  (No payments made this period)");
+            noPaymentsRow.createCell(0).setCellValue("  (No payments found in database for these properties)");
+
+            // Fall back to batch data from main table
+            if (!allBatchesForReconciliation.isEmpty()) {
+                Row fallbackRow = sheet.createRow(rowNum++);
+                fallbackRow.createCell(0).setCellValue("  (Showing batches from statement table above: " +
+                    allBatchesForReconciliation.size() + " entries)");
+            }
         } else {
             // Column headers for payment details
             Row paymentColHeaderRow = sheet.createRow(rowNum++);
             paymentColHeaderRow.createCell(0).setCellValue("Batch ID");
             paymentColHeaderRow.createCell(1).setCellValue("Payment Date");
-            paymentColHeaderRow.createCell(2).setCellValue("Properties");
-            paymentColHeaderRow.createCell(3).setCellValue("Total Rent");
+            paymentColHeaderRow.createCell(2).setCellValue("Status");
+            paymentColHeaderRow.createCell(3).setCellValue("Gross Income");
             paymentColHeaderRow.createCell(4).setCellValue("Commission");
             paymentColHeaderRow.createCell(5).setCellValue("Expenses");
             paymentColHeaderRow.createCell(6).setCellValue("Net to Owner");
@@ -2975,63 +2990,119 @@ public class ExcelStatementGeneratorService {
                 paymentColHeaderRow.getCell(i).setCellStyle(styles.headerStyle);
             }
 
-            for (java.util.Map.Entry<String, java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO>> entry : batchesByBatchId.entrySet()) {
-                String batchId = entry.getKey();
-                java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> batchItems = entry.getValue();
-
-                // Aggregate totals for this batch
-                java.math.BigDecimal batchRent = java.math.BigDecimal.ZERO;
-                java.math.BigDecimal batchCommission = java.math.BigDecimal.ZERO;
-                java.math.BigDecimal batchExpenses = java.math.BigDecimal.ZERO;
-                java.math.BigDecimal batchNet = java.math.BigDecimal.ZERO;
-                LocalDate paymentDate = null;
-                java.util.Set<String> propertyNames = new java.util.HashSet<>();
-
-                for (site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO item : batchItems) {
-                    batchRent = batchRent.add(item.getTotalRent() != null ? item.getTotalRent() : java.math.BigDecimal.ZERO);
-                    batchCommission = batchCommission.add(item.getTotalCommission() != null ? item.getTotalCommission() : java.math.BigDecimal.ZERO);
-                    batchExpenses = batchExpenses.add(item.getTotalExpenses() != null ? item.getTotalExpenses() : java.math.BigDecimal.ZERO);
-                    batchNet = batchNet.add(item.getNetToOwner() != null ? item.getNetToOwner() : java.math.BigDecimal.ZERO);
-                    if (paymentDate == null && item.getOwnerPaymentDate() != null) {
-                        paymentDate = item.getOwnerPaymentDate();
-                    }
-                    if (item.getPropertyName() != null) {
-                        propertyNames.add(item.getPropertyName());
-                    }
-                }
-
-                totalPaymentsMade = totalPaymentsMade.add(batchNet);
-
+            for (PaymentBatchSummaryDTO batch : repositoryBatches) {
                 Row paymentRow = sheet.createRow(rowNum++);
-                paymentRow.createCell(0).setCellValue(batchId);
+                paymentRow.createCell(0).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
 
                 Cell payDateCell = paymentRow.createCell(1);
-                if (paymentDate != null) {
-                    payDateCell.setCellValue(paymentDate);
+                if (batch.getPaymentDate() != null) {
+                    payDateCell.setCellValue(batch.getPaymentDate());
                     payDateCell.setCellStyle(styles.dateStyle);
                 }
 
-                // Show property count or first few names
-                String propertiesStr = propertyNames.size() <= 2 ?
-                    String.join(", ", propertyNames) :
-                    propertyNames.size() + " properties";
-                paymentRow.createCell(2).setCellValue(propertiesStr);
+                paymentRow.createCell(2).setCellValue(batch.getBatchStatus() != null ? batch.getBatchStatus() : "");
 
-                Cell rentCell = paymentRow.createCell(3);
-                rentCell.setCellValue(batchRent.doubleValue());
-                rentCell.setCellStyle(styles.currencyStyle);
+                Cell grossCell = paymentRow.createCell(3);
+                grossCell.setCellValue(batch.getTotalOwnerAllocations() != null ? batch.getTotalOwnerAllocations().doubleValue() : 0);
+                grossCell.setCellStyle(styles.currencyStyle);
 
                 Cell commCell = paymentRow.createCell(4);
-                commCell.setCellValue(batchCommission.doubleValue());
+                commCell.setCellValue(batch.getTotalCommissionAllocations() != null ? batch.getTotalCommissionAllocations().doubleValue() : 0);
                 commCell.setCellStyle(styles.currencyStyle);
 
                 Cell expCell = paymentRow.createCell(5);
-                expCell.setCellValue(batchExpenses.doubleValue());
+                expCell.setCellValue(batch.getTotalExpenseAllocations() != null ? batch.getTotalExpenseAllocations().doubleValue() : 0);
                 expCell.setCellStyle(styles.currencyStyle);
 
                 Cell netCell = paymentRow.createCell(6);
-                netCell.setCellValue(batchNet.doubleValue());
+                java.math.BigDecimal netPayment = batch.getNetPayment() != null ? batch.getNetPayment() : java.math.BigDecimal.ZERO;
+                netCell.setCellValue(netPayment.doubleValue());
                 netCell.setCellStyle(styles.currencyStyle);
+
+                totalPaymentsMade = totalPaymentsMade.add(netPayment);
+            }
+        }
+
+        // If repository query found nothing, use batch data from main table
+        if (repositoryBatches.isEmpty() && !allBatchesForReconciliation.isEmpty()) {
+            // Group batches by batch_id
+            java.util.Map<String, java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO>> batchesByBatchId =
+                allBatchesForReconciliation.stream()
+                    .filter(b -> b.getBatchId() != null)
+                    .collect(java.util.stream.Collectors.groupingBy(
+                        site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO::getBatchId));
+
+            if (!batchesByBatchId.isEmpty()) {
+                // Column headers
+                Row paymentColHeaderRow = sheet.createRow(rowNum++);
+                paymentColHeaderRow.createCell(0).setCellValue("Batch ID");
+                paymentColHeaderRow.createCell(1).setCellValue("Payment Date");
+                paymentColHeaderRow.createCell(2).setCellValue("Properties");
+                paymentColHeaderRow.createCell(3).setCellValue("Total Rent");
+                paymentColHeaderRow.createCell(4).setCellValue("Commission");
+                paymentColHeaderRow.createCell(5).setCellValue("Expenses");
+                paymentColHeaderRow.createCell(6).setCellValue("Net to Owner");
+                for (int i = 0; i <= 6; i++) {
+                    paymentColHeaderRow.getCell(i).setCellStyle(styles.headerStyle);
+                }
+
+                for (java.util.Map.Entry<String, java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO>> entry : batchesByBatchId.entrySet()) {
+                    String batchId = entry.getKey();
+                    java.util.List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> batchItems = entry.getValue();
+
+                    java.math.BigDecimal batchRent = java.math.BigDecimal.ZERO;
+                    java.math.BigDecimal batchCommission = java.math.BigDecimal.ZERO;
+                    java.math.BigDecimal batchExpenses = java.math.BigDecimal.ZERO;
+                    java.math.BigDecimal batchNet = java.math.BigDecimal.ZERO;
+                    LocalDate paymentDate = null;
+                    java.util.Set<String> propertyNames = new java.util.HashSet<>();
+
+                    for (site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO item : batchItems) {
+                        batchRent = batchRent.add(item.getTotalRent() != null ? item.getTotalRent() : java.math.BigDecimal.ZERO);
+                        batchCommission = batchCommission.add(item.getTotalCommission() != null ? item.getTotalCommission() : java.math.BigDecimal.ZERO);
+                        batchExpenses = batchExpenses.add(item.getTotalExpenses() != null ? item.getTotalExpenses() : java.math.BigDecimal.ZERO);
+                        batchNet = batchNet.add(item.getNetToOwner() != null ? item.getNetToOwner() : java.math.BigDecimal.ZERO);
+                        if (paymentDate == null && item.getOwnerPaymentDate() != null) {
+                            paymentDate = item.getOwnerPaymentDate();
+                        }
+                        if (item.getPropertyName() != null) {
+                            propertyNames.add(item.getPropertyName());
+                        }
+                    }
+
+                    totalPaymentsMade = totalPaymentsMade.add(batchNet);
+
+                    Row paymentRow = sheet.createRow(rowNum++);
+                    paymentRow.createCell(0).setCellValue(batchId);
+
+                    Cell payDateCell = paymentRow.createCell(1);
+                    if (paymentDate != null) {
+                        payDateCell.setCellValue(paymentDate);
+                        payDateCell.setCellStyle(styles.dateStyle);
+                    }
+
+                    // Show property count or first few names
+                    String propertiesStr = propertyNames.size() <= 2 ?
+                        String.join(", ", propertyNames) :
+                        propertyNames.size() + " properties";
+                    paymentRow.createCell(2).setCellValue(propertiesStr);
+
+                    Cell rentCell = paymentRow.createCell(3);
+                    rentCell.setCellValue(batchRent.doubleValue());
+                    rentCell.setCellStyle(styles.currencyStyle);
+
+                    Cell commCell = paymentRow.createCell(4);
+                    commCell.setCellValue(batchCommission.doubleValue());
+                    commCell.setCellStyle(styles.currencyStyle);
+
+                    Cell expCell = paymentRow.createCell(5);
+                    expCell.setCellValue(batchExpenses.doubleValue());
+                    expCell.setCellStyle(styles.currencyStyle);
+
+                    Cell netCell = paymentRow.createCell(6);
+                    netCell.setCellValue(batchNet.doubleValue());
+                    netCell.setCellStyle(styles.currencyStyle);
+                }
             }
         }
 

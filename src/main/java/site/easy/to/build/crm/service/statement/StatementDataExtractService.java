@@ -2604,6 +2604,72 @@ public class StatementDataExtractService {
     }
 
     /**
+     * Extract payment batch summaries for properties within a date range.
+     * Uses the repository method that queries unified_allocations joined with payment_batches.
+     * This is a more reliable query that works with PayProp imported data.
+     *
+     * @param propertyIds List of property IDs to get payments for
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return List of payment batch summaries
+     */
+    public List<PaymentBatchSummaryDTO> extractPaymentBatchesByProperties(
+            List<Long> propertyIds, LocalDate startDate, LocalDate endDate) {
+
+        log.info("Extracting payment batches for {} properties from {} to {}", propertyIds.size(), startDate, endDate);
+
+        List<PaymentBatchSummaryDTO> result = new ArrayList<>();
+
+        if (propertyIds.isEmpty()) {
+            log.warn("No property IDs provided - returning empty list");
+            return result;
+        }
+
+        try {
+            List<Object[]> rows = unifiedAllocationRepository.getPaymentBatchSummariesForPeriod(
+                propertyIds, startDate, endDate);
+
+            log.info("Found {} payment batches from repository query", rows.size());
+
+            for (Object[] row : rows) {
+                PaymentBatchSummaryDTO dto = new PaymentBatchSummaryDTO();
+                dto.setBatchId(row[0] != null ? row[0].toString() : null);
+
+                if (row[1] != null) {
+                    if (row[1] instanceof java.sql.Date) {
+                        dto.setPaymentDate(((java.sql.Date) row[1]).toLocalDate());
+                    } else if (row[1] instanceof LocalDate) {
+                        dto.setPaymentDate((LocalDate) row[1]);
+                    }
+                }
+
+                dto.setBatchStatus(row[2] != null ? row[2].toString() : null);
+
+                BigDecimal totalOwner = row[3] != null ? new BigDecimal(row[3].toString()) : BigDecimal.ZERO;
+                BigDecimal totalExpense = row[4] != null ? new BigDecimal(row[4].toString()) : BigDecimal.ZERO;
+                BigDecimal totalCommission = row[5] != null ? new BigDecimal(row[5].toString()) : BigDecimal.ZERO;
+                BigDecimal netPayment = row[6] != null ? new BigDecimal(row[6].toString()) : BigDecimal.ZERO;
+
+                dto.setTotalOwnerAllocations(totalOwner);
+                dto.setTotalExpenseAllocations(totalExpense);
+                dto.setTotalCommissionAllocations(totalCommission);
+                dto.setNetPayment(netPayment);
+
+                result.add(dto);
+
+                log.info("Payment batch {} on {}: owner={}, expense={}, commission={}, net={}",
+                    dto.getBatchId(), dto.getPaymentDate(), totalOwner, totalExpense, totalCommission, netPayment);
+            }
+        } catch (Exception e) {
+            log.error("Error extracting payment batches: {} - {}", e.getClass().getSimpleName(), e.getMessage());
+            e.printStackTrace();
+        }
+
+        log.info("Extracted {} payment batch summaries", result.size());
+        return result;
+    }
+
+    /**
      * Extract unallocated income as of end of period.
      * Returns income transactions received up to and including endDate that are not fully allocated.
      * Used for "Carried Forward" section of reconciliation.
