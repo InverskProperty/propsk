@@ -3347,28 +3347,38 @@ public class StatementDataExtractService {
         Map<String, Object> summary = new java.util.LinkedHashMap<>();
 
         try {
-            // Count allocations made BEFORE period start (for transactions before period)
+            // Count allocations for TRANSACTIONS BEFORE period start (based on transaction_date, not paid_date)
             String priorAllocatedSql = """
                 SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
                 FROM unified_allocations ua
+                LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+                LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
                 WHERE ua.beneficiary_id = ?
                   AND ua.payment_batch_id IS NOT NULL
-                  AND ua.paid_date < ?
+                  AND (
+                    (ut.transaction_date IS NOT NULL AND ut.transaction_date < ?)
+                    OR (ht.transaction_date IS NOT NULL AND ht.transaction_date < ?)
+                  )
                 """;
 
-            Map<String, Object> priorAllocated = jdbcTemplate.queryForMap(priorAllocatedSql, customerId, periodStart);
+            Map<String, Object> priorAllocated = jdbcTemplate.queryForMap(priorAllocatedSql, customerId, periodStart, periodStart);
             summary.put("allocatedBeforePeriod", priorAllocated);
 
-            // Count allocations made DURING period
+            // Count allocations for TRANSACTIONS DURING period (based on transaction_date)
             String periodAllocatedSql = """
                 SELECT COALESCE(SUM(ABS(ua.amount)), 0) as amount, COUNT(*) as count
                 FROM unified_allocations ua
+                LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+                LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
                 WHERE ua.beneficiary_id = ?
                   AND ua.payment_batch_id IS NOT NULL
-                  AND ua.paid_date >= ? AND ua.paid_date <= ?
+                  AND (
+                    (ut.transaction_date >= ? AND ut.transaction_date <= ?)
+                    OR (ht.transaction_date >= ? AND ht.transaction_date <= ?)
+                  )
                 """;
 
-            Map<String, Object> periodAllocated = jdbcTemplate.queryForMap(periodAllocatedSql, customerId, periodStart, periodEnd);
+            Map<String, Object> periodAllocated = jdbcTemplate.queryForMap(periodAllocatedSql, customerId, periodStart, periodEnd, periodStart, periodEnd);
             summary.put("allocatedDuringPeriod", periodAllocated);
 
             // Count UNALLOCATED at end of period (transactions up to period end without batch)
