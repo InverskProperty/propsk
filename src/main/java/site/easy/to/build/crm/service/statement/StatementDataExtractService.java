@@ -2960,21 +2960,21 @@ public class StatementDataExtractService {
     /**
      * Extract rent payments grouped by batch for a lease.
      * Returns only payments that have been assigned to a batch (excludes pending).
-     * Filters by owner_payment_date (paidDate) within the given period.
+     * Filters by transaction_date (paymentDate) within the given period.
      *
      * @param leaseId The lease/invoice ID
-     * @param periodStart Start of period (filters by paidDate, not transactionDate)
-     * @param periodEnd End of period (filters by paidDate, not transactionDate)
+     * @param periodStart Start of period (filters by transactionDate)
+     * @param periodEnd End of period (filters by transactionDate)
      * @return Map of batchId -> list of payments in that batch
      */
     public Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> extractRentReceivedByBatch(
             Long leaseId, LocalDate periodStart, LocalDate periodEnd) {
 
-        log.info("Extracting rent received by batch for lease {} from {} to {} (by paidDate)",
+        log.info("Extracting rent received by batch for lease {} from {} to {} (by transactionDate)",
             leaseId, periodStart, periodEnd);
 
-        // Get all payments for this lease (no date filter on transaction date)
-        // We'll filter by paidDate after populating batch info
+        // Get all payments for this lease (no date filter initially)
+        // We'll filter by transactionDate after populating batch info
         List<UnifiedTransaction> transactions = unifiedTransactionRepository
             .findByInvoiceIdAndFlowDirection(leaseId, UnifiedTransaction.FlowDirection.INCOMING);
 
@@ -2996,21 +2996,21 @@ public class StatementDataExtractService {
         // Populate batch info from unified_allocations
         populateBatchInfo(allPayments);
 
-        // Group by batch, filtering by paidDate and excluding unbatched
+        // Group by batch, filtering by transactionDate and excluding unbatched
         Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> result = new HashMap<>();
 
         for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment : allPayments) {
             String batchId = payment.getBatchId();
-            LocalDate paidDate = payment.getPaidDate();
+            LocalDate transactionDate = payment.getPaymentDate(); // This is the transaction date
 
             // Skip payments without batch (pending) or outside date range
             if (batchId == null || batchId.isEmpty()) {
                 continue;
             }
-            if (paidDate == null) {
+            if (transactionDate == null) {
                 continue;
             }
-            if (paidDate.isBefore(periodStart) || paidDate.isAfter(periodEnd)) {
+            if (transactionDate.isBefore(periodStart) || transactionDate.isAfter(periodEnd)) {
                 continue;
             }
 
@@ -3029,17 +3029,17 @@ public class StatementDataExtractService {
     /**
      * Extract expenses grouped by batch for a lease.
      * Returns only expenses that have been assigned to a batch (excludes pending).
-     * Filters by owner_payment_date (paidDate) within the given period.
+     * Filters by transaction_date (paymentDate) within the given period.
      *
      * @param leaseId The lease/invoice ID
-     * @param periodStart Start of period (filters by paidDate, not transactionDate)
-     * @param periodEnd End of period (filters by paidDate, not transactionDate)
+     * @param periodStart Start of period (filters by transactionDate)
+     * @param periodEnd End of period (filters by transactionDate)
      * @return Map of batchId -> list of expenses in that batch
      */
     public Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> extractExpensesByBatch(
             Long leaseId, LocalDate periodStart, LocalDate periodEnd) {
 
-        log.info("Extracting expenses by batch for lease {} from {} to {} (by paidDate)",
+        log.info("Extracting expenses by batch for lease {} from {} to {} (by transactionDate)",
             leaseId, periodStart, periodEnd);
 
         // Get all outgoing transactions for this lease
@@ -3074,21 +3074,21 @@ public class StatementDataExtractService {
         // Populate batch info from unified_allocations using EXPENSE/DISBURSEMENT/COMMISSION allocation types
         populateBatchInfoForExpenses(allExpenses);
 
-        // Group by batch, filtering by paidDate and excluding unbatched
+        // Group by batch, filtering by transactionDate and excluding unbatched
         Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> result = new HashMap<>();
 
         for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense : allExpenses) {
             String batchId = expense.getBatchId();
-            LocalDate paidDate = expense.getPaidDate();
+            LocalDate transactionDate = expense.getPaymentDate(); // This is the transaction date
 
             // Skip expenses without batch (pending) or outside date range
             if (batchId == null || batchId.isEmpty()) {
                 continue;
             }
-            if (paidDate == null) {
+            if (transactionDate == null) {
                 continue;
             }
-            if (paidDate.isBefore(periodStart) || paidDate.isAfter(periodEnd)) {
+            if (transactionDate.isBefore(periodStart) || transactionDate.isAfter(periodEnd)) {
                 continue;
             }
 
@@ -3107,11 +3107,11 @@ public class StatementDataExtractService {
     /**
      * Extract batch payment groups for a lease - combines rent, expenses, and commission.
      * Returns one BatchPaymentGroupDTO per batch per lease.
-     * Filters by owner_payment_date (paidDate) within the given period.
+     * Filters by transaction_date within the given period.
      *
      * @param lease The lease master DTO (includes commission rate)
-     * @param periodStart Start of period (filters by paidDate)
-     * @param periodEnd End of period (filters by paidDate)
+     * @param periodStart Start of period (filters by transactionDate)
+     * @param periodEnd End of period (filters by transactionDate)
      * @return List of batch payment groups, sorted by owner payment date
      */
     public List<site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO> extractBatchPaymentGroups(
