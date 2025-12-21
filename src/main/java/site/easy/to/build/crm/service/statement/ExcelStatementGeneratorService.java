@@ -3033,42 +3033,30 @@ public class ExcelStatementGeneratorService {
 
         // Column layout:
         // 0: Batch ID, 1: Payment Date, 2: Gross Income, 3: Commission, 4: Expenses, 5: Net to Owner
-        // PRIOR section: 6: Property, 7: Txn Date, 8: Type, 9: Amount
-        // THIS PERIOD section: 10: Property, 11: Txn Date, 12: Type, 13: Amount
-        // FUTURE section: 14: Property, 15: Txn Date, 16: Type, 17: Amount
+        // PRIOR section: 6: Property, 7: Txn Date, 8: Income, 9: Expense, 10: Commission
+        // THIS PERIOD section: 11: Property, 12: Txn Date, 13: Income, 14: Expense, 15: Commission
+        // FUTURE section: 16: Property, 17: Txn Date, 18: Income, 19: Expense, 20: Commission
 
         // First header row - main categories with "Prior", "This Period" and "Future" spanning columns
         Row periodHeaderRow = sheet.createRow(rowNum++);
         periodHeaderRow.createCell(6).setCellValue("Prior");
         periodHeaderRow.getCell(6).setCellStyle(styles.boldStyle);
-        periodHeaderRow.createCell(10).setCellValue("This Period");
-        periodHeaderRow.getCell(10).setCellStyle(styles.boldStyle);
-        periodHeaderRow.createCell(14).setCellValue("Future");
-        periodHeaderRow.getCell(14).setCellStyle(styles.boldStyle);
+        periodHeaderRow.createCell(11).setCellValue("This Period");
+        periodHeaderRow.getCell(11).setCellStyle(styles.boldStyle);
+        periodHeaderRow.createCell(16).setCellValue("Future");
+        periodHeaderRow.getCell(16).setCellStyle(styles.boldStyle);
 
         // Table headers - batch summary columns + allocation detail columns for all three periods
         Row tableHeaderRow = sheet.createRow(rowNum++);
         String[] paymentHeaders = {"Batch ID", "Payment Date", "Gross Income", "Commission", "Expenses", "Net to Owner",
-                                   "Property", "Txn Date", "Type", "Amount",
-                                   "Property", "Txn Date", "Type", "Amount",
-                                   "Property", "Txn Date", "Type", "Amount"};
+                                   "Property", "Txn Date", "Income", "Expense", "Commission",
+                                   "Property", "Txn Date", "Income", "Expense", "Commission",
+                                   "Property", "Txn Date", "Income", "Expense", "Commission"};
         for (int i = 0; i < paymentHeaders.length; i++) {
             Cell headerCell = tableHeaderRow.createCell(i);
             headerCell.setCellValue(paymentHeaders[i]);
             headerCell.setCellStyle(styles.headerStyle);
         }
-
-        // Subtitle row for income/expense/commission under each period section
-        Row subtitleRow = sheet.createRow(rowNum++);
-        // Prior subtitles - show type hints under the Amount column
-        Cell priorSubCell = subtitleRow.createCell(9);
-        priorSubCell.setCellValue("income | expense | commission");
-        // This Period subtitles
-        Cell thisSubCell = subtitleRow.createCell(13);
-        thisSubCell.setCellValue("income | expense | commission");
-        // Future subtitles
-        Cell futureSubCell = subtitleRow.createCell(17);
-        futureSubCell.setCellValue("income | expense | commission");
 
         if (batchStatuses.isEmpty()) {
             Row noPaymentsRow = sheet.createRow(rowNum++);
@@ -3131,7 +3119,7 @@ public class ExcelStatementGeneratorService {
                         netCell.setCellStyle(styles.boldCurrencyStyle);
                     }
 
-                    // Prior Period allocation (columns 6-9)
+                    // Prior Period allocation (columns 6-10: Property, Txn Date, Income, Expense, Commission)
                     if (rowIdx < priorAllocations.size()) {
                         site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc = priorAllocations.get(rowIdx);
 
@@ -3145,64 +3133,91 @@ public class ExcelStatementGeneratorService {
                             txnDateCell.setCellStyle(styles.dateStyle);
                         }
 
-                        // Column 8: Allocation type
-                        batchRow.createCell(8).setCellValue(alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
-
-                        // Column 9: Amount
-                        Cell amountCell = batchRow.createCell(9);
+                        // Columns 8, 9, 10: Income, Expense, Commission - put amount in appropriate column
                         if (alloc.getAmount() != null) {
-                            amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
-                            amountCell.setCellStyle(styles.currencyStyle);
+                            String type = alloc.getAllocationType();
+                            double amount = alloc.getAmount().abs().doubleValue();
+                            if ("OWNER".equals(type)) {
+                                Cell incomeCell = batchRow.createCell(8);
+                                incomeCell.setCellValue(amount);
+                                incomeCell.setCellStyle(styles.currencyStyle);
+                            } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
+                                Cell expenseCell = batchRow.createCell(9);
+                                expenseCell.setCellValue(amount);
+                                expenseCell.setCellStyle(styles.currencyStyle);
+                            } else if ("COMMISSION".equals(type)) {
+                                Cell commCell = batchRow.createCell(10);
+                                commCell.setCellValue(amount);
+                                commCell.setCellStyle(styles.currencyStyle);
+                            }
                         }
                     }
 
-                    // This Period allocation (columns 10-13)
+                    // This Period allocation (columns 11-15: Property, Txn Date, Income, Expense, Commission)
                     if (rowIdx < currentAllocations.size()) {
                         site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc = currentAllocations.get(rowIdx);
 
-                        // Column 10: Property name
-                        batchRow.createCell(10).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+                        // Column 11: Property name
+                        batchRow.createCell(11).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
 
-                        // Column 11: Transaction date
-                        Cell txnDateCell = batchRow.createCell(11);
+                        // Column 12: Transaction date
+                        Cell txnDateCell = batchRow.createCell(12);
                         if (alloc.getTransactionDate() != null) {
                             txnDateCell.setCellValue(alloc.getTransactionDate());
                             txnDateCell.setCellStyle(styles.dateStyle);
                         }
 
-                        // Column 12: Allocation type
-                        batchRow.createCell(12).setCellValue(alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
-
-                        // Column 13: Amount
-                        Cell amountCell = batchRow.createCell(13);
+                        // Columns 13, 14, 15: Income, Expense, Commission - put amount in appropriate column
                         if (alloc.getAmount() != null) {
-                            amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
-                            amountCell.setCellStyle(styles.currencyStyle);
+                            String type = alloc.getAllocationType();
+                            double amount = alloc.getAmount().abs().doubleValue();
+                            if ("OWNER".equals(type)) {
+                                Cell incomeCell = batchRow.createCell(13);
+                                incomeCell.setCellValue(amount);
+                                incomeCell.setCellStyle(styles.currencyStyle);
+                            } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
+                                Cell expenseCell = batchRow.createCell(14);
+                                expenseCell.setCellValue(amount);
+                                expenseCell.setCellStyle(styles.currencyStyle);
+                            } else if ("COMMISSION".equals(type)) {
+                                Cell commCell = batchRow.createCell(15);
+                                commCell.setCellValue(amount);
+                                commCell.setCellStyle(styles.currencyStyle);
+                            }
                         }
                     }
 
-                    // Future Period allocation (columns 14-17)
+                    // Future Period allocation (columns 16-20: Property, Txn Date, Income, Expense, Commission)
                     if (rowIdx < futureAllocations.size()) {
                         site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc = futureAllocations.get(rowIdx);
 
-                        // Column 14: Property name
-                        batchRow.createCell(14).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+                        // Column 16: Property name
+                        batchRow.createCell(16).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
 
-                        // Column 15: Transaction date
-                        Cell txnDateCell = batchRow.createCell(15);
+                        // Column 17: Transaction date
+                        Cell txnDateCell = batchRow.createCell(17);
                         if (alloc.getTransactionDate() != null) {
                             txnDateCell.setCellValue(alloc.getTransactionDate());
                             txnDateCell.setCellStyle(styles.dateStyle);
                         }
 
-                        // Column 16: Allocation type
-                        batchRow.createCell(16).setCellValue(alloc.getAllocationType() != null ? alloc.getAllocationType() : "");
-
-                        // Column 17: Amount
-                        Cell amountCell = batchRow.createCell(17);
+                        // Columns 18, 19, 20: Income, Expense, Commission - put amount in appropriate column
                         if (alloc.getAmount() != null) {
-                            amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
-                            amountCell.setCellStyle(styles.currencyStyle);
+                            String type = alloc.getAllocationType();
+                            double amount = alloc.getAmount().abs().doubleValue();
+                            if ("OWNER".equals(type)) {
+                                Cell incomeCell = batchRow.createCell(18);
+                                incomeCell.setCellValue(amount);
+                                incomeCell.setCellStyle(styles.currencyStyle);
+                            } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
+                                Cell expenseCell = batchRow.createCell(19);
+                                expenseCell.setCellValue(amount);
+                                expenseCell.setCellStyle(styles.currencyStyle);
+                            } else if ("COMMISSION".equals(type)) {
+                                Cell commCell = batchRow.createCell(20);
+                                commCell.setCellValue(amount);
+                                commCell.setCellStyle(styles.currencyStyle);
+                            }
                         }
                     }
                 }
