@@ -12,6 +12,9 @@ import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyBalanceLedger;
 import site.easy.to.build.crm.entity.TransactionBatchAllocation;
 import site.easy.to.build.crm.entity.UnifiedAllocation;
+import site.easy.to.build.crm.entity.AssignmentType;
+import site.easy.to.build.crm.entity.CustomerPropertyAssignment;
+import site.easy.to.build.crm.repository.CustomerPropertyAssignmentRepository;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.PaymentBatchRepository;
@@ -82,6 +85,9 @@ public class TransactionBatchAllocationService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
 
     // ===== ALLOCATION CREATION =====
 
@@ -765,8 +771,14 @@ public class TransactionBatchAllocationService {
         }
         // Otherwise try to get from property owner assignment
         if (transaction.getProperty() != null) {
-            // This would need PropertyOwnerRepository - for now return null
-            return null;
+            Long propertyId = transaction.getProperty().getId();
+            // Lookup OWNER from customer_property_assignments
+            List<CustomerPropertyAssignment> ownerAssignments =
+                customerPropertyAssignmentRepository.findByPropertyIdAndAssignmentType(propertyId, AssignmentType.OWNER);
+            if (!ownerAssignments.isEmpty()) {
+                CustomerPropertyAssignment ownerAssignment = ownerAssignments.get(0);
+                return ownerAssignment.getCustomer();
+            }
         }
         return null;
     }

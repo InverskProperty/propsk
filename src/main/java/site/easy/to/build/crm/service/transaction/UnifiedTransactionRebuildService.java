@@ -653,14 +653,15 @@ public class UnifiedTransactionRebuildService {
                     THEN 'BLOCK_PROPERTY'
                     ELSE 'OWNER'
                 END as beneficiary_type,
-                tba.beneficiary_id,
+                -- beneficiary_id: Use tba.beneficiary_id if set, otherwise lookup OWNER from customer_property_assignments
+                COALESCE(tba.beneficiary_id, owner_assign.customer_id) as beneficiary_id,
                 -- beneficiary_name: For DISBURSEMENT, extract block name from description; otherwise use owner
                 CASE
                     WHEN ht.description LIKE '%Beneficiary:%BLOCK PROPERTY%'
                     THEN TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(ht.description, 'Beneficiary: ', -1), ' (', 1))
                     WHEN ht.category IN ('disbursement', 'Disbursement') OR ht.category LIKE '%disbursement%'
                     THEN COALESCE(ht.beneficiary_name, ht.description)
-                    ELSE COALESCE(tba.beneficiary_name, c.name)
+                    ELSE COALESCE(tba.beneficiary_name, c.name, owner_cust.name)
                 END as beneficiary_name,
                 -- payment_status from PaymentBatch
                 CASE
@@ -685,6 +686,11 @@ public class UnifiedTransactionRebuildService {
                 AND ut.amount = uit.amount
             LEFT JOIN properties p ON tba.property_id = p.id
             LEFT JOIN customers c ON tba.beneficiary_id = c.customer_id
+            -- Lookup OWNER from customer_property_assignments if beneficiary_id is NULL
+            LEFT JOIN customer_property_assignments owner_assign
+                ON owner_assign.property_id = tba.property_id
+                AND owner_assign.assignment_type = 'OWNER'
+            LEFT JOIN customers owner_cust ON owner_assign.customer_id = owner_cust.customer_id
             LEFT JOIN payment_batches pb ON tba.batch_reference COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
         """;
 
