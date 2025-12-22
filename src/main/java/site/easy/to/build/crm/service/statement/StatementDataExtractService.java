@@ -3321,6 +3321,12 @@ public class StatementDataExtractService {
                     isPartial
                 );
 
+            // Populate gross/commission/net breakdown for OWNER allocations
+            detail.setGrossAmount(alloc.getGrossAmount());
+            detail.setCommissionRate(alloc.getCommissionRate());
+            detail.setCommissionAmount(alloc.getCommissionAmount());
+            detail.setNetToOwnerAmount(alloc.getNetToOwnerAmount());
+
             status.addAllocation(detail, periodStart, periodEnd);
 
             // If no payment date from batch, try to get from allocation

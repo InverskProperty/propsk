@@ -546,6 +546,10 @@ public class UnifiedTransactionRebuildService {
                 invoice_id,
                 allocation_type,
                 amount,
+                gross_amount,
+                commission_rate,
+                commission_amount,
+                net_to_owner_amount,
                 category,
                 description,
                 property_id,
@@ -592,6 +596,52 @@ public class UnifiedTransactionRebuildService {
                     ELSE 'EXPENSE'  -- Default to EXPENSE for safety (unrecognized = likely expense)
                 END as allocation_type,
                 ABS(tba.allocated_amount) as amount,
+                -- gross_amount: For OWNER allocations (rent), use the transaction's gross amount
+                -- Calculate proportionally if this is a partial allocation
+                CASE
+                    WHEN ht.category IN ('rent', 'rental', 'income', 'payment', 'tenant_payment')
+                         OR ht.category LIKE '%rent%' OR ht.category LIKE '%income%'
+                    THEN CASE
+                        -- If full allocation (allocated_amount >= net_to_owner), use full gross
+                        WHEN ABS(tba.allocated_amount) >= ABS(COALESCE(ht.net_to_owner_amount, ht.amount))
+                        THEN ABS(ht.amount)
+                        -- Partial allocation: calculate proportional gross
+                        WHEN ht.net_to_owner_amount IS NOT NULL AND ht.net_to_owner_amount != 0
+                        THEN ROUND(ABS(ht.amount) * (ABS(tba.allocated_amount) / ABS(ht.net_to_owner_amount)), 2)
+                        ELSE ABS(ht.amount)
+                    END
+                    ELSE NULL
+                END as gross_amount,
+                -- commission_rate: Use the transaction's commission rate for OWNER allocations
+                CASE
+                    WHEN ht.category IN ('rent', 'rental', 'income', 'payment', 'tenant_payment')
+                         OR ht.category LIKE '%rent%' OR ht.category LIKE '%income%'
+                    THEN ht.commission_rate
+                    ELSE NULL
+                END as commission_rate,
+                -- commission_amount: Calculate proportionally for OWNER allocations
+                CASE
+                    WHEN ht.category IN ('rent', 'rental', 'income', 'payment', 'tenant_payment')
+                         OR ht.category LIKE '%rent%' OR ht.category LIKE '%income%'
+                    THEN CASE
+                        -- If full allocation, use full commission
+                        WHEN ABS(tba.allocated_amount) >= ABS(COALESCE(ht.net_to_owner_amount, ht.amount))
+                        THEN ABS(ht.commission_amount)
+                        -- Partial allocation: calculate proportional commission
+                        WHEN ht.net_to_owner_amount IS NOT NULL AND ht.net_to_owner_amount != 0
+                             AND ht.commission_amount IS NOT NULL
+                        THEN ROUND(ABS(ht.commission_amount) * (ABS(tba.allocated_amount) / ABS(ht.net_to_owner_amount)), 2)
+                        ELSE NULL
+                    END
+                    ELSE NULL
+                END as commission_amount,
+                -- net_to_owner_amount: For OWNER allocations, this is the allocated_amount itself
+                CASE
+                    WHEN ht.category IN ('rent', 'rental', 'income', 'payment', 'tenant_payment')
+                         OR ht.category LIKE '%rent%' OR ht.category LIKE '%income%'
+                    THEN ABS(tba.allocated_amount)
+                    ELSE NULL
+                END as net_to_owner_amount,
                 ht.category,
                 ht.description,
                 tba.property_id,
@@ -652,6 +702,10 @@ public class UnifiedTransactionRebuildService {
                 invoice_id,
                 allocation_type,
                 amount,
+                gross_amount,
+                commission_rate,
+                commission_amount,
+                net_to_owner_amount,
                 category,
                 description,
                 property_id,
@@ -677,8 +731,15 @@ public class UnifiedTransactionRebuildService {
                 -- historical_transaction_id: not directly available for PayProp data
                 NULL as historical_transaction_id,
                 -- invoice_id: link to specific lease for per-lease allocation tracking
-                -- Find active lease for property at the time of the transaction
-                COALESCE(ut.invoice_id, active_lease.id) as invoice_id,
+                -- Use unified_transaction's invoice_id, or find one active lease via subquery (avoids cartesian product)
+                COALESCE(ut.invoice_id, (
+                    SELECT inv.id FROM invoices inv
+                    WHERE inv.property_id = prop.id
+                      AND peip.reconciliation_date >= inv.start_date
+                      AND (inv.end_date IS NULL OR peip.reconciliation_date <= inv.end_date)
+                    ORDER BY inv.start_date DESC
+                    LIMIT 1
+                )) as invoice_id,
                 -- allocation_type based on category_name and beneficiary_type
                 -- Now includes both 'beneficiary' (owner payments) and 'agency' (commission/reimbursements)
                 -- DISBURSEMENT = transfers to block property account (separate from regular EXPENSE)
@@ -705,6 +766,49 @@ public class UnifiedTransactionRebuildService {
                     ELSE 'OWNER'  -- Default to OWNER for beneficiary_type='beneficiary' (owner distributions)
                 END as allocation_type,
                 ABS(prap.amount) as amount,
+                -- gross_amount: For OWNER allocations, use the incoming_transaction_amount (full rent)
+                -- For other allocation types (COMMISSION, EXPENSE, DISBURSEMENT), set to NULL
+                CASE
+                    WHEN prap.category_name = 'Owner' AND prap.beneficiary_type = 'beneficiary'
+                    THEN ABS(prap.incoming_transaction_amount)
+                    ELSE NULL
+                END as gross_amount,
+                -- commission_rate: Calculate from gross and commission for OWNER allocations
+                -- Formula: (commission / gross) * 100
+                CASE
+                    WHEN prap.category_name = 'Owner' AND prap.beneficiary_type = 'beneficiary'
+                         AND prap.incoming_transaction_amount IS NOT NULL
+                         AND prap.incoming_transaction_amount > 0
+                    THEN ROUND(
+                        (COALESCE((
+                            SELECT ABS(comm.amount)
+                            FROM payprop_report_all_payments comm
+                            WHERE comm.incoming_transaction_id = prap.incoming_transaction_id
+                              AND comm.category_name = 'Commission'
+                              AND comm.beneficiary_type = 'agency'
+                            LIMIT 1
+                        ), 0) / ABS(prap.incoming_transaction_amount)) * 100, 2)
+                    ELSE NULL
+                END as commission_rate,
+                -- commission_amount: For OWNER allocations, get the commission from the same incoming transaction
+                CASE
+                    WHEN prap.category_name = 'Owner' AND prap.beneficiary_type = 'beneficiary'
+                    THEN (
+                        SELECT ABS(comm.amount)
+                        FROM payprop_report_all_payments comm
+                        WHERE comm.incoming_transaction_id = prap.incoming_transaction_id
+                          AND comm.category_name = 'Commission'
+                          AND comm.beneficiary_type = 'agency'
+                        LIMIT 1
+                    )
+                    ELSE NULL
+                END as commission_amount,
+                -- net_to_owner_amount: For OWNER allocations, this is the allocation amount itself
+                CASE
+                    WHEN prap.category_name = 'Owner' AND prap.beneficiary_type = 'beneficiary'
+                    THEN ABS(prap.amount)
+                    ELSE NULL
+                END as net_to_owner_amount,
                 prap.category_name as category,
                 prap.description,
                 prop.id as property_id,
@@ -738,11 +842,8 @@ public class UnifiedTransactionRebuildService {
             -- Link to unified_transactions using payprop_transaction_id (NOT property/date/amount to avoid cartesian product)
             LEFT JOIN unified_transactions ut
                 ON ut.payprop_transaction_id COLLATE utf8mb4_unicode_ci = peip.payprop_id COLLATE utf8mb4_unicode_ci
-            -- Find active lease for property at transaction date (fallback if ut.invoice_id is null)
-            LEFT JOIN invoices active_lease
-                ON prop.id = active_lease.property_id
-                AND peip.reconciliation_date >= active_lease.start_date
-                AND (active_lease.end_date IS NULL OR peip.reconciliation_date <= active_lease.end_date)
+            -- NOTE: Removed active_lease JOIN - was causing cartesian product (duplicates) when properties have multiple leases
+            -- invoice_id is now handled via subquery with LIMIT 1 in the SELECT clause
             WHERE prap.payment_batch_id IS NOT NULL
               AND prap.beneficiary_type IN ('beneficiary', 'agency')
         """;

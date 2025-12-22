@@ -3133,21 +3133,32 @@ public class ExcelStatementGeneratorService {
                             txnDateCell.setCellStyle(styles.dateStyle);
                         }
 
-                        // Columns 8, 9, 10: Income, Expense, Commission - put amount in appropriate column
+                        // Columns 8, 9, 10: Income (Gross), Expense, Commission
                         if (alloc.getAmount() != null) {
                             String type = alloc.getAllocationType();
-                            double amount = alloc.getAmount().abs().doubleValue();
                             if ("OWNER".equals(type)) {
+                                // For OWNER allocations, use grossAmount if available (new structure)
+                                double incomeAmount = alloc.getGrossAmount() != null ?
+                                    alloc.getGrossAmount().abs().doubleValue() :
+                                    alloc.getAmount().abs().doubleValue();
                                 Cell incomeCell = batchRow.createCell(8);
-                                incomeCell.setCellValue(amount);
+                                incomeCell.setCellValue(incomeAmount);
                                 incomeCell.setCellStyle(styles.currencyStyle);
+
+                                // Show commission from the allocation breakdown if available
+                                if (alloc.getCommissionAmount() != null) {
+                                    Cell commCell = batchRow.createCell(10);
+                                    commCell.setCellValue(alloc.getCommissionAmount().abs().doubleValue());
+                                    commCell.setCellStyle(styles.currencyStyle);
+                                }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
                                 Cell expenseCell = batchRow.createCell(9);
-                                expenseCell.setCellValue(amount);
+                                expenseCell.setCellValue(alloc.getAmount().abs().doubleValue());
                                 expenseCell.setCellStyle(styles.currencyStyle);
                             } else if ("COMMISSION".equals(type)) {
+                                // Standalone COMMISSION allocation (legacy or agency reimbursements)
                                 Cell commCell = batchRow.createCell(10);
-                                commCell.setCellValue(amount);
+                                commCell.setCellValue(alloc.getAmount().abs().doubleValue());
                                 commCell.setCellStyle(styles.currencyStyle);
                             }
                         }
@@ -3167,21 +3178,32 @@ public class ExcelStatementGeneratorService {
                             txnDateCell.setCellStyle(styles.dateStyle);
                         }
 
-                        // Columns 13, 14, 15: Income, Expense, Commission - put amount in appropriate column
+                        // Columns 13, 14, 15: Income (Gross), Expense, Commission
                         if (alloc.getAmount() != null) {
                             String type = alloc.getAllocationType();
-                            double amount = alloc.getAmount().abs().doubleValue();
                             if ("OWNER".equals(type)) {
+                                // For OWNER allocations, use grossAmount if available (new structure)
+                                double incomeAmount = alloc.getGrossAmount() != null ?
+                                    alloc.getGrossAmount().abs().doubleValue() :
+                                    alloc.getAmount().abs().doubleValue();
                                 Cell incomeCell = batchRow.createCell(13);
-                                incomeCell.setCellValue(amount);
+                                incomeCell.setCellValue(incomeAmount);
                                 incomeCell.setCellStyle(styles.currencyStyle);
+
+                                // Show commission from the allocation breakdown if available
+                                if (alloc.getCommissionAmount() != null) {
+                                    Cell commCell = batchRow.createCell(15);
+                                    commCell.setCellValue(alloc.getCommissionAmount().abs().doubleValue());
+                                    commCell.setCellStyle(styles.currencyStyle);
+                                }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
                                 Cell expenseCell = batchRow.createCell(14);
-                                expenseCell.setCellValue(amount);
+                                expenseCell.setCellValue(alloc.getAmount().abs().doubleValue());
                                 expenseCell.setCellStyle(styles.currencyStyle);
                             } else if ("COMMISSION".equals(type)) {
+                                // Standalone COMMISSION allocation (legacy or agency reimbursements)
                                 Cell commCell = batchRow.createCell(15);
-                                commCell.setCellValue(amount);
+                                commCell.setCellValue(alloc.getAmount().abs().doubleValue());
                                 commCell.setCellStyle(styles.currencyStyle);
                             }
                         }
@@ -3201,21 +3223,32 @@ public class ExcelStatementGeneratorService {
                             txnDateCell.setCellStyle(styles.dateStyle);
                         }
 
-                        // Columns 18, 19, 20: Income, Expense, Commission - put amount in appropriate column
+                        // Columns 18, 19, 20: Income (Gross), Expense, Commission
                         if (alloc.getAmount() != null) {
                             String type = alloc.getAllocationType();
-                            double amount = alloc.getAmount().abs().doubleValue();
                             if ("OWNER".equals(type)) {
+                                // For OWNER allocations, use grossAmount if available (new structure)
+                                double incomeAmount = alloc.getGrossAmount() != null ?
+                                    alloc.getGrossAmount().abs().doubleValue() :
+                                    alloc.getAmount().abs().doubleValue();
                                 Cell incomeCell = batchRow.createCell(18);
-                                incomeCell.setCellValue(amount);
+                                incomeCell.setCellValue(incomeAmount);
                                 incomeCell.setCellStyle(styles.currencyStyle);
+
+                                // Show commission from the allocation breakdown if available
+                                if (alloc.getCommissionAmount() != null) {
+                                    Cell commCell = batchRow.createCell(20);
+                                    commCell.setCellValue(alloc.getCommissionAmount().abs().doubleValue());
+                                    commCell.setCellStyle(styles.currencyStyle);
+                                }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
                                 Cell expenseCell = batchRow.createCell(19);
-                                expenseCell.setCellValue(amount);
+                                expenseCell.setCellValue(alloc.getAmount().abs().doubleValue());
                                 expenseCell.setCellStyle(styles.currencyStyle);
                             } else if ("COMMISSION".equals(type)) {
+                                // Standalone COMMISSION allocation (legacy or agency reimbursements)
                                 Cell commCell = batchRow.createCell(20);
-                                commCell.setCellValue(amount);
+                                commCell.setCellValue(alloc.getAmount().abs().doubleValue());
                                 commCell.setCellStyle(styles.currencyStyle);
                             }
                         }

@@ -59,9 +59,18 @@ public class BatchAllocationStatusDTO {
         BigDecimal amount = allocation.getAmount() != null ? allocation.getAmount().abs() : BigDecimal.ZERO;
 
         // Classify by type
+        // For OWNER allocations with gross/commission breakdown, use those values for totals
         if ("OWNER".equals(allocation.getAllocationType())) {
-            grossIncome = grossIncome.add(amount);
+            // Use grossAmount if available (new structure), otherwise use amount (legacy)
+            BigDecimal gross = allocation.getGrossAmount() != null ? allocation.getGrossAmount().abs() : amount;
+            grossIncome = grossIncome.add(gross);
+
+            // Add commission from the allocation if available
+            if (allocation.getCommissionAmount() != null) {
+                commission = commission.add(allocation.getCommissionAmount().abs());
+            }
         } else if ("COMMISSION".equals(allocation.getAllocationType())) {
+            // Standalone COMMISSION allocation (legacy structure or agency reimbursements)
             commission = commission.add(amount);
         } else if ("EXPENSE".equals(allocation.getAllocationType()) ||
                    "DISBURSEMENT".equals(allocation.getAllocationType())) {
@@ -227,6 +236,12 @@ public class BatchAllocationStatusDTO {
         private String periodClassification; // B/F, THIS_PERIOD, FUTURE
         private boolean isPartial;
 
+        // Gross/Commission/Net breakdown for OWNER allocations
+        private BigDecimal grossAmount;
+        private BigDecimal commissionRate;
+        private BigDecimal commissionAmount;
+        private BigDecimal netToOwnerAmount;
+
         public AllocationDetailDTO() {
         }
 
@@ -304,6 +319,38 @@ public class BatchAllocationStatusDTO {
 
         public void setPartial(boolean partial) {
             isPartial = partial;
+        }
+
+        public BigDecimal getGrossAmount() {
+            return grossAmount;
+        }
+
+        public void setGrossAmount(BigDecimal grossAmount) {
+            this.grossAmount = grossAmount;
+        }
+
+        public BigDecimal getCommissionRate() {
+            return commissionRate;
+        }
+
+        public void setCommissionRate(BigDecimal commissionRate) {
+            this.commissionRate = commissionRate;
+        }
+
+        public BigDecimal getCommissionAmount() {
+            return commissionAmount;
+        }
+
+        public void setCommissionAmount(BigDecimal commissionAmount) {
+            this.commissionAmount = commissionAmount;
+        }
+
+        public BigDecimal getNetToOwnerAmount() {
+            return netToOwnerAmount;
+        }
+
+        public void setNetToOwnerAmount(BigDecimal netToOwnerAmount) {
+            this.netToOwnerAmount = netToOwnerAmount;
         }
     }
 }

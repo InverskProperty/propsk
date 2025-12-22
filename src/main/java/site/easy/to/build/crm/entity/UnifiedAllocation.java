@@ -41,6 +41,21 @@ public class UnifiedAllocation {
     @Column(name = "amount", precision = 12, scale = 2, nullable = false)
     private BigDecimal amount;
 
+    // Gross/Commission/Net breakdown for rent allocations
+    // For OWNER allocations: gross_amount is the full rent, commission is deducted, net is what owner receives
+    // For EXPENSE/DISBURSEMENT: these fields are null (no commission breakdown)
+    @Column(name = "gross_amount", precision = 12, scale = 2)
+    private BigDecimal grossAmount;
+
+    @Column(name = "commission_rate", precision = 5, scale = 2)
+    private BigDecimal commissionRate;
+
+    @Column(name = "commission_amount", precision = 12, scale = 2)
+    private BigDecimal commissionAmount;
+
+    @Column(name = "net_to_owner_amount", precision = 12, scale = 2)
+    private BigDecimal netToOwnerAmount;
+
     @Column(name = "category", length = 100)
     private String category;
 
@@ -122,6 +137,18 @@ public class UnifiedAllocation {
 
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+
+    public BigDecimal getGrossAmount() { return grossAmount; }
+    public void setGrossAmount(BigDecimal grossAmount) { this.grossAmount = grossAmount; }
+
+    public BigDecimal getCommissionRate() { return commissionRate; }
+    public void setCommissionRate(BigDecimal commissionRate) { this.commissionRate = commissionRate; }
+
+    public BigDecimal getCommissionAmount() { return commissionAmount; }
+    public void setCommissionAmount(BigDecimal commissionAmount) { this.commissionAmount = commissionAmount; }
+
+    public BigDecimal getNetToOwnerAmount() { return netToOwnerAmount; }
+    public void setNetToOwnerAmount(BigDecimal netToOwnerAmount) { this.netToOwnerAmount = netToOwnerAmount; }
 
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }

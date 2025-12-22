@@ -11,11 +11,14 @@ import site.easy.to.build.crm.entity.PaymentBatch;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.entity.PropertyBalanceLedger;
 import site.easy.to.build.crm.entity.TransactionBatchAllocation;
+import site.easy.to.build.crm.entity.UnifiedAllocation;
+import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.repository.HistoricalTransactionRepository;
 import site.easy.to.build.crm.repository.PaymentBatchRepository;
 import site.easy.to.build.crm.repository.PropertyBalanceLedgerRepository;
 import site.easy.to.build.crm.repository.PropertyRepository;
 import site.easy.to.build.crm.repository.TransactionBatchAllocationRepository;
+import site.easy.to.build.crm.repository.UnifiedAllocationRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -73,6 +76,12 @@ public class TransactionBatchAllocationService {
 
     @Autowired
     private PropertyRepository propertyRepository;
+
+    @Autowired
+    private UnifiedAllocationRepository unifiedAllocationRepository;
+
+    @Autowired
+    private CustomerRepository customerRepository;
 
     // ===== ALLOCATION CREATION =====
 
@@ -168,7 +177,134 @@ public class TransactionBatchAllocationService {
         log.debug("Created allocation: transaction={}, batch={}, amount={}",
                 transaction.getId(), batchReference, amount);
 
+        // Also create a UnifiedAllocation record for immediate statement visibility
+        createUnifiedAllocationFromHistorical(transaction, batchReference, amount, userId, saved.getId(), owner);
+
         return saved;
+    }
+
+    /**
+     * Create a UnifiedAllocation record from a HistoricalTransaction allocation.
+     * This ensures the allocation is immediately visible in statements without waiting for rebuild.
+     */
+    private void createUnifiedAllocationFromHistorical(HistoricalTransaction transaction,
+                                                        String batchReference,
+                                                        BigDecimal amount,
+                                                        Long userId,
+                                                        Long sourceRecordId,
+                                                        Customer owner) {
+        try {
+            UnifiedAllocation unified = new UnifiedAllocation();
+
+            // Link to historical transaction
+            unified.setHistoricalTransactionId(transaction.getId());
+
+            // Determine allocation type based on category
+            String category = transaction.getCategory();
+            UnifiedAllocation.AllocationType allocationType = determineAllocationType(category);
+            unified.setAllocationType(allocationType);
+
+            // Amount
+            unified.setAmount(amount.abs());
+
+            // For OWNER allocations (rent), populate gross/commission/net breakdown
+            if (allocationType == UnifiedAllocation.AllocationType.OWNER) {
+                BigDecimal transactionGross = transaction.getAmount();
+                BigDecimal transactionNet = transaction.getNetToOwnerAmount();
+                BigDecimal transactionCommission = transaction.getCommissionAmount();
+                BigDecimal transactionCommissionRate = transaction.getCommissionRate();
+
+                if (transactionNet != null && transactionNet.abs().compareTo(BigDecimal.ZERO) > 0) {
+                    // Calculate proportion of transaction being allocated
+                    BigDecimal allocationProportion = amount.abs().divide(
+                        transactionNet.abs(), 10, java.math.RoundingMode.HALF_UP);
+
+                    if (allocationProportion.compareTo(BigDecimal.ONE) >= 0) {
+                        // Full allocation - use actual values
+                        unified.setGrossAmount(transactionGross != null ? transactionGross.abs() : null);
+                        unified.setCommissionRate(transactionCommissionRate);
+                        unified.setCommissionAmount(transactionCommission != null ? transactionCommission.abs() : null);
+                        unified.setNetToOwnerAmount(transactionNet.abs());
+                    } else {
+                        // Partial allocation - calculate proportional amounts
+                        unified.setGrossAmount(transactionGross != null ?
+                            transactionGross.abs().multiply(allocationProportion).setScale(2, java.math.RoundingMode.HALF_UP) : null);
+                        unified.setCommissionRate(transactionCommissionRate);
+                        unified.setCommissionAmount(transactionCommission != null ?
+                            transactionCommission.abs().multiply(allocationProportion).setScale(2, java.math.RoundingMode.HALF_UP) : null);
+                        unified.setNetToOwnerAmount(amount.abs());
+                    }
+                }
+            }
+
+            // Category and description
+            unified.setCategory(transaction.getCategory());
+            unified.setDescription(transaction.getDescription());
+
+            // Property info
+            if (transaction.getProperty() != null) {
+                unified.setPropertyId(transaction.getProperty().getId());
+                unified.setPropertyName(transaction.getProperty().getPropertyName());
+            }
+
+            // Invoice/lease info
+            if (transaction.getInvoice() != null) {
+                unified.setInvoiceId(transaction.getInvoice().getId());
+            }
+
+            // Beneficiary info
+            unified.setBeneficiaryType("OWNER");
+            if (owner != null) {
+                unified.setBeneficiaryId((long) owner.getCustomerId());
+                unified.setBeneficiaryName(owner.getName());
+            }
+
+            // Payment tracking
+            unified.setPaymentBatchId(batchReference);
+            unified.setPaymentStatus(UnifiedAllocation.PaymentStatus.BATCHED);
+            unified.setSource(UnifiedAllocation.AllocationSource.MANUAL);
+            unified.setSourceRecordId(sourceRecordId);
+            unified.setCreatedBy(userId);
+
+            unifiedAllocationRepository.save(unified);
+
+            log.debug("Created unified allocation for historical transaction: txn={}, batch={}, amount={}, gross={}, commission={}, net={}",
+                    transaction.getId(), batchReference, amount,
+                    unified.getGrossAmount(), unified.getCommissionAmount(), unified.getNetToOwnerAmount());
+
+        } catch (Exception e) {
+            log.warn("Failed to create unified allocation for historical transaction {}: {}",
+                    transaction.getId(), e.getMessage());
+            // Don't fail the main allocation - this is a sync operation
+        }
+    }
+
+    /**
+     * Determine allocation type from transaction category
+     */
+    private UnifiedAllocation.AllocationType determineAllocationType(String category) {
+        if (category == null) {
+            return UnifiedAllocation.AllocationType.EXPENSE;
+        }
+
+        String lowerCategory = category.toLowerCase();
+
+        if (lowerCategory.contains("commission") || lowerCategory.contains("management") ||
+            lowerCategory.contains("agency_fee")) {
+            return UnifiedAllocation.AllocationType.COMMISSION;
+        }
+
+        if (lowerCategory.contains("rent") || lowerCategory.contains("income") ||
+            lowerCategory.contains("payment") || lowerCategory.contains("tenant")) {
+            return UnifiedAllocation.AllocationType.OWNER;
+        }
+
+        if (lowerCategory.contains("disbursement") || lowerCategory.contains("block property")) {
+            return UnifiedAllocation.AllocationType.DISBURSEMENT;
+        }
+
+        // Default to EXPENSE for unrecognized categories
+        return UnifiedAllocation.AllocationType.EXPENSE;
     }
 
     // ===== VALIDATION =====

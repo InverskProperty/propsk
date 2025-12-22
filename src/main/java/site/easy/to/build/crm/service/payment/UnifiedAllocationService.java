@@ -271,6 +271,9 @@ public class UnifiedAllocationService {
 
     /**
      * Allocate a full unified transaction to a batch (100% of net_to_owner_amount)
+     * Creates a single OWNER allocation with gross/commission/net breakdown stored in the record.
+     *
+     * @return The OWNER allocation with full breakdown
      */
     public UnifiedAllocation allocateFullUnifiedTransaction(Long unifiedTransactionId, String batchReference, Long userId) {
         UnifiedTransaction transaction = getUnifiedTransaction(unifiedTransactionId);
@@ -286,21 +289,31 @@ public class UnifiedAllocationService {
                     "Remaining: " + remaining + ", Total: " + netToOwner);
         }
 
-        return createUnifiedAllocation(transaction, batchReference, netToOwner, userId);
+        // Create OWNER allocation with gross/commission/net breakdown
+        return createUnifiedAllocation(transaction, batchReference, netToOwner, userId, AllocationType.OWNER);
     }
 
     /**
      * Allocate a specific amount from a unified transaction to a batch (partial allocation)
+     * Creates a single OWNER allocation with proportional gross/commission/net breakdown.
+     *
+     * @param amount The net-to-owner amount to allocate
+     * @return The OWNER allocation with proportional breakdown
      */
     public UnifiedAllocation allocatePartialUnifiedTransaction(Long unifiedTransactionId, String batchReference,
                                                                 BigDecimal amount, Long userId) {
         UnifiedTransaction transaction = getUnifiedTransaction(unifiedTransactionId);
         validateUnifiedAllocation(transaction, amount);
-        return createUnifiedAllocation(transaction, batchReference, amount, userId);
+
+        // Create OWNER allocation with proportional gross/commission/net breakdown
+        return createUnifiedAllocation(transaction, batchReference, amount, userId, AllocationType.OWNER);
     }
 
     /**
      * Allocate remaining unallocated amount from a unified transaction to a batch
+     * Creates a single OWNER allocation with proportional gross/commission/net breakdown.
+     *
+     * @return The OWNER allocation with proportional breakdown
      */
     public UnifiedAllocation allocateRemainingToUnifiedTransaction(Long unifiedTransactionId, String batchReference, Long userId) {
         UnifiedTransaction transaction = getUnifiedTransaction(unifiedTransactionId);
@@ -310,7 +323,8 @@ public class UnifiedAllocationService {
             throw new IllegalStateException("UnifiedTransaction " + unifiedTransactionId + " is fully allocated");
         }
 
-        return createUnifiedAllocation(transaction, batchReference, remaining, userId);
+        // Create OWNER allocation with proportional gross/commission/net breakdown
+        return createUnifiedAllocation(transaction, batchReference, remaining, userId, AllocationType.OWNER);
     }
 
     /**
@@ -336,12 +350,39 @@ public class UnifiedAllocationService {
     }
 
     /**
-     * Create an allocation from a unified transaction
+     * Create an allocation from a unified transaction (auto-determines type from flow direction)
      */
     private UnifiedAllocation createUnifiedAllocation(UnifiedTransaction transaction,
                                                        String batchReference,
                                                        BigDecimal amount,
                                                        Long userId) {
+        // Determine allocation type based on transaction's flow direction
+        AllocationType allocationType;
+        if (transaction.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING) {
+            allocationType = AllocationType.OWNER;
+        } else {
+            allocationType = AllocationType.EXPENSE;
+        }
+        return createUnifiedAllocation(transaction, batchReference, amount, userId, allocationType);
+    }
+
+    /**
+     * Create an allocation from a unified transaction with explicit allocation type
+     *
+     * For OWNER allocations (rent), populates the full gross/commission/net breakdown.
+     * For EXPENSE/DISBURSEMENT allocations, only the amount is populated.
+     *
+     * @param transaction The unified transaction
+     * @param batchReference The batch reference
+     * @param amount The allocation amount (for OWNER: the net amount being allocated)
+     * @param userId The user creating the allocation
+     * @param allocationType The explicit allocation type (OWNER, EXPENSE, DISBURSEMENT, etc.)
+     */
+    private UnifiedAllocation createUnifiedAllocation(UnifiedTransaction transaction,
+                                                       String batchReference,
+                                                       BigDecimal amount,
+                                                       Long userId,
+                                                       AllocationType allocationType) {
         UnifiedAllocation allocation = new UnifiedAllocation();
 
         // Link to unified transaction
@@ -352,17 +393,43 @@ public class UnifiedAllocationService {
             allocation.setHistoricalTransactionId(transaction.getSourceRecordId());
         }
 
-        // Determine allocation type based on transaction's flow direction, not amount sign
-        // INCOMING (rent received) → OWNER (income for landlord)
-        // OUTGOING (expenses paid) → EXPENSE (deductions from landlord payment)
-        if (transaction.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING) {
-            allocation.setAllocationType(AllocationType.OWNER);
-        } else {
-            allocation.setAllocationType(AllocationType.EXPENSE);
-        }
-        allocation.setAmount(amount.abs()); // Store as positive, type determines if income or expense
+        // Set the explicit allocation type
+        allocation.setAllocationType(allocationType);
+        allocation.setAmount(amount.abs()); // The allocated amount (could be partial)
         allocation.setCategory(transaction.getCategory());
         allocation.setDescription(transaction.getDescription());
+
+        // For OWNER allocations (rent), populate gross/commission/net breakdown
+        if (allocationType == AllocationType.OWNER) {
+            // Get transaction amounts - handle full vs partial allocation
+            BigDecimal transactionGross = transaction.getAmount();
+            BigDecimal transactionNet = transaction.getNetToOwnerAmount();
+            BigDecimal transactionCommission = transaction.getCommissionAmount();
+            BigDecimal transactionCommissionRate = transaction.getCommissionRate();
+
+            if (transactionNet != null && transactionNet.compareTo(BigDecimal.ZERO) > 0) {
+                // Calculate what proportion of the transaction is being allocated
+                BigDecimal allocationProportion = amount.abs().divide(transactionNet.abs(), 10, java.math.RoundingMode.HALF_UP);
+
+                // For full allocation, use actual values; for partial, calculate proportionally
+                if (allocationProportion.compareTo(BigDecimal.ONE) >= 0) {
+                    // Full allocation - use actual transaction values
+                    allocation.setGrossAmount(transactionGross != null ? transactionGross.abs() : null);
+                    allocation.setCommissionRate(transactionCommissionRate);
+                    allocation.setCommissionAmount(transactionCommission != null ? transactionCommission.abs() : null);
+                    allocation.setNetToOwnerAmount(transactionNet.abs());
+                } else {
+                    // Partial allocation - calculate proportional amounts
+                    allocation.setGrossAmount(transactionGross != null ?
+                        transactionGross.abs().multiply(allocationProportion).setScale(2, java.math.RoundingMode.HALF_UP) : null);
+                    allocation.setCommissionRate(transactionCommissionRate); // Rate stays the same
+                    allocation.setCommissionAmount(transactionCommission != null ?
+                        transactionCommission.abs().multiply(allocationProportion).setScale(2, java.math.RoundingMode.HALF_UP) : null);
+                    allocation.setNetToOwnerAmount(amount.abs());
+                }
+            }
+        }
+        // For EXPENSE/DISBURSEMENT, gross/commission/net fields remain null
 
         // Property info
         allocation.setPropertyId(transaction.getPropertyId());
@@ -373,7 +440,8 @@ public class UnifiedAllocationService {
             allocation.setInvoiceId(transaction.getInvoiceId());
         }
 
-        // Beneficiary info - try to get owner from property
+        // Beneficiary info - always the property owner for allocations
+        allocation.setBeneficiaryType("OWNER");
         if (transaction.getPropertyId() != null) {
             propertyRepository.findById(transaction.getPropertyId()).ifPresent(property -> {
                 if (property.getPropertyOwnerId() != null) {
@@ -384,7 +452,6 @@ public class UnifiedAllocationService {
                 }
             });
         }
-        allocation.setBeneficiaryType("OWNER");
 
         // Payment tracking
         allocation.setPaymentBatchId(batchReference);
@@ -394,8 +461,9 @@ public class UnifiedAllocationService {
 
         UnifiedAllocation saved = allocationRepository.save(allocation);
 
-        log.debug("Created unified allocation: unifiedTransactionId={}, batch={}, amount={}",
-                transaction.getId(), batchReference, amount);
+        log.debug("Created unified allocation: unifiedTransactionId={}, batch={}, amount={}, type={}, gross={}, commission={}, net={}",
+                transaction.getId(), batchReference, amount, allocationType,
+                allocation.getGrossAmount(), allocation.getCommissionAmount(), allocation.getNetToOwnerAmount());
 
         return saved;
     }
