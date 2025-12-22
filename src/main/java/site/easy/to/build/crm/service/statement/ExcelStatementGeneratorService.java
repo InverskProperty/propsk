@@ -1610,35 +1610,37 @@ public class ExcelStatementGeneratorService {
     /**
      * Create PROPERTY_ACCOUNT sheet for block property account balance tracking
      *
-     * FLAT STRUCTURE: One row per transaction (like RENT_RECEIVED and EXPENSES sheets)
+     * ALLOCATION-BASED: Uses unified_allocations for accurate property-level reporting
      *
      * Structure:
-     * - Column A: property_id (block property ID or source property ID)
-     * - Column B: property_name (block property name or flat name)
-     * - Column C: transaction_date
-     * - Column D: movement_type ("IN" for allocations, "OUT" for expenses)
-     * - Column E: amount (positive for both - allocations flip sign)
-     * - Column F: category
-     * - Column G: description
-     * - Column H: source_reference (payprop_transaction_id)
+     * - Column A: block_property_id (the block property receiving/spending)
+     * - Column B: block_property_name
+     * - Column C: source_property (flat name for contributions, or block name for expenses)
+     * - Column D: paid_date
+     * - Column E: movement_type ("IN" for contributions, "OUT" for expenses)
+     * - Column F: amount (always positive for display)
+     * - Column G: category
+     * - Column H: description
+     * - Column I: batch_reference
      *
-     * Data sources:
-     * 1. IN: PROPERTY_ACCOUNT_ALLOCATION transactions (negative amounts flipped to positive)
-     * 2. OUT: OUTGOING transactions for block properties (expenses)
+     * Data sources (from unified_allocations):
+     * 1. IN: DISBURSEMENT allocations where beneficiary is block property (flat contributions)
+     * 2. IN: Negative OWNER allocations on block property (owner contributions)
+     * 3. OUT: EXPENSE/COMMISSION allocations on block property
      *
      * Balance formula: SUMIF(movement_type="IN") - SUMIF(movement_type="OUT")
      */
     private void createPropertyAccountSheet(Workbook workbook, List<LeaseMasterDTO> leaseMaster,
                                             LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
-        log.info("Creating PROPERTY_ACCOUNT sheet (flat structure - one row per transaction)");
+        log.info("Creating PROPERTY_ACCOUNT sheet (allocation-based - from unified_allocations)");
 
         Sheet sheet = workbook.createSheet("PROPERTY_ACCOUNT");
 
-        // Header row - flat structure matching RENT_RECEIVED/EXPENSES pattern
+        // Header row
         Row header = sheet.createRow(0);
         String[] headers = {
-            "property_id", "property_name", "transaction_date", "movement_type",
-            "amount", "category", "description", "source_reference"
+            "block_property_id", "block_property_name", "source_property", "paid_date",
+            "movement_type", "amount", "category", "description", "batch_reference"
         };
 
         // Use shared styles (memory optimization)
@@ -1654,154 +1656,167 @@ public class ExcelStatementGeneratorService {
         CellStyle currencyStyle = styles.currencyStyle;
 
         int rowNum = 1;
+        int disbursementCount = 0;
+        int ownerContributionCount = 0;
+        int expenseCount = 0;
 
-        // 1. Get ALL PROPERTY_ACCOUNT_ALLOCATION transactions (IN - money allocated to property account)
-        // These are stored with negative amounts, so we flip the sign for display
-        List<UnifiedTransaction> allocations = unifiedTransactionRepository.findPropertyAccountAllocations();
-        log.debug("Found {} PROPERTY_ACCOUNT_ALLOCATION transactions for property account inflows", allocations.size());
+        // 1. Get DISBURSEMENT allocations TO block properties (IN - contributions from flats)
+        // These are in unified_allocations with allocation_type='DISBURSEMENT' and beneficiary like block name
+        List<UnifiedAllocation> disbursements = unifiedAllocationRepository.findByAllocationType(
+            UnifiedAllocation.AllocationType.DISBURSEMENT);
 
-        for (UnifiedTransaction allocation : allocations) {
-            Row row = sheet.createRow(rowNum);
+        for (UnifiedAllocation alloc : disbursements) {
+            // Only include disbursements to block properties (beneficiary name contains "BLOCK")
+            String beneficiary = alloc.getBeneficiaryName();
+            if (beneficiary == null || !beneficiary.toUpperCase().contains("BLOCK")) {
+                continue;
+            }
+
+            Row row = sheet.createRow(rowNum++);
             int col = 0;
 
-            // Column A: property_id (the block property receiving the allocation)
-            Long propId = allocation.getPropertyId();
-            row.createCell(col++).setCellValue(propId != null ? propId : 0);
+            // Column A: block_property_id - look up from beneficiary name
+            // For now, use 0 as we'd need to resolve the block property ID
+            row.createCell(col++).setCellValue(0);
 
-            // Column B: property_name
-            row.createCell(col++).setCellValue(allocation.getPropertyName() != null ? allocation.getPropertyName() : "");
+            // Column B: block_property_name (the beneficiary)
+            row.createCell(col++).setCellValue(beneficiary);
 
-            // Column C: transaction_date
+            // Column C: source_property (the flat contributing)
+            row.createCell(col++).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
+
+            // Column D: paid_date
             Cell dateCell = row.createCell(col++);
-            if (allocation.getTransactionDate() != null) {
-                dateCell.setCellValue(allocation.getTransactionDate());
+            if (alloc.getPaidDate() != null) {
+                dateCell.setCellValue(alloc.getPaidDate());
                 dateCell.setCellStyle(dateStyle);
             }
 
-            // Column D: movement_type = "IN" (money coming into property account)
+            // Column E: movement_type = "IN" (contribution coming into block)
             row.createCell(col++).setCellValue("IN");
 
-            // Column E: amount (flip sign - stored as negative, display as positive)
+            // Column F: amount (positive)
             Cell amountCell = row.createCell(col++);
-            java.math.BigDecimal amount = allocation.getAmount();
-            if (amount != null) {
-                // Flip sign: stored as negative, show as positive IN
-                amountCell.setCellValue(amount.abs().doubleValue());
+            if (alloc.getAmount() != null) {
+                amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
                 amountCell.setCellStyle(currencyStyle);
             }
 
-            // Column F: category
-            row.createCell(col++).setCellValue(allocation.getCategory() != null ? allocation.getCategory() : "Property Account Allocation");
+            // Column G: category
+            row.createCell(col++).setCellValue("Flat Contribution");
 
-            // Column G: description
-            row.createCell(col++).setCellValue(allocation.getDescription() != null ? allocation.getDescription() : "");
+            // Column H: description
+            row.createCell(col++).setCellValue(alloc.getDescription() != null ? alloc.getDescription() : "Service charge contribution");
 
-            // Column H: source_reference
-            row.createCell(col++).setCellValue(allocation.getPaypropTransactionId() != null ? allocation.getPaypropTransactionId() : "");
+            // Column I: batch_reference
+            row.createCell(col++).setCellValue(alloc.getPaymentBatchId() != null ? alloc.getPaymentBatchId() : "");
 
-            rowNum++;
+            disbursementCount++;
         }
 
-        // 2. Get disbursements TO block property accounts (IN - money from individual flats)
-        // These are OUTGOING from flats but represent money going INTO the block property account
-        List<UnifiedTransaction> disbursements = unifiedTransactionRepository.findAllDisbursementsToBlockProperties();
-        log.debug("Found {} disbursements TO block property accounts", disbursements.size());
+        // 2. Get block property allocations (EXPENSE, COMMISSION, and negative OWNER)
+        // Find all allocations where property is a block property
+        List<UnifiedAllocation> blockAllocations = unifiedAllocationRepository.findAll().stream()
+            .filter(a -> a.getPropertyName() != null && a.getPropertyName().toUpperCase().contains("BLOCK"))
+            .toList();
 
-        for (UnifiedTransaction disbursement : disbursements) {
-            Row row = sheet.createRow(rowNum);
-            int col = 0;
+        for (UnifiedAllocation alloc : blockAllocations) {
+            UnifiedAllocation.AllocationType type = alloc.getAllocationType();
 
-            // Column A: property_id - Extract block property ID from description or use associated block
-            // For now, we'll show 0 and rely on the description to identify the block
-            Long propId = disbursement.getPropertyId();
-            row.createCell(col++).setCellValue(propId != null ? propId : 0);
+            if (type == UnifiedAllocation.AllocationType.EXPENSE ||
+                type == UnifiedAllocation.AllocationType.COMMISSION) {
+                // EXPENSE/COMMISSION = OUT (money leaving block)
+                if (alloc.getAmount() == null || alloc.getAmount().compareTo(java.math.BigDecimal.ZERO) == 0) {
+                    continue; // Skip zero amounts
+                }
 
-            // Column B: property_name - Show which flat the money came FROM
-            String propertyName = disbursement.getPropertyName() != null ? disbursement.getPropertyName() : "";
-            row.createCell(col++).setCellValue(propertyName);
+                Row row = sheet.createRow(rowNum++);
+                int col = 0;
 
-            // Column C: transaction_date
-            Cell dateCell = row.createCell(col++);
-            if (disbursement.getTransactionDate() != null) {
-                dateCell.setCellValue(disbursement.getTransactionDate());
-                dateCell.setCellStyle(dateStyle);
-            }
+                // Column A: block_property_id
+                row.createCell(col++).setCellValue(alloc.getPropertyId() != null ? alloc.getPropertyId() : 0);
 
-            // Column D: movement_type = "IN" (money coming INTO block property account)
-            row.createCell(col++).setCellValue("IN");
+                // Column B: block_property_name
+                row.createCell(col++).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
 
-            // Column E: amount (positive - this is money coming in)
-            Cell amountCell = row.createCell(col++);
-            java.math.BigDecimal amount = disbursement.getAmount();
-            if (amount != null) {
-                amountCell.setCellValue(amount.abs().doubleValue());
+                // Column C: source_property (same as block for expenses)
+                row.createCell(col++).setCellValue(alloc.getBeneficiaryName() != null ? alloc.getBeneficiaryName() : "");
+
+                // Column D: paid_date
+                Cell dateCell = row.createCell(col++);
+                if (alloc.getPaidDate() != null) {
+                    dateCell.setCellValue(alloc.getPaidDate());
+                    dateCell.setCellStyle(dateStyle);
+                }
+
+                // Column E: movement_type = "OUT"
+                row.createCell(col++).setCellValue("OUT");
+
+                // Column F: amount (positive)
+                Cell amountCell = row.createCell(col++);
+                amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
                 amountCell.setCellStyle(currencyStyle);
-            }
 
-            // Column F: category - Show as Block Contribution or similar
-            row.createCell(col++).setCellValue("Block Contribution");
+                // Column G: category
+                row.createCell(col++).setCellValue(alloc.getCategory() != null ? alloc.getCategory() : type.toString());
 
-            // Column G: description - Include source flat info
-            String description = disbursement.getDescription() != null ? disbursement.getDescription() : "";
-            row.createCell(col++).setCellValue("From " + propertyName + ": " + description);
+                // Column H: description
+                row.createCell(col++).setCellValue(alloc.getDescription() != null ? alloc.getDescription() : "");
 
-            // Column H: source_reference
-            row.createCell(col++).setCellValue(disbursement.getPaypropTransactionId() != null ? disbursement.getPaypropTransactionId() : "");
+                // Column I: batch_reference
+                row.createCell(col++).setCellValue(alloc.getPaymentBatchId() != null ? alloc.getPaymentBatchId() : "");
 
-            rowNum++;
-        }
+                expenseCount++;
 
-        // 3. Get ALL OUTGOING transactions for block properties (OUT - expenses paid from property account)
-        List<UnifiedTransaction> blockExpenses = unifiedTransactionRepository.findAllBlockPropertyExpenses();
-        log.debug("Found {} OUTGOING transactions for block property expenses", blockExpenses.size());
+            } else if (type == UnifiedAllocation.AllocationType.OWNER &&
+                       alloc.getAmount() != null &&
+                       alloc.getAmount().compareTo(java.math.BigDecimal.ZERO) < 0) {
+                // Negative OWNER = IN (owner contribution to cover expenses)
+                Row row = sheet.createRow(rowNum++);
+                int col = 0;
 
-        for (UnifiedTransaction expense : blockExpenses) {
-            Row row = sheet.createRow(rowNum);
-            int col = 0;
+                // Column A: block_property_id
+                row.createCell(col++).setCellValue(alloc.getPropertyId() != null ? alloc.getPropertyId() : 0);
 
-            // Column A: property_id (the block property)
-            Long propId = expense.getPropertyId();
-            row.createCell(col++).setCellValue(propId != null ? propId : 0);
+                // Column B: block_property_name
+                row.createCell(col++).setCellValue(alloc.getPropertyName() != null ? alloc.getPropertyName() : "");
 
-            // Column B: property_name
-            row.createCell(col++).setCellValue(expense.getPropertyName() != null ? expense.getPropertyName() : "");
+                // Column C: source_property (owner)
+                row.createCell(col++).setCellValue(alloc.getBeneficiaryName() != null ? alloc.getBeneficiaryName() : "Owner");
 
-            // Column C: transaction_date
-            Cell dateCell = row.createCell(col++);
-            if (expense.getTransactionDate() != null) {
-                dateCell.setCellValue(expense.getTransactionDate());
-                dateCell.setCellStyle(dateStyle);
-            }
+                // Column D: paid_date
+                Cell dateCell = row.createCell(col++);
+                if (alloc.getPaidDate() != null) {
+                    dateCell.setCellValue(alloc.getPaidDate());
+                    dateCell.setCellStyle(dateStyle);
+                }
 
-            // Column D: movement_type = "OUT" (money going out of property account)
-            row.createCell(col++).setCellValue("OUT");
+                // Column E: movement_type = "IN" (owner contributing)
+                row.createCell(col++).setCellValue("IN");
 
-            // Column E: amount (keep as positive - expenses are stored as positive OUTGOING)
-            Cell amountCell = row.createCell(col++);
-            java.math.BigDecimal amount = expense.getAmount();
-            if (amount != null) {
-                // Use absolute value for display consistency
-                amountCell.setCellValue(amount.abs().doubleValue());
+                // Column F: amount (absolute value - stored negative, show positive)
+                Cell amountCell = row.createCell(col++);
+                amountCell.setCellValue(alloc.getAmount().abs().doubleValue());
                 amountCell.setCellStyle(currencyStyle);
+
+                // Column G: category
+                row.createCell(col++).setCellValue("Owner Contribution");
+
+                // Column H: description
+                row.createCell(col++).setCellValue(alloc.getDescription() != null ? alloc.getDescription() : "Owner funding block expenses");
+
+                // Column I: batch_reference
+                row.createCell(col++).setCellValue(alloc.getPaymentBatchId() != null ? alloc.getPaymentBatchId() : "");
+
+                ownerContributionCount++;
             }
-
-            // Column F: category
-            row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : expense.getTransactionType());
-
-            // Column G: description
-            row.createCell(col++).setCellValue(expense.getDescription() != null ? expense.getDescription() : "");
-
-            // Column H: source_reference
-            row.createCell(col++).setCellValue(expense.getPaypropTransactionId() != null ? expense.getPaypropTransactionId() : "");
-
-            rowNum++;
         }
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        log.info("PROPERTY_ACCOUNT sheet created with {} rows ({} IN allocations, {} IN disbursements, {} OUT expenses)",
-            rowNum - 1, allocations.size(), disbursements.size(), blockExpenses.size());
+        log.info("PROPERTY_ACCOUNT sheet created with {} rows ({} flat contributions, {} owner contributions, {} expenses)",
+            rowNum - 1, disbursementCount, ownerContributionCount, expenseCount);
     }
 
     /**
