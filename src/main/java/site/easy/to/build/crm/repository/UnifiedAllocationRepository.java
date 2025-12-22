@@ -320,7 +320,7 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         LEFT JOIN payprop_report_all_payments owner_raw ON expense_raw.incoming_transaction_id = owner_raw.incoming_transaction_id
             AND owner_raw.beneficiary_type = 'beneficiary'
         LEFT JOIN customers c ON owner_raw.beneficiary_payprop_id = c.payprop_entity_id
-        WHERE ua.allocation_type IN ('EXPENSE', 'COMMISSION')
+        WHERE ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT')
         AND (pb.beneficiary_id = :ownerId OR p.property_owner_id = :ownerId OR c.customer_id = :ownerId)
         ORDER BY ua.created_at, ua.property_name
     """, nativeQuery = true)
@@ -712,8 +712,9 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
             SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_owner,
             SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ua.amount ELSE 0 END) as total_expense,
             SUM(CASE WHEN ua.allocation_type = 'COMMISSION' THEN ua.amount ELSE 0 END) as total_commission,
+            SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ua.amount ELSE 0 END) as total_disbursement,
             SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) -
-            SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION') THEN ua.amount ELSE 0 END) as net_payment
+            SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT') THEN ua.amount ELSE 0 END) as net_payment
         FROM unified_allocations ua
         JOIN payment_batches pb ON ua.payment_batch_id COLLATE utf8mb4_unicode_ci = pb.batch_id COLLATE utf8mb4_unicode_ci
         LEFT JOIN unified_incoming_transactions uit ON ua.incoming_transaction_id = uit.id
@@ -734,4 +735,30 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    // ===== BLOCK PROPERTY ACCOUNT QUERIES (for PROPERTY_ACCOUNT sheet) =====
+
+    /**
+     * Find all DISBURSEMENT allocations where beneficiary is a block property.
+     * Used for PROPERTY_ACCOUNT sheet to show flat contributions flowing INTO block.
+     */
+    @Query(value = """
+        SELECT ua.* FROM unified_allocations ua
+        WHERE ua.allocation_type = 'DISBURSEMENT'
+        AND UPPER(ua.beneficiary_name) LIKE '%BLOCK%'
+        ORDER BY ua.paid_date, ua.property_name
+    """, nativeQuery = true)
+    List<UnifiedAllocation> findDisbursementsToBlockProperties();
+
+    /**
+     * Find all allocations for block properties (EXPENSE, COMMISSION, OWNER).
+     * Used for PROPERTY_ACCOUNT sheet to show expenses and owner contributions.
+     */
+    @Query(value = """
+        SELECT ua.* FROM unified_allocations ua
+        JOIN properties p ON ua.property_id = p.id
+        WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK' OR p.hold_owner_funds = 'Y')
+        ORDER BY ua.paid_date, ua.allocation_type
+    """, nativeQuery = true)
+    List<UnifiedAllocation> findAllocationsForBlockProperties();
 }

@@ -2535,7 +2535,7 @@ public class StatementDataExtractService {
                     ua.payment_batch_id as batch_id,
                     ua.paid_date as payment_date,
                     SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_income,
-                    SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION') THEN ABS(ua.amount) ELSE 0 END) as total_deductions,
+                    SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT') THEN ABS(ua.amount) ELSE 0 END) as total_deductions,
                     MAX(pb.status) as status,
                     MAX(pb.payment_reference) as payment_reference
                 FROM unified_allocations ua
@@ -2546,7 +2546,7 @@ public class StatementDataExtractService {
                 WHERE ua.paid_date >= ?
                   AND ua.paid_date <= ?
                   AND ua.payment_batch_id IS NOT NULL
-                  AND ua.allocation_type IN ('OWNER', 'EXPENSE', 'COMMISSION')
+                  AND ua.allocation_type IN ('OWNER', 'EXPENSE', 'COMMISSION', 'DISBURSEMENT')
                   AND (
                       ua.beneficiary_id = ?
                       OR ht.owner_id = ?

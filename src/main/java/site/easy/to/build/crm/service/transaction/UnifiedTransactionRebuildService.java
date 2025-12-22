@@ -857,7 +857,61 @@ public class UnifiedTransactionRebuildService {
         int paypropCount = jdbcTemplate.update(paypropSql);
         log.info("  ✓ Inserted {} allocations from payprop_report_all_payments (PayProp)", paypropCount);
 
-        return historicalCount + paypropCount;
+        // Step 5d: Create negative OWNER allocations for block property expenses
+        // Block properties (hold_owner_funds='Y') need owner contributions to cover their expenses
+        // This creates a negative OWNER allocation for each batch that has block expenses
+        log.info("  📋 Step 5d: Creating negative OWNER allocations for block property expenses...");
+
+        String blockOwnerSql = """
+            INSERT INTO unified_allocations (
+                allocation_type,
+                amount,
+                category,
+                description,
+                property_id,
+                property_name,
+                beneficiary_type,
+                beneficiary_id,
+                beneficiary_name,
+                payment_status,
+                payment_batch_id,
+                paid_date,
+                source,
+                created_at
+            )
+            SELECT
+                'OWNER' as allocation_type,
+                -SUM(CASE WHEN ua.allocation_type IN ('EXPENSE', 'COMMISSION') THEN ua.amount ELSE 0 END) as amount,
+                'owner_contribution' as category,
+                CONCAT('Owner contribution to cover block expenses (', COUNT(*), ' items)') as description,
+                p.id as property_id,
+                p.property_name as property_name,
+                'OWNER' as beneficiary_type,
+                po.customer_id as beneficiary_id,
+                c.name as beneficiary_name,
+                'PAID' as payment_status,
+                ua.payment_batch_id,
+                ua.paid_date,
+                CASE
+                    WHEN ua.payment_batch_id LIKE 'HIST-%' THEN 'HISTORICAL'
+                    ELSE 'PAYPROP'
+                END as source,
+                NOW() as created_at
+            FROM unified_allocations ua
+            JOIN properties p ON ua.property_id = p.id
+            LEFT JOIN property_owners po ON p.id = po.property_id AND po.is_primary = 1
+            LEFT JOIN customers c ON po.customer_id = c.customer_id
+            WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK' OR p.hold_owner_funds = 'Y')
+              AND ua.payment_batch_id IS NOT NULL
+              AND ua.allocation_type IN ('EXPENSE', 'COMMISSION')
+            GROUP BY p.id, p.property_name, po.customer_id, c.name, ua.payment_batch_id, ua.paid_date
+            HAVING SUM(ua.amount) > 0
+        """;
+
+        int blockOwnerCount = jdbcTemplate.update(blockOwnerSql);
+        log.info("  ✓ Inserted {} negative OWNER allocations for block property expenses", blockOwnerCount);
+
+        return historicalCount + paypropCount + blockOwnerCount;
     }
 
     /**
