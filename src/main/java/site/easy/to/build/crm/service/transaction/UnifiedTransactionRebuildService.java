@@ -680,10 +680,16 @@ public class UnifiedTransactionRebuildService {
                 -- Find active lease for property at the time of the transaction
                 COALESCE(ut.invoice_id, active_lease.id) as invoice_id,
                 -- allocation_type based on category_name and beneficiary_type
-                -- NOTE: This query filters WHERE beneficiary_type = 'beneficiary' (owner payments only)
-                -- So the default should be OWNER for unrecognized categories in this context
+                -- Now includes both 'beneficiary' (owner payments) and 'agency' (commission/reimbursements)
                 -- DISBURSEMENT = transfers to block property account (separate from regular EXPENSE)
                 CASE
+                    -- Agency commission only (beneficiary_type='agency' AND category='Commission')
+                    WHEN prap.beneficiary_type = 'agency' AND prap.category_name = 'Commission'
+                    THEN 'COMMISSION'
+                    -- Agency reimbursements (Council, Contractor, Other) are EXPENSE
+                    WHEN prap.beneficiary_type = 'agency'
+                    THEN 'EXPENSE'
+                    -- Regular commission categories for non-agency (legacy handling)
                     WHEN prap.category_name IN ('Agency Fee', 'Commission', 'Management Fee')
                          OR prap.category_name LIKE '%commission%' OR prap.category_name LIKE '%Commission%'
                     THEN 'COMMISSION'
@@ -738,7 +744,7 @@ public class UnifiedTransactionRebuildService {
                 AND peip.reconciliation_date >= active_lease.start_date
                 AND (active_lease.end_date IS NULL OR peip.reconciliation_date <= active_lease.end_date)
             WHERE prap.payment_batch_id IS NOT NULL
-              AND prap.beneficiary_type = 'beneficiary'
+              AND prap.beneficiary_type IN ('beneficiary', 'agency')
         """;
 
         int paypropCount = jdbcTemplate.update(paypropSql);
