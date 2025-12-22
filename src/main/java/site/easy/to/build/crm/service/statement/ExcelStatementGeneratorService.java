@@ -1702,7 +1702,56 @@ public class ExcelStatementGeneratorService {
             rowNum++;
         }
 
-        // 2. Get ALL OUTGOING transactions for block properties (OUT - expenses paid from property account)
+        // 2. Get disbursements TO block property accounts (IN - money from individual flats)
+        // These are OUTGOING from flats but represent money going INTO the block property account
+        List<UnifiedTransaction> disbursements = unifiedTransactionRepository.findAllDisbursementsToBlockProperties();
+        log.debug("Found {} disbursements TO block property accounts", disbursements.size());
+
+        for (UnifiedTransaction disbursement : disbursements) {
+            Row row = sheet.createRow(rowNum);
+            int col = 0;
+
+            // Column A: property_id - Extract block property ID from description or use associated block
+            // For now, we'll show 0 and rely on the description to identify the block
+            Long propId = disbursement.getPropertyId();
+            row.createCell(col++).setCellValue(propId != null ? propId : 0);
+
+            // Column B: property_name - Show which flat the money came FROM
+            String propertyName = disbursement.getPropertyName() != null ? disbursement.getPropertyName() : "";
+            row.createCell(col++).setCellValue(propertyName);
+
+            // Column C: transaction_date
+            Cell dateCell = row.createCell(col++);
+            if (disbursement.getTransactionDate() != null) {
+                dateCell.setCellValue(disbursement.getTransactionDate());
+                dateCell.setCellStyle(dateStyle);
+            }
+
+            // Column D: movement_type = "IN" (money coming INTO block property account)
+            row.createCell(col++).setCellValue("IN");
+
+            // Column E: amount (positive - this is money coming in)
+            Cell amountCell = row.createCell(col++);
+            java.math.BigDecimal amount = disbursement.getAmount();
+            if (amount != null) {
+                amountCell.setCellValue(amount.abs().doubleValue());
+                amountCell.setCellStyle(currencyStyle);
+            }
+
+            // Column F: category - Show as Block Contribution or similar
+            row.createCell(col++).setCellValue("Block Contribution");
+
+            // Column G: description - Include source flat info
+            String description = disbursement.getDescription() != null ? disbursement.getDescription() : "";
+            row.createCell(col++).setCellValue("From " + propertyName + ": " + description);
+
+            // Column H: source_reference
+            row.createCell(col++).setCellValue(disbursement.getPaypropTransactionId() != null ? disbursement.getPaypropTransactionId() : "");
+
+            rowNum++;
+        }
+
+        // 3. Get ALL OUTGOING transactions for block properties (OUT - expenses paid from property account)
         List<UnifiedTransaction> blockExpenses = unifiedTransactionRepository.findAllBlockPropertyExpenses();
         log.debug("Found {} OUTGOING transactions for block property expenses", blockExpenses.size());
 
@@ -1751,8 +1800,8 @@ public class ExcelStatementGeneratorService {
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
 
-        log.info("PROPERTY_ACCOUNT sheet created with {} rows ({} IN allocations, {} OUT expenses)",
-            rowNum - 1, allocations.size(), blockExpenses.size());
+        log.info("PROPERTY_ACCOUNT sheet created with {} rows ({} IN allocations, {} IN disbursements, {} OUT expenses)",
+            rowNum - 1, allocations.size(), disbursements.size(), blockExpenses.size());
     }
 
     /**

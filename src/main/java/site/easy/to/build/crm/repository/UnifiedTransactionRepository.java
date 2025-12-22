@@ -421,11 +421,14 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
      * These are stored with negative amounts and INCOMING flow direction.
      * The sheet will flip the sign to show as positive IN.
      *
+     * NOTE: The rebuild service sets category='PROPERTY_ACCOUNT_ALLOCATION' for global_beneficiary payments,
+     * while keeping the original transaction_type='payment_to_beneficiary'. So we match on category.
+     *
      * @return List of transactions where rent was allocated to property account
      */
     @Query("""
         SELECT ut FROM UnifiedTransaction ut
-        WHERE ut.transactionType = 'PROPERTY_ACCOUNT_ALLOCATION'
+        WHERE ut.category = 'PROPERTY_ACCOUNT_ALLOCATION'
         ORDER BY ut.transactionDate, ut.id
     """)
     List<UnifiedTransaction> findPropertyAccountAllocations();
@@ -435,7 +438,7 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
      */
     @Query("""
         SELECT ut FROM UnifiedTransaction ut
-        WHERE ut.transactionType = 'PROPERTY_ACCOUNT_ALLOCATION'
+        WHERE ut.category = 'PROPERTY_ACCOUNT_ALLOCATION'
           AND ut.transactionDate >= :startDate
           AND ut.transactionDate <= :endDate
         ORDER BY ut.transactionDate, ut.id
@@ -480,4 +483,43 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    /**
+     * Get disbursements TO block property accounts (transfers from individual flats).
+     * These are OUTGOING from the flat but represent money going INTO the block property account.
+     * Used to show the "IN" side of block property contributions on the PROPERTY_ACCOUNT sheet.
+     *
+     * @param blockPropertyName Pattern to match block property name (e.g., '%BODEN HOUSE BLOCK%')
+     * @return List of transactions representing disbursements to block property
+     */
+    @Query(value = """
+        SELECT ut.*
+        FROM unified_transactions ut
+        WHERE ut.flow_direction = 'OUTGOING'
+          AND ut.description LIKE :blockPropertyName
+          AND ut.amount > 0
+        ORDER BY ut.transaction_date, ut.id
+    """, nativeQuery = true)
+    List<UnifiedTransaction> findDisbursementsToBlockProperty(
+        @Param("blockPropertyName") String blockPropertyName
+    );
+
+    /**
+     * Get all disbursements TO any block property accounts.
+     * These are payments from individual flats to their associated block property accounts.
+     * The description contains the block property name (e.g., "BODEN HOUSE BLOCK PROPERTY").
+     */
+    @Query(value = """
+        SELECT ut.*
+        FROM unified_transactions ut
+        JOIN properties p ON ut.property_id = p.id
+        JOIN blocks b ON p.block_id = b.id
+        JOIN properties bp ON b.block_property_id = bp.id
+        WHERE ut.flow_direction = 'OUTGOING'
+          AND ut.transaction_type = 'payment_to_beneficiary'
+          AND UPPER(ut.description) LIKE CONCAT('%', UPPER(bp.property_name), '%')
+          AND ut.amount > 0
+        ORDER BY ut.transaction_date, ut.id
+    """, nativeQuery = true)
+    List<UnifiedTransaction> findAllDisbursementsToBlockProperties();
 }
