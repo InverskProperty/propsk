@@ -887,7 +887,7 @@ public class UnifiedTransactionRebuildService {
                 p.id as property_id,
                 p.property_name as property_name,
                 'OWNER' as beneficiary_type,
-                po.customer_id as beneficiary_id,
+                p.property_owner_id as beneficiary_id,
                 c.name as beneficiary_name,
                 'PAID' as payment_status,
                 ua.payment_batch_id,
@@ -899,12 +899,11 @@ public class UnifiedTransactionRebuildService {
                 NOW() as created_at
             FROM unified_allocations ua
             JOIN properties p ON ua.property_id = p.id
-            LEFT JOIN property_owners po ON p.id = po.property_id AND po.is_primary = 1
-            LEFT JOIN customers c ON po.customer_id = c.customer_id
+            LEFT JOIN customers c ON p.property_owner_id = c.customer_id
             WHERE (p.is_block_property = 1 OR p.property_type = 'BLOCK' OR p.hold_owner_funds = 'Y')
               AND ua.payment_batch_id IS NOT NULL
               AND ua.allocation_type IN ('EXPENSE', 'COMMISSION')
-            GROUP BY p.id, p.property_name, po.customer_id, c.name, ua.payment_batch_id, ua.paid_date
+            GROUP BY p.id, p.property_name, p.property_owner_id, c.name, ua.payment_batch_id, ua.paid_date
             HAVING SUM(ua.amount) > 0
         """;
 

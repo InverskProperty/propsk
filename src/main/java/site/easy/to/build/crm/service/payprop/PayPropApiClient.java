@@ -42,11 +42,11 @@ public class PayPropApiClient {
     private static final int MAX_PAGES = 1000; // Increased from 100 to capture all data
     private static final int DEFAULT_PAGE_SIZE = 25;
 
-    // PayProp rate limit: 5 requests per second (global across all threads)
-    private static final int MAX_REQUESTS_PER_SECOND = 5;
+    // PayProp rate limit: 3 requests per second (conservative to avoid 429 errors)
+    private static final int MAX_REQUESTS_PER_SECOND = 3;
     private static final long RATE_LIMIT_WINDOW_MS = 1000; // 1 second window
 
-    // Global rate limiter using semaphore (5 permits per second)
+    // Global rate limiter using semaphore (3 permits per second)
     private static final Semaphore rateLimiter = new Semaphore(MAX_REQUESTS_PER_SECOND, true);
     private static long lastResetTime = System.currentTimeMillis();
 
@@ -302,51 +302,63 @@ public class PayPropApiClient {
     }
     
     /**
-     * Fetch a single page of data from a PayProp endpoint
-     * 
+     * Fetch a single page of data from a PayProp endpoint.
+     * Includes retry logic with exponential backoff for 429 rate limit errors.
+     *
      * @param endpoint The API endpoint
      * @param page Page number (1-based)
      * @param rows Number of rows per page (max 25 for PayProp)
      * @return Page result with items and pagination info
      */
     public PayPropPageResult fetchSinglePage(String endpoint, int page, int rows) {
-        // Ensure rows doesn't exceed PayProp's maximum
+        final int maxRetries = 5;
+        final long initialBackoffMs = 2000;
+        final long maxBackoffMs = 60000;
+
         rows = Math.min(rows, DEFAULT_PAGE_SIZE);
-        
-        // Build URL with pagination parameters
         String url = buildPaginatedUrl(endpoint, page, rows);
-        
-        try {
-            // Acquire rate limit permit (enforces 5 req/sec globally)
-            acquireRateLimitPermit();
 
-            // Create authorized request
-            HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
-            HttpEntity<String> request = new HttpEntity<>(headers);
+        int retryCount = 0;
+        long backoffMs = initialBackoffMs;
 
-            log.debug("Fetching page {} from: {}", page, url);
+        while (retryCount <= maxRetries) {
+            try {
+                acquireRateLimitPermit();
 
-            // Make API call
-            ResponseEntity<Map> response = restTemplate.exchange(
-                url, 
-                HttpMethod.GET, 
-                request, 
-                Map.class
-            );
-            
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                return parsePageResponse(response.getBody());
-            } else {
-                throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+                HttpHeaders headers = oAuth2Service.createAuthorizedHeaders();
+                HttpEntity<String> request = new HttpEntity<>(headers);
+
+                log.debug("Fetching page {} from: {}{}", page, url, retryCount > 0 ? " (retry " + retryCount + ")" : "");
+
+                ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, request, Map.class);
+
+                if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                    return parsePageResponse(response.getBody());
+                } else {
+                    throw new RuntimeException("Unexpected response status: " + response.getStatusCode());
+                }
+
+            } catch (HttpClientErrorException e) {
+                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS && retryCount < maxRetries) {
+                    log.warn("⏳ Rate limited (429) on page {} - waiting {}ms before retry {}/{}", page, backoffMs, retryCount + 1, maxRetries);
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted during rate limit backoff", ie);
+                    }
+                    retryCount++;
+                    backoffMs = Math.min(backoffMs * 2, maxBackoffMs);
+                    continue;
+                }
+                log.error("Failed to fetch page {} from {}: {}", page, endpoint, e.getResponseBodyAsString());
+                throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
+            } catch (Exception e) {
+                log.error("Error fetching page {}: {}", page, e.getMessage());
+                throw new RuntimeException("Failed to fetch page: " + e.getMessage(), e);
             }
-            
-        } catch (HttpClientErrorException e) {
-            log.error("PayProp API error: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
-            throw new RuntimeException("PayProp API error: " + e.getResponseBodyAsString(), e);
-        } catch (Exception e) {
-            log.error("Error creating authorized headers or making API call: {}", e.getMessage());
-            throw new RuntimeException("Failed to fetch page: " + e.getMessage(), e);
         }
+        throw new RuntimeException("Failed to fetch page " + page + " after " + maxRetries + " retries");
     }
     
     /**
