@@ -3137,56 +3137,133 @@ public class ExcelStatementGeneratorService {
                 List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO> currentAllocations = new ArrayList<>();
                 List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO> futureAllocations = new ArrayList<>();
 
+                // Pre-calculate period subtotals for this batch
+                double batchPriorIncome = 0, batchPriorExpense = 0, batchPriorCommission = 0, batchPriorNet = 0;
+                double batchCurrentIncome = 0, batchCurrentExpense = 0, batchCurrentCommission = 0, batchCurrentNet = 0;
+                double batchFutureIncome = 0, batchFutureExpense = 0, batchFutureCommission = 0, batchFutureNet = 0;
+
                 for (site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO.AllocationDetailDTO alloc : batch.getAllocations()) {
-                    if ("B/F".equals(alloc.getPeriodClassification())) {
+                    String allocPeriod = alloc.getPeriodClassification();
+                    String allocType = alloc.getAllocationType();
+                    double allocIncome = 0, allocExpense = 0, allocCommission = 0;
+
+                    if ("OWNER".equals(allocType) && alloc.getAmount() != null) {
+                        allocIncome = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
+                        if (alloc.getCommissionAmount() != null) {
+                            allocCommission = alloc.getCommissionAmount().abs().doubleValue();
+                        }
+                    } else if (("EXPENSE".equals(allocType) || "DISBURSEMENT".equals(allocType)) && alloc.getAmount() != null) {
+                        allocExpense = alloc.getAmount().abs().doubleValue();
+                    } else if ("COMMISSION".equals(allocType) && alloc.getAmount() != null) {
+                        allocCommission = alloc.getAmount().abs().doubleValue();
+                    }
+
+                    double allocNet = allocIncome - allocExpense - allocCommission;
+
+                    if ("B/F".equals(allocPeriod)) {
                         priorAllocations.add(alloc);
-                    } else if ("FUTURE".equals(alloc.getPeriodClassification())) {
+                        batchPriorIncome += allocIncome;
+                        batchPriorExpense += allocExpense;
+                        batchPriorCommission += allocCommission;
+                        batchPriorNet += allocNet;
+                    } else if ("FUTURE".equals(allocPeriod)) {
                         futureAllocations.add(alloc);
+                        batchFutureIncome += allocIncome;
+                        batchFutureExpense += allocExpense;
+                        batchFutureCommission += allocCommission;
+                        batchFutureNet += allocNet;
                     } else {
                         currentAllocations.add(alloc);
+                        batchCurrentIncome += allocIncome;
+                        batchCurrentExpense += allocExpense;
+                        batchCurrentCommission += allocCommission;
+                        batchCurrentNet += allocNet;
                     }
                 }
 
+                // === BATCH HEADER ROW ===
+                Row batchHeaderRow = sheet.createRow(rowNum++);
+                batchHeaderRow.createCell(0).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "Unknown");
+
+                Cell paymentDateCell = batchHeaderRow.createCell(1);
+                if (batch.getPaymentDate() != null) {
+                    paymentDateCell.setCellValue(batch.getPaymentDate());
+                    paymentDateCell.setCellStyle(styles.dateStyle);
+                } else {
+                    paymentDateCell.setCellValue("Pending");
+                }
+
+                Cell grossCell = batchHeaderRow.createCell(2);
+                grossCell.setCellValue(batch.getGrossIncome().doubleValue());
+                grossCell.setCellStyle(styles.boldCurrencyStyle);
+
+                Cell commCell = batchHeaderRow.createCell(3);
+                commCell.setCellValue(batch.getCommission().doubleValue());
+                commCell.setCellStyle(styles.currencyStyle);
+
+                Cell expCell = batchHeaderRow.createCell(4);
+                expCell.setCellValue(batch.getExpenses().doubleValue());
+                expCell.setCellStyle(styles.currencyStyle);
+
+                Cell netCell = batchHeaderRow.createCell(5);
+                netCell.setCellValue(batch.getNetToOwner().doubleValue());
+                netCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // === PERIOD BREAKDOWN ROWS (Prior, This Period, Future) ===
+                // Prior row
+                Row priorSummaryRow = sheet.createRow(rowNum++);
+                priorSummaryRow.createCell(1).setCellValue("Prior:");
+                Cell priorIncCell = priorSummaryRow.createCell(2);
+                priorIncCell.setCellValue(batchPriorIncome);
+                priorIncCell.setCellStyle(styles.currencyStyle);
+                Cell priorCommSumCell = priorSummaryRow.createCell(3);
+                priorCommSumCell.setCellValue(batchPriorCommission);
+                priorCommSumCell.setCellStyle(styles.currencyStyle);
+                Cell priorExpSumCell = priorSummaryRow.createCell(4);
+                priorExpSumCell.setCellValue(batchPriorExpense);
+                priorExpSumCell.setCellStyle(styles.currencyStyle);
+                Cell priorNetSumCell = priorSummaryRow.createCell(5);
+                priorNetSumCell.setCellValue(batchPriorNet);
+                priorNetSumCell.setCellStyle(styles.currencyStyle);
+
+                // This Period row
+                Row currentSummaryRow = sheet.createRow(rowNum++);
+                currentSummaryRow.createCell(1).setCellValue("This Period:");
+                Cell currIncCell = currentSummaryRow.createCell(2);
+                currIncCell.setCellValue(batchCurrentIncome);
+                currIncCell.setCellStyle(styles.currencyStyle);
+                Cell currCommSumCell = currentSummaryRow.createCell(3);
+                currCommSumCell.setCellValue(batchCurrentCommission);
+                currCommSumCell.setCellStyle(styles.currencyStyle);
+                Cell currExpSumCell = currentSummaryRow.createCell(4);
+                currExpSumCell.setCellValue(batchCurrentExpense);
+                currExpSumCell.setCellStyle(styles.currencyStyle);
+                Cell currNetSumCell = currentSummaryRow.createCell(5);
+                currNetSumCell.setCellValue(batchCurrentNet);
+                currNetSumCell.setCellStyle(styles.currencyStyle);
+
+                // Future row
+                Row futureSummaryRow = sheet.createRow(rowNum++);
+                futureSummaryRow.createCell(1).setCellValue("Future:");
+                Cell futIncCell = futureSummaryRow.createCell(2);
+                futIncCell.setCellValue(batchFutureIncome);
+                futIncCell.setCellStyle(styles.currencyStyle);
+                Cell futCommSumCell = futureSummaryRow.createCell(3);
+                futCommSumCell.setCellValue(batchFutureCommission);
+                futCommSumCell.setCellStyle(styles.currencyStyle);
+                Cell futExpSumCell = futureSummaryRow.createCell(4);
+                futExpSumCell.setCellValue(batchFutureExpense);
+                futExpSumCell.setCellStyle(styles.currencyStyle);
+                Cell futNetSumCell = futureSummaryRow.createCell(5);
+                futNetSumCell.setCellValue(batchFutureNet);
+                futNetSumCell.setCellStyle(styles.currencyStyle);
+
+                // === ALLOCATION DETAIL ROWS ===
                 // Determine how many rows we need for this batch (max of all three allocation lists, minimum 1)
                 int maxRows = Math.max(1, Math.max(priorAllocations.size(), Math.max(currentAllocations.size(), futureAllocations.size())));
 
                 for (int rowIdx = 0; rowIdx < maxRows; rowIdx++) {
                     Row batchRow = sheet.createRow(rowNum++);
-
-                    // Only show batch summary on first row
-                    if (rowIdx == 0) {
-                        // Batch ID
-                        batchRow.createCell(0).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "Unknown");
-
-                        // Payment Date
-                        Cell paymentDateCell = batchRow.createCell(1);
-                        if (batch.getPaymentDate() != null) {
-                            paymentDateCell.setCellValue(batch.getPaymentDate());
-                            paymentDateCell.setCellStyle(styles.dateStyle);
-                        } else {
-                            paymentDateCell.setCellValue("Pending");
-                        }
-
-                        // Gross Income
-                        Cell grossCell = batchRow.createCell(2);
-                        grossCell.setCellValue(batch.getGrossIncome().doubleValue());
-                        grossCell.setCellStyle(styles.boldCurrencyStyle);
-
-                        // Commission
-                        Cell commCell = batchRow.createCell(3);
-                        commCell.setCellValue(batch.getCommission().doubleValue());
-                        commCell.setCellStyle(styles.currencyStyle);
-
-                        // Expenses
-                        Cell expCell = batchRow.createCell(4);
-                        expCell.setCellValue(batch.getExpenses().doubleValue());
-                        expCell.setCellStyle(styles.currencyStyle);
-
-                        // Net to Owner
-                        Cell netCell = batchRow.createCell(5);
-                        netCell.setCellValue(batch.getNetToOwner().doubleValue());
-                        netCell.setCellStyle(styles.boldCurrencyStyle);
-                    }
 
                     // Prior Period allocation (columns 6-11: Property, Txn Date, Income, Expense, Commission, Net)
                     if (rowIdx < priorAllocations.size()) {
@@ -3219,9 +3296,9 @@ public class ExcelStatementGeneratorService {
                                 // Show commission from the allocation breakdown if available
                                 if (alloc.getCommissionAmount() != null) {
                                     rowCommission = alloc.getCommissionAmount().abs().doubleValue();
-                                    Cell commCell = batchRow.createCell(10);
-                                    commCell.setCellValue(rowCommission);
-                                    commCell.setCellStyle(styles.currencyStyle);
+                                    Cell priorCommCell = batchRow.createCell(10);
+                                    priorCommCell.setCellValue(rowCommission);
+                                    priorCommCell.setCellStyle(styles.currencyStyle);
                                     priorCommission += rowCommission;
                                 }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
@@ -3233,17 +3310,17 @@ public class ExcelStatementGeneratorService {
                             } else if ("COMMISSION".equals(type)) {
                                 // Standalone COMMISSION allocation (legacy or agency reimbursements)
                                 rowCommission = alloc.getAmount().abs().doubleValue();
-                                Cell commCell = batchRow.createCell(10);
-                                commCell.setCellValue(rowCommission);
-                                commCell.setCellStyle(styles.currencyStyle);
+                                Cell priorCommCell2 = batchRow.createCell(10);
+                                priorCommCell2.setCellValue(rowCommission);
+                                priorCommCell2.setCellStyle(styles.currencyStyle);
                                 priorCommission += rowCommission;
                             }
                         }
                         // Column 11: Net (Income - Expense - Commission)
                         double rowNet = rowIncome - rowExpense - rowCommission;
-                        Cell netCell = batchRow.createCell(11);
-                        netCell.setCellValue(rowNet);
-                        netCell.setCellStyle(styles.currencyStyle);
+                        Cell priorNetCell = batchRow.createCell(11);
+                        priorNetCell.setCellValue(rowNet);
+                        priorNetCell.setCellStyle(styles.currencyStyle);
                         priorNet += rowNet;
                     }
 
@@ -3278,9 +3355,9 @@ public class ExcelStatementGeneratorService {
                                 // Show commission from the allocation breakdown if available
                                 if (alloc.getCommissionAmount() != null) {
                                     rowCommission = alloc.getCommissionAmount().abs().doubleValue();
-                                    Cell commCell = batchRow.createCell(16);
-                                    commCell.setCellValue(rowCommission);
-                                    commCell.setCellStyle(styles.currencyStyle);
+                                    Cell currCommCell = batchRow.createCell(16);
+                                    currCommCell.setCellValue(rowCommission);
+                                    currCommCell.setCellStyle(styles.currencyStyle);
                                     currentCommission += rowCommission;
                                 }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
@@ -3292,17 +3369,17 @@ public class ExcelStatementGeneratorService {
                             } else if ("COMMISSION".equals(type)) {
                                 // Standalone COMMISSION allocation (legacy or agency reimbursements)
                                 rowCommission = alloc.getAmount().abs().doubleValue();
-                                Cell commCell = batchRow.createCell(16);
-                                commCell.setCellValue(rowCommission);
-                                commCell.setCellStyle(styles.currencyStyle);
+                                Cell currCommCell2 = batchRow.createCell(16);
+                                currCommCell2.setCellValue(rowCommission);
+                                currCommCell2.setCellStyle(styles.currencyStyle);
                                 currentCommission += rowCommission;
                             }
                         }
                         // Column 17: Net (Income - Expense - Commission)
                         double rowNet = rowIncome - rowExpense - rowCommission;
-                        Cell netCell = batchRow.createCell(17);
-                        netCell.setCellValue(rowNet);
-                        netCell.setCellStyle(styles.currencyStyle);
+                        Cell currNetCell = batchRow.createCell(17);
+                        currNetCell.setCellValue(rowNet);
+                        currNetCell.setCellStyle(styles.currencyStyle);
                         currentNet += rowNet;
                     }
 
@@ -3337,9 +3414,9 @@ public class ExcelStatementGeneratorService {
                                 // Show commission from the allocation breakdown if available
                                 if (alloc.getCommissionAmount() != null) {
                                     rowCommission = alloc.getCommissionAmount().abs().doubleValue();
-                                    Cell commCell = batchRow.createCell(22);
-                                    commCell.setCellValue(rowCommission);
-                                    commCell.setCellStyle(styles.currencyStyle);
+                                    Cell futCommCell = batchRow.createCell(22);
+                                    futCommCell.setCellValue(rowCommission);
+                                    futCommCell.setCellStyle(styles.currencyStyle);
                                     futureCommission += rowCommission;
                                 }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
@@ -3351,17 +3428,17 @@ public class ExcelStatementGeneratorService {
                             } else if ("COMMISSION".equals(type)) {
                                 // Standalone COMMISSION allocation (legacy or agency reimbursements)
                                 rowCommission = alloc.getAmount().abs().doubleValue();
-                                Cell commCell = batchRow.createCell(22);
-                                commCell.setCellValue(rowCommission);
-                                commCell.setCellStyle(styles.currencyStyle);
+                                Cell futCommCell2 = batchRow.createCell(22);
+                                futCommCell2.setCellValue(rowCommission);
+                                futCommCell2.setCellStyle(styles.currencyStyle);
                                 futureCommission += rowCommission;
                             }
                         }
                         // Column 23: Net (Income - Expense - Commission)
                         double rowNet = rowIncome - rowExpense - rowCommission;
-                        Cell netCell = batchRow.createCell(23);
-                        netCell.setCellValue(rowNet);
-                        netCell.setCellStyle(styles.currencyStyle);
+                        Cell futNetCell = batchRow.createCell(23);
+                        futNetCell.setCellValue(rowNet);
+                        futNetCell.setCellStyle(styles.currencyStyle);
                         futureNet += rowNet;
                     }
                 }
