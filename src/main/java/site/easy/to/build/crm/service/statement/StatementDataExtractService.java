@@ -3324,6 +3324,7 @@ public class StatementDataExtractService {
 
             if (ownerPropertyIds.isEmpty()) {
                 // Fallback: only filter by beneficiary_id
+                // Only include batches that have at least one OWNER allocation for this owner
                 findBatchesSql = """
                     SELECT DISTINCT ua.payment_batch_id
                     FROM unified_allocations ua
@@ -3331,6 +3332,7 @@ public class StatementDataExtractService {
                     LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
                     WHERE ua.beneficiary_id = ?
                       AND ua.payment_batch_id IS NOT NULL
+                      AND ua.allocation_type = 'OWNER'
                       AND (
                         (ut.transaction_date >= ? AND ut.transaction_date <= ?)
                         OR (ht.transaction_date >= ? AND ht.transaction_date <= ?)
@@ -3341,24 +3343,26 @@ public class StatementDataExtractService {
                     (rs, rowNum) -> rs.getString("payment_batch_id"),
                     customerId, periodStart, periodEnd, periodStart, periodEnd);
             } else {
-                // Include batches for owner's properties (for EXPENSE/DISBURSEMENT allocations)
-                String propertyIdList = ownerPropertyIds.stream()
-                    .map(String::valueOf)
-                    .collect(java.util.stream.Collectors.joining(","));
-
+                // Find batches that have OWNER allocations for this owner
+                // This excludes supplier payment batches (e.g., EON, Scottish Power)
+                // that only have EXPENSE allocations but no owner payment
+                //
+                // A batch appears on the owner statement ONLY if it contains
+                // at least one OWNER allocation for this beneficiary
                 findBatchesSql = """
                     SELECT DISTINCT ua.payment_batch_id
                     FROM unified_allocations ua
                     LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
                     LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
                     WHERE ua.payment_batch_id IS NOT NULL
-                      AND (ua.beneficiary_id = ? OR ua.property_id IN (%s))
+                      AND ua.beneficiary_id = ?
+                      AND ua.allocation_type = 'OWNER'
                       AND (
                         (ut.transaction_date >= ? AND ut.transaction_date <= ?)
                         OR (ht.transaction_date >= ? AND ht.transaction_date <= ?)
                         OR (ua.paid_date >= ? AND ua.paid_date <= ?)
                       )
-                    """.formatted(propertyIdList);
+                    """;
                 batchIds = jdbcTemplate.query(
                     findBatchesSql,
                     (rs, rowNum) -> rs.getString("payment_batch_id"),

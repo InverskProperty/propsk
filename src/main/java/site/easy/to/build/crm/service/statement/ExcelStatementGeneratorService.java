@@ -2829,124 +2829,187 @@ public class ExcelStatementGeneratorService {
                     : commissionConfig.getManagementFeePercent().doubleValue() + commissionConfig.getServiceFeePercent().doubleValue());
 
             for (site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO batch : batchGroups) {
-                Row row = sheet.createRow(rowNum);
-                int col = 0;
-
-                // A: lease_id
-                row.createCell(col++).setCellValue(lease.getLeaseId());
-
-                // B: lease_reference
-                row.createCell(col++).setCellValue(lease.getLeaseReference());
-
-                // C: property_name
-                row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
-
-                // D: customer_name (owner)
-                row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
-
-                // E: tenant_name
-                row.createCell(col++).setCellValue(lease.getTenantName() != null ? lease.getTenantName() : "");
-
-                // F: batch_id
-                row.createCell(col++).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
-
-                // G: owner_payment_date
-                Cell ownerPaymentDateCell = row.createCell(col++);
-                if (batch.getOwnerPaymentDate() != null) {
-                    ownerPaymentDateCell.setCellValue(batch.getOwnerPaymentDate());
-                    ownerPaymentDateCell.setCellStyle(dateStyle);
-                }
-
-                // H-O: rent_1 through rent_4 (date and amount for each)
-                java.math.BigDecimal totalRent = java.math.BigDecimal.ZERO;
                 List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> rentPayments = batch.getRentPayments();
-                for (int i = 0; i < 4; i++) {
-                    if (i < rentPayments.size()) {
-                        site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = rentPayments.get(i);
-
-                        // rent_N_date
-                        Cell rentDateCell = row.createCell(col++);
-                        if (payment.getPaymentDate() != null) {
-                            rentDateCell.setCellValue(payment.getPaymentDate());
-                            rentDateCell.setCellStyle(dateStyle);
-                        }
-
-                        // rent_N_amount
-                        Cell rentAmountCell = row.createCell(col++);
-                        if (payment.getAmount() != null) {
-                            rentAmountCell.setCellValue(payment.getAmount().doubleValue());
-                            rentAmountCell.setCellStyle(currencyStyle);
-                            totalRent = totalRent.add(payment.getAmount());
-                        }
-                    } else {
-                        // Empty cells for missing payments
-                        row.createCell(col++); // date
-                        row.createCell(col++); // amount
-                    }
-                }
-
-                // P: total_rent
-                Cell totalRentCell = row.createCell(col++);
-                totalRentCell.setCellValue(totalRent.doubleValue());
-                totalRentCell.setCellStyle(currencyStyle);
-
-                // Q: commission_rate
-                Cell commissionRateCell = row.createCell(col++);
-                commissionRateCell.setCellValue(commissionRate);
-                commissionRateCell.setCellStyle(percentStyle);
-
-                // R: total_commission (total_rent * commission_rate)
-                Cell totalCommCell = row.createCell(col++);
-                double totalCommission = totalRent.doubleValue() * commissionRate;
-                totalCommCell.setCellValue(totalCommission);
-                totalCommCell.setCellStyle(currencyStyle);
-
-                // S-AD: expense_1 through expense_4 (date, amount, category for each)
-                java.math.BigDecimal totalExpenses = java.math.BigDecimal.ZERO;
                 List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenses = batch.getExpenses();
-                for (int i = 0; i < 4; i++) {
-                    if (i < expenses.size()) {
-                        site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense = expenses.get(i);
 
-                        // expense_N_date
-                        Cell expenseDateCell = row.createCell(col++);
-                        if (expense.getPaymentDate() != null) {
-                            expenseDateCell.setCellValue(expense.getPaymentDate());
-                            expenseDateCell.setCellStyle(dateStyle);
-                        }
-
-                        // expense_N_amount
-                        Cell expenseAmountCell = row.createCell(col++);
-                        if (expense.getAmount() != null) {
-                            // Expenses are stored as negative, display as positive
-                            double expenseAmount = Math.abs(expense.getAmount().doubleValue());
-                            expenseAmountCell.setCellValue(expenseAmount);
-                            expenseAmountCell.setCellStyle(currencyStyle);
-                            totalExpenses = totalExpenses.add(java.math.BigDecimal.valueOf(expenseAmount));
-                        }
-
-                        // expense_N_category
-                        row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
-                    } else {
-                        // Empty cells for missing expenses
-                        row.createCell(col++); // date
-                        row.createCell(col++); // amount
-                        row.createCell(col++); // category
+                // Calculate totals upfront (needed for first row)
+                java.math.BigDecimal totalRent = java.math.BigDecimal.ZERO;
+                for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment : rentPayments) {
+                    if (payment.getAmount() != null) {
+                        totalRent = totalRent.add(payment.getAmount());
                     }
                 }
 
-                // AE: total_expenses
-                Cell totalExpensesCell = row.createCell(col++);
-                totalExpensesCell.setCellValue(totalExpenses.doubleValue());
-                totalExpensesCell.setCellStyle(currencyStyle);
+                java.math.BigDecimal totalExpenses = java.math.BigDecimal.ZERO;
+                for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense : expenses) {
+                    if (expense.getAmount() != null) {
+                        totalExpenses = totalExpenses.add(java.math.BigDecimal.valueOf(Math.abs(expense.getAmount().doubleValue())));
+                    }
+                }
 
-                // AF: net_to_owner (total_rent - total_commission - total_expenses)
-                Cell netToOwnerCell = row.createCell(col++);
+                double totalCommission = totalRent.doubleValue() * commissionRate;
                 double netToOwner = totalRent.doubleValue() - totalCommission - totalExpenses.doubleValue();
-                netToOwnerCell.setCellValue(netToOwner);
-                netToOwnerCell.setCellStyle(currencyStyle);
 
-                // Accumulate grand totals for reconciliation
+                // Calculate how many rows needed (spillover for >4 items)
+                int rentRows = (int) Math.ceil(rentPayments.size() / 4.0);
+                int expenseRows = (int) Math.ceil(expenses.size() / 4.0);
+                int totalRows = Math.max(1, Math.max(rentRows, expenseRows));
+
+                for (int rowIdx = 0; rowIdx < totalRows; rowIdx++) {
+                    Row row = sheet.createRow(rowNum);
+                    int col = 0;
+
+                    // First row shows all the main data, spillover rows only show additional rent/expense items
+                    boolean isFirstRow = (rowIdx == 0);
+
+                    // A: lease_id
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getLeaseId());
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // B: lease_reference
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getLeaseReference());
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // C: property_name
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // D: customer_name (owner)
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // E: tenant_name
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getTenantName() != null ? lease.getTenantName() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // F: batch_id
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // G: owner_payment_date
+                    Cell ownerPaymentDateCell = row.createCell(col++);
+                    if (isFirstRow && batch.getOwnerPaymentDate() != null) {
+                        ownerPaymentDateCell.setCellValue(batch.getOwnerPaymentDate());
+                        ownerPaymentDateCell.setCellStyle(dateStyle);
+                    }
+
+                    // H-O: rent_1 through rent_4 (date and amount for each) - offset by rowIdx * 4
+                    int rentStartIdx = rowIdx * 4;
+                    for (int i = 0; i < 4; i++) {
+                        int rentIdx = rentStartIdx + i;
+                        if (rentIdx < rentPayments.size()) {
+                            site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = rentPayments.get(rentIdx);
+
+                            // rent_N_date
+                            Cell rentDateCell = row.createCell(col++);
+                            if (payment.getPaymentDate() != null) {
+                                rentDateCell.setCellValue(payment.getPaymentDate());
+                                rentDateCell.setCellStyle(dateStyle);
+                            }
+
+                            // rent_N_amount
+                            Cell rentAmountCell = row.createCell(col++);
+                            if (payment.getAmount() != null) {
+                                rentAmountCell.setCellValue(payment.getAmount().doubleValue());
+                                rentAmountCell.setCellStyle(currencyStyle);
+                            }
+                        } else {
+                            // Empty cells for missing payments
+                            row.createCell(col++); // date
+                            row.createCell(col++); // amount
+                        }
+                    }
+
+                    // P: total_rent (only on first row)
+                    Cell totalRentCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        totalRentCell.setCellValue(totalRent.doubleValue());
+                        totalRentCell.setCellStyle(currencyStyle);
+                    }
+
+                    // Q: commission_rate (only on first row)
+                    Cell commissionRateCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        commissionRateCell.setCellValue(commissionRate);
+                        commissionRateCell.setCellStyle(percentStyle);
+                    }
+
+                    // R: total_commission (only on first row)
+                    Cell totalCommCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        totalCommCell.setCellValue(totalCommission);
+                        totalCommCell.setCellStyle(currencyStyle);
+                    }
+
+                    // S-AD: expense_1 through expense_4 (date, amount, category for each) - offset by rowIdx * 4
+                    int expenseStartIdx = rowIdx * 4;
+                    for (int i = 0; i < 4; i++) {
+                        int expenseIdx = expenseStartIdx + i;
+                        if (expenseIdx < expenses.size()) {
+                            site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense = expenses.get(expenseIdx);
+
+                            // expense_N_date
+                            Cell expenseDateCell = row.createCell(col++);
+                            if (expense.getPaymentDate() != null) {
+                                expenseDateCell.setCellValue(expense.getPaymentDate());
+                                expenseDateCell.setCellStyle(dateStyle);
+                            }
+
+                            // expense_N_amount
+                            Cell expenseAmountCell = row.createCell(col++);
+                            if (expense.getAmount() != null) {
+                                // Expenses are stored as negative, display as positive
+                                double expenseAmount = Math.abs(expense.getAmount().doubleValue());
+                                expenseAmountCell.setCellValue(expenseAmount);
+                                expenseAmountCell.setCellStyle(currencyStyle);
+                            }
+
+                            // expense_N_category
+                            row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
+                        } else {
+                            // Empty cells for missing expenses
+                            row.createCell(col++); // date
+                            row.createCell(col++); // amount
+                            row.createCell(col++); // category
+                        }
+                    }
+
+                    // AE: total_expenses (only on first row)
+                    Cell totalExpensesCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        totalExpensesCell.setCellValue(totalExpenses.doubleValue());
+                        totalExpensesCell.setCellStyle(currencyStyle);
+                    }
+
+                    // AF: net_to_owner (only on first row)
+                    Cell netToOwnerCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        netToOwnerCell.setCellValue(netToOwner);
+                        netToOwnerCell.setCellStyle(currencyStyle);
+                    }
+
+                    rowNum++;
+                }
+
+                // Accumulate grand totals for reconciliation (use values calculated earlier)
                 grandTotalRent = grandTotalRent.add(totalRent);
                 grandTotalCommission = grandTotalCommission.add(java.math.BigDecimal.valueOf(totalCommission));
                 grandTotalExpenses = grandTotalExpenses.add(totalExpenses);
@@ -4806,124 +4869,185 @@ public class ExcelStatementGeneratorService {
                     : commissionConfig.getManagementFeePercent().doubleValue() + commissionConfig.getServiceFeePercent().doubleValue());
 
             for (site.easy.to.build.crm.dto.statement.BatchPaymentGroupDTO batch : batchGroups) {
-                Row row = sheet.createRow(rowNum);
-                int col = 0;
-
-                // A: lease_id
-                row.createCell(col++).setCellValue(lease.getLeaseId());
-
-                // B: lease_reference
-                row.createCell(col++).setCellValue(lease.getLeaseReference());
-
-                // C: property_name
-                row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
-
-                // D: customer_name (owner)
-                row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
-
-                // E: tenant_name
-                row.createCell(col++).setCellValue(lease.getTenantName() != null ? lease.getTenantName() : "");
-
-                // F: batch_id
-                row.createCell(col++).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
-
-                // G: owner_payment_date
-                Cell ownerPaymentDateCell = row.createCell(col++);
-                if (batch.getOwnerPaymentDate() != null) {
-                    ownerPaymentDateCell.setCellValue(batch.getOwnerPaymentDate());
-                    ownerPaymentDateCell.setCellStyle(dateStyle);
-                }
-
-                // H-O: rent_1 through rent_4 (date and amount for each)
-                java.math.BigDecimal totalRent = java.math.BigDecimal.ZERO;
                 List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> rentPayments = batch.getRentPayments();
-                for (int i = 0; i < 4; i++) {
-                    if (i < rentPayments.size()) {
-                        site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = rentPayments.get(i);
-
-                        // rent_N_date
-                        Cell rentDateCell = row.createCell(col++);
-                        if (payment.getPaymentDate() != null) {
-                            rentDateCell.setCellValue(payment.getPaymentDate());
-                            rentDateCell.setCellStyle(dateStyle);
-                        }
-
-                        // rent_N_amount
-                        Cell rentAmountCell = row.createCell(col++);
-                        if (payment.getAmount() != null) {
-                            rentAmountCell.setCellValue(payment.getAmount().doubleValue());
-                            rentAmountCell.setCellStyle(currencyStyle);
-                            totalRent = totalRent.add(payment.getAmount());
-                        }
-                    } else {
-                        // Empty cells for missing payments
-                        row.createCell(col++); // date
-                        row.createCell(col++); // amount
-                    }
-                }
-
-                // P: total_rent
-                Cell totalRentCell = row.createCell(col++);
-                totalRentCell.setCellValue(totalRent.doubleValue());
-                totalRentCell.setCellStyle(currencyStyle);
-
-                // Q: commission_rate
-                Cell commissionRateCell = row.createCell(col++);
-                commissionRateCell.setCellValue(commissionRate);
-                commissionRateCell.setCellStyle(percentStyle);
-
-                // R: total_commission (total_rent * commission_rate)
-                Cell totalCommCell = row.createCell(col++);
-                double totalCommission = totalRent.doubleValue() * commissionRate;
-                totalCommCell.setCellValue(totalCommission);
-                totalCommCell.setCellStyle(currencyStyle);
-
-                // S-AD: expense_1 through expense_4 (date, amount, category for each)
-                java.math.BigDecimal totalExpenses = java.math.BigDecimal.ZERO;
                 List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> expenses = batch.getExpenses();
-                for (int i = 0; i < 4; i++) {
-                    if (i < expenses.size()) {
-                        site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense = expenses.get(i);
 
-                        // expense_N_date
-                        Cell expenseDateCell = row.createCell(col++);
-                        if (expense.getPaymentDate() != null) {
-                            expenseDateCell.setCellValue(expense.getPaymentDate());
-                            expenseDateCell.setCellStyle(dateStyle);
-                        }
-
-                        // expense_N_amount
-                        Cell expenseAmountCell = row.createCell(col++);
-                        if (expense.getAmount() != null) {
-                            // Expenses are stored as negative, display as positive
-                            double expenseAmount = Math.abs(expense.getAmount().doubleValue());
-                            expenseAmountCell.setCellValue(expenseAmount);
-                            expenseAmountCell.setCellStyle(currencyStyle);
-                            totalExpenses = totalExpenses.add(java.math.BigDecimal.valueOf(expenseAmount));
-                        }
-
-                        // expense_N_category
-                        row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
-                    } else {
-                        // Empty cells for missing expenses
-                        row.createCell(col++); // date
-                        row.createCell(col++); // amount
-                        row.createCell(col++); // category
+                // Calculate totals upfront (needed for first row)
+                java.math.BigDecimal totalRent = java.math.BigDecimal.ZERO;
+                for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment : rentPayments) {
+                    if (payment.getAmount() != null) {
+                        totalRent = totalRent.add(payment.getAmount());
                     }
                 }
 
-                // AE: total_expenses
-                Cell totalExpensesCell = row.createCell(col++);
-                totalExpensesCell.setCellValue(totalExpenses.doubleValue());
-                totalExpensesCell.setCellStyle(currencyStyle);
+                java.math.BigDecimal totalExpenses = java.math.BigDecimal.ZERO;
+                for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense : expenses) {
+                    if (expense.getAmount() != null) {
+                        totalExpenses = totalExpenses.add(java.math.BigDecimal.valueOf(Math.abs(expense.getAmount().doubleValue())));
+                    }
+                }
 
-                // AF: net_to_owner (total_rent - total_commission - total_expenses)
-                Cell netToOwnerCell = row.createCell(col++);
+                double totalCommission = totalRent.doubleValue() * commissionRate;
                 double netToOwner = totalRent.doubleValue() - totalCommission - totalExpenses.doubleValue();
-                netToOwnerCell.setCellValue(netToOwner);
-                netToOwnerCell.setCellStyle(currencyStyle);
 
-                rowNum++;
+                // Calculate how many rows needed (spillover for >4 items)
+                int rentRows = (int) Math.ceil(rentPayments.size() / 4.0);
+                int expenseRows = (int) Math.ceil(expenses.size() / 4.0);
+                int totalRows = Math.max(1, Math.max(rentRows, expenseRows));
+
+                for (int rowIdx = 0; rowIdx < totalRows; rowIdx++) {
+                    Row row = sheet.createRow(rowNum);
+                    int col = 0;
+
+                    // First row shows all the main data, spillover rows only show additional rent/expense items
+                    boolean isFirstRow = (rowIdx == 0);
+
+                    // A: lease_id
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getLeaseId());
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // B: lease_reference
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getLeaseReference());
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // C: property_name
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // D: customer_name (owner)
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // E: tenant_name
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(lease.getTenantName() != null ? lease.getTenantName() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // F: batch_id
+                    if (isFirstRow) {
+                        row.createCell(col++).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
+                    } else {
+                        row.createCell(col++);
+                    }
+
+                    // G: owner_payment_date
+                    Cell ownerPaymentDateCell = row.createCell(col++);
+                    if (isFirstRow && batch.getOwnerPaymentDate() != null) {
+                        ownerPaymentDateCell.setCellValue(batch.getOwnerPaymentDate());
+                        ownerPaymentDateCell.setCellStyle(dateStyle);
+                    }
+
+                    // H-O: rent_1 through rent_4 (date and amount for each) - offset by rowIdx * 4
+                    int rentStartIdx = rowIdx * 4;
+                    for (int i = 0; i < 4; i++) {
+                        int rentIdx = rentStartIdx + i;
+                        if (rentIdx < rentPayments.size()) {
+                            site.easy.to.build.crm.dto.statement.PaymentDetailDTO payment = rentPayments.get(rentIdx);
+
+                            // rent_N_date
+                            Cell rentDateCell = row.createCell(col++);
+                            if (payment.getPaymentDate() != null) {
+                                rentDateCell.setCellValue(payment.getPaymentDate());
+                                rentDateCell.setCellStyle(dateStyle);
+                            }
+
+                            // rent_N_amount
+                            Cell rentAmountCell = row.createCell(col++);
+                            if (payment.getAmount() != null) {
+                                rentAmountCell.setCellValue(payment.getAmount().doubleValue());
+                                rentAmountCell.setCellStyle(currencyStyle);
+                            }
+                        } else {
+                            // Empty cells for missing payments
+                            row.createCell(col++); // date
+                            row.createCell(col++); // amount
+                        }
+                    }
+
+                    // P: total_rent (only on first row)
+                    Cell totalRentCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        totalRentCell.setCellValue(totalRent.doubleValue());
+                        totalRentCell.setCellStyle(currencyStyle);
+                    }
+
+                    // Q: commission_rate (only on first row)
+                    Cell commissionRateCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        commissionRateCell.setCellValue(commissionRate);
+                        commissionRateCell.setCellStyle(percentStyle);
+                    }
+
+                    // R: total_commission (only on first row)
+                    Cell totalCommCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        totalCommCell.setCellValue(totalCommission);
+                        totalCommCell.setCellStyle(currencyStyle);
+                    }
+
+                    // S-AD: expense_1 through expense_4 (date, amount, category for each) - offset by rowIdx * 4
+                    int expenseStartIdx = rowIdx * 4;
+                    for (int i = 0; i < 4; i++) {
+                        int expenseIdx = expenseStartIdx + i;
+                        if (expenseIdx < expenses.size()) {
+                            site.easy.to.build.crm.dto.statement.PaymentDetailDTO expense = expenses.get(expenseIdx);
+
+                            // expense_N_date
+                            Cell expenseDateCell = row.createCell(col++);
+                            if (expense.getPaymentDate() != null) {
+                                expenseDateCell.setCellValue(expense.getPaymentDate());
+                                expenseDateCell.setCellStyle(dateStyle);
+                            }
+
+                            // expense_N_amount
+                            Cell expenseAmountCell = row.createCell(col++);
+                            if (expense.getAmount() != null) {
+                                // Expenses are stored as negative, display as positive
+                                double expenseAmount = Math.abs(expense.getAmount().doubleValue());
+                                expenseAmountCell.setCellValue(expenseAmount);
+                                expenseAmountCell.setCellStyle(currencyStyle);
+                            }
+
+                            // expense_N_category
+                            row.createCell(col++).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
+                        } else {
+                            // Empty cells for missing expenses
+                            row.createCell(col++); // date
+                            row.createCell(col++); // amount
+                            row.createCell(col++); // category
+                        }
+                    }
+
+                    // AE: total_expenses (only on first row)
+                    Cell totalExpensesCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        totalExpensesCell.setCellValue(totalExpenses.doubleValue());
+                        totalExpensesCell.setCellStyle(currencyStyle);
+                    }
+
+                    // AF: net_to_owner (only on first row)
+                    Cell netToOwnerCell = row.createCell(col++);
+                    if (isFirstRow) {
+                        netToOwnerCell.setCellValue(netToOwner);
+                        netToOwnerCell.setCellStyle(currencyStyle);
+                    }
+
+                    rowNum++;
+                }
             }
         }
 

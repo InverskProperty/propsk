@@ -225,13 +225,9 @@ public class UnifiedTransactionRebuildService {
                 'financial_transactions' as source_table,
                 ft.id as source_record_id,
                 ft.transaction_date,
-                -- PROPERTY_ACCOUNT_ALLOCATION: Store as NEGATIVE so it offsets rent in RENT_RECEIVED
-                -- Property account sheet will flip the sign to show as positive IN
-                CASE
-                    WHEN ft.description LIKE '%global_beneficiary%'
-                    THEN -ABS(ft.amount)
-                    ELSE ft.amount
-                END as amount,
+                -- PROPERTY_ACCOUNT_ALLOCATION: Store as POSITIVE (actual deposit amount)
+                -- These are deposits INTO the property account from Prestvale
+                ft.amount,
                 -- Calculate net_to_owner_amount for BATCH_PAYMENT expenses when NULL
                 CASE
                     WHEN ft.net_to_owner_amount IS NOT NULL THEN ft.net_to_owner_amount
