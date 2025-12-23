@@ -3071,6 +3071,39 @@ public class StatementDataExtractService {
             allExpenses.add(detail);
         }
 
+        // Include DISBURSEMENT allocations (block service charge contributions like £120/£150)
+        // These are stored in unified_allocations, not unified_transactions
+        try {
+            List<UnifiedAllocation> disbursements = unifiedAllocationRepository
+                .findByInvoiceIdAndAllocationTypeInPeriod(
+                    leaseId,
+                    UnifiedAllocation.AllocationType.DISBURSEMENT,
+                    periodStart,
+                    periodEnd
+                );
+
+            for (UnifiedAllocation alloc : disbursements) {
+                site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail =
+                    new site.easy.to.build.crm.dto.statement.PaymentDetailDTO();
+
+                detail.setPaymentDate(alloc.getPaidDate());
+                detail.setAmount(alloc.getAmount());
+                detail.setDescription("Block contribution: " +
+                    (alloc.getBeneficiaryName() != null ? alloc.getBeneficiaryName() : "Service Charge"));
+                detail.setCategory("Disbursement");
+                detail.setBatchId(alloc.getPaymentBatchId());
+                detail.setPaidDate(alloc.getPaidDate());
+
+                allExpenses.add(detail);
+            }
+
+            if (!disbursements.isEmpty()) {
+                log.info("  Added {} DISBURSEMENT allocations for lease {}", disbursements.size(), leaseId);
+            }
+        } catch (Exception e) {
+            log.warn("Could not fetch DISBURSEMENT allocations for lease {}: {}", leaseId, e.getMessage());
+        }
+
         // Populate batch info from unified_allocations using EXPENSE/DISBURSEMENT/COMMISSION allocation types
         populateBatchInfoForExpenses(allExpenses);
 
