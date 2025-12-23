@@ -798,7 +798,7 @@ public class StatementDataExtractService {
         }
 
         try {
-            // Batch query for all transaction batch info
+            // Batch query for all transaction batch info (looks for OWNER allocations)
             List<Object[]> batchInfoList = unifiedAllocationRepository.getBatchInfoForTransactions(transactionIds);
 
             // Build maps with batch ID concatenation for split payments
@@ -830,6 +830,39 @@ public class StatementDataExtractService {
                         batchIdMap.put(txnId, batchId);
                         statusMap.put(txnId, status);
                         paidDateMap.put(txnId, paidDate);
+                    }
+                }
+            }
+
+            // BLOCK PROPERTY FALLBACK: For transactions without OWNER allocations,
+            // try EXPENSE allocations (block property income is sometimes recorded this way)
+            List<Long> missingTxnIds = transactionIds.stream()
+                .filter(id -> !batchIdMap.containsKey(id))
+                .collect(java.util.stream.Collectors.toList());
+
+            if (!missingTxnIds.isEmpty()) {
+                log.debug("Trying EXPENSE allocations for {} transactions without OWNER allocations", missingTxnIds.size());
+                List<Object[]> expenseBatchInfo = unifiedAllocationRepository.getBatchInfoForExpenseTransactions(missingTxnIds);
+
+                for (Object[] row : expenseBatchInfo) {
+                    Long txnId = row[0] != null ? ((Number) row[0]).longValue() : null;
+                    if (txnId != null && !batchIdMap.containsKey(txnId)) {
+                        String batchId = row[1] != null ? row[1].toString() : null;
+                        String status = row[2] != null ? row[2].toString() : null;
+                        LocalDate paidDate = null;
+                        if (row[3] != null) {
+                            if (row[3] instanceof java.sql.Date) {
+                                paidDate = ((java.sql.Date) row[3]).toLocalDate();
+                            } else if (row[3] instanceof LocalDate) {
+                                paidDate = (LocalDate) row[3];
+                            }
+                        }
+
+                        if (batchId != null) {
+                            batchIdMap.put(txnId, batchId);
+                            statusMap.put(txnId, status);
+                            paidDateMap.put(txnId, paidDate);
+                        }
                     }
                 }
             }
@@ -3154,6 +3187,9 @@ public class StatementDataExtractService {
             lease.getLeaseReference(), periodStart, periodEnd);
 
         // Get rent payments grouped by batch
+        // NOTE: For block properties, the INCOMING transactions already include the consolidated
+        // disbursements from flats (recorded as "Tenant Payment - Prestvale Properties Limited").
+        // We do NOT separately add DISBURSEMENT allocations as that would double-count.
         Map<String, List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO>> rentByBatch =
             extractRentReceivedByBatch(lease.getLeaseId(), periodStart, periodEnd);
 

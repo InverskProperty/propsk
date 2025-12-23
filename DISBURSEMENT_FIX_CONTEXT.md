@@ -1,6 +1,23 @@
 # DISBURSEMENT Allocations on Monthly Statement - Fix Context
 
-## Problem Summary
+## FIXES COMPLETED (2025-12-23)
+
+### Fix 1: DISBURSEMENT as Expenses on Flat Rows ✅
+Added code to `extractExpensesByBatch()` to fetch DISBURSEMENT allocations by invoice_id and show them as expenses on individual flat rows.
+
+### Fix 2: DISBURSEMENT as Income on Block Property Row ✅
+Added code to `extractBatchPaymentGroups()` to detect block properties and fetch incoming DISBURSEMENT allocations where the beneficiary_name matches the block property name. These are added as "income" to the block property row.
+
+**New Repository Methods Added:**
+- `findByInvoiceIdAndAllocationType()` - Find disbursements by lease/invoice ID
+- `findByInvoiceIdAndAllocationTypeInPeriod()` - Find disbursements by lease ID in date range
+- `findByPropertyIdAndAllocationTypeInPeriod()` - Find disbursements by property ID in date range
+- `findDisbursementsReceivedByBlockInPeriod()` - Find disbursements where block property is beneficiary
+- `findDisbursementsReceivedByBlock()` - Find all disbursements for a block property
+
+---
+
+## Original Problem Summary
 The £120/£150 block service charge contributions (DISBURSEMENT allocations) are not appearing on the monthly owner statements. These payments exist in the `unified_allocations` table but the statement generation code doesn't include them.
 
 ## Root Cause

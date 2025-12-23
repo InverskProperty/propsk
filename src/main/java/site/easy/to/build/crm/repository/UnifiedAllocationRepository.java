@@ -805,4 +805,40 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
         @Param("startDate") LocalDate startDate,
         @Param("endDate") LocalDate endDate
     );
+
+    // ===== BLOCK PROPERTY INCOMING DISBURSEMENTS (for rent received) =====
+
+    /**
+     * Find DISBURSEMENT allocations where beneficiary matches the block property name.
+     * Used for block property statements to show incoming contributions from flats.
+     * These are the £120/£150 service charge contributions flowing INTO the block account.
+     *
+     * @param beneficiaryName The block property name (e.g., "BODEN HOUSE BLOCK PROPERTY")
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return List of DISBURSEMENT allocations where this block is the recipient
+     */
+    @Query("SELECT ua FROM UnifiedAllocation ua WHERE ua.allocationType = 'DISBURSEMENT' " +
+           "AND UPPER(ua.beneficiaryName) LIKE UPPER(CONCAT('%', :beneficiaryName, '%')) " +
+           "AND ua.paidDate BETWEEN :startDate AND :endDate " +
+           "ORDER BY ua.paidDate")
+    List<UnifiedAllocation> findDisbursementsReceivedByBlockInPeriod(
+        @Param("beneficiaryName") String beneficiaryName,
+        @Param("startDate") LocalDate startDate,
+        @Param("endDate") LocalDate endDate
+    );
+
+    /**
+     * Find all DISBURSEMENT allocations where beneficiary matches the block property name.
+     * Used for block property statements to show all incoming contributions from flats.
+     *
+     * @param beneficiaryName The block property name (e.g., "BODEN HOUSE BLOCK PROPERTY")
+     * @return List of all DISBURSEMENT allocations where this block is the recipient
+     */
+    @Query("SELECT ua FROM UnifiedAllocation ua WHERE ua.allocationType = 'DISBURSEMENT' " +
+           "AND UPPER(ua.beneficiaryName) LIKE UPPER(CONCAT('%', :beneficiaryName, '%')) " +
+           "ORDER BY ua.paidDate")
+    List<UnifiedAllocation> findDisbursementsReceivedByBlock(
+        @Param("beneficiaryName") String beneficiaryName
+    );
 }
