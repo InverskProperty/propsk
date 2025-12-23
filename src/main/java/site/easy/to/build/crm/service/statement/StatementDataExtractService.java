@@ -3302,25 +3302,68 @@ public class StatementDataExtractService {
             Integer histCount = jdbcTemplate.queryForObject(debugSql5, Integer.class, periodStart, periodEnd);
             log.info("DEBUG: Historical transactions in period {} to {}: {}", periodStart, periodEnd, histCount);
 
-            // Step 1: Find all batch IDs that contain allocations for TRANSACTIONS within this period
-            // Uses transaction_date from the source tables (unified_transactions or historical_transactions)
-            String findBatchesSql = """
-                SELECT DISTINCT ua.payment_batch_id
-                FROM unified_allocations ua
-                LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
-                LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
-                WHERE ua.beneficiary_id = ?
-                  AND ua.payment_batch_id IS NOT NULL
-                  AND (
-                    (ut.transaction_date >= ? AND ut.transaction_date <= ?)
-                    OR (ht.transaction_date >= ? AND ht.transaction_date <= ?)
-                  )
-                """;
+            // Step 1: Get property IDs owned by this customer
+            // This is needed to find EXPENSE/DISBURSEMENT allocations where beneficiary_id is NOT the owner
+            List<Long> ownerPropertyIds = new ArrayList<>();
+            try {
+                List<Property> ownerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+                for (Property p : ownerProperties) {
+                    ownerPropertyIds.add(p.getId());
+                }
+            } catch (Exception e) {
+                log.warn("Could not get properties for customer {}: {}", customerId, e.getMessage());
+            }
 
-            List<String> batchIds = jdbcTemplate.query(
-                findBatchesSql,
-                (rs, rowNum) -> rs.getString("payment_batch_id"),
-                customerId, periodStart, periodEnd, periodStart, periodEnd);
+            // Step 2: Find all batch IDs that contain allocations for TRANSACTIONS within this period
+            // Uses transaction_date from the source tables (unified_transactions or historical_transactions)
+            // Include batches where:
+            // - beneficiary_id matches the customer (OWNER allocations), OR
+            // - property_id is in the owner's properties (EXPENSE/DISBURSEMENT allocations)
+            String findBatchesSql;
+            List<String> batchIds;
+
+            if (ownerPropertyIds.isEmpty()) {
+                // Fallback: only filter by beneficiary_id
+                findBatchesSql = """
+                    SELECT DISTINCT ua.payment_batch_id
+                    FROM unified_allocations ua
+                    LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+                    LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+                    WHERE ua.beneficiary_id = ?
+                      AND ua.payment_batch_id IS NOT NULL
+                      AND (
+                        (ut.transaction_date >= ? AND ut.transaction_date <= ?)
+                        OR (ht.transaction_date >= ? AND ht.transaction_date <= ?)
+                      )
+                    """;
+                batchIds = jdbcTemplate.query(
+                    findBatchesSql,
+                    (rs, rowNum) -> rs.getString("payment_batch_id"),
+                    customerId, periodStart, periodEnd, periodStart, periodEnd);
+            } else {
+                // Include batches for owner's properties (for EXPENSE/DISBURSEMENT allocations)
+                String propertyIdList = ownerPropertyIds.stream()
+                    .map(String::valueOf)
+                    .collect(java.util.stream.Collectors.joining(","));
+
+                findBatchesSql = """
+                    SELECT DISTINCT ua.payment_batch_id
+                    FROM unified_allocations ua
+                    LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
+                    LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
+                    WHERE ua.payment_batch_id IS NOT NULL
+                      AND (ua.beneficiary_id = ? OR ua.property_id IN (%s))
+                      AND (
+                        (ut.transaction_date >= ? AND ut.transaction_date <= ?)
+                        OR (ht.transaction_date >= ? AND ht.transaction_date <= ?)
+                        OR (ua.paid_date >= ? AND ua.paid_date <= ?)
+                      )
+                    """.formatted(propertyIdList);
+                batchIds = jdbcTemplate.query(
+                    findBatchesSql,
+                    (rs, rowNum) -> rs.getString("payment_batch_id"),
+                    customerId, periodStart, periodEnd, periodStart, periodEnd, periodStart, periodEnd);
+            }
 
             log.info("Found {} batches with TRANSACTIONS in period {} to {}", batchIds.size(), periodStart, periodEnd);
 
@@ -3367,12 +3410,44 @@ public class StatementDataExtractService {
             status.setStatus(batch.getStatus() != null ? batch.getStatus().name() : "UNKNOWN");
         }
 
+        // Get property IDs owned by this customer (for filtering EXPENSE allocations)
+        java.util.Set<Long> ownerPropertyIds = new java.util.HashSet<>();
+        if (customerId != null) {
+            try {
+                List<Property> ownerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+                for (Property p : ownerProperties) {
+                    ownerPropertyIds.add(p.getId());
+                }
+            } catch (Exception e) {
+                log.warn("Could not get properties for customer {}: {}", customerId, e.getMessage());
+            }
+        }
+
         // Get all allocations for this batch (for this owner)
         List<UnifiedAllocation> allocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
 
         for (UnifiedAllocation alloc : allocations) {
-            // Only include allocations for this owner
-            if (customerId != null && !customerId.equals(alloc.getBeneficiaryId())) {
+            // Include allocations based on type:
+            // - OWNER allocations: filter by beneficiary_id (who receives the owner payment)
+            // - EXPENSE/COMMISSION allocations: filter by property_id (expense on owner's property)
+            //   Note: beneficiary_id for expenses is the contractor/vendor, not the owner
+            boolean includeAllocation = false;
+
+            if (alloc.getAllocationType() == UnifiedAllocation.AllocationType.OWNER) {
+                // OWNER allocation: beneficiary must be the owner
+                includeAllocation = (customerId == null || customerId.equals(alloc.getBeneficiaryId()));
+            } else if (alloc.getAllocationType() == UnifiedAllocation.AllocationType.EXPENSE ||
+                       alloc.getAllocationType() == UnifiedAllocation.AllocationType.COMMISSION ||
+                       alloc.getAllocationType() == UnifiedAllocation.AllocationType.DISBURSEMENT) {
+                // EXPENSE/COMMISSION/DISBURSEMENT: property must belong to the owner
+                includeAllocation = (customerId == null ||
+                    (alloc.getPropertyId() != null && ownerPropertyIds.contains(alloc.getPropertyId())));
+            } else {
+                // Unknown type - use original beneficiary check
+                includeAllocation = (customerId == null || customerId.equals(alloc.getBeneficiaryId()));
+            }
+
+            if (!includeAllocation) {
                 continue;
             }
 
