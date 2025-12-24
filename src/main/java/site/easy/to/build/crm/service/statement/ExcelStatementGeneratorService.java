@@ -791,23 +791,23 @@ public class ExcelStatementGeneratorService {
 
         if (cycleMonths == 1) {
             // Monthly billing using payment day cycle (e.g., 22nd to 21st)
-            // Find the first cycle that overlaps with the statement period
+            // IMPORTANT: Only include cycles where the CYCLE START DATE falls within the statement period
+            // Rent for cycles that started before the period is captured in opening_balance
 
             // Start from lease start date
             LocalDate cycleStart = leaseStart;
 
-            // If lease started before statement period, find the first cycle that overlaps
+            // If lease started before statement period, find the first cycle that STARTS within/after period start
             if (leaseStart.isBefore(periodStart)) {
-                // Move to the payment day in or before the statement start
+                // Move to the payment day on or after the statement start
                 YearMonth targetMonth = YearMonth.from(periodStart);
                 int maxDayInMonth = targetMonth.lengthOfMonth();
                 int effectivePaymentDay = Math.min(paymentDay, maxDayInMonth);
                 cycleStart = targetMonth.atDay(effectivePaymentDay);
 
-                // If this cycle start is after periodStart, we need to go back one month
-                // because the previous cycle still overlaps
-                if (cycleStart.isAfter(periodStart)) {
-                    targetMonth = targetMonth.minusMonths(1);
+                // If this cycle start is before periodStart, move to next month
+                if (cycleStart.isBefore(periodStart)) {
+                    targetMonth = targetMonth.plusMonths(1);
                     maxDayInMonth = targetMonth.lengthOfMonth();
                     effectivePaymentDay = Math.min(paymentDay, maxDayInMonth);
                     cycleStart = targetMonth.atDay(effectivePaymentDay);
@@ -823,12 +823,12 @@ public class ExcelStatementGeneratorService {
                 LocalDate nextCycleStart = nextMonth.atDay(effectivePaymentDay);
                 LocalDate cycleEnd = nextCycleStart.minusDays(1);
 
-                // Check if this cycle overlaps with statement period AND lease period
-                boolean cycleOverlapsStatement = !cycleEnd.isBefore(periodStart) && !cycleStart.isAfter(periodEnd);
+                // Check if cycle start is within statement period AND lease is active
+                boolean cycleStartsInPeriod = !cycleStart.isBefore(periodStart) && !cycleStart.isAfter(periodEnd);
                 boolean cycleOverlapsLease = !cycleEnd.isBefore(leaseStart) &&
                     (leaseEnd == null || !cycleStart.isAfter(leaseEnd));
 
-                if (cycleOverlapsStatement && cycleOverlapsLease) {
+                if (cycleStartsInPeriod && cycleOverlapsLease) {
                     // For display purposes, show effective dates constrained by lease dates
                     LocalDate displayStart = cycleStart.isBefore(leaseStart) ? leaseStart : cycleStart;
                     LocalDate displayEnd = (leaseEnd != null && leaseEnd.isBefore(cycleEnd)) ? leaseEnd : cycleEnd;
