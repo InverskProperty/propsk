@@ -770,6 +770,10 @@ public class ExcelStatementGeneratorService {
         java.math.BigDecimal monthlyRent = lease.getMonthlyRent();
         int cycleMonths = lease.getFrequencyMonths() != null ? lease.getFrequencyMonths() : 1;
 
+        // Get payment day - use lease start day if not explicitly set
+        int paymentDay = lease.getPaymentDay() != null ? lease.getPaymentDay() :
+                         (leaseStart != null ? leaseStart.getDayOfMonth() : 1);
+
         // Handle null or invalid inputs
         if (leaseStart == null || monthlyRent == null || periodStart == null || periodEnd == null) {
             return periods;
@@ -786,41 +790,68 @@ public class ExcelStatementGeneratorService {
         }
 
         if (cycleMonths == 1) {
-            // Monthly billing - one period per month
-            YearMonth currentMonth = YearMonth.from(periodStart);
-            YearMonth endMonth = YearMonth.from(periodEnd);
+            // Monthly billing using payment day cycle (e.g., 22nd to 21st)
+            // Find the first cycle that overlaps with the statement period
 
-            while (!currentMonth.isAfter(endMonth)) {
-                LocalDate monthStart = currentMonth.atDay(1);
-                LocalDate monthEnd = currentMonth.atEndOfMonth();
+            // Start from lease start date
+            LocalDate cycleStart = leaseStart;
 
-                // Check if lease is active in this month
-                boolean leaseActiveInMonth = !leaseStart.isAfter(monthEnd) &&
-                    (leaseEnd == null || !leaseEnd.isBefore(monthStart));
+            // If lease started before statement period, find the first cycle that overlaps
+            if (leaseStart.isBefore(periodStart)) {
+                // Move to the payment day in or before the statement start
+                YearMonth targetMonth = YearMonth.from(periodStart);
+                int maxDayInMonth = targetMonth.lengthOfMonth();
+                int effectivePaymentDay = Math.min(paymentDay, maxDayInMonth);
+                cycleStart = targetMonth.atDay(effectivePaymentDay);
 
-                if (leaseActiveInMonth) {
-                    // Calculate effective dates for this month
-                    LocalDate effectiveStart = leaseStart.isAfter(monthStart) ? leaseStart : monthStart;
-                    LocalDate effectiveEnd = (leaseEnd != null && leaseEnd.isBefore(monthEnd)) ? leaseEnd : monthEnd;
+                // If this cycle start is after periodStart, we need to go back one month
+                // because the previous cycle still overlaps
+                if (cycleStart.isAfter(periodStart)) {
+                    targetMonth = targetMonth.minusMonths(1);
+                    maxDayInMonth = targetMonth.lengthOfMonth();
+                    effectivePaymentDay = Math.min(paymentDay, maxDayInMonth);
+                    cycleStart = targetMonth.atDay(effectivePaymentDay);
+                }
+            }
 
-                    // Check if full month or partial
-                    boolean isFullPeriod = effectiveStart.equals(monthStart) && effectiveEnd.equals(monthEnd);
+            // Generate cycles until we pass the statement end date
+            while (!cycleStart.isAfter(periodEnd)) {
+                // Calculate cycle end (day before next cycle start)
+                YearMonth nextMonth = YearMonth.from(cycleStart).plusMonths(1);
+                int maxDayInNextMonth = nextMonth.lengthOfMonth();
+                int effectivePaymentDay = Math.min(paymentDay, maxDayInNextMonth);
+                LocalDate nextCycleStart = nextMonth.atDay(effectivePaymentDay);
+                LocalDate cycleEnd = nextCycleStart.minusDays(1);
+
+                // Check if this cycle overlaps with statement period AND lease period
+                boolean cycleOverlapsStatement = !cycleEnd.isBefore(periodStart) && !cycleStart.isAfter(periodEnd);
+                boolean cycleOverlapsLease = !cycleEnd.isBefore(leaseStart) &&
+                    (leaseEnd == null || !cycleStart.isAfter(leaseEnd));
+
+                if (cycleOverlapsStatement && cycleOverlapsLease) {
+                    // Calculate effective dates (constrained by lease dates)
+                    LocalDate effectiveStart = cycleStart.isBefore(leaseStart) ? leaseStart : cycleStart;
+                    LocalDate effectiveEnd = (leaseEnd != null && leaseEnd.isBefore(cycleEnd)) ? leaseEnd : cycleEnd;
+
+                    // Check if full cycle or partial
+                    boolean isFullPeriod = effectiveStart.equals(cycleStart) && effectiveEnd.equals(cycleEnd);
                     java.math.BigDecimal rentForPeriod;
 
                     if (isFullPeriod) {
                         rentForPeriod = monthlyRent;
                     } else {
-                        // Partial month - prorate
-                        int daysInMonth = monthEnd.getDayOfMonth();
+                        // Partial cycle - prorate based on days
+                        int totalCycleDays = (int) java.time.temporal.ChronoUnit.DAYS.between(cycleStart, cycleEnd) + 1;
                         int leaseDays = (int) java.time.temporal.ChronoUnit.DAYS.between(effectiveStart, effectiveEnd) + 1;
-                        double proratedRent = monthlyRent.doubleValue() * leaseDays / daysInMonth;
+                        double proratedRent = monthlyRent.doubleValue() * leaseDays / totalCycleDays;
                         rentForPeriod = java.math.BigDecimal.valueOf(Math.round(proratedRent * 100.0) / 100.0);
                     }
 
                     periods.add(new RentDuePeriod(effectiveStart, effectiveEnd, rentForPeriod, isFullPeriod));
                 }
 
-                currentMonth = currentMonth.plusMonths(1);
+                // Move to next cycle
+                cycleStart = nextCycleStart;
             }
         } else {
             // Multi-month billing - rent is due when a cycle starts in the period
