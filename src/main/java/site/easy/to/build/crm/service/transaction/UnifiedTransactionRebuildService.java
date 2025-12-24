@@ -231,10 +231,6 @@ public class UnifiedTransactionRebuildService {
                 -- Calculate net_to_owner_amount for BATCH_PAYMENT expenses when NULL
                 CASE
                     WHEN ft.net_to_owner_amount IS NOT NULL THEN ft.net_to_owner_amount
-                    -- Property account withdrawals: Internal transfer, no impact on owner balance
-                    WHEN ft.description LIKE '%property account%'
-                        AND ft.data_source = 'INCOMING_PAYMENT'
-                    THEN 0
                     -- BLOCK PROPERTY: Income stays in block account, not owed to owner
                     WHEN (p.is_block_property = 1 OR p.property_type = 'BLOCK')
                         AND ft.data_source = 'INCOMING_PAYMENT'
@@ -253,10 +249,6 @@ public class UnifiedTransactionRebuildService {
                 ft.description,
                 CASE
                     WHEN ft.description LIKE '%global_beneficiary%' THEN 'PROPERTY_ACCOUNT_ALLOCATION'
-                    -- Property account withdrawals (not real tenant payments)
-                    WHEN ft.description LIKE '%property account%'
-                        AND ft.data_source = 'INCOMING_PAYMENT'
-                    THEN 'property_account_withdrawal'
                     -- BLOCK PROPERTY: Real tenant income is block fund contribution
                     WHEN (p.is_block_property = 1 OR p.property_type = 'BLOCK')
                         AND ft.data_source = 'INCOMING_PAYMENT'
@@ -295,14 +287,8 @@ public class UnifiedTransactionRebuildService {
                 ft.transaction_type as transaction_type,
                 CASE
                     -- PROPERTY_ACCOUNT_ALLOCATION: Make INCOMING so it appears in RENT_RECEIVED
-                    -- Amount is already negative, so it will offset the positive tenant payment
                     WHEN ft.description LIKE '%global_beneficiary%'
                     THEN 'INCOMING'
-                    -- Property account withdrawals are INTERNAL transfers, not real income
-                    -- These fund payments but shouldn't count as tenant income
-                    WHEN ft.description LIKE '%property account%'
-                        AND ft.data_source = 'INCOMING_PAYMENT'
-                    THEN 'INTERNAL'
                     -- First check data_source (PayProp specific)
                     WHEN ft.data_source = 'INCOMING_PAYMENT' THEN 'INCOMING'
                     WHEN ft.data_source IN ('BATCH_PAYMENT', 'COMMISSION_PAYMENT', 'EXPENSE_PAYMENT') THEN 'OUTGOING'

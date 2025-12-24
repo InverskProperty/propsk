@@ -104,6 +104,10 @@ public class PayPropIncomingPaymentExtractorService {
             WHERE incoming_transaction_id IS NOT NULL
               AND incoming_transaction_amount IS NOT NULL
               AND incoming_transaction_reconciliation_date IS NOT NULL
+              -- Exclude property account withdrawals - these are NOT real tenant payments
+              -- They are just references to where money came from (the property account)
+              -- The actual payment (to EON, Scottish Power, etc.) is a separate BATCH_PAYMENT record
+              AND (incoming_transaction_type IS NULL OR incoming_transaction_type != 'property account')
             ORDER BY incoming_transaction_reconciliation_date DESC
             """;
 
