@@ -3171,7 +3171,12 @@ public class ExcelStatementGeneratorService {
             java.math.BigDecimal leaseTotalNetToOwner = java.math.BigDecimal.ZERO;
             java.math.BigDecimal leaseClosingBalance = openingBalance.add(periodArrears);
 
-            // Accumulate rent due for grand total
+            // Skip leases with no activity (no rent due periods AND no batches)
+            if (rentDuePeriods.isEmpty() && batchGroups.isEmpty()) {
+                continue;
+            }
+
+            // Accumulate rent due for grand total (only for leases with activity)
             grandTotalRentDue = grandTotalRentDue.add(leaseRentDue);
             grandTotalOpeningBalance = grandTotalOpeningBalance.add(openingBalance);
             grandTotalPeriodArrears = grandTotalPeriodArrears.add(periodArrears);
