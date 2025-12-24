@@ -3514,8 +3514,10 @@ public class ExcelStatementGeneratorService {
             }
 
             // === ADD LEASE TOTAL ROW ===
+            // Disabled for now - creates visual clutter when each property has only one lease.
+            // The logic is retained for future use in property-centric reporting.
             // Only add if we created data rows for this lease
-            if (rowNum > leaseStartRow) {
+            if (false && rowNum > leaseStartRow) {
                 Row leaseTotalRow = sheet.createRow(rowNum);
                 int col = 0;
 
@@ -3597,8 +3599,10 @@ public class ExcelStatementGeneratorService {
         } // end of lease loop
 
         // === ADD PROPERTY TOTAL ROW ===
+        // Disabled for now - creates visual clutter when each property has only one lease.
+        // The logic is retained for future use in property-centric reporting.
         // Only add if we processed leases for this property
-        if (rowNum > propertyStartRow) {
+        if (false && rowNum > propertyStartRow) {
             Row propertyTotalRow = sheet.createRow(rowNum);
             int col = 0;
 
