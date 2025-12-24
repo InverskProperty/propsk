@@ -580,6 +580,24 @@ public class ExcelStatementGeneratorService {
     }
 
     /**
+     * Represents a single rent due period for a lease.
+     * Used to break down rent due into individual periods (e.g., monthly rows).
+     */
+    private static class RentDuePeriod {
+        LocalDate periodStart;
+        LocalDate periodEnd;
+        java.math.BigDecimal rentDue;
+        boolean isFullPeriod; // false if prorated
+
+        public RentDuePeriod(LocalDate start, LocalDate end, java.math.BigDecimal rent, boolean fullPeriod) {
+            this.periodStart = start;
+            this.periodEnd = end;
+            this.rentDue = rent;
+            this.isFullPeriod = fullPeriod;
+        }
+    }
+
+    /**
      * Find the earliest lease start date from the lease master list.
      * Used to determine how far back to include data for opening balance calculations.
      */
@@ -730,6 +748,121 @@ public class ExcelStatementGeneratorService {
         }
 
         return totalRentDue;
+    }
+
+    /**
+     * Generate individual rent due periods for a lease within a statement period.
+     * Returns one RentDuePeriod per billing cycle that falls within the period.
+     *
+     * For monthly leases: one period per month (prorated if lease starts/ends mid-month)
+     * For multi-month leases: full cycle rent on the month the cycle starts
+     *
+     * @param lease The lease master DTO with lease details
+     * @param periodStart Start of the statement period
+     * @param periodEnd End of the statement period
+     * @return List of rent due periods, each representing one billing cycle
+     */
+    private List<RentDuePeriod> generateRentDuePeriodsForLease(LeaseMasterDTO lease, LocalDate periodStart, LocalDate periodEnd) {
+        List<RentDuePeriod> periods = new ArrayList<>();
+
+        LocalDate leaseStart = lease.getStartDate();
+        LocalDate leaseEnd = lease.getEndDate();
+        java.math.BigDecimal monthlyRent = lease.getMonthlyRent();
+        int cycleMonths = lease.getFrequencyMonths() != null ? lease.getFrequencyMonths() : 1;
+
+        // Handle null or invalid inputs
+        if (leaseStart == null || monthlyRent == null || periodStart == null || periodEnd == null) {
+            return periods;
+        }
+
+        // If lease hasn't started yet, no periods
+        if (leaseStart.isAfter(periodEnd)) {
+            return periods;
+        }
+
+        // If lease ended before period started, no periods
+        if (leaseEnd != null && leaseEnd.isBefore(periodStart)) {
+            return periods;
+        }
+
+        if (cycleMonths == 1) {
+            // Monthly billing - one period per month
+            YearMonth currentMonth = YearMonth.from(periodStart);
+            YearMonth endMonth = YearMonth.from(periodEnd);
+
+            while (!currentMonth.isAfter(endMonth)) {
+                LocalDate monthStart = currentMonth.atDay(1);
+                LocalDate monthEnd = currentMonth.atEndOfMonth();
+
+                // Check if lease is active in this month
+                boolean leaseActiveInMonth = !leaseStart.isAfter(monthEnd) &&
+                    (leaseEnd == null || !leaseEnd.isBefore(monthStart));
+
+                if (leaseActiveInMonth) {
+                    // Calculate effective dates for this month
+                    LocalDate effectiveStart = leaseStart.isAfter(monthStart) ? leaseStart : monthStart;
+                    LocalDate effectiveEnd = (leaseEnd != null && leaseEnd.isBefore(monthEnd)) ? leaseEnd : monthEnd;
+
+                    // Check if full month or partial
+                    boolean isFullPeriod = effectiveStart.equals(monthStart) && effectiveEnd.equals(monthEnd);
+                    java.math.BigDecimal rentForPeriod;
+
+                    if (isFullPeriod) {
+                        rentForPeriod = monthlyRent;
+                    } else {
+                        // Partial month - prorate
+                        int daysInMonth = monthEnd.getDayOfMonth();
+                        int leaseDays = (int) java.time.temporal.ChronoUnit.DAYS.between(effectiveStart, effectiveEnd) + 1;
+                        double proratedRent = monthlyRent.doubleValue() * leaseDays / daysInMonth;
+                        rentForPeriod = java.math.BigDecimal.valueOf(Math.round(proratedRent * 100.0) / 100.0);
+                    }
+
+                    periods.add(new RentDuePeriod(effectiveStart, effectiveEnd, rentForPeriod, isFullPeriod));
+                }
+
+                currentMonth = currentMonth.plusMonths(1);
+            }
+        } else {
+            // Multi-month billing - rent is due when a cycle starts in the period
+            // Find all cycle start dates that fall within the period
+            LocalDate cycleStart = leaseStart;
+
+            // Skip cycles before the period
+            while (cycleStart.isBefore(periodStart)) {
+                cycleStart = cycleStart.plusMonths(cycleMonths);
+            }
+
+            // Add each cycle that starts within the period
+            while (!cycleStart.isAfter(periodEnd)) {
+                LocalDate cycleEnd = cycleStart.plusMonths(cycleMonths).minusDays(1);
+
+                // Check if lease ends mid-cycle for proration
+                java.math.BigDecimal rentForPeriod;
+                boolean isFullPeriod = true;
+
+                if (leaseEnd != null && leaseEnd.isBefore(cycleEnd)) {
+                    // Lease ends mid-cycle - prorate
+                    isFullPeriod = false;
+                    double monthlyRate = monthlyRent.doubleValue() / cycleMonths;
+                    long fullMonths = java.time.temporal.ChronoUnit.MONTHS.between(cycleStart, leaseEnd.plusDays(1));
+                    LocalDate lastFullMonthEnd = cycleStart.plusMonths(fullMonths);
+                    long remainingDays = java.time.temporal.ChronoUnit.DAYS.between(lastFullMonthEnd, leaseEnd) + 1;
+                    int daysInFinalMonth = leaseEnd.lengthOfMonth();
+
+                    double proratedRent = (fullMonths * monthlyRate) + ((double) remainingDays / daysInFinalMonth * monthlyRate);
+                    rentForPeriod = java.math.BigDecimal.valueOf(Math.round(proratedRent * 100.0) / 100.0);
+                    cycleEnd = leaseEnd; // Adjust end date for display
+                } else {
+                    // Full cycle rent
+                    rentForPeriod = monthlyRent;
+                }
+
+                periods.add(new RentDuePeriod(cycleStart, cycleEnd, rentForPeriod, isFullPeriod));
+                cycleStart = cycleStart.plusMonths(cycleMonths);
+            }
+        }
+
+        return periods;
     }
 
     /**
@@ -2862,12 +2995,12 @@ public class ExcelStatementGeneratorService {
 
         Sheet sheet = workbook.createSheet(sheetName);
 
-        // Header row - batch-based structure with individual payment columns
-        // Added rent_due and arrears columns for each lease's first batch row
+        // Header row - rent period-based structure with property grouping
+        // Each rent_due period gets its own row, with lease and property totals
         Row header = sheet.createRow(0);
         String[] headers = {
             "lease_id", "lease_reference", "property_name", "customer_name", "tenant_name",
-            "rent_due", "opening_balance", "period_arrears",
+            "rent_due_from", "rent_due_to", "rent_due", "opening_balance", "period_arrears", "closing_balance",
             "batch_id", "owner_payment_date",
             "rent_1_date", "rent_1_amount",
             "rent_2_date", "rent_2_amount",
@@ -2966,67 +3099,93 @@ public class ExcelStatementGeneratorService {
             // Accumulate rent due for grand total
             grandTotalRentDue = grandTotalRentDue.add(leaseRentDue);
 
-            // If no batches for this lease, still create a row to show rent_due/arrears
-            if (batchGroups.isEmpty() && leaseRentDue.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                Row row = sheet.createRow(rowNum);
-                int col = 0;
+            // Generate rent due periods for this lease
+            List<RentDuePeriod> rentDuePeriods = generateRentDuePeriodsForLease(lease, period.periodStart, period.periodEnd);
 
-                // A: lease_id
-                row.createCell(col++).setCellValue(lease.getLeaseId());
-                // B: lease_reference
-                row.createCell(col++).setCellValue(lease.getLeaseReference());
-                // C: property_name
-                row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
-                // D: customer_name
-                row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
-                // E: tenant_name
-                row.createCell(col++).setCellValue(lease.getTenantName() != null ? lease.getTenantName() : "");
+            // If no batches for this lease, create rows for each rent_due period to show arrears
+            if (batchGroups.isEmpty() && !rentDuePeriods.isEmpty()) {
+                for (int periodIdx = 0; periodIdx < rentDuePeriods.size(); periodIdx++) {
+                    RentDuePeriod rentPeriod = rentDuePeriods.get(periodIdx);
+                    Row row = sheet.createRow(rowNum);
+                    int col = 0;
 
-                // F: rent_due
-                Cell rentDueCell = row.createCell(col++);
-                rentDueCell.setCellValue(leaseRentDue.doubleValue());
-                rentDueCell.setCellStyle(currencyStyle);
+                    // A: lease_id
+                    row.createCell(col++).setCellValue(lease.getLeaseId());
+                    // B: lease_reference
+                    row.createCell(col++).setCellValue(lease.getLeaseReference());
+                    // C: property_name
+                    row.createCell(col++).setCellValue(lease.getPropertyName() != null ? lease.getPropertyName() : "");
+                    // D: customer_name
+                    row.createCell(col++).setCellValue(lease.getCustomerName() != null ? lease.getCustomerName() : "");
+                    // E: tenant_name
+                    row.createCell(col++).setCellValue(lease.getTenantName() != null ? lease.getTenantName() : "");
 
-                // G: opening_balance
-                Cell openingBalanceCell = row.createCell(col++);
-                openingBalanceCell.setCellValue(openingBalance.doubleValue());
-                openingBalanceCell.setCellStyle(currencyStyle);
+                    // F: rent_due_from
+                    Cell rentDueFromCell = row.createCell(col++);
+                    rentDueFromCell.setCellValue(rentPeriod.periodStart);
+                    rentDueFromCell.setCellStyle(dateStyle);
 
-                // H: period_arrears (= rent_due since no payments)
-                Cell periodArrearsCell = row.createCell(col++);
-                periodArrearsCell.setCellValue(periodArrears.doubleValue());
-                periodArrearsCell.setCellStyle(currencyStyle);
+                    // G: rent_due_to
+                    Cell rentDueToCell = row.createCell(col++);
+                    rentDueToCell.setCellValue(rentPeriod.periodEnd);
+                    rentDueToCell.setCellStyle(dateStyle);
 
-                // I-AI: Empty cells for batch/payment/expense columns
-                // batch_id, owner_payment_date
-                row.createCell(col++);
-                row.createCell(col++);
-                // rent_1 through rent_4 (date and amount) = 8 cells
-                for (int i = 0; i < 8; i++) row.createCell(col++);
-                // total_rent
-                Cell totalRentCell = row.createCell(col++);
-                totalRentCell.setCellValue(0);
-                totalRentCell.setCellStyle(currencyStyle);
-                // commission_rate
-                Cell commRateCell = row.createCell(col++);
-                commRateCell.setCellValue(commissionRate);
-                commRateCell.setCellStyle(percentStyle);
-                // total_commission
-                Cell totalCommCell = row.createCell(col++);
-                totalCommCell.setCellValue(0);
-                totalCommCell.setCellStyle(currencyStyle);
-                // expense_1 through expense_4 (date, amount, category) = 12 cells
-                for (int i = 0; i < 12; i++) row.createCell(col++);
-                // total_expenses
-                Cell totalExpCell = row.createCell(col++);
-                totalExpCell.setCellValue(0);
-                totalExpCell.setCellStyle(currencyStyle);
-                // net_to_owner
-                Cell netCell = row.createCell(col++);
-                netCell.setCellValue(0);
-                netCell.setCellStyle(currencyStyle);
+                    // H: rent_due
+                    Cell rentDueCell = row.createCell(col++);
+                    rentDueCell.setCellValue(rentPeriod.rentDue.doubleValue());
+                    rentDueCell.setCellStyle(currencyStyle);
 
-                rowNum++;
+                    // I: opening_balance (only on first row for this lease)
+                    Cell openingBalanceCell = row.createCell(col++);
+                    if (periodIdx == 0) {
+                        openingBalanceCell.setCellValue(openingBalance.doubleValue());
+                        openingBalanceCell.setCellStyle(currencyStyle);
+                    }
+
+                    // J: period_arrears (= rent_due since no payments)
+                    Cell periodArrearsCell = row.createCell(col++);
+                    periodArrearsCell.setCellValue(rentPeriod.rentDue.doubleValue());
+                    periodArrearsCell.setCellStyle(currencyStyle);
+
+                    // K: closing_balance (only on last row for this lease)
+                    Cell closingBalanceCell = row.createCell(col++);
+                    if (periodIdx == rentDuePeriods.size() - 1) {
+                        double closingBalance = openingBalance.doubleValue() + periodArrears.doubleValue();
+                        closingBalanceCell.setCellValue(closingBalance);
+                        closingBalanceCell.setCellStyle(currencyStyle);
+                    }
+
+                    // L-AL: Empty cells for batch/payment/expense columns
+                    // batch_id, owner_payment_date
+                    row.createCell(col++);
+                    row.createCell(col++);
+                    // rent_1 through rent_4 (date and amount) = 8 cells
+                    for (int i = 0; i < 8; i++) row.createCell(col++);
+                    // total_rent
+                    Cell totalRentCell = row.createCell(col++);
+                    totalRentCell.setCellValue(0);
+                    totalRentCell.setCellStyle(currencyStyle);
+                    // commission_rate
+                    Cell commRateCell = row.createCell(col++);
+                    commRateCell.setCellValue(commissionRate);
+                    commRateCell.setCellStyle(percentStyle);
+                    // total_commission
+                    Cell totalCommCell = row.createCell(col++);
+                    totalCommCell.setCellValue(0);
+                    totalCommCell.setCellStyle(currencyStyle);
+                    // expense_1 through expense_4 (date, amount, category) = 12 cells
+                    for (int i = 0; i < 12; i++) row.createCell(col++);
+                    // total_expenses
+                    Cell totalExpCell = row.createCell(col++);
+                    totalExpCell.setCellValue(0);
+                    totalExpCell.setCellStyle(currencyStyle);
+                    // net_to_owner
+                    Cell netCell = row.createCell(col++);
+                    netCell.setCellValue(0);
+                    netCell.setCellStyle(currencyStyle);
+
+                    rowNum++;
+                }
                 isFirstRowForLease = false;
             }
 
@@ -3099,21 +3258,35 @@ public class ExcelStatementGeneratorService {
                         row.createCell(col++);
                     }
 
-                    // F: rent_due (only on first row for this lease)
+                    // F: rent_due_from (only on first row for this lease - show first period start)
+                    Cell rentDueFromCell = row.createCell(col++);
+                    if (isFirstRow && isFirstRowForLease && !rentDuePeriods.isEmpty()) {
+                        rentDueFromCell.setCellValue(rentDuePeriods.get(0).periodStart);
+                        rentDueFromCell.setCellStyle(dateStyle);
+                    }
+
+                    // G: rent_due_to (only on first row for this lease - show last period end)
+                    Cell rentDueToCell = row.createCell(col++);
+                    if (isFirstRow && isFirstRowForLease && !rentDuePeriods.isEmpty()) {
+                        rentDueToCell.setCellValue(rentDuePeriods.get(rentDuePeriods.size() - 1).periodEnd);
+                        rentDueToCell.setCellStyle(dateStyle);
+                    }
+
+                    // H: rent_due (only on first row for this lease)
                     Cell rentDueCell = row.createCell(col++);
                     if (isFirstRow && isFirstRowForLease) {
                         rentDueCell.setCellValue(leaseRentDue.doubleValue());
                         rentDueCell.setCellStyle(currencyStyle);
                     }
 
-                    // G: opening_balance (only on first row for this lease)
+                    // I: opening_balance (only on first row for this lease)
                     Cell openingBalanceCell = row.createCell(col++);
                     if (isFirstRow && isFirstRowForLease) {
                         openingBalanceCell.setCellValue(openingBalance.doubleValue());
                         openingBalanceCell.setCellStyle(currencyStyle);
                     }
 
-                    // H: period_arrears (only on first row for this lease)
+                    // J: period_arrears (only on first row for this lease)
                     // Period arrears = rent_due - total rent received in period
                     Cell periodArrearsCell = row.createCell(col++);
                     if (isFirstRow && isFirstRowForLease) {
@@ -3121,21 +3294,30 @@ public class ExcelStatementGeneratorService {
                         periodArrearsCell.setCellStyle(currencyStyle);
                     }
 
-                    // I: batch_id
+                    // K: closing_balance (only on first row for this lease)
+                    // Closing balance = opening_balance + period_arrears
+                    Cell closingBalanceCell = row.createCell(col++);
+                    if (isFirstRow && isFirstRowForLease) {
+                        double closingBalance = openingBalance.doubleValue() + periodArrears.doubleValue();
+                        closingBalanceCell.setCellValue(closingBalance);
+                        closingBalanceCell.setCellStyle(currencyStyle);
+                    }
+
+                    // L: batch_id
                     if (isFirstRow) {
                         row.createCell(col++).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
                     } else {
                         row.createCell(col++);
                     }
 
-                    // J: owner_payment_date
+                    // M: owner_payment_date
                     Cell ownerPaymentDateCell = row.createCell(col++);
                     if (isFirstRow && batch.getOwnerPaymentDate() != null) {
                         ownerPaymentDateCell.setCellValue(batch.getOwnerPaymentDate());
                         ownerPaymentDateCell.setCellStyle(dateStyle);
                     }
 
-                    // K-R: rent_1 through rent_4 (date and amount for each) - offset by rowIdx * 4
+                    // N-U: rent_1 through rent_4 (date and amount for each) - offset by rowIdx * 4
                     int rentStartIdx = rowIdx * 4;
                     for (int i = 0; i < 4; i++) {
                         int rentIdx = rentStartIdx + i;
@@ -3162,28 +3344,28 @@ public class ExcelStatementGeneratorService {
                         }
                     }
 
-                    // S: total_rent (only on first row)
+                    // V: total_rent (only on first row)
                     Cell totalRentCell = row.createCell(col++);
                     if (isFirstRow) {
                         totalRentCell.setCellValue(totalRent.doubleValue());
                         totalRentCell.setCellStyle(currencyStyle);
                     }
 
-                    // T: commission_rate (only on first row)
+                    // W: commission_rate (only on first row)
                     Cell commissionRateCell = row.createCell(col++);
                     if (isFirstRow) {
                         commissionRateCell.setCellValue(commissionRate);
                         commissionRateCell.setCellStyle(percentStyle);
                     }
 
-                    // U: total_commission (only on first row)
+                    // X: total_commission (only on first row)
                     Cell totalCommCell = row.createCell(col++);
                     if (isFirstRow) {
                         totalCommCell.setCellValue(totalCommission);
                         totalCommCell.setCellStyle(currencyStyle);
                     }
 
-                    // V-AG: expense_1 through expense_4 (date, amount, category for each) - offset by rowIdx * 4
+                    // Y-AJ: expense_1 through expense_4 (date, amount, category for each) - offset by rowIdx * 4
                     int expenseStartIdx = rowIdx * 4;
                     for (int i = 0; i < 4; i++) {
                         int expenseIdx = expenseStartIdx + i;
@@ -3216,14 +3398,14 @@ public class ExcelStatementGeneratorService {
                         }
                     }
 
-                    // AH: total_expenses (only on first row)
+                    // AK: total_expenses (only on first row)
                     Cell totalExpensesCell = row.createCell(col++);
                     if (isFirstRow) {
                         totalExpensesCell.setCellValue(totalExpenses.doubleValue());
                         totalExpensesCell.setCellStyle(currencyStyle);
                     }
 
-                    // AI: net_to_owner (only on first row)
+                    // AL: net_to_owner (only on first row)
                     Cell netToOwnerCell = row.createCell(col++);
                     if (isFirstRow) {
                         netToOwnerCell.setCellValue(netToOwner);
@@ -3255,57 +3437,65 @@ public class ExcelStatementGeneratorService {
 
             // A: Label in first column (use shared boldStyle)
             Cell labelCell = totalsRow.createCell(col++);
-            labelCell.setCellValue("TOTALS");
+            labelCell.setCellValue("PERIOD TOTAL");
             labelCell.setCellStyle(styles.boldStyle);
 
             // Skip columns B-E (lease_reference, property_name, customer_name, tenant_name)
             col += 4;
 
-            // F: rent_due (sum)
-            Cell totalRentDueSumCell = totalsRow.createCell(col++);
-            totalRentDueSumCell.setCellFormula(String.format("SUM(F2:F%d)", rowNum));
-            totalRentDueSumCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // G: opening_balance (sum)
-            Cell totalOpeningBalanceSumCell = totalsRow.createCell(col++);
-            totalOpeningBalanceSumCell.setCellFormula(String.format("SUM(G2:G%d)", rowNum));
-            totalOpeningBalanceSumCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // H: period_arrears (sum)
-            Cell totalArrearsSumCell = totalsRow.createCell(col++);
-            totalArrearsSumCell.setCellFormula(String.format("SUM(H2:H%d)", rowNum));
-            totalArrearsSumCell.setCellStyle(styles.boldCurrencyStyle);
-
-            // Skip columns I-J (batch_id, owner_payment_date)
+            // Skip F-G (rent_due_from, rent_due_to - dates, no sum)
             col += 2;
 
-            // Skip K-R (rent_1 through rent_4 date and amount columns)
+            // H: rent_due (sum)
+            Cell totalRentDueSumCell = totalsRow.createCell(col++);
+            totalRentDueSumCell.setCellFormula(String.format("SUM(H2:H%d)", rowNum));
+            totalRentDueSumCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // I: opening_balance (sum)
+            Cell totalOpeningBalanceSumCell = totalsRow.createCell(col++);
+            totalOpeningBalanceSumCell.setCellFormula(String.format("SUM(I2:I%d)", rowNum));
+            totalOpeningBalanceSumCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // J: period_arrears (sum)
+            Cell totalArrearsSumCell = totalsRow.createCell(col++);
+            totalArrearsSumCell.setCellFormula(String.format("SUM(J2:J%d)", rowNum));
+            totalArrearsSumCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // K: closing_balance (sum)
+            Cell totalClosingBalanceSumCell = totalsRow.createCell(col++);
+            totalClosingBalanceSumCell.setCellFormula(String.format("SUM(K2:K%d)", rowNum));
+            totalClosingBalanceSumCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // Skip columns L-M (batch_id, owner_payment_date)
+            col += 2;
+
+            // Skip N-U (rent_1 through rent_4 date and amount columns)
             col += 8;
 
-            // S: total_rent (sum)
+            // V: total_rent (sum)
             Cell totalRentSumCell = totalsRow.createCell(col++);
-            totalRentSumCell.setCellFormula(String.format("SUM(S2:S%d)", rowNum));
+            totalRentSumCell.setCellFormula(String.format("SUM(V2:V%d)", rowNum));
             totalRentSumCell.setCellStyle(styles.boldCurrencyStyle);
 
-            // T: commission_rate (skip)
+            // W: commission_rate (skip)
             totalsRow.createCell(col++).setCellValue("");
 
-            // U: total_commission (sum)
+            // X: total_commission (sum)
             Cell totalCommSumCell = totalsRow.createCell(col++);
-            totalCommSumCell.setCellFormula(String.format("SUM(U2:U%d)", rowNum));
+            totalCommSumCell.setCellFormula(String.format("SUM(X2:X%d)", rowNum));
             totalCommSumCell.setCellStyle(styles.boldCurrencyStyle);
 
-            // Skip V-AG (expense_1 through expense_4 date, amount, category columns)
+            // Skip Y-AJ (expense_1 through expense_4 date, amount, category columns)
             col += 12;
 
-            // AH: total_expenses (sum)
+            // AK: total_expenses (sum)
             Cell totalExpensesSumCell = totalsRow.createCell(col++);
-            totalExpensesSumCell.setCellFormula(String.format("SUM(AH2:AH%d)", rowNum));
+            totalExpensesSumCell.setCellFormula(String.format("SUM(AK2:AK%d)", rowNum));
             totalExpensesSumCell.setCellStyle(styles.boldCurrencyStyle);
 
-            // AI: net_to_owner (sum)
+            // AL: net_to_owner (sum)
             Cell totalNetSumCell = totalsRow.createCell(col++);
-            totalNetSumCell.setCellFormula(String.format("SUM(AI2:AI%d)", rowNum));
+            totalNetSumCell.setCellFormula(String.format("SUM(AL2:AL%d)", rowNum));
             totalNetSumCell.setCellStyle(styles.boldCurrencyStyle);
         }
 
