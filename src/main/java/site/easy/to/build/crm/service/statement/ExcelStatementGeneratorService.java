@@ -829,25 +829,28 @@ public class ExcelStatementGeneratorService {
                     (leaseEnd == null || !cycleStart.isAfter(leaseEnd));
 
                 if (cycleOverlapsStatement && cycleOverlapsLease) {
-                    // Calculate effective dates (constrained by lease dates)
-                    LocalDate effectiveStart = cycleStart.isBefore(leaseStart) ? leaseStart : cycleStart;
-                    LocalDate effectiveEnd = (leaseEnd != null && leaseEnd.isBefore(cycleEnd)) ? leaseEnd : cycleEnd;
+                    // For display purposes, show effective dates constrained by lease dates
+                    LocalDate displayStart = cycleStart.isBefore(leaseStart) ? leaseStart : cycleStart;
+                    LocalDate displayEnd = (leaseEnd != null && leaseEnd.isBefore(cycleEnd)) ? leaseEnd : cycleEnd;
 
-                    // Check if full cycle or partial
-                    boolean isFullPeriod = effectiveStart.equals(cycleStart) && effectiveEnd.equals(cycleEnd);
+                    // RENT IN ADVANCE MODEL:
+                    // - Full month rent due at START of tenancy (no proration for moving in mid-cycle)
+                    // - Only prorate if lease ENDS mid-cycle (tenant leaving early)
+                    boolean leaseEndsMidCycle = leaseEnd != null && leaseEnd.isBefore(cycleEnd) && !leaseEnd.isBefore(cycleStart);
                     java.math.BigDecimal rentForPeriod;
 
-                    if (isFullPeriod) {
-                        rentForPeriod = monthlyRent;
-                    } else {
-                        // Partial cycle - prorate based on days
+                    if (leaseEndsMidCycle) {
+                        // Prorate only at lease END - tenant pays for days until they leave
                         int totalCycleDays = (int) java.time.temporal.ChronoUnit.DAYS.between(cycleStart, cycleEnd) + 1;
-                        int leaseDays = (int) java.time.temporal.ChronoUnit.DAYS.between(effectiveStart, effectiveEnd) + 1;
+                        int leaseDays = (int) java.time.temporal.ChronoUnit.DAYS.between(cycleStart, leaseEnd) + 1;
                         double proratedRent = monthlyRent.doubleValue() * leaseDays / totalCycleDays;
                         rentForPeriod = java.math.BigDecimal.valueOf(Math.round(proratedRent * 100.0) / 100.0);
+                    } else {
+                        // Full month rent - either ongoing lease or lease started mid-cycle (full rent due)
+                        rentForPeriod = monthlyRent;
                     }
 
-                    periods.add(new RentDuePeriod(effectiveStart, effectiveEnd, rentForPeriod, isFullPeriod));
+                    periods.add(new RentDuePeriod(displayStart, displayEnd, rentForPeriod, !leaseEndsMidCycle));
                 }
 
                 // Move to next cycle
@@ -866,13 +869,16 @@ public class ExcelStatementGeneratorService {
             // Add each cycle that starts within the period
             while (!cycleStart.isAfter(periodEnd)) {
                 LocalDate cycleEnd = cycleStart.plusMonths(cycleMonths).minusDays(1);
+                LocalDate displayEnd = cycleEnd;
 
-                // Check if lease ends mid-cycle for proration
+                // RENT IN ADVANCE MODEL:
+                // - Full cycle rent due at START (no proration for starting mid-cycle)
+                // - Only prorate if lease ENDS mid-cycle
                 java.math.BigDecimal rentForPeriod;
                 boolean isFullPeriod = true;
 
-                if (leaseEnd != null && leaseEnd.isBefore(cycleEnd)) {
-                    // Lease ends mid-cycle - prorate
+                if (leaseEnd != null && leaseEnd.isBefore(cycleEnd) && !leaseEnd.isBefore(cycleStart)) {
+                    // Lease ends mid-cycle - prorate only at END
                     isFullPeriod = false;
                     double monthlyRate = monthlyRent.doubleValue() / cycleMonths;
                     long fullMonths = java.time.temporal.ChronoUnit.MONTHS.between(cycleStart, leaseEnd.plusDays(1));
@@ -882,13 +888,13 @@ public class ExcelStatementGeneratorService {
 
                     double proratedRent = (fullMonths * monthlyRate) + ((double) remainingDays / daysInFinalMonth * monthlyRate);
                     rentForPeriod = java.math.BigDecimal.valueOf(Math.round(proratedRent * 100.0) / 100.0);
-                    cycleEnd = leaseEnd; // Adjust end date for display
+                    displayEnd = leaseEnd; // Adjust end date for display
                 } else {
-                    // Full cycle rent
+                    // Full cycle rent - either ongoing lease or lease started mid-cycle
                     rentForPeriod = monthlyRent;
                 }
 
-                periods.add(new RentDuePeriod(cycleStart, cycleEnd, rentForPeriod, isFullPeriod));
+                periods.add(new RentDuePeriod(cycleStart, displayEnd, rentForPeriod, isFullPeriod));
                 cycleStart = cycleStart.plusMonths(cycleMonths);
             }
         }
@@ -3079,10 +3085,14 @@ public class ExcelStatementGeneratorService {
                 continue;
             }
 
-            // Calculate rent due for this lease in this period
-            // Uses the same logic as RENT_DUE sheet - cycle-based billing
-            java.math.BigDecimal leaseRentDue = calculateRentDueForPeriod(
-                lease, period.periodStart, period.periodEnd);
+            // Generate rent due periods for this lease FIRST (before calculating totals)
+            List<RentDuePeriod> rentDuePeriods = generateRentDuePeriodsForLease(lease, period.periodStart, period.periodEnd);
+
+            // Calculate rent due as SUM of all rent periods (uses payment day cycle)
+            java.math.BigDecimal leaseRentDue = java.math.BigDecimal.ZERO;
+            for (RentDuePeriod rp : rentDuePeriods) {
+                leaseRentDue = leaseRentDue.add(rp.rentDue);
+            }
 
             // Calculate opening balance (arrears brought forward from before this period)
             java.math.BigDecimal openingBalance = dataExtractService.calculateTenantOpeningBalance(
@@ -3129,9 +3139,6 @@ public class ExcelStatementGeneratorService {
 
             // Accumulate rent due for grand total
             grandTotalRentDue = grandTotalRentDue.add(leaseRentDue);
-
-            // Generate rent due periods for this lease
-            List<RentDuePeriod> rentDuePeriods = generateRentDuePeriodsForLease(lease, period.periodStart, period.periodEnd);
 
             // If no batches for this lease, create rows for each rent_due period to show arrears
             if (batchGroups.isEmpty() && !rentDuePeriods.isEmpty()) {
