@@ -3271,9 +3271,25 @@ public class StatementDataExtractService {
      */
     public List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> getBatchesWithPeriodAllocations(
             Long customerId, LocalDate periodStart, LocalDate periodEnd) {
+        // Delegate to overloaded method with null propertyIds (will look up from customer)
+        return getBatchesWithPeriodAllocations(customerId, periodStart, periodEnd, null);
+    }
 
-        log.info("Finding batches with allocations from period {} to {} for customer {}",
-            periodStart, periodEnd, customerId);
+    /**
+     * Find all payment batches that have ANY allocation from transactions in the given period.
+     * This overload accepts a pre-collected set of property IDs to avoid re-querying property access.
+     *
+     * @param customerId The owner's customer ID
+     * @param periodStart Start of the period
+     * @param periodEnd End of the period
+     * @param propertyIds Pre-collected property IDs (if null, will look up from customer)
+     * @return List of batch status DTOs with allocation breakdown
+     */
+    public List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> getBatchesWithPeriodAllocations(
+            Long customerId, LocalDate periodStart, LocalDate periodEnd, java.util.Set<Long> propertyIds) {
+
+        log.info("Finding batches with allocations from period {} to {} for customer {} (propertyIds provided: {})",
+            periodStart, periodEnd, customerId, propertyIds != null);
 
         List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> result = new ArrayList<>();
 
@@ -3304,14 +3320,21 @@ public class StatementDataExtractService {
 
             // Step 1: Get property IDs owned by this customer
             // This is needed to find EXPENSE/DISBURSEMENT allocations where beneficiary_id is NOT the owner
+            // If propertyIds was provided (pre-collected from leases), use those directly
             List<Long> ownerPropertyIds = new ArrayList<>();
-            try {
-                List<Property> ownerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
-                for (Property p : ownerProperties) {
-                    ownerPropertyIds.add(p.getId());
+            if (propertyIds != null && !propertyIds.isEmpty()) {
+                ownerPropertyIds.addAll(propertyIds);
+                log.info("Using {} pre-collected property IDs for batch lookup", ownerPropertyIds.size());
+            } else {
+                try {
+                    List<Property> ownerProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+                    for (Property p : ownerProperties) {
+                        ownerPropertyIds.add(p.getId());
+                    }
+                    log.info("Looked up {} property IDs from customer assignments", ownerPropertyIds.size());
+                } catch (Exception e) {
+                    log.warn("Could not get properties for customer {}: {}", customerId, e.getMessage());
                 }
-            } catch (Exception e) {
-                log.warn("Could not get properties for customer {}: {}", customerId, e.getMessage());
             }
 
             // Step 2: Find all batch IDs that contain allocations for TRANSACTIONS within this period
@@ -3323,8 +3346,7 @@ public class StatementDataExtractService {
             List<String> batchIds;
 
             if (ownerPropertyIds.isEmpty()) {
-                // Fallback: only filter by beneficiary_id
-                // Only include batches that have at least one OWNER allocation for this owner
+                // Fallback: only filter by beneficiary_id for OWNER allocations
                 findBatchesSql = """
                     SELECT DISTINCT ua.payment_batch_id
                     FROM unified_allocations ua
@@ -3343,26 +3365,35 @@ public class StatementDataExtractService {
                     (rs, rowNum) -> rs.getString("payment_batch_id"),
                     customerId, periodStart, periodEnd, periodStart, periodEnd);
             } else {
-                // Find batches that have OWNER allocations for this owner
-                // This excludes supplier payment batches (e.g., EON, Scottish Power)
-                // that only have EXPENSE allocations but no owner payment
+                // Find batches that have EITHER:
+                // 1. OWNER allocations for this owner (income payments), OR
+                // 2. EXPENSE/DISBURSEMENT allocations for properties owned by this owner
                 //
-                // A batch appears on the owner statement ONLY if it contains
-                // at least one OWNER allocation for this beneficiary
+                // This ensures expense-only batches (e.g., utility payments) also appear
+                // in the reconciliation section when they contain transactions in this period
+                String propertyIdList = ownerPropertyIds.stream()
+                    .map(String::valueOf)
+                    .collect(java.util.stream.Collectors.joining(","));
+
                 findBatchesSql = """
                     SELECT DISTINCT ua.payment_batch_id
                     FROM unified_allocations ua
                     LEFT JOIN unified_transactions ut ON ua.unified_transaction_id = ut.id
                     LEFT JOIN historical_transactions ht ON ua.historical_transaction_id = ht.id
                     WHERE ua.payment_batch_id IS NOT NULL
-                      AND ua.beneficiary_id = ?
-                      AND ua.allocation_type = 'OWNER'
+                      AND (
+                        -- OWNER allocations for this beneficiary
+                        (ua.beneficiary_id = ? AND ua.allocation_type = 'OWNER')
+                        OR
+                        -- EXPENSE/DISBURSEMENT allocations for owner's properties
+                        (ua.property_id IN (%s) AND ua.allocation_type IN ('EXPENSE', 'DISBURSEMENT'))
+                      )
                       AND (
                         (ut.transaction_date >= ? AND ut.transaction_date <= ?)
                         OR (ht.transaction_date >= ? AND ht.transaction_date <= ?)
                         OR (ua.paid_date >= ? AND ua.paid_date <= ?)
                       )
-                    """;
+                    """.formatted(propertyIdList);
                 batchIds = jdbcTemplate.query(
                     findBatchesSql,
                     (rs, rowNum) -> rs.getString("payment_batch_id"),

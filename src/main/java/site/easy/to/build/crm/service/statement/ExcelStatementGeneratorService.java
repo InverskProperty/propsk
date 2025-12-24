@@ -3561,8 +3561,9 @@ public class ExcelStatementGeneratorService {
 
         // Get all batches that have allocations from transactions in this period
         // Use resolvedOwnerId to handle delegated users managing another owner's properties
+        // Pass allPropertyIds to ensure expense-only batches for block properties are included
         List<site.easy.to.build.crm.dto.statement.BatchAllocationStatusDTO> batchStatuses =
-            dataExtractService.getBatchesWithPeriodAllocations(resolvedOwnerId, period.periodStart, period.periodEnd);
+            dataExtractService.getBatchesWithPeriodAllocations(resolvedOwnerId, period.periodStart, period.periodEnd, allPropertyIds);
 
         log.info("Found {} batches with period allocations", batchStatuses.size());
 
