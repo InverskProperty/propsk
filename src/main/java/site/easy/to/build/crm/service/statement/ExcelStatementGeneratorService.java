@@ -3887,6 +3887,12 @@ public class ExcelStatementGeneratorService {
                     String allocType = alloc.getAllocationType();
                     double allocIncome = 0, allocExpense = 0, allocCommission = 0;
 
+                    // SKIP standalone COMMISSION allocations - they are already included in OWNER allocations
+                    // via the commission_amount field. Including them separately causes double-counting.
+                    if ("COMMISSION".equals(allocType)) {
+                        continue;
+                    }
+
                     if ("OWNER".equals(allocType) && alloc.getAmount() != null) {
                         allocIncome = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
                         if (alloc.getCommissionAmount() != null) {
@@ -3894,8 +3900,6 @@ public class ExcelStatementGeneratorService {
                         }
                     } else if (("EXPENSE".equals(allocType) || "DISBURSEMENT".equals(allocType)) && alloc.getAmount() != null) {
                         allocExpense = alloc.getAmount().abs().doubleValue();
-                    } else if ("COMMISSION".equals(allocType) && alloc.getAmount() != null) {
-                        allocCommission = alloc.getAmount().abs().doubleValue();
                     }
 
                     double allocNet = allocIncome - allocExpense - allocCommission;
@@ -4047,8 +4051,10 @@ public class ExcelStatementGeneratorService {
                                 expenseCell.setCellValue(rowExpense);
                                 expenseCell.setCellStyle(styles.currencyStyle);
                                 priorExpense += rowExpense;
-                            } else if ("COMMISSION".equals(type)) {
-                                // Standalone COMMISSION allocation (legacy or agency reimbursements)
+                            }
+                            // NOTE: COMMISSION allocations are NOT displayed as separate rows.
+                            // Commission is already included in OWNER allocations via commission_amount field.
+                            if (false) { // disabled - kept for reference
                                 rowCommission = alloc.getAmount().abs().doubleValue();
                                 Cell priorCommCell2 = batchRow.createCell(10);
                                 priorCommCell2.setCellValue(rowCommission);
@@ -4106,14 +4112,10 @@ public class ExcelStatementGeneratorService {
                                 expenseCell.setCellValue(rowExpense);
                                 expenseCell.setCellStyle(styles.currencyStyle);
                                 currentExpense += rowExpense;
-                            } else if ("COMMISSION".equals(type)) {
-                                // Standalone COMMISSION allocation (legacy or agency reimbursements)
-                                rowCommission = alloc.getAmount().abs().doubleValue();
-                                Cell currCommCell2 = batchRow.createCell(16);
-                                currCommCell2.setCellValue(rowCommission);
-                                currCommCell2.setCellStyle(styles.currencyStyle);
-                                currentCommission += rowCommission;
                             }
+                            // NOTE: COMMISSION allocations are NOT displayed as separate rows.
+                            // Commission is already included in OWNER allocations via commission_amount field.
+                            // Showing them separately would cause double-counting.
                         }
                         // Column 17: Net (Income - Expense - Commission)
                         double rowNet = rowIncome - rowExpense - rowCommission;
@@ -4165,8 +4167,10 @@ public class ExcelStatementGeneratorService {
                                 expenseCell.setCellValue(rowExpense);
                                 expenseCell.setCellStyle(styles.currencyStyle);
                                 futureExpense += rowExpense;
-                            } else if ("COMMISSION".equals(type)) {
-                                // Standalone COMMISSION allocation (legacy or agency reimbursements)
+                            }
+                            // NOTE: COMMISSION allocations are NOT displayed as separate rows.
+                            // Commission is already included in OWNER allocations via commission_amount field.
+                            if (false) { // disabled - kept for reference
                                 rowCommission = alloc.getAmount().abs().doubleValue();
                                 Cell futCommCell2 = batchRow.createCell(22);
                                 futCommCell2.setCellValue(rowCommission);
