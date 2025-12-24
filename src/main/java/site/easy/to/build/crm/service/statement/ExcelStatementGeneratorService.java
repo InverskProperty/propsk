@@ -3075,9 +3075,35 @@ public class ExcelStatementGeneratorService {
         java.math.BigDecimal grandTotalExpenses = java.math.BigDecimal.ZERO;
         java.math.BigDecimal grandTotalNetToOwner = java.math.BigDecimal.ZERO;
         java.math.BigDecimal grandTotalRentDue = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal grandTotalOpeningBalance = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal grandTotalPeriodArrears = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal grandTotalClosingBalance = java.math.BigDecimal.ZERO;
 
-        // Generate one row per batch per lease
+        // Group leases by property for property-level totals
+        java.util.Map<Long, java.util.List<LeaseMasterDTO>> leasesByProperty = new java.util.LinkedHashMap<>();
         for (LeaseMasterDTO lease : leaseMaster) {
+            Long propId = lease.getPropertyId() != null ? lease.getPropertyId() : 0L;
+            leasesByProperty.computeIfAbsent(propId, k -> new ArrayList<>()).add(lease);
+        }
+
+        // Iterate by property, then by lease within each property
+        for (java.util.Map.Entry<Long, java.util.List<LeaseMasterDTO>> propertyEntry : leasesByProperty.entrySet()) {
+            java.util.List<LeaseMasterDTO> propertyLeases = propertyEntry.getValue();
+            String propertyName = propertyLeases.isEmpty() ? "Unknown" :
+                (propertyLeases.get(0).getPropertyName() != null ? propertyLeases.get(0).getPropertyName() : "Unknown");
+
+            // Property-level accumulators
+            java.math.BigDecimal propertyTotalRentDue = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal propertyTotalOpeningBalance = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal propertyTotalPeriodArrears = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal propertyTotalClosingBalance = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal propertyTotalRent = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal propertyTotalCommission = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal propertyTotalExpenses = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal propertyTotalNetToOwner = java.math.BigDecimal.ZERO;
+            int propertyStartRow = rowNum;
+
+        for (LeaseMasterDTO lease : propertyLeases) {
             LocalDate leaseStart = lease.getStartDate();
 
             // Skip future leases that haven't started yet
@@ -3136,9 +3162,20 @@ public class ExcelStatementGeneratorService {
 
             // Track if this is the first row for the lease (to show rent_due/arrears only once)
             boolean isFirstRowForLease = true;
+            int leaseStartRow = rowNum;
+
+            // Lease-level accumulators for totals row
+            java.math.BigDecimal leaseTotalRent = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal leaseTotalCommission = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal leaseTotalExpenses = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal leaseTotalNetToOwner = java.math.BigDecimal.ZERO;
+            java.math.BigDecimal leaseClosingBalance = openingBalance.add(periodArrears);
 
             // Accumulate rent due for grand total
             grandTotalRentDue = grandTotalRentDue.add(leaseRentDue);
+            grandTotalOpeningBalance = grandTotalOpeningBalance.add(openingBalance);
+            grandTotalPeriodArrears = grandTotalPeriodArrears.add(periodArrears);
+            grandTotalClosingBalance = grandTotalClosingBalance.add(leaseClosingBalance);
 
             // If no batches for this lease, create rows for each rent_due period to show arrears
             if (batchGroups.isEmpty() && !rentDuePeriods.isEmpty()) {
@@ -3458,15 +3495,174 @@ public class ExcelStatementGeneratorService {
                     }
                 }
 
+                // Accumulate lease-level totals
+                leaseTotalRent = leaseTotalRent.add(totalRent);
+                leaseTotalCommission = leaseTotalCommission.add(java.math.BigDecimal.valueOf(totalCommission));
+                leaseTotalExpenses = leaseTotalExpenses.add(totalExpenses);
+                leaseTotalNetToOwner = leaseTotalNetToOwner.add(java.math.BigDecimal.valueOf(netToOwner));
+
                 // Accumulate grand totals for reconciliation (use values calculated earlier)
                 grandTotalRent = grandTotalRent.add(totalRent);
                 grandTotalCommission = grandTotalCommission.add(java.math.BigDecimal.valueOf(totalCommission));
                 grandTotalExpenses = grandTotalExpenses.add(totalExpenses);
                 grandTotalNetToOwner = grandTotalNetToOwner.add(java.math.BigDecimal.valueOf(netToOwner));
+            }
+
+            // === ADD LEASE TOTAL ROW ===
+            // Only add if we created data rows for this lease
+            if (rowNum > leaseStartRow) {
+                Row leaseTotalRow = sheet.createRow(rowNum);
+                int col = 0;
+
+                // A: Label "LEASE TOTAL: {lease_reference}"
+                Cell leaseLabelCell = leaseTotalRow.createCell(col++);
+                leaseLabelCell.setCellValue("LEASE TOTAL: " + (lease.getLeaseReference() != null ? lease.getLeaseReference() : ""));
+                leaseLabelCell.setCellStyle(styles.boldStyle);
+
+                // Skip B-E (lease_reference, property_name, customer_name, tenant_name)
+                col += 4;
+
+                // Skip F-G (rent_due_from, rent_due_to)
+                col += 2;
+
+                // H: rent_due (lease total)
+                Cell leaseRentDueCell = leaseTotalRow.createCell(col++);
+                leaseRentDueCell.setCellValue(leaseRentDue.doubleValue());
+                leaseRentDueCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // I: opening_balance
+                Cell leaseOpeningBalCell = leaseTotalRow.createCell(col++);
+                leaseOpeningBalCell.setCellValue(openingBalance.doubleValue());
+                leaseOpeningBalCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // J: period_arrears
+                Cell leasePeriodArrearsCell = leaseTotalRow.createCell(col++);
+                leasePeriodArrearsCell.setCellValue(periodArrears.doubleValue());
+                leasePeriodArrearsCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // K: closing_balance
+                Cell leaseClosingBalCell = leaseTotalRow.createCell(col++);
+                leaseClosingBalCell.setCellValue(leaseClosingBalance.doubleValue());
+                leaseClosingBalCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // Skip L-M (batch_id, owner_payment_date)
+                col += 2;
+
+                // Skip N-U (rent payments 1-4 x date+amount = 8 cells)
+                col += 8;
+
+                // V: total_rent
+                Cell leaseTotalRentCell = leaseTotalRow.createCell(col++);
+                leaseTotalRentCell.setCellValue(leaseTotalRent.doubleValue());
+                leaseTotalRentCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // Skip W (commission_rate)
+                col++;
+
+                // X: total_commission
+                Cell leaseTotalCommCell = leaseTotalRow.createCell(col++);
+                leaseTotalCommCell.setCellValue(leaseTotalCommission.doubleValue());
+                leaseTotalCommCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // Skip Y-AJ (expenses 1-4 x date+amount+category = 12 cells)
+                col += 12;
+
+                // AK: total_expenses
+                Cell leaseTotalExpCell = leaseTotalRow.createCell(col++);
+                leaseTotalExpCell.setCellValue(leaseTotalExpenses.doubleValue());
+                leaseTotalExpCell.setCellStyle(styles.boldCurrencyStyle);
+
+                // AL: net_to_owner
+                Cell leaseTotalNetCell = leaseTotalRow.createCell(col++);
+                leaseTotalNetCell.setCellValue(leaseTotalNetToOwner.doubleValue());
+                leaseTotalNetCell.setCellStyle(styles.boldCurrencyStyle);
 
                 rowNum++;
+
+                // Accumulate property-level totals
+                propertyTotalRentDue = propertyTotalRentDue.add(leaseRentDue);
+                propertyTotalOpeningBalance = propertyTotalOpeningBalance.add(openingBalance);
+                propertyTotalPeriodArrears = propertyTotalPeriodArrears.add(periodArrears);
+                propertyTotalClosingBalance = propertyTotalClosingBalance.add(leaseClosingBalance);
+                propertyTotalRent = propertyTotalRent.add(leaseTotalRent);
+                propertyTotalCommission = propertyTotalCommission.add(leaseTotalCommission);
+                propertyTotalExpenses = propertyTotalExpenses.add(leaseTotalExpenses);
+                propertyTotalNetToOwner = propertyTotalNetToOwner.add(leaseTotalNetToOwner);
             }
+        } // end of lease loop
+
+        // === ADD PROPERTY TOTAL ROW ===
+        // Only add if we processed leases for this property
+        if (rowNum > propertyStartRow) {
+            Row propertyTotalRow = sheet.createRow(rowNum);
+            int col = 0;
+
+            // A: Label "PROPERTY TOTAL: {property_name}"
+            Cell propertyLabelCell = propertyTotalRow.createCell(col++);
+            propertyLabelCell.setCellValue("PROPERTY TOTAL: " + propertyName);
+            propertyLabelCell.setCellStyle(styles.boldStyle);
+
+            // Skip B-E
+            col += 4;
+
+            // Skip F-G
+            col += 2;
+
+            // H: rent_due
+            Cell propRentDueCell = propertyTotalRow.createCell(col++);
+            propRentDueCell.setCellValue(propertyTotalRentDue.doubleValue());
+            propRentDueCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // I: opening_balance
+            Cell propOpeningBalCell = propertyTotalRow.createCell(col++);
+            propOpeningBalCell.setCellValue(propertyTotalOpeningBalance.doubleValue());
+            propOpeningBalCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // J: period_arrears
+            Cell propPeriodArrearsCell = propertyTotalRow.createCell(col++);
+            propPeriodArrearsCell.setCellValue(propertyTotalPeriodArrears.doubleValue());
+            propPeriodArrearsCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // K: closing_balance
+            Cell propClosingBalCell = propertyTotalRow.createCell(col++);
+            propClosingBalCell.setCellValue(propertyTotalClosingBalance.doubleValue());
+            propClosingBalCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // Skip L-M
+            col += 2;
+
+            // Skip N-U (8 cells)
+            col += 8;
+
+            // V: total_rent
+            Cell propTotalRentCell = propertyTotalRow.createCell(col++);
+            propTotalRentCell.setCellValue(propertyTotalRent.doubleValue());
+            propTotalRentCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // Skip W
+            col++;
+
+            // X: total_commission
+            Cell propTotalCommCell = propertyTotalRow.createCell(col++);
+            propTotalCommCell.setCellValue(propertyTotalCommission.doubleValue());
+            propTotalCommCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // Skip Y-AJ (12 cells)
+            col += 12;
+
+            // AK: total_expenses
+            Cell propTotalExpCell = propertyTotalRow.createCell(col++);
+            propTotalExpCell.setCellValue(propertyTotalExpenses.doubleValue());
+            propTotalExpCell.setCellStyle(styles.boldCurrencyStyle);
+
+            // AL: net_to_owner
+            Cell propTotalNetCell = propertyTotalRow.createCell(col++);
+            propTotalNetCell.setCellValue(propertyTotalNetToOwner.doubleValue());
+            propTotalNetCell.setCellStyle(styles.boldCurrencyStyle);
+
+            rowNum++;
         }
+        } // end of property loop
 
         // Add totals row (use shared styles to save memory)
         if (rowNum > 1) {
