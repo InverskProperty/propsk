@@ -1584,23 +1584,58 @@ public class StatementDataExtractService {
 
     /**
      * Get total rent received for a lease before a specific date.
-     * Sums all INCOMING transactions before the specified date.
+     * Only counts INCOMING transactions that have been paid to the owner
+     * (i.e., have an OWNER allocation with a paid_date before the specified date).
      *
      * @param leaseId The lease/invoice ID
-     * @param beforeDate Sum payments before this date (exclusive)
-     * @return Total amount received
+     * @param beforeDate Sum payments with paid_date before this date (exclusive)
+     * @return Total amount received and paid to owner
      */
     public java.math.BigDecimal getTotalRentReceivedBefore(Long leaseId, LocalDate beforeDate) {
-        // Query all transactions for this lease and filter to INCOMING before the date
+        // Get all transactions for this lease
         List<UnifiedTransaction> transactions = unifiedTransactionRepository.findByInvoiceId(leaseId);
 
+        // Collect INCOMING transaction IDs
+        List<Long> incomingTxnIds = transactions.stream()
+            .filter(t -> t.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING)
+            .map(UnifiedTransaction::getId)
+            .collect(java.util.stream.Collectors.toList());
+
+        if (incomingTxnIds.isEmpty()) {
+            return java.math.BigDecimal.ZERO;
+        }
+
+        // Get OWNER allocation info (batch_id, status, paid_date) for these transactions
+        List<Object[]> batchInfo = unifiedAllocationRepository.getBatchInfoForTransactions(incomingTxnIds);
+
+        // Build map of txnId -> paidDate (only for transactions with OWNER allocations)
+        java.util.Map<Long, LocalDate> txnPaidDates = new java.util.HashMap<>();
+        for (Object[] row : batchInfo) {
+            Long txnId = row[0] != null ? ((Number) row[0]).longValue() : null;
+            if (txnId != null) {
+                LocalDate paidDate = null;
+                if (row[3] != null) {
+                    if (row[3] instanceof java.sql.Date) {
+                        paidDate = ((java.sql.Date) row[3]).toLocalDate();
+                    } else if (row[3] instanceof LocalDate) {
+                        paidDate = (LocalDate) row[3];
+                    }
+                }
+                if (paidDate != null) {
+                    txnPaidDates.put(txnId, paidDate);
+                }
+            }
+        }
+
+        // Sum amounts for transactions with paid_date before cutoff
         java.math.BigDecimal total = java.math.BigDecimal.ZERO;
         for (UnifiedTransaction txn : transactions) {
-            // Only count INCOMING transactions (rent received)
             if (txn.getFlowDirection() != UnifiedTransaction.FlowDirection.INCOMING) {
                 continue;
             }
-            if (txn.getTransactionDate() != null && txn.getTransactionDate().isBefore(beforeDate)) {
+
+            LocalDate paidDate = txnPaidDates.get(txn.getId());
+            if (paidDate != null && paidDate.isBefore(beforeDate)) {
                 if (txn.getAmount() != null) {
                     total = total.add(txn.getAmount());
                 }
@@ -1612,21 +1647,58 @@ public class StatementDataExtractService {
 
     /**
      * Get total rent received for a lease within a date range.
+     * Only counts INCOMING transactions that have been paid to the owner
+     * (i.e., have an OWNER allocation with a paid_date within the specified range).
      *
      * @param leaseId The lease/invoice ID
-     * @param startDate Start of range (inclusive)
-     * @param endDate End of range (inclusive)
-     * @return Total amount received in the period
+     * @param startDate Start of range (inclusive) - filters by paid_date
+     * @param endDate End of range (inclusive) - filters by paid_date
+     * @return Total amount received and paid to owner in the period
      */
     public java.math.BigDecimal getTotalRentReceivedInPeriod(Long leaseId, LocalDate startDate, LocalDate endDate) {
+        // Get all INCOMING transactions for this lease (no date filter on transaction_date)
         List<UnifiedTransaction> transactions = unifiedTransactionRepository
-            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
-                leaseId, startDate, endDate, UnifiedTransaction.FlowDirection.INCOMING);
+            .findByInvoiceIdAndFlowDirection(leaseId, UnifiedTransaction.FlowDirection.INCOMING);
 
+        if (transactions.isEmpty()) {
+            return java.math.BigDecimal.ZERO;
+        }
+
+        // Collect transaction IDs
+        List<Long> txnIds = transactions.stream()
+            .map(UnifiedTransaction::getId)
+            .collect(java.util.stream.Collectors.toList());
+
+        // Get OWNER allocation info (batch_id, status, paid_date) for these transactions
+        List<Object[]> batchInfo = unifiedAllocationRepository.getBatchInfoForTransactions(txnIds);
+
+        // Build map of txnId -> paidDate (only for transactions with OWNER allocations)
+        java.util.Map<Long, LocalDate> txnPaidDates = new java.util.HashMap<>();
+        for (Object[] row : batchInfo) {
+            Long txnId = row[0] != null ? ((Number) row[0]).longValue() : null;
+            if (txnId != null) {
+                LocalDate paidDate = null;
+                if (row[3] != null) {
+                    if (row[3] instanceof java.sql.Date) {
+                        paidDate = ((java.sql.Date) row[3]).toLocalDate();
+                    } else if (row[3] instanceof LocalDate) {
+                        paidDate = (LocalDate) row[3];
+                    }
+                }
+                if (paidDate != null) {
+                    txnPaidDates.put(txnId, paidDate);
+                }
+            }
+        }
+
+        // Sum amounts for transactions with paid_date within period
         java.math.BigDecimal total = java.math.BigDecimal.ZERO;
         for (UnifiedTransaction txn : transactions) {
-            if (txn.getAmount() != null) {
-                total = total.add(txn.getAmount());
+            LocalDate paidDate = txnPaidDates.get(txn.getId());
+            if (paidDate != null && !paidDate.isBefore(startDate) && !paidDate.isAfter(endDate)) {
+                if (txn.getAmount() != null) {
+                    total = total.add(txn.getAmount());
+                }
             }
         }
 
