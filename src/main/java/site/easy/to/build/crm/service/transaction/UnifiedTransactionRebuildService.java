@@ -845,7 +845,111 @@ public class UnifiedTransactionRebuildService {
         // 2. The negative OWNER allocations were double-counting the same expenses
         // Block property expenses are shown via EXPENSE allocations - no synthetic OWNER allocation needed
 
-        return historicalCount + paypropCount;
+        // Step 5e: Create £0 OWNER allocations for incoming transactions with no OWNER allocation
+        // When net_to_owner = 0 (expenses + commission consume full rent), PayProp doesn't create an Owner record.
+        // We need to create a synthetic £0 OWNER allocation so the rent income appears in reconciliation.
+        log.info("  📋 Step 5e: Creating £0 OWNER allocations for fully-consumed rent payments...");
+        String zeroOwnerSql = """
+            INSERT INTO unified_allocations (
+                incoming_transaction_id,
+                unified_transaction_id,
+                historical_transaction_id,
+                invoice_id,
+                allocation_type,
+                amount,
+                gross_amount,
+                commission_rate,
+                commission_amount,
+                net_to_owner_amount,
+                category,
+                description,
+                property_id,
+                property_name,
+                beneficiary_type,
+                beneficiary_id,
+                beneficiary_name,
+                payment_status,
+                payment_batch_id,
+                paid_date,
+                source,
+                source_record_id,
+                payprop_payment_id,
+                payprop_batch_id,
+                created_at,
+                updated_at
+            )
+            SELECT
+                ua_existing.incoming_transaction_id,
+                ua_existing.unified_transaction_id,
+                NULL as historical_transaction_id,
+                ua_existing.invoice_id,
+                'OWNER' as allocation_type,
+                0.00 as amount,  -- Net to owner is £0
+                uit.amount as gross_amount,  -- Full rent amount from incoming transaction
+                -- Calculate commission rate from existing COMMISSION allocation
+                CASE
+                    WHEN uit.amount > 0 THEN ROUND((COALESCE(comm_alloc.amount, 0) / uit.amount) * 100, 2)
+                    ELSE NULL
+                END as commission_rate,
+                COALESCE(comm_alloc.amount, 0) as commission_amount,
+                0.00 as net_to_owner_amount,
+                'Owner' as category,
+                CONCAT('Landlord Rental Payment - ', uit.description) as description,
+                ua_existing.property_id,
+                ua_existing.property_name,
+                'OWNER' as beneficiary_type,
+                owner_assign.customer_id as beneficiary_id,
+                owner_cust.name as beneficiary_name,
+                ua_existing.payment_status,
+                ua_existing.payment_batch_id,
+                ua_existing.paid_date,
+                'PAYPROP' as source,
+                NULL as source_record_id,
+                CONCAT('SYNTHETIC-', ua_existing.incoming_transaction_id) as payprop_payment_id,
+                ua_existing.payprop_batch_id,
+                NOW() as created_at,
+                NOW() as updated_at
+            FROM (
+                -- Find incoming transactions that have allocations but NO OWNER allocation
+                SELECT DISTINCT
+                    ua.incoming_transaction_id,
+                    ua.unified_transaction_id,
+                    ua.invoice_id,
+                    ua.property_id,
+                    ua.property_name,
+                    ua.payment_status,
+                    ua.payment_batch_id,
+                    ua.paid_date,
+                    ua.payprop_batch_id
+                FROM unified_allocations ua
+                WHERE ua.incoming_transaction_id IS NOT NULL
+                  AND ua.source = 'PAYPROP'
+                  AND ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT')
+                  AND NOT EXISTS (
+                      SELECT 1 FROM unified_allocations owner_ua
+                      WHERE owner_ua.incoming_transaction_id = ua.incoming_transaction_id
+                        AND owner_ua.allocation_type = 'OWNER'
+                  )
+            ) ua_existing
+            JOIN unified_incoming_transactions uit ON ua_existing.incoming_transaction_id = uit.id
+            -- Get commission amount for this incoming transaction
+            LEFT JOIN (
+                SELECT incoming_transaction_id, SUM(amount) as amount
+                FROM unified_allocations
+                WHERE allocation_type = 'COMMISSION'
+                GROUP BY incoming_transaction_id
+            ) comm_alloc ON comm_alloc.incoming_transaction_id = ua_existing.incoming_transaction_id
+            -- Lookup OWNER from customer_property_assignments
+            LEFT JOIN customer_property_assignments owner_assign
+                ON owner_assign.property_id = ua_existing.property_id
+                AND owner_assign.assignment_type = 'OWNER'
+            LEFT JOIN customers owner_cust ON owner_assign.customer_id = owner_cust.customer_id
+        """;
+
+        int zeroOwnerCount = jdbcTemplate.update(zeroOwnerSql);
+        log.info("  ✓ Created {} synthetic £0 OWNER allocations for fully-consumed rent payments", zeroOwnerCount);
+
+        return historicalCount + paypropCount + zeroOwnerCount;
     }
 
     /**
