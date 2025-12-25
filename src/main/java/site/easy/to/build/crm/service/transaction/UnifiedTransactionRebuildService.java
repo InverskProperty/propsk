@@ -848,6 +848,9 @@ public class UnifiedTransactionRebuildService {
         // Step 5e: Create £0 OWNER allocations for incoming transactions with no OWNER allocation
         // When net_to_owner = 0 (expenses + commission consume full rent), PayProp doesn't create an Owner record.
         // We need to create a synthetic £0 OWNER allocation so the rent income appears in reconciliation.
+        //
+        // IMPORTANT: Block properties are EXCLUDED - they have funding transactions, not rent income.
+        // Block property income/expense tracking is handled separately.
         log.info("  📋 Step 5e: Creating £0 OWNER allocations for fully-consumed rent payments...");
         String zeroOwnerSql = """
             INSERT INTO unified_allocations (
@@ -911,27 +914,35 @@ public class UnifiedTransactionRebuildService {
                 NOW() as updated_at
             FROM (
                 -- Find incoming transactions that have allocations but NO OWNER allocation
-                SELECT DISTINCT
+                -- Use GROUP BY to ensure only ONE synthetic OWNER per incoming transaction
+                -- (prevents duplicates when same incoming txn has allocations in multiple batches)
+                SELECT
                     ua.incoming_transaction_id,
-                    ua.unified_transaction_id,
-                    ua.invoice_id,
-                    ua.property_id,
-                    ua.property_name,
-                    ua.payment_status,
-                    ua.payment_batch_id,
-                    ua.paid_date,
-                    ua.payprop_batch_id
+                    MIN(ua.unified_transaction_id) as unified_transaction_id,
+                    MIN(ua.invoice_id) as invoice_id,
+                    MIN(ua.property_id) as property_id,
+                    MIN(ua.property_name) as property_name,
+                    MIN(ua.payment_status) as payment_status,
+                    MIN(ua.payment_batch_id) as payment_batch_id,
+                    MIN(ua.paid_date) as paid_date,
+                    MIN(ua.payprop_batch_id) as payprop_batch_id
                 FROM unified_allocations ua
+                -- Join to properties early to filter out block properties
+                JOIN properties prop_filter ON ua.property_id = prop_filter.id
                 WHERE ua.incoming_transaction_id IS NOT NULL
                   AND ua.source = 'PAYPROP'
                   AND ua.allocation_type IN ('EXPENSE', 'COMMISSION', 'DISBURSEMENT')
+                  -- Exclude block properties - they don't have rent income, only funding transactions
+                  AND COALESCE(prop_filter.is_block_property, 0) = 0
                   AND NOT EXISTS (
                       SELECT 1 FROM unified_allocations owner_ua
                       WHERE owner_ua.incoming_transaction_id = ua.incoming_transaction_id
                         AND owner_ua.allocation_type = 'OWNER'
                   )
+                GROUP BY ua.incoming_transaction_id
             ) ua_existing
             JOIN unified_incoming_transactions uit ON ua_existing.incoming_transaction_id = uit.id
+            JOIN properties prop ON ua_existing.property_id = prop.id
             -- Get commission amount for this incoming transaction
             LEFT JOIN (
                 SELECT incoming_transaction_id, SUM(amount) as amount
