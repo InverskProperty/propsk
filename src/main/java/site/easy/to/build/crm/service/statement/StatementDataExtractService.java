@@ -1584,12 +1584,12 @@ public class StatementDataExtractService {
 
     /**
      * Get total rent received for a lease before a specific date.
-     * Only counts INCOMING transactions that have been paid to the owner
-     * (i.e., have an OWNER allocation with a paid_date before the specified date).
+     * Only counts INCOMING transactions that have an OWNER allocation (have been processed).
+     * Filters by transaction_date (when tenant paid), not paid_date.
      *
      * @param leaseId The lease/invoice ID
-     * @param beforeDate Sum payments with paid_date before this date (exclusive)
-     * @return Total amount received and paid to owner
+     * @param beforeDate Sum payments with transaction_date before this date (exclusive)
+     * @return Total amount received (only allocated transactions)
      */
     public java.math.BigDecimal getTotalRentReceivedBefore(Long leaseId, LocalDate beforeDate) {
         // Get all transactions for this lease
@@ -1605,37 +1605,35 @@ public class StatementDataExtractService {
             return java.math.BigDecimal.ZERO;
         }
 
-        // Get OWNER allocation info (batch_id, status, paid_date) for these transactions
+        // Get OWNER allocation info for these transactions
+        // This tells us which transactions have been allocated to owner (processed)
         List<Object[]> batchInfo = unifiedAllocationRepository.getBatchInfoForTransactions(incomingTxnIds);
 
-        // Build map of txnId -> paidDate (only for transactions with OWNER allocations)
-        java.util.Map<Long, LocalDate> txnPaidDates = new java.util.HashMap<>();
+        // Build set of transaction IDs that have OWNER allocations (i.e., have been processed)
+        java.util.Set<Long> allocatedTxnIds = new java.util.HashSet<>();
         for (Object[] row : batchInfo) {
             Long txnId = row[0] != null ? ((Number) row[0]).longValue() : null;
             if (txnId != null) {
-                LocalDate paidDate = null;
-                if (row[3] != null) {
-                    if (row[3] instanceof java.sql.Date) {
-                        paidDate = ((java.sql.Date) row[3]).toLocalDate();
-                    } else if (row[3] instanceof LocalDate) {
-                        paidDate = (LocalDate) row[3];
-                    }
-                }
-                if (paidDate != null) {
-                    txnPaidDates.put(txnId, paidDate);
-                }
+                allocatedTxnIds.add(txnId);
             }
         }
 
-        // Sum amounts for transactions with paid_date before cutoff
+        // Sum amounts for transactions that:
+        // 1. Have an OWNER allocation (have been processed)
+        // 2. Have transaction_date before the cutoff
         java.math.BigDecimal total = java.math.BigDecimal.ZERO;
         for (UnifiedTransaction txn : transactions) {
             if (txn.getFlowDirection() != UnifiedTransaction.FlowDirection.INCOMING) {
                 continue;
             }
 
-            LocalDate paidDate = txnPaidDates.get(txn.getId());
-            if (paidDate != null && paidDate.isBefore(beforeDate)) {
+            // Only count if transaction has been allocated to owner
+            if (!allocatedTxnIds.contains(txn.getId())) {
+                continue;
+            }
+
+            // Filter by transaction_date (when tenant paid)
+            if (txn.getTransactionDate() != null && txn.getTransactionDate().isBefore(beforeDate)) {
                 if (txn.getAmount() != null) {
                     total = total.add(txn.getAmount());
                 }
@@ -1647,18 +1645,19 @@ public class StatementDataExtractService {
 
     /**
      * Get total rent received for a lease within a date range.
-     * Only counts INCOMING transactions that have been paid to the owner
-     * (i.e., have an OWNER allocation with a paid_date within the specified range).
+     * Only counts INCOMING transactions that have an OWNER allocation (have been processed).
+     * Filters by transaction_date (when tenant paid), not paid_date.
      *
      * @param leaseId The lease/invoice ID
-     * @param startDate Start of range (inclusive) - filters by paid_date
-     * @param endDate End of range (inclusive) - filters by paid_date
-     * @return Total amount received and paid to owner in the period
+     * @param startDate Start of range (inclusive) - filters by transaction_date
+     * @param endDate End of range (inclusive) - filters by transaction_date
+     * @return Total amount received in the period (only allocated transactions)
      */
     public java.math.BigDecimal getTotalRentReceivedInPeriod(Long leaseId, LocalDate startDate, LocalDate endDate) {
-        // Get all INCOMING transactions for this lease (no date filter on transaction_date)
+        // Get INCOMING transactions for this lease within the date range
         List<UnifiedTransaction> transactions = unifiedTransactionRepository
-            .findByInvoiceIdAndFlowDirection(leaseId, UnifiedTransaction.FlowDirection.INCOMING);
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+                leaseId, startDate, endDate, UnifiedTransaction.FlowDirection.INCOMING);
 
         if (transactions.isEmpty()) {
             return java.math.BigDecimal.ZERO;
@@ -1669,33 +1668,24 @@ public class StatementDataExtractService {
             .map(UnifiedTransaction::getId)
             .collect(java.util.stream.Collectors.toList());
 
-        // Get OWNER allocation info (batch_id, status, paid_date) for these transactions
+        // Get OWNER allocation info for these transactions
+        // This tells us which transactions have been allocated to owner (processed)
         List<Object[]> batchInfo = unifiedAllocationRepository.getBatchInfoForTransactions(txnIds);
 
-        // Build map of txnId -> paidDate (only for transactions with OWNER allocations)
-        java.util.Map<Long, LocalDate> txnPaidDates = new java.util.HashMap<>();
+        // Build set of transaction IDs that have OWNER allocations
+        java.util.Set<Long> allocatedTxnIds = new java.util.HashSet<>();
         for (Object[] row : batchInfo) {
             Long txnId = row[0] != null ? ((Number) row[0]).longValue() : null;
             if (txnId != null) {
-                LocalDate paidDate = null;
-                if (row[3] != null) {
-                    if (row[3] instanceof java.sql.Date) {
-                        paidDate = ((java.sql.Date) row[3]).toLocalDate();
-                    } else if (row[3] instanceof LocalDate) {
-                        paidDate = (LocalDate) row[3];
-                    }
-                }
-                if (paidDate != null) {
-                    txnPaidDates.put(txnId, paidDate);
-                }
+                allocatedTxnIds.add(txnId);
             }
         }
 
-        // Sum amounts for transactions with paid_date within period
+        // Sum amounts for transactions that have been allocated to owner
         java.math.BigDecimal total = java.math.BigDecimal.ZERO;
         for (UnifiedTransaction txn : transactions) {
-            LocalDate paidDate = txnPaidDates.get(txn.getId());
-            if (paidDate != null && !paidDate.isBefore(startDate) && !paidDate.isAfter(endDate)) {
+            // Only count if transaction has been allocated to owner
+            if (allocatedTxnIds.contains(txn.getId())) {
                 if (txn.getAmount() != null) {
                     total = total.add(txn.getAmount());
                 }
