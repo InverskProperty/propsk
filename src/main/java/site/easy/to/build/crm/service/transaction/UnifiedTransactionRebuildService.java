@@ -555,28 +555,9 @@ public class UnifiedTransactionRebuildService {
                 tba.transaction_id as historical_transaction_id,
                 -- invoice_id: link to specific lease for per-lease allocation tracking
                 COALESCE(ht.invoice_id, ut.invoice_id) as invoice_id,
-                -- allocation_type based on category
-                -- IMPORTANT: Default to EXPENSE for unrecognized categories (safer than defaulting to OWNER)
-                -- DISBURSEMENT = transfers to block property account (separate from regular EXPENSE)
-                CASE
-                    WHEN ht.category IN ('management', 'agency_fee', 'commission')
-                         OR ht.category LIKE '%commission%' OR ht.category LIKE '%Commission%'
-                    THEN 'COMMISSION'
-                    WHEN ht.category IN ('rent', 'rental', 'income', 'payment', 'tenant_payment')
-                         OR ht.category LIKE '%rent%' OR ht.category LIKE '%income%'
-                    THEN 'OWNER'
-                    WHEN ht.category IN ('disbursement', 'Disbursement')
-                         OR ht.category LIKE '%disbursement%' OR ht.category LIKE '%Disbursement%'
-                         OR ht.description LIKE '%BLOCK PROPERTY%'
-                    THEN 'DISBURSEMENT'
-                    WHEN ht.category IN ('cleaning', 'furnishings', 'maintenance', 'utilities', 'compliance',
-                                         'other', 'Other', 'council_tax', 'insurance', 'repairs', 'legal',
-                                         'service_charge', 'ground_rent', 'professional_fees',
-                                         'contractor', 'supplier', 'vendor')
-                         OR ht.category LIKE '%expense%' OR ht.category LIKE '%Expense%'
-                    THEN 'EXPENSE'
-                    ELSE 'EXPENSE'  -- Default to EXPENSE for safety (unrecognized = likely expense)
-                END as allocation_type,
+                -- allocation_type: USE TBA's allocation_type directly (source of truth)
+                -- TBA stores the correct allocation type - don't recalculate from ht.category
+                tba.allocation_type as allocation_type,
                 ABS(tba.allocated_amount) as amount,
                 -- gross_amount: For OWNER allocations (rent), use the transaction's gross amount
                 -- Calculate proportionally if this is a partial allocation
