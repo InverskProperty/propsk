@@ -3144,12 +3144,13 @@ public class StatementDataExtractService {
         List<site.easy.to.build.crm.dto.statement.PaymentDetailDTO> allExpenses = new ArrayList<>();
 
         for (UnifiedTransaction txn : transactions) {
-            // Filter out Owner and Commission categories - these are NOT expenses
+            // Filter out Owner, Commission, and Disbursement categories
+            // Disbursements are added separately from unified_allocations to avoid double-counting
             String category = txn.getCategory();
             if (category != null) {
                 String lowerCategory = category.toLowerCase();
                 if (lowerCategory.equals("owner") || lowerCategory.equals("commission") ||
-                    lowerCategory.contains("owner_payment")) {
+                    lowerCategory.contains("owner_payment") || lowerCategory.equals("disbursement")) {
                     continue;
                 }
             }
