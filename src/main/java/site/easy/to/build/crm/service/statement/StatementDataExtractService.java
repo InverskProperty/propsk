@@ -11,6 +11,7 @@ import site.easy.to.build.crm.dto.statement.PaymentBatchSummaryDTO;
 import site.easy.to.build.crm.dto.statement.PaymentWithAllocationsDTO;
 import site.easy.to.build.crm.dto.statement.PropertyDTO;
 import site.easy.to.build.crm.dto.statement.RelatedPaymentDTO;
+import site.easy.to.build.crm.dto.statement.ServiceChargeDataDTO;
 import site.easy.to.build.crm.dto.statement.TransactionDTO;
 import site.easy.to.build.crm.dto.statement.UnallocatedIncomeDTO;
 import site.easy.to.build.crm.dto.statement.UnallocatedPaymentDTO;
@@ -3721,5 +3722,233 @@ public class StatementDataExtractService {
         }
 
         return summary;
+    }
+
+    // ===== SERVICE CHARGE ACCOUNT METHODS =====
+
+    /**
+     * Extract block property leases for an owner.
+     * Block properties are properties with is_block_property = true.
+     * These are used for service charge accounts rather than regular net-to-owner calculations.
+     *
+     * @param customerId Customer ID (owner)
+     * @return List of LeaseMasterDTO for block properties only
+     */
+    public List<LeaseMasterDTO> extractBlockPropertyLeases(Long customerId) {
+        log.info("Extracting block property leases for customer {}...", customerId);
+
+        Customer customer = customerRepository.findById(customerId).orElse(null);
+        if (customer == null) {
+            log.error("Customer {} not found - returning empty list", customerId);
+            return new ArrayList<>();
+        }
+
+        // Get properties accessible by this customer
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+
+        // Filter to only block properties
+        List<Property> blockProperties = properties.stream()
+            .filter(p -> Boolean.TRUE.equals(p.getIsBlockProperty()))
+            .collect(Collectors.toList());
+
+        log.info("Found {} block properties for customer {}", blockProperties.size(), customerId);
+
+        if (blockProperties.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // Get property IDs
+        List<Long> blockPropertyIds = blockProperties.stream()
+            .map(Property::getId)
+            .collect(Collectors.toList());
+
+        // Get leases (invoices) for these block properties
+        List<Invoice> allInvoices = invoiceRepository.findAll();
+        List<Invoice> blockLeases = allInvoices.stream()
+            .filter(i -> i.getProperty() != null)
+            .filter(i -> blockPropertyIds.contains(i.getProperty().getId()))
+            .filter(i -> i.getLeaseReference() != null && !i.getLeaseReference().trim().isEmpty())
+            .collect(Collectors.toList());
+
+        log.info("Found {} leases for block properties", blockLeases.size());
+
+        // Convert to DTOs
+        List<LeaseMasterDTO> leaseMaster = new ArrayList<>();
+        for (Invoice invoice : blockLeases) {
+            LeaseMasterDTO dto = new LeaseMasterDTO();
+
+            dto.setLeaseId(invoice.getId());
+            dto.setLeaseReference(invoice.getLeaseReference());
+            dto.setStartDate(invoice.getStartDate());
+            dto.setEndDate(invoice.getEndDate());
+            dto.setMonthlyRent(invoice.getAmount());
+            dto.setFrequency(invoice.getFrequency() != null ? invoice.getFrequency().name() : "MONTHLY");
+            dto.setPaymentDay(invoice.getPaymentDay());
+
+            Property property = invoice.getProperty();
+            if (property != null) {
+                dto.setPropertyId(property.getId());
+                dto.setPropertyName(property.getPropertyName());
+                dto.setPropertyAddress(property.getFullAddress());
+                dto.setIsBlockProperty(property.getIsBlockProperty());
+                dto.setPropertyAccountBalance(property.getAccountBalance());
+                if (property.getBlock() != null) {
+                    dto.setBlockId(property.getBlock().getId());
+                    dto.setBlockName(property.getBlock().getName());
+                }
+            }
+
+            dto.setCustomerId(customer.getCustomerId());
+            dto.setCustomerName(customer.getName());
+
+            // Tenant name for the service charge payer
+            String tenantName = extractTenantName(invoice);
+            dto.setTenantName(tenantName);
+
+            log.info("Block property lease: {} - Tenant: {}", invoice.getLeaseReference(), tenantName);
+            leaseMaster.add(dto);
+        }
+
+        return leaseMaster;
+    }
+
+    /**
+     * Extract service charge data for a block property lease.
+     * This bypasses the allocation system and directly queries transactions.
+     *
+     * Service charge accounts show:
+     * - Opening balance (cumulative income - expenses before period start)
+     * - Income transactions (INCOMING) during period
+     * - Expense transactions (OUTGOING) during period
+     * - Closing balance
+     *
+     * @param blockPropertyLeaseId Lease ID for the block property
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @return ServiceChargeDataDTO with all service charge data
+     */
+    public ServiceChargeDataDTO extractServiceChargeData(Long blockPropertyLeaseId, LocalDate startDate, LocalDate endDate) {
+        log.info("Extracting service charge data for lease {} from {} to {}",
+            blockPropertyLeaseId, startDate, endDate);
+
+        // Get the lease to find property name and tenant
+        Invoice invoice = invoiceRepository.findById(blockPropertyLeaseId).orElse(null);
+        if (invoice == null) {
+            log.warn("Lease {} not found", blockPropertyLeaseId);
+            return new ServiceChargeDataDTO();
+        }
+
+        ServiceChargeDataDTO data = new ServiceChargeDataDTO();
+        data.setBlockPropertyLeaseId(blockPropertyLeaseId);
+
+        if (invoice.getProperty() != null) {
+            data.setBlockPropertyName(invoice.getProperty().getPropertyName());
+        }
+
+        // Get tenant name
+        String tenantName = extractTenantName(invoice);
+        data.setTenantName(tenantName);
+
+        // Calculate opening balance (all transactions before period start)
+        BigDecimal openingBalance = calculateServiceChargeOpeningBalance(blockPropertyLeaseId, startDate);
+        data.setOpeningBalance(openingBalance);
+
+        // Get INCOMING transactions (income) for the period
+        List<UnifiedTransaction> incomeTransactions = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+                blockPropertyLeaseId, startDate, endDate,
+                UnifiedTransaction.FlowDirection.INCOMING);
+
+        for (UnifiedTransaction ut : incomeTransactions) {
+            ServiceChargeDataDTO.ServiceChargeTransactionDTO txn = new ServiceChargeDataDTO.ServiceChargeTransactionDTO(
+                ut.getId(),
+                ut.getTransactionDate(),
+                ut.getDescription() != null ? ut.getDescription() : tenantName,
+                ut.getCategory(),
+                ut.getAmount()
+            );
+            data.addIncomeTransaction(txn);
+        }
+
+        // Get OUTGOING transactions (expenses) for the period
+        List<UnifiedTransaction> expenseTransactions = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+                blockPropertyLeaseId, startDate, endDate,
+                UnifiedTransaction.FlowDirection.OUTGOING);
+
+        for (UnifiedTransaction ut : expenseTransactions) {
+            ServiceChargeDataDTO.ServiceChargeTransactionDTO txn = new ServiceChargeDataDTO.ServiceChargeTransactionDTO(
+                ut.getId(),
+                ut.getTransactionDate(),
+                ut.getDescription(),
+                ut.getCategory(),
+                ut.getAmount()
+            );
+            data.addExpenseTransaction(txn);
+        }
+
+        // Sort transactions by date
+        data.getIncomeTransactions().sort(Comparator.comparing(
+            ServiceChargeDataDTO.ServiceChargeTransactionDTO::getTransactionDate,
+            Comparator.nullsLast(Comparator.naturalOrder())));
+        data.getExpenseTransactions().sort(Comparator.comparing(
+            ServiceChargeDataDTO.ServiceChargeTransactionDTO::getTransactionDate,
+            Comparator.nullsLast(Comparator.naturalOrder())));
+
+        // Calculate closing balance
+        data.calculateClosingBalance();
+
+        log.info("Service charge data for {}: opening={}, income={}, expenses={}, closing={}",
+            data.getBlockPropertyName(),
+            data.getOpeningBalance(),
+            data.getTotalIncome(),
+            data.getTotalExpenses(),
+            data.getClosingBalance());
+
+        return data;
+    }
+
+    /**
+     * Calculate the opening balance for a service charge account.
+     * This is the sum of all INCOMING minus all OUTGOING before the period start.
+     *
+     * @param blockPropertyLeaseId Lease ID for the block property
+     * @param periodStart Start date of the period
+     * @return Opening balance (can be positive or negative)
+     */
+    private BigDecimal calculateServiceChargeOpeningBalance(Long blockPropertyLeaseId, LocalDate periodStart) {
+        log.info("Calculating service charge opening balance for lease {} before {}",
+            blockPropertyLeaseId, periodStart);
+
+        // Get all transactions before period start
+        // We need to go back to the beginning of time for this lease
+        LocalDate beginningOfTime = LocalDate.of(2000, 1, 1);
+
+        // Get all INCOMING before period start
+        List<UnifiedTransaction> historicalIncome = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+                blockPropertyLeaseId, beginningOfTime, periodStart.minusDays(1),
+                UnifiedTransaction.FlowDirection.INCOMING);
+
+        BigDecimal totalIncome = historicalIncome.stream()
+            .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Get all OUTGOING before period start
+        List<UnifiedTransaction> historicalExpenses = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+                blockPropertyLeaseId, beginningOfTime, periodStart.minusDays(1),
+                UnifiedTransaction.FlowDirection.OUTGOING);
+
+        BigDecimal totalExpenses = historicalExpenses.stream()
+            .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal openingBalance = totalIncome.subtract(totalExpenses);
+
+        log.info("Opening balance calculation: income={}, expenses={}, balance={}",
+            totalIncome, totalExpenses, openingBalance);
+
+        return openingBalance;
     }
 }

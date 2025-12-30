@@ -13,6 +13,7 @@ import site.easy.to.build.crm.dto.statement.LeaseMasterDTO;
 import site.easy.to.build.crm.dto.statement.PaymentBatchSummaryDTO;
 import site.easy.to.build.crm.dto.statement.PaymentWithAllocationsDTO;
 import site.easy.to.build.crm.dto.statement.RelatedPaymentDTO;
+import site.easy.to.build.crm.dto.statement.ServiceChargeDataDTO;
 import site.easy.to.build.crm.dto.statement.TransactionDTO;
 import site.easy.to.build.crm.dto.statement.UnallocatedIncomeDTO;
 import site.easy.to.build.crm.dto.statement.UnallocatedPaymentDTO;
@@ -3106,6 +3107,11 @@ public class ExcelStatementGeneratorService {
         for (LeaseMasterDTO lease : propertyLeases) {
             LocalDate leaseStart = lease.getStartDate();
 
+            // Skip block properties - they get their own SERVICE CHARGE ACCOUNT section
+            if (Boolean.TRUE.equals(lease.getIsBlockProperty())) {
+                continue;
+            }
+
             // Skip future leases that haven't started yet
             if (leaseStart != null && leaseStart.isAfter(period.periodEnd)) {
                 continue;
@@ -4334,6 +4340,16 @@ public class ExcelStatementGeneratorService {
         balanceCell.setCellValue(grandTotalNetToOwner.subtract(totalPaymentsMade).doubleValue());
         balanceCell.setCellStyle(styles.boldCurrencyStyle);
 
+        // ===== SERVICE CHARGE ACCOUNT SECTIONS =====
+        // Add service charge sections for any block properties owned by this customer
+        // These show income from service charge payers (e.g., Prestvale Properties) and expenses
+        // with a running BALANCE instead of net-to-owner calculation
+        if (customerId != null) {
+            rowNum += 3; // Add some spacing
+            rowNum = addAllServiceChargeSections(sheet, rowNum, resolvedOwnerId,
+                period.periodStart, period.periodEnd, styles);
+        }
+
         log.info("{} sheet created with {} rows (batch-based, including reconciliation)", sheetName, rowNum);
     }
 
@@ -4858,8 +4874,17 @@ public class ExcelStatementGeneratorService {
 
         int rowNum = 1;
 
+        // Collect block property leases for service charge summary section
+        List<LeaseMasterDTO> blockPropertyLeases = new ArrayList<>();
+
         // Generate summary rows for each lease
         for (LeaseMasterDTO lease : leaseMaster) {
+            // Collect block properties for later service charge section
+            if (Boolean.TRUE.equals(lease.getIsBlockProperty())) {
+                blockPropertyLeases.add(lease);
+                continue; // Skip block properties in regular net-to-owner summary
+            }
+
             LocalDate leaseStart = lease.getStartDate();
             LocalDate leaseEnd = lease.getEndDate();
 
@@ -5060,6 +5085,79 @@ public class ExcelStatementGeneratorService {
 
         // Apply fixed column widths (autoSizeColumn causes OutOfMemoryError on large sheets)
         applyFixedColumnWidths(sheet, headers.length);
+
+        // ===== SERVICE CHARGE ACCOUNTS SUMMARY SECTION =====
+        // Add summary rows for any block properties (service charge accounts)
+        if (!blockPropertyLeases.isEmpty()) {
+            rowNum += 3; // Add spacing
+
+            // Section separator
+            Row separatorRow = sheet.createRow(rowNum++);
+            Cell separatorCell = separatorRow.createCell(0);
+            separatorCell.setCellValue("═══════════════════════════════════════════════════════════════════════════════");
+            separatorCell.setCellStyle(styles.boldStyle);
+
+            // Section header
+            Row sectionHeaderRow = sheet.createRow(rowNum++);
+            Cell sectionHeaderCell = sectionHeaderRow.createCell(0);
+            sectionHeaderCell.setCellValue("SERVICE CHARGE ACCOUNTS");
+            sectionHeaderCell.setCellStyle(styles.boldStyle);
+
+            rowNum++; // Blank row
+
+            // Column headers for service charge summary
+            Row scHeaderRow = sheet.createRow(rowNum++);
+            scHeaderRow.createCell(0).setCellValue("Block Property Name");
+            scHeaderRow.createCell(1).setCellValue("Tenant");
+            scHeaderRow.createCell(2).setCellValue("Opening Balance");
+            scHeaderRow.createCell(3).setCellValue("Total Income");
+            scHeaderRow.createCell(4).setCellValue("Total Expenses");
+            scHeaderRow.createCell(5).setCellValue("Closing Balance");
+
+            // Apply header style
+            for (int i = 0; i < 6; i++) {
+                scHeaderRow.getCell(i).setCellStyle(styles.headerStyle);
+            }
+
+            // Add a row for each block property
+            for (LeaseMasterDTO blockLease : blockPropertyLeases) {
+                // Get service charge data for the full period range
+                ServiceChargeDataDTO scData = dataExtractService.extractServiceChargeData(
+                    blockLease.getLeaseId(), startDate, endDate);
+
+                Row scRow = sheet.createRow(rowNum++);
+
+                // Block Property Name
+                scRow.createCell(0).setCellValue(
+                    blockLease.getPropertyName() != null ? blockLease.getPropertyName() : "");
+
+                // Tenant
+                scRow.createCell(1).setCellValue(
+                    blockLease.getTenantName() != null ? blockLease.getTenantName() : "");
+
+                // Opening Balance
+                Cell obCell = scRow.createCell(2);
+                obCell.setCellValue(scData.getOpeningBalance().doubleValue());
+                obCell.setCellStyle(currencyStyle);
+
+                // Total Income
+                Cell incCell = scRow.createCell(3);
+                incCell.setCellValue(scData.getTotalIncome().doubleValue());
+                incCell.setCellStyle(currencyStyle);
+
+                // Total Expenses
+                Cell expCell = scRow.createCell(4);
+                expCell.setCellValue(scData.getTotalExpenses().doubleValue());
+                expCell.setCellStyle(currencyStyle);
+
+                // Closing Balance
+                Cell cbCell = scRow.createCell(5);
+                cbCell.setCellValue(scData.getClosingBalance().doubleValue());
+                cbCell.setCellStyle(styles.boldCurrencyStyle);
+            }
+
+            log.info("Added {} service charge account rows to SUMMARY", blockPropertyLeases.size());
+        }
 
         log.info("SUMMARY sheet created with {} rows", rowNum - 1);
     }
@@ -6925,5 +7023,229 @@ public class ExcelStatementGeneratorService {
                 sheet.setColumnWidth(i, defaultWidth); // Everything else
             }
         }
+    }
+
+    // ===== SERVICE CHARGE ACCOUNT METHODS =====
+
+    /**
+     * Add a Service Charge Account section to the sheet.
+     *
+     * Service charge accounts are for block properties and show:
+     * - Opening balance
+     * - Income from service charge payments
+     * - Expenses from block account
+     * - Closing balance (running balance, NOT net-to-owner)
+     *
+     * @param sheet The worksheet
+     * @param startRow Starting row number
+     * @param data Service charge data for one block property
+     * @param styles Shared workbook styles
+     * @return Next available row number
+     */
+    private int addServiceChargeSection(Sheet sheet, int startRow, ServiceChargeDataDTO data, WorkbookStyles styles) {
+        int rowNum = startRow;
+
+        // Skip if no block property name
+        if (data.getBlockPropertyName() == null) {
+            return rowNum;
+        }
+
+        // Section separator
+        Row separatorRow = sheet.createRow(rowNum++);
+        Cell separatorCell = separatorRow.createCell(0);
+        separatorCell.setCellValue("═══════════════════════════════════════════════════════════════════════════════");
+        separatorCell.setCellStyle(styles.boldStyle);
+
+        // Section header
+        Row headerRow = sheet.createRow(rowNum++);
+        Cell headerCell = headerRow.createCell(0);
+        headerCell.setCellValue("SERVICE CHARGE ACCOUNT - " + data.getBlockPropertyName());
+        headerCell.setCellStyle(styles.boldStyle);
+
+        // Tenant info
+        if (data.getTenantName() != null) {
+            Row tenantRow = sheet.createRow(rowNum++);
+            tenantRow.createCell(0).setCellValue("Service Charge Payer: " + data.getTenantName());
+        }
+
+        rowNum++; // Blank row
+
+        // Summary row headers
+        Row summaryHeaderRow = sheet.createRow(rowNum++);
+        summaryHeaderRow.createCell(0).setCellValue("");
+        Cell obHeader = summaryHeaderRow.createCell(1);
+        obHeader.setCellValue("Opening Balance");
+        obHeader.setCellStyle(styles.boldStyle);
+        Cell incHeader = summaryHeaderRow.createCell(2);
+        incHeader.setCellValue("Income");
+        incHeader.setCellStyle(styles.boldStyle);
+        Cell expHeader = summaryHeaderRow.createCell(3);
+        expHeader.setCellValue("Expenses");
+        expHeader.setCellStyle(styles.boldStyle);
+        Cell cbHeader = summaryHeaderRow.createCell(4);
+        cbHeader.setCellValue("Closing Balance");
+        cbHeader.setCellStyle(styles.boldStyle);
+
+        // Summary values row
+        Row summaryRow = sheet.createRow(rowNum++);
+        Cell summaryLabel = summaryRow.createCell(0);
+        summaryLabel.setCellValue("SUMMARY");
+        summaryLabel.setCellStyle(styles.boldStyle);
+
+        Cell obCell = summaryRow.createCell(1);
+        obCell.setCellValue(data.getOpeningBalance().doubleValue());
+        obCell.setCellStyle(styles.currencyStyle);
+
+        Cell incCell = summaryRow.createCell(2);
+        incCell.setCellValue(data.getTotalIncome().doubleValue());
+        incCell.setCellStyle(styles.currencyStyle);
+
+        Cell expCell = summaryRow.createCell(3);
+        expCell.setCellValue(data.getTotalExpenses().doubleValue());
+        expCell.setCellStyle(styles.currencyStyle);
+
+        Cell cbCell = summaryRow.createCell(4);
+        cbCell.setCellValue(data.getClosingBalance().doubleValue());
+        cbCell.setCellStyle(styles.boldCurrencyStyle);
+
+        rowNum++; // Blank row
+
+        // Income details section
+        if (!data.getIncomeTransactions().isEmpty()) {
+            Row incomeHeaderRow = sheet.createRow(rowNum++);
+            Cell incomeHeader = incomeHeaderRow.createCell(0);
+            incomeHeader.setCellValue("INCOME (Service Charge Payments)");
+            incomeHeader.setCellStyle(styles.boldStyle);
+
+            // Income column headers
+            Row incColHeaderRow = sheet.createRow(rowNum++);
+            incColHeaderRow.createCell(0).setCellValue("Date");
+            incColHeaderRow.createCell(1).setCellValue("Description");
+            incColHeaderRow.createCell(2).setCellValue("Amount");
+            incColHeaderRow.createCell(3).setCellValue("Running Balance");
+
+            // Track running balance (start from opening)
+            BigDecimal runningBalance = data.getOpeningBalance();
+
+            for (ServiceChargeDataDTO.ServiceChargeTransactionDTO txn : data.getIncomeTransactions()) {
+                Row txnRow = sheet.createRow(rowNum++);
+
+                // Date
+                Cell dateCell = txnRow.createCell(0);
+                if (txn.getTransactionDate() != null) {
+                    dateCell.setCellValue(txn.getTransactionDate());
+                    dateCell.setCellStyle(styles.dateStyle);
+                }
+
+                // Description
+                txnRow.createCell(1).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
+
+                // Amount
+                Cell amtCell = txnRow.createCell(2);
+                BigDecimal amt = txn.getAmount() != null ? txn.getAmount().abs() : BigDecimal.ZERO;
+                amtCell.setCellValue(amt.doubleValue());
+                amtCell.setCellStyle(styles.currencyStyle);
+
+                // Running balance
+                runningBalance = runningBalance.add(amt);
+                Cell runBalCell = txnRow.createCell(3);
+                runBalCell.setCellValue(runningBalance.doubleValue());
+                runBalCell.setCellStyle(styles.currencyStyle);
+            }
+
+            rowNum++; // Blank row
+        }
+
+        // Expense details section
+        if (!data.getExpenseTransactions().isEmpty()) {
+            Row expenseHeaderRow = sheet.createRow(rowNum++);
+            Cell expenseHeader = expenseHeaderRow.createCell(0);
+            expenseHeader.setCellValue("EXPENSES (Block Account)");
+            expenseHeader.setCellStyle(styles.boldStyle);
+
+            // Expense column headers
+            Row expColHeaderRow = sheet.createRow(rowNum++);
+            expColHeaderRow.createCell(0).setCellValue("Date");
+            expColHeaderRow.createCell(1).setCellValue("Description");
+            expColHeaderRow.createCell(2).setCellValue("Category");
+            expColHeaderRow.createCell(3).setCellValue("Amount");
+            expColHeaderRow.createCell(4).setCellValue("Running Balance");
+
+            // Track running balance (continue from income section end)
+            BigDecimal runningBalance = data.getOpeningBalance().add(data.getTotalIncome());
+
+            for (ServiceChargeDataDTO.ServiceChargeTransactionDTO txn : data.getExpenseTransactions()) {
+                Row txnRow = sheet.createRow(rowNum++);
+
+                // Date
+                Cell dateCell = txnRow.createCell(0);
+                if (txn.getTransactionDate() != null) {
+                    dateCell.setCellValue(txn.getTransactionDate());
+                    dateCell.setCellStyle(styles.dateStyle);
+                }
+
+                // Description
+                txnRow.createCell(1).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
+
+                // Category
+                txnRow.createCell(2).setCellValue(txn.getCategory() != null ? txn.getCategory() : "");
+
+                // Amount (shown as negative for expenses)
+                Cell amtCell = txnRow.createCell(3);
+                BigDecimal amt = txn.getAmount() != null ? txn.getAmount().abs() : BigDecimal.ZERO;
+                amtCell.setCellValue(-amt.doubleValue()); // Negative for expenses
+                amtCell.setCellStyle(styles.currencyStyle);
+
+                // Running balance
+                runningBalance = runningBalance.subtract(amt);
+                Cell runBalCell = txnRow.createCell(4);
+                runBalCell.setCellValue(runningBalance.doubleValue());
+                runBalCell.setCellStyle(styles.currencyStyle);
+            }
+        }
+
+        rowNum++; // Blank row at end
+
+        return rowNum;
+    }
+
+    /**
+     * Add service charge sections for all block properties to the sheet.
+     *
+     * @param sheet The worksheet
+     * @param startRow Starting row number
+     * @param customerId Customer ID
+     * @param startDate Period start date
+     * @param endDate Period end date
+     * @param styles Shared workbook styles
+     * @return Next available row number
+     */
+    private int addAllServiceChargeSections(Sheet sheet, int startRow, Long customerId,
+                                            LocalDate startDate, LocalDate endDate, WorkbookStyles styles) {
+        int rowNum = startRow;
+
+        // Get block property leases for this customer
+        List<LeaseMasterDTO> blockPropertyLeases = dataExtractService.extractBlockPropertyLeases(customerId);
+
+        if (blockPropertyLeases.isEmpty()) {
+            log.info("No block property leases found for customer {}", customerId);
+            return rowNum;
+        }
+
+        log.info("Found {} block property leases for customer {}", blockPropertyLeases.size(), customerId);
+
+        // Add a section for each block property
+        for (LeaseMasterDTO blockLease : blockPropertyLeases) {
+            ServiceChargeDataDTO serviceChargeData = dataExtractService.extractServiceChargeData(
+                blockLease.getLeaseId(), startDate, endDate);
+
+            // Only add section if there's any activity or opening balance
+            if (serviceChargeData.hasActivity() ||
+                serviceChargeData.getOpeningBalance().compareTo(BigDecimal.ZERO) != 0) {
+                rowNum = addServiceChargeSection(sheet, rowNum, serviceChargeData, styles);
+            }
+        }
+
+        return rowNum;
     }
 }
