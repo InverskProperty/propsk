@@ -939,6 +939,57 @@ public class StatementDataExtractService {
                 }
             }
 
+            // For expenses without direct allocation match, try to find the batch via the invoice's OWNER allocation
+            // This handles PayProp structure where expenses are separate transactions but allocations link to rent transaction
+            List<Long> unmatchedTxnIds = transactionIds.stream()
+                .filter(id -> !batchIdMap.containsKey(id))
+                .collect(java.util.stream.Collectors.toList());
+
+            if (!unmatchedTxnIds.isEmpty()) {
+                log.debug("Looking up batch info for {} unmatched expense transactions via invoice_id", unmatchedTxnIds.size());
+
+                // Get the invoice_id for each unmatched expense, then find its OWNER allocation batch
+                for (Long txnId : unmatchedTxnIds) {
+                    try {
+                        // Find the expense transaction to get its invoice_id
+                        var expenseTxn = unifiedTransactionRepository.findById(txnId);
+                        if (expenseTxn.isPresent() && expenseTxn.get().getInvoiceId() != null) {
+                            Long invoiceId = expenseTxn.get().getInvoiceId();
+                            LocalDate expenseDate = expenseTxn.get().getTransactionDate();
+
+                            // Find OWNER allocations for the same invoice that were paid around the same time
+                            List<UnifiedAllocation> ownerAllocations = unifiedAllocationRepository
+                                .findByInvoiceIdAndAllocationType(invoiceId, UnifiedAllocation.AllocationType.OWNER);
+
+                            // Find the best matching OWNER allocation by date proximity
+                            UnifiedAllocation bestMatch = null;
+                            long bestDateDiff = Long.MAX_VALUE;
+
+                            for (UnifiedAllocation alloc : ownerAllocations) {
+                                if (alloc.getPaymentBatchId() != null && alloc.getPaidDate() != null && expenseDate != null) {
+                                    long dateDiff = Math.abs(java.time.temporal.ChronoUnit.DAYS.between(alloc.getPaidDate(), expenseDate));
+                                    if (dateDiff < bestDateDiff) {
+                                        bestDateDiff = dateDiff;
+                                        bestMatch = alloc;
+                                    }
+                                }
+                            }
+
+                            // Use the best matching allocation's batch info (within 7 days tolerance)
+                            if (bestMatch != null && bestDateDiff <= 7) {
+                                batchIdMap.put(txnId, bestMatch.getPaymentBatchId());
+                                statusMap.put(txnId, bestMatch.getPaymentStatus() != null ? bestMatch.getPaymentStatus().name() : null);
+                                paidDateMap.put(txnId, bestMatch.getPaidDate());
+                                log.debug("Matched expense txn {} to batch {} via invoice {} (date diff: {} days)",
+                                    txnId, bestMatch.getPaymentBatchId(), invoiceId, bestDateDiff);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        log.warn("Error looking up batch for expense txn {}: {}", txnId, ex.getMessage());
+                    }
+                }
+            }
+
             // Populate batch info on each payment detail
             for (site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail : paymentDetails) {
                 Long txnId = detail.getTransactionId();
