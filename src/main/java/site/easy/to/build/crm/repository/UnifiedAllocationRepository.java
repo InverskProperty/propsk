@@ -779,11 +779,13 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     /**
      * Find DISBURSEMENT allocations by invoice ID within a date range.
      * Used for monthly statement to show block service charge deductions for a specific period.
-     * Filters by paid_date since that's when the allocation was processed.
+     * Filters by transaction_date (from unified_transaction) for consistency with allocation status section.
      */
-    @Query("SELECT ua FROM UnifiedAllocation ua WHERE ua.invoiceId = :invoiceId " +
+    @Query("SELECT ua FROM UnifiedAllocation ua " +
+           "JOIN UnifiedTransaction ut ON ua.unifiedTransactionId = ut.id " +
+           "WHERE ua.invoiceId = :invoiceId " +
            "AND ua.allocationType = :allocationType " +
-           "AND ua.paidDate BETWEEN :startDate AND :endDate")
+           "AND ut.transactionDate BETWEEN :startDate AND :endDate")
     List<UnifiedAllocation> findByInvoiceIdAndAllocationTypeInPeriod(
         @Param("invoiceId") Long invoiceId,
         @Param("allocationType") AllocationType allocationType,
@@ -795,10 +797,13 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
      * Find DISBURSEMENT allocations by property ID within a date range.
      * Alternative method when invoice_id is not populated - uses property linkage instead.
      * Used for monthly statement to show block service charge deductions for a specific period.
+     * Filters by transaction_date (from unified_transaction) for consistency with allocation status section.
      */
-    @Query("SELECT ua FROM UnifiedAllocation ua WHERE ua.propertyId = :propertyId " +
+    @Query("SELECT ua FROM UnifiedAllocation ua " +
+           "JOIN UnifiedTransaction ut ON ua.unifiedTransactionId = ut.id " +
+           "WHERE ua.propertyId = :propertyId " +
            "AND ua.allocationType = :allocationType " +
-           "AND ua.paidDate BETWEEN :startDate AND :endDate")
+           "AND ut.transactionDate BETWEEN :startDate AND :endDate")
     List<UnifiedAllocation> findByPropertyIdAndAllocationTypeInPeriod(
         @Param("propertyId") Long propertyId,
         @Param("allocationType") AllocationType allocationType,

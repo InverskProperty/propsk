@@ -3233,7 +3233,11 @@ public class StatementDataExtractService {
                 site.easy.to.build.crm.dto.statement.PaymentDetailDTO detail =
                     new site.easy.to.build.crm.dto.statement.PaymentDetailDTO();
 
-                detail.setPaymentDate(alloc.getPaidDate());
+                // Use transaction_date for period filtering consistency with allocation status section
+                LocalDate transactionDate = alloc.getUnifiedTransaction() != null
+                    ? alloc.getUnifiedTransaction().getTransactionDate()
+                    : alloc.getPaidDate();
+                detail.setPaymentDate(transactionDate);
                 detail.setAmount(alloc.getAmount());
                 detail.setDescription("Block contribution: " +
                     (alloc.getBeneficiaryName() != null ? alloc.getBeneficiaryName() : "Service Charge"));

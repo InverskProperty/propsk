@@ -732,7 +732,12 @@ public class UnifiedTransactionRebuildService {
                     WHEN prap.category_name LIKE '%expense%' OR prap.category_name LIKE '%Expense%'
                          OR prap.category_name IN ('Other', 'Council Tax', 'Insurance',
                                                    'Repairs', 'Legal', 'Service Charge', 'Ground Rent',
-                                                   'Professional Fees', 'Utilities', 'Maintenance')
+                                                   'Professional Fees', 'Utilities', 'Maintenance',
+                                                   'Contractor', 'Council')
+                    THEN 'EXPENSE'
+                    -- Payments to block property accounts that aren't Owner category should be EXPENSE
+                    WHEN prap.beneficiary_name LIKE '%BLOCK%PROPERTY%'
+                         AND prap.category_name != 'Owner'
                     THEN 'EXPENSE'
                     ELSE 'OWNER'  -- Default to OWNER for beneficiary_type='beneficiary' (owner distributions)
                 END as allocation_type,
