@@ -3854,17 +3854,32 @@ public class StatementDataExtractService {
         data.setOpeningBalance(openingBalance);
 
         // Get INCOMING transactions (income) for the period
+        // Filter out internal allocations (PROPERTY_ACCOUNT_ALLOCATION, global_beneficiary)
+        // Only show actual tenant payments
         List<UnifiedTransaction> incomeTransactions = unifiedTransactionRepository
             .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
                 blockPropertyLeaseId, startDate, endDate,
                 UnifiedTransaction.FlowDirection.INCOMING);
 
         for (UnifiedTransaction ut : incomeTransactions) {
+            // Skip internal property account allocations - these are NOT real income
+            // They are PayProp internal transfers to the block property account
+            String category = ut.getCategory();
+            String description = ut.getDescription();
+            if ("PROPERTY_ACCOUNT_ALLOCATION".equals(category)) {
+                log.debug("Skipping PROPERTY_ACCOUNT_ALLOCATION: {}", description);
+                continue;
+            }
+            if (description != null && description.contains("global_beneficiary")) {
+                log.debug("Skipping global_beneficiary transaction: {}", description);
+                continue;
+            }
+
             ServiceChargeDataDTO.ServiceChargeTransactionDTO txn = new ServiceChargeDataDTO.ServiceChargeTransactionDTO(
                 ut.getId(),
                 ut.getTransactionDate(),
-                ut.getDescription() != null ? ut.getDescription() : tenantName,
-                ut.getCategory(),
+                description != null ? description : tenantName,
+                category,
                 ut.getAmount()
             );
             data.addIncomeTransaction(txn);
@@ -3911,6 +3926,7 @@ public class StatementDataExtractService {
     /**
      * Calculate the opening balance for a service charge account.
      * This is the sum of all INCOMING minus all OUTGOING before the period start.
+     * Excludes internal allocations (PROPERTY_ACCOUNT_ALLOCATION, global_beneficiary).
      *
      * @param blockPropertyLeaseId Lease ID for the block property
      * @param periodStart Start date of the period
@@ -3930,7 +3946,9 @@ public class StatementDataExtractService {
                 blockPropertyLeaseId, beginningOfTime, periodStart.minusDays(1),
                 UnifiedTransaction.FlowDirection.INCOMING);
 
+        // Filter out internal allocations and sum
         BigDecimal totalIncome = historicalIncome.stream()
+            .filter(ut -> !isInternalAllocation(ut))
             .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -3950,5 +3968,28 @@ public class StatementDataExtractService {
             totalIncome, totalExpenses, openingBalance);
 
         return openingBalance;
+    }
+
+    /**
+     * Check if a transaction is an internal allocation that should be excluded
+     * from service charge calculations.
+     *
+     * Internal allocations include:
+     * - PROPERTY_ACCOUNT_ALLOCATION category
+     * - Transactions with "global_beneficiary" in description
+     *
+     * These are PayProp internal transfers, not real income.
+     */
+    private boolean isInternalAllocation(UnifiedTransaction ut) {
+        String category = ut.getCategory();
+        String description = ut.getDescription();
+
+        if ("PROPERTY_ACCOUNT_ALLOCATION".equals(category)) {
+            return true;
+        }
+        if (description != null && description.contains("global_beneficiary")) {
+            return true;
+        }
+        return false;
     }
 }
