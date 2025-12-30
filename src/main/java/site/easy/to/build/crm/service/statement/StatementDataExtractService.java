@@ -3522,18 +3522,36 @@ public class StatementDataExtractService {
         }
 
         // Get all allocations for this batch (for this owner)
-        // IMPORTANT: For PayProp data, OWNER/COMMISSION/DISBURSEMENT from the same rent payment
-        // are placed in different payment batches but share the same incoming_transaction_id.
-        // We need to fetch all allocations linked via incoming_transaction_id to get the complete picture.
-        List<UnifiedAllocation> allocations = unifiedAllocationRepository.findAllocationsLinkedToOwnerBatch(batchId);
+        // We need to combine two sources:
+        // 1. Direct batch allocations (works for historical/manual where all types are in the same batch)
+        // 2. Linked allocations via incoming_transaction_id (works for PayProp where OWNER/COMMISSION/DISBURSEMENT
+        //    from the same rent payment are placed in different batches but share incoming_transaction_id)
 
-        // If no linked allocations found (e.g., for manual/historical batches), fall back to direct batch lookup
-        if (allocations.isEmpty()) {
-            allocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
+        // Start with direct batch allocations
+        List<UnifiedAllocation> allocations = new java.util.ArrayList<>(
+            unifiedAllocationRepository.findByPaymentBatchId(batchId));
+
+        // Track which allocation IDs we've already seen
+        java.util.Set<Long> processedAllocationIds = new java.util.HashSet<>();
+        for (UnifiedAllocation alloc : allocations) {
+            if (alloc.getId() != null) {
+                processedAllocationIds.add(alloc.getId());
+            }
         }
 
-        // Track which allocation IDs we've already processed to avoid duplicates
-        java.util.Set<Long> processedAllocationIds = new java.util.HashSet<>();
+        // Add linked allocations from other batches (PayProp scenario)
+        // These are COMMISSION/DISBURSEMENT/EXPENSE allocations that share incoming_transaction_id
+        // with OWNER allocations in this batch but are in different PayProp batches
+        List<UnifiedAllocation> linkedAllocations = unifiedAllocationRepository.findAllocationsLinkedToOwnerBatch(batchId);
+        for (UnifiedAllocation linked : linkedAllocations) {
+            if (linked.getId() != null && !processedAllocationIds.contains(linked.getId())) {
+                allocations.add(linked);
+                processedAllocationIds.add(linked.getId());
+            }
+        }
+
+        // Reset for processing loop
+        processedAllocationIds.clear();
 
         for (UnifiedAllocation alloc : allocations) {
             // Skip if already processed (can happen when fetching linked allocations)
