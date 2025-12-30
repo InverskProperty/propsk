@@ -793,8 +793,35 @@ public class UnifiedTransactionRebuildService {
                     WHEN prap.payment_batch_status = 'pending' THEN 'PENDING'
                     ELSE 'PAID'
                 END as payment_status,
-                prap.payment_batch_id,
-                prap.payment_batch_transfer_date as paid_date,
+                -- payment_batch_id: Use the OWNER's batch ID for all allocation types from the same incoming transaction
+                -- This groups OWNER/COMMISSION/DISBURSEMENT together on the owner's statement
+                CASE
+                    WHEN prap.category_name = 'Owner' AND prap.beneficiary_type = 'beneficiary'
+                    THEN prap.payment_batch_id
+                    ELSE COALESCE(
+                        (SELECT owner_prap.payment_batch_id
+                         FROM payprop_report_all_payments owner_prap
+                         WHERE owner_prap.incoming_transaction_id = prap.incoming_transaction_id
+                           AND owner_prap.category_name = 'Owner'
+                           AND owner_prap.beneficiary_type = 'beneficiary'
+                         LIMIT 1),
+                        prap.payment_batch_id
+                    )
+                END as payment_batch_id,
+                -- paid_date: Use the OWNER's transfer date for consistency
+                CASE
+                    WHEN prap.category_name = 'Owner' AND prap.beneficiary_type = 'beneficiary'
+                    THEN prap.payment_batch_transfer_date
+                    ELSE COALESCE(
+                        (SELECT owner_prap.payment_batch_transfer_date
+                         FROM payprop_report_all_payments owner_prap
+                         WHERE owner_prap.incoming_transaction_id = prap.incoming_transaction_id
+                           AND owner_prap.category_name = 'Owner'
+                           AND owner_prap.beneficiary_type = 'beneficiary'
+                         LIMIT 1),
+                        prap.payment_batch_transfer_date
+                    )
+                END as paid_date,
                 'PAYPROP' as source,
                 NULL as source_record_id,
                 prap.payprop_id as payprop_payment_id,
