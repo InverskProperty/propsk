@@ -793,6 +793,10 @@ public class TransactionBatchAllocationService {
         if (transaction.getBeneficiary() != null) {
             return transaction.getBeneficiary();
         }
+        // Try to get from transaction's owner field (owner_id in database)
+        if (transaction.getOwner() != null) {
+            return transaction.getOwner();
+        }
         // Otherwise try to get from property owner assignment
         if (transaction.getProperty() != null) {
             Long propertyId = transaction.getProperty().getId();
