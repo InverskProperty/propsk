@@ -70,8 +70,10 @@ public class BatchAllocationStatusDTO {
                 commission = commission.add(allocation.getCommissionAmount().abs());
             }
         } else if ("COMMISSION".equals(allocation.getAllocationType())) {
-            // Standalone COMMISSION allocation (legacy structure or agency reimbursements)
-            commission = commission.add(amount);
+            // Skip standalone COMMISSION allocations - commission is already included in OWNER.commissionAmount
+            // This prevents double-counting when PayProp has both an OWNER allocation (with commission breakdown)
+            // and a separate COMMISSION allocation for the same rent payment.
+            // Note: Agency reimbursements (Contractor, Council) are typed as EXPENSE, not COMMISSION.
         } else if ("EXPENSE".equals(allocation.getAllocationType()) ||
                    "DISBURSEMENT".equals(allocation.getAllocationType())) {
             expenses = expenses.add(amount);
