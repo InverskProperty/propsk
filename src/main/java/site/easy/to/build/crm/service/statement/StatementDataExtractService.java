@@ -3522,12 +3522,28 @@ public class StatementDataExtractService {
         }
 
         // Get all allocations for this batch (for this owner)
-        List<UnifiedAllocation> allocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
+        // IMPORTANT: For PayProp data, OWNER/COMMISSION/DISBURSEMENT from the same rent payment
+        // are placed in different payment batches but share the same incoming_transaction_id.
+        // We need to fetch all allocations linked via incoming_transaction_id to get the complete picture.
+        List<UnifiedAllocation> allocations = unifiedAllocationRepository.findAllocationsLinkedToOwnerBatch(batchId);
+
+        // If no linked allocations found (e.g., for manual/historical batches), fall back to direct batch lookup
+        if (allocations.isEmpty()) {
+            allocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
+        }
+
+        // Track which allocation IDs we've already processed to avoid duplicates
+        java.util.Set<Long> processedAllocationIds = new java.util.HashSet<>();
 
         for (UnifiedAllocation alloc : allocations) {
+            // Skip if already processed (can happen when fetching linked allocations)
+            if (alloc.getId() != null && processedAllocationIds.contains(alloc.getId())) {
+                continue;
+            }
+
             // Include allocations based on type:
             // - OWNER allocations: filter by beneficiary_id (who receives the owner payment)
-            // - EXPENSE/COMMISSION allocations: filter by property_id (expense on owner's property)
+            // - EXPENSE/COMMISSION/DISBURSEMENT: filter by property_id (expense on owner's property)
             //   Note: beneficiary_id for expenses is the contractor/vendor, not the owner
             boolean includeAllocation = false;
 
@@ -3547,6 +3563,11 @@ public class StatementDataExtractService {
 
             if (!includeAllocation) {
                 continue;
+            }
+
+            // Mark as processed
+            if (alloc.getId() != null) {
+                processedAllocationIds.add(alloc.getId());
             }
 
             LocalDate txnDate = getTransactionDateForAllocation(alloc);

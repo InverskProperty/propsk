@@ -841,4 +841,51 @@ public interface UnifiedAllocationRepository extends JpaRepository<UnifiedAlloca
     List<UnifiedAllocation> findDisbursementsReceivedByBlock(
         @Param("beneficiaryName") String beneficiaryName
     );
+
+    // ===== LINKED ALLOCATIONS BY INCOMING TRANSACTION =====
+
+    /**
+     * Find all allocations that share the same incoming_transaction_id as OWNER allocations in a batch.
+     * Used for owner statements to include COMMISSION/DISBURSEMENT/EXPENSE allocations that came from
+     * the same rent payments as the OWNER allocations, even though they may be in different PayProp batches.
+     *
+     * PayProp creates separate payment batches for Owner/Commission/Disbursement, but they all share
+     * the same incoming_transaction_id when they came from the same rent payment.
+     *
+     * @param batchId The owner payment batch ID
+     * @return All allocations linked via incoming_transaction_id to OWNER allocations in the batch
+     */
+    @Query(value = """
+        SELECT ua2.* FROM unified_allocations ua2
+        WHERE ua2.incoming_transaction_id IN (
+            SELECT DISTINCT ua.incoming_transaction_id
+            FROM unified_allocations ua
+            WHERE ua.payment_batch_id = :batchId
+            AND ua.allocation_type = 'OWNER'
+            AND ua.incoming_transaction_id IS NOT NULL
+        )
+        ORDER BY ua2.property_name, ua2.allocation_type
+    """, nativeQuery = true)
+    List<UnifiedAllocation> findAllocationsLinkedToOwnerBatch(@Param("batchId") String batchId);
+
+    /**
+     * Find COMMISSION, DISBURSEMENT, and EXPENSE allocations that share the same incoming_transaction_id
+     * as OWNER allocations in a batch. Excludes the OWNER allocations themselves since they're already fetched.
+     *
+     * @param batchId The owner payment batch ID
+     * @return Non-OWNER allocations linked via incoming_transaction_id
+     */
+    @Query(value = """
+        SELECT ua2.* FROM unified_allocations ua2
+        WHERE ua2.incoming_transaction_id IN (
+            SELECT DISTINCT ua.incoming_transaction_id
+            FROM unified_allocations ua
+            WHERE ua.payment_batch_id = :batchId
+            AND ua.allocation_type = 'OWNER'
+            AND ua.incoming_transaction_id IS NOT NULL
+        )
+        AND ua2.allocation_type != 'OWNER'
+        ORDER BY ua2.property_name, ua2.allocation_type
+    """, nativeQuery = true)
+    List<UnifiedAllocation> findNonOwnerAllocationsLinkedToOwnerBatch(@Param("batchId") String batchId);
 }
