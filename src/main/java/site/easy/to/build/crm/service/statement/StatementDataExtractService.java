@@ -3862,16 +3862,37 @@ public class StatementDataExtractService {
                 UnifiedTransaction.FlowDirection.INCOMING);
 
         for (UnifiedTransaction ut : incomeTransactions) {
-            // Skip internal property account allocations - these are NOT real income
-            // They are PayProp internal transfers to the block property account
+            // Only include ACTUAL tenant rent payments
+            // Skip internal allocations, service charge contributions (splits), global_beneficiary transfers
             String category = ut.getCategory();
             String description = ut.getDescription();
+
+            // Only include if it's a genuine tenant rent payment:
+            // - Category is "Rent" or "block_fund_contribution"
+            // - OR description contains "Tenant Payment"
+            boolean isActualRentPayment = false;
+
+            if ("Rent".equalsIgnoreCase(category) || "block_fund_contribution".equalsIgnoreCase(category)) {
+                isActualRentPayment = true;
+            } else if (description != null && description.contains("Tenant Payment")) {
+                isActualRentPayment = true;
+            }
+
+            // Additional exclusions for internal allocations
             if ("PROPERTY_ACCOUNT_ALLOCATION".equals(category)) {
-                log.debug("Skipping PROPERTY_ACCOUNT_ALLOCATION: {}", description);
-                continue;
+                isActualRentPayment = false;
             }
             if (description != null && description.contains("global_beneficiary")) {
-                log.debug("Skipping global_beneficiary transaction: {}", description);
+                isActualRentPayment = false;
+            }
+            // Skip "Service charge contributions" - these are internal splits, not income
+            if (description != null && description.startsWith("Service charge contributions")) {
+                isActualRentPayment = false;
+            }
+
+            if (!isActualRentPayment) {
+                log.debug("Skipping non-rent transaction for service charge: category={}, desc={}",
+                    category, description != null ? description.substring(0, Math.min(50, description.length())) : "null");
                 continue;
             }
 
@@ -3946,9 +3967,9 @@ public class StatementDataExtractService {
                 blockPropertyLeaseId, beginningOfTime, periodStart.minusDays(1),
                 UnifiedTransaction.FlowDirection.INCOMING);
 
-        // Filter out internal allocations and sum
+        // Only include actual rent payments in opening balance
         BigDecimal totalIncome = historicalIncome.stream()
-            .filter(ut -> !isInternalAllocation(ut))
+            .filter(this::isActualRentPayment)
             .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -3971,25 +3992,43 @@ public class StatementDataExtractService {
     }
 
     /**
-     * Check if a transaction is an internal allocation that should be excluded
-     * from service charge calculations.
+     * Check if a transaction is an actual tenant rent payment that should be included
+     * in service charge income calculations.
      *
-     * Internal allocations include:
+     * Actual rent payments include:
+     * - Category is "Rent" or "block_fund_contribution"
+     * - OR description contains "Tenant Payment"
+     *
+     * Excludes:
      * - PROPERTY_ACCOUNT_ALLOCATION category
      * - Transactions with "global_beneficiary" in description
-     *
-     * These are PayProp internal transfers, not real income.
+     * - "Service charge contributions" splits (internal allocations)
      */
-    private boolean isInternalAllocation(UnifiedTransaction ut) {
+    private boolean isActualRentPayment(UnifiedTransaction ut) {
         String category = ut.getCategory();
         String description = ut.getDescription();
 
+        // Start with false - must be positively identified as rent payment
+        boolean isRentPayment = false;
+
+        // Positive identification
+        if ("Rent".equalsIgnoreCase(category) || "block_fund_contribution".equalsIgnoreCase(category)) {
+            isRentPayment = true;
+        } else if (description != null && description.contains("Tenant Payment")) {
+            isRentPayment = true;
+        }
+
+        // Exclusions override positive identification
         if ("PROPERTY_ACCOUNT_ALLOCATION".equals(category)) {
-            return true;
+            return false;
         }
         if (description != null && description.contains("global_beneficiary")) {
-            return true;
+            return false;
         }
-        return false;
+        if (description != null && description.startsWith("Service charge contributions")) {
+            return false;
+        }
+
+        return isRentPayment;
     }
 }
