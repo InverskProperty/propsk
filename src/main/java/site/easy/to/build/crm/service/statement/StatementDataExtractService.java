@@ -3854,45 +3854,22 @@ public class StatementDataExtractService {
         data.setOpeningBalance(openingBalance);
 
         // Get INCOMING transactions (income) for the period
-        // Filter out internal allocations (PROPERTY_ACCOUNT_ALLOCATION, global_beneficiary)
-        // Only show actual tenant payments
+        // Filter by paypropDataSource = 'INCOMING_PAYMENT' to only include actual tenant payments
+        // This is the same approach used for regular properties and avoids picking up internal allocations
         List<UnifiedTransaction> incomeTransactions = unifiedTransactionRepository
-            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndPaypropDataSource(
                 blockPropertyLeaseId, startDate, endDate,
-                UnifiedTransaction.FlowDirection.INCOMING);
+                UnifiedTransaction.FlowDirection.INCOMING,
+                "INCOMING_PAYMENT");
 
         for (UnifiedTransaction ut : incomeTransactions) {
-            // Only include ACTUAL tenant rent payments
-            // Skip internal allocations, service charge contributions (splits), global_beneficiary transfers
             String category = ut.getCategory();
             String description = ut.getDescription();
 
-            // Only include if it's a genuine tenant rent payment:
-            // - Category is "Rent" or "block_fund_contribution"
-            // - OR description contains "Tenant Payment"
-            boolean isActualRentPayment = false;
-
-            if ("Rent".equalsIgnoreCase(category) || "block_fund_contribution".equalsIgnoreCase(category)) {
-                isActualRentPayment = true;
-            } else if (description != null && description.contains("Tenant Payment")) {
-                isActualRentPayment = true;
-            }
-
-            // Additional exclusions for internal allocations
-            if ("PROPERTY_ACCOUNT_ALLOCATION".equals(category)) {
-                isActualRentPayment = false;
-            }
-            if (description != null && description.contains("global_beneficiary")) {
-                isActualRentPayment = false;
-            }
-            // Skip "Service charge contributions" - these are internal splits, not income
-            if (description != null && description.startsWith("Service charge contributions")) {
-                isActualRentPayment = false;
-            }
-
-            if (!isActualRentPayment) {
-                log.debug("Skipping non-rent transaction for service charge: category={}, desc={}",
-                    category, description != null ? description.substring(0, Math.min(50, description.length())) : "null");
+            // Skip "property account" withdrawals - these are internal PayProp transfers, not actual tenant payments
+            // They appear as "Tenant Payment - property account - ..." and should be excluded
+            if (description != null && description.toLowerCase().contains("- property account -")) {
+                log.debug("Skipping property account withdrawal from service charge income: {}", description);
                 continue;
             }
 
@@ -3907,12 +3884,38 @@ public class StatementDataExtractService {
         }
 
         // Get OUTGOING transactions (expenses) for the period
+        // Filter out owner payments - these are distributions to owners, not block expenses
         List<UnifiedTransaction> expenseTransactions = unifiedTransactionRepository
             .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
                 blockPropertyLeaseId, startDate, endDate,
                 UnifiedTransaction.FlowDirection.OUTGOING);
 
         for (UnifiedTransaction ut : expenseTransactions) {
+            // Skip zero-amount entries (e.g., synthetic commission entries)
+            BigDecimal amount = ut.getAmount();
+            if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
+                log.debug("Skipping zero-amount entry from service charge expenses: {}", ut.getDescription());
+                continue;
+            }
+
+            // Skip owner payments - these are distributions to owners, not actual block expenses
+            String category = ut.getCategory();
+            String transactionType = ut.getTransactionType();
+
+            if ("owner_payment".equalsIgnoreCase(category) || "Owner".equalsIgnoreCase(category)) {
+                log.debug("Skipping owner payment from service charge expenses: {}", ut.getDescription());
+                continue;
+            }
+            if ("payment_to_beneficiary".equalsIgnoreCase(transactionType)) {
+                log.debug("Skipping beneficiary payment from service charge expenses: {}", ut.getDescription());
+                continue;
+            }
+            // Skip agency commission entries
+            if ("payment_to_agency".equalsIgnoreCase(transactionType) || "Commission".equalsIgnoreCase(category)) {
+                log.debug("Skipping agency/commission entry from service charge expenses: {}", ut.getDescription());
+                continue;
+            }
+
             ServiceChargeDataDTO.ServiceChargeTransactionDTO txn = new ServiceChargeDataDTO.ServiceChargeTransactionDTO(
                 ut.getId(),
                 ut.getTransactionDate(),
@@ -3947,7 +3950,7 @@ public class StatementDataExtractService {
     /**
      * Calculate the opening balance for a service charge account.
      * This is the sum of all INCOMING minus all OUTGOING before the period start.
-     * Excludes internal allocations (PROPERTY_ACCOUNT_ALLOCATION, global_beneficiary).
+     * Uses paypropDataSource = 'INCOMING_PAYMENT' filter for income (same as regular properties).
      *
      * @param blockPropertyLeaseId Lease ID for the block property
      * @param periodStart Start date of the period
@@ -3961,25 +3964,28 @@ public class StatementDataExtractService {
         // We need to go back to the beginning of time for this lease
         LocalDate beginningOfTime = LocalDate.of(2000, 1, 1);
 
-        // Get all INCOMING before period start
+        // Get all INCOMING before period start - only INCOMING_PAYMENT (actual tenant payments)
+        // Also filter out "property account" withdrawals (internal transfers)
         List<UnifiedTransaction> historicalIncome = unifiedTransactionRepository
-            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndPaypropDataSource(
                 blockPropertyLeaseId, beginningOfTime, periodStart.minusDays(1),
-                UnifiedTransaction.FlowDirection.INCOMING);
+                UnifiedTransaction.FlowDirection.INCOMING,
+                "INCOMING_PAYMENT");
 
-        // Only include actual rent payments in opening balance
         BigDecimal totalIncome = historicalIncome.stream()
-            .filter(this::isActualRentPayment)
+            .filter(ut -> !isPropertyAccountWithdrawal(ut))
             .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // Get all OUTGOING before period start
+        // Filter out owner payments - these are distributions, not block expenses
         List<UnifiedTransaction> historicalExpenses = unifiedTransactionRepository
             .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
                 blockPropertyLeaseId, beginningOfTime, periodStart.minusDays(1),
                 UnifiedTransaction.FlowDirection.OUTGOING);
 
         BigDecimal totalExpenses = historicalExpenses.stream()
+            .filter(ut -> !isOwnerPayment(ut))
             .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -3992,43 +3998,46 @@ public class StatementDataExtractService {
     }
 
     /**
-     * Check if a transaction is an actual tenant rent payment that should be included
-     * in service charge income calculations.
-     *
-     * Actual rent payments include:
-     * - Category is "Rent" or "block_fund_contribution"
-     * - OR description contains "Tenant Payment"
-     *
+     * Check if a transaction should be excluded from service charge expenses.
      * Excludes:
-     * - PROPERTY_ACCOUNT_ALLOCATION category
-     * - Transactions with "global_beneficiary" in description
-     * - "Service charge contributions" splits (internal allocations)
+     * - Owner payments (distributions to owners)
+     * - Commission/agency payments
+     * - Zero-amount entries
      */
-    private boolean isActualRentPayment(UnifiedTransaction ut) {
+    private boolean isOwnerPayment(UnifiedTransaction ut) {
+        // Skip zero-amount entries
+        BigDecimal amount = ut.getAmount();
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
+            return true;
+        }
+
         String category = ut.getCategory();
+        String transactionType = ut.getTransactionType();
+
+        // Owner payments
+        if ("owner_payment".equalsIgnoreCase(category) || "Owner".equalsIgnoreCase(category)) {
+            return true;
+        }
+        if ("payment_to_beneficiary".equalsIgnoreCase(transactionType)) {
+            return true;
+        }
+        // Commission/agency payments
+        if ("payment_to_agency".equalsIgnoreCase(transactionType) || "Commission".equalsIgnoreCase(category)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check if a transaction is a "property account" withdrawal (internal PayProp transfer).
+     * These appear as "Tenant Payment - property account - ..." and should be excluded from income
+     * because they are internal transfers from the property account, not actual tenant payments.
+     */
+    private boolean isPropertyAccountWithdrawal(UnifiedTransaction ut) {
         String description = ut.getDescription();
-
-        // Start with false - must be positively identified as rent payment
-        boolean isRentPayment = false;
-
-        // Positive identification
-        if ("Rent".equalsIgnoreCase(category) || "block_fund_contribution".equalsIgnoreCase(category)) {
-            isRentPayment = true;
-        } else if (description != null && description.contains("Tenant Payment")) {
-            isRentPayment = true;
+        if (description != null && description.toLowerCase().contains("- property account -")) {
+            return true;
         }
-
-        // Exclusions override positive identification
-        if ("PROPERTY_ACCOUNT_ALLOCATION".equals(category)) {
-            return false;
-        }
-        if (description != null && description.contains("global_beneficiary")) {
-            return false;
-        }
-        if (description != null && description.startsWith("Service charge contributions")) {
-            return false;
-        }
-
-        return isRentPayment;
+        return false;
     }
 }

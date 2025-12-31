@@ -114,6 +114,29 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
     );
 
     /**
+     * Find transactions by invoice ID, date range, flow direction, and paypropDataSource
+     * Use this for service charge income extraction - filters to only INCOMING_PAYMENT (actual tenant payments)
+     * This matches how regular properties filter income and avoids picking up internal allocations
+     */
+    List<UnifiedTransaction> findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndPaypropDataSource(
+        Long invoiceId,
+        LocalDate startDate,
+        LocalDate endDate,
+        UnifiedTransaction.FlowDirection flowDirection,
+        String paypropDataSource
+    );
+
+    /**
+     * Find transactions by invoice ID, flow direction, and paypropDataSource (no date filter)
+     * Use this for service charge opening balance calculations - filters to only INCOMING_PAYMENT
+     */
+    List<UnifiedTransaction> findByInvoiceIdAndFlowDirectionAndPaypropDataSource(
+        Long invoiceId,
+        UnifiedTransaction.FlowDirection flowDirection,
+        String paypropDataSource
+    );
+
+    /**
      * Find transactions by date range, flow direction, and transaction type
      * Use this for specific transaction filtering (e.g., only agency fees, only expenses)
      */
