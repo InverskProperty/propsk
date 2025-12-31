@@ -216,4 +216,75 @@ public class ExpenseDebugController {
 
         return result;
     }
+
+    /**
+     * Get all transactions for a block property lease (service charge account)
+     * Example: GET /api/debug/block-account/86?startDate=2024-11-25&endDate=2024-12-24
+     */
+    @GetMapping("/block-account/{leaseId}")
+    public Map<String, Object> getBlockAccountTransactions(
+            @PathVariable Long leaseId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+
+        LocalDate start = startDate != null ? LocalDate.parse(startDate) : LocalDate.now().minusMonths(1);
+        LocalDate end = endDate != null ? LocalDate.parse(endDate) : LocalDate.now();
+
+        // Get all transactions for this lease
+        List<UnifiedTransaction> allTransactions = unifiedTransactionRepository.findByInvoiceId(leaseId);
+
+        // Filter by date range
+        List<UnifiedTransaction> periodTransactions = allTransactions.stream()
+            .filter(tx -> !tx.getTransactionDate().isBefore(start) && !tx.getTransactionDate().isAfter(end))
+            .sorted((a, b) -> a.getTransactionDate().compareTo(b.getTransactionDate()))
+            .collect(Collectors.toList());
+
+        // Separate INCOMING and OUTGOING
+        List<Map<String, Object>> incomeList = new ArrayList<>();
+        List<Map<String, Object>> expenseList = new ArrayList<>();
+
+        for (UnifiedTransaction tx : periodTransactions) {
+            Map<String, Object> txMap = new LinkedHashMap<>();
+            txMap.put("id", tx.getId());
+            txMap.put("date", tx.getTransactionDate().toString());
+            txMap.put("amount", tx.getAmount());
+            txMap.put("description", tx.getDescription());
+            txMap.put("category", tx.getCategory());
+            txMap.put("transactionType", tx.getTransactionType());
+            txMap.put("flowDirection", tx.getFlowDirection());
+            txMap.put("paypropDataSource", tx.getPaypropDataSource());
+            txMap.put("sourceSystem", tx.getSourceSystem());
+
+            if (tx.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING) {
+                incomeList.add(txMap);
+            } else if (tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING) {
+                expenseList.add(txMap);
+            }
+        }
+
+        // Calculate totals
+        BigDecimal totalIncome = periodTransactions.stream()
+            .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.INCOMING)
+            .map(tx -> tx.getAmount() != null ? tx.getAmount().abs() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalExpenses = periodTransactions.stream()
+            .filter(tx -> tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING)
+            .map(tx -> tx.getAmount() != null ? tx.getAmount().abs() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("leaseId", leaseId);
+        result.put("periodStart", start.toString());
+        result.put("periodEnd", end.toString());
+        result.put("totalTransactions", periodTransactions.size());
+        result.put("totalIncome", totalIncome);
+        result.put("totalExpenses", totalExpenses);
+        result.put("incomeCount", incomeList.size());
+        result.put("expenseCount", expenseList.size());
+        result.put("incomeTransactions", incomeList);
+        result.put("expenseTransactions", expenseList);
+
+        return result;
+    }
 }
