@@ -3854,17 +3854,27 @@ public class StatementDataExtractService {
         data.setOpeningBalance(openingBalance);
 
         // Get INCOMING transactions (income) for the period
-        // Filter by paypropDataSource = 'INCOMING_PAYMENT' to only include actual tenant payments
-        // This is the same approach used for regular properties and avoids picking up internal allocations
-        List<UnifiedTransaction> incomeTransactions = unifiedTransactionRepository
-            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndPaypropDataSource(
+        // Include both PayProp INCOMING_PAYMENT transactions and HISTORICAL transactions
+        // This ensures service charge payments from both sources are captured
+        List<UnifiedTransaction> allIncomingTransactions = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
                 blockPropertyLeaseId, startDate, endDate,
-                UnifiedTransaction.FlowDirection.INCOMING,
-                "INCOMING_PAYMENT");
+                UnifiedTransaction.FlowDirection.INCOMING);
 
-        for (UnifiedTransaction ut : incomeTransactions) {
-            String category = ut.getCategory();
+        for (UnifiedTransaction ut : allIncomingTransactions) {
             String description = ut.getDescription();
+            String paypropDataSource = ut.getPaypropDataSource();
+            UnifiedTransaction.SourceSystem sourceSystem = ut.getSourceSystem();
+
+            // For PayProp transactions, only include INCOMING_PAYMENT (actual tenant payments)
+            // For Historical transactions, include all incoming (they don't have paypropDataSource)
+            boolean isHistorical = sourceSystem == UnifiedTransaction.SourceSystem.HISTORICAL;
+            boolean isPayPropIncomingPayment = "INCOMING_PAYMENT".equals(paypropDataSource);
+
+            if (!isHistorical && !isPayPropIncomingPayment) {
+                log.debug("Skipping non-incoming-payment PayProp transaction from service charge income: {}", description);
+                continue;
+            }
 
             // Skip "property account" withdrawals - these are internal PayProp transfers, not actual tenant payments
             // They appear as "Tenant Payment - property account - ..." and should be excluded
@@ -3877,7 +3887,7 @@ public class StatementDataExtractService {
                 ut.getId(),
                 ut.getTransactionDate(),
                 description != null ? description : tenantName,
-                category,
+                ut.getCategory(),
                 ut.getAmount()
             );
             data.addIncomeTransaction(txn);
@@ -3950,7 +3960,7 @@ public class StatementDataExtractService {
     /**
      * Calculate the opening balance for a service charge account.
      * This is the sum of all INCOMING minus all OUTGOING before the period start.
-     * Uses paypropDataSource = 'INCOMING_PAYMENT' filter for income (same as regular properties).
+     * Includes both PayProp INCOMING_PAYMENT and HISTORICAL transactions.
      *
      * @param blockPropertyLeaseId Lease ID for the block property
      * @param periodStart Start date of the period
@@ -3964,16 +3974,20 @@ public class StatementDataExtractService {
         // We need to go back to the beginning of time for this lease
         LocalDate beginningOfTime = LocalDate.of(2000, 1, 1);
 
-        // Get all INCOMING before period start - only INCOMING_PAYMENT (actual tenant payments)
-        // Also filter out "property account" withdrawals (internal transfers)
-        List<UnifiedTransaction> historicalIncome = unifiedTransactionRepository
-            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirectionAndPaypropDataSource(
+        // Get all INCOMING before period start
+        // Include both PayProp INCOMING_PAYMENT and HISTORICAL transactions
+        List<UnifiedTransaction> allHistoricalIncome = unifiedTransactionRepository
+            .findByInvoiceIdAndTransactionDateBetweenAndFlowDirection(
                 blockPropertyLeaseId, beginningOfTime, periodStart.minusDays(1),
-                UnifiedTransaction.FlowDirection.INCOMING,
-                "INCOMING_PAYMENT");
+                UnifiedTransaction.FlowDirection.INCOMING);
 
-        BigDecimal totalIncome = historicalIncome.stream()
-            .filter(ut -> !isPropertyAccountWithdrawal(ut))
+        BigDecimal totalIncome = allHistoricalIncome.stream()
+            .filter(ut -> {
+                // Include HISTORICAL transactions and PayProp INCOMING_PAYMENT transactions
+                boolean isHistorical = ut.getSourceSystem() == UnifiedTransaction.SourceSystem.HISTORICAL;
+                boolean isPayPropIncomingPayment = "INCOMING_PAYMENT".equals(ut.getPaypropDataSource());
+                return (isHistorical || isPayPropIncomingPayment) && !isPropertyAccountWithdrawal(ut);
+            })
             .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
