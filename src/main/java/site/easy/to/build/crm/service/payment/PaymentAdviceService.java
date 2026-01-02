@@ -97,16 +97,15 @@ public class PaymentAdviceService {
         log.info("Found {} unified allocations and {} transaction allocations for batch {}",
             unifiedAllocations.size(), txnAllocations.size(), batchId);
 
-        // Use whichever source has more allocations, or merge if needed
-        if (txnAllocations.size() > unifiedAllocations.size()) {
-            log.info("Using TransactionBatchAllocation as primary source (more data)");
+        // ALWAYS prefer transaction_batch_allocations when it has data
+        // because it stores expenses as negative amounts (correct sign convention)
+        // while unified_allocations stores all amounts as positive (incorrect for netting)
+        if (!txnAllocations.isEmpty()) {
+            log.info("Using TransactionBatchAllocation as primary source (correct sign convention)");
             buildFromTransactionAllocations(advice, txnAllocations);
         } else if (!unifiedAllocations.isEmpty()) {
-            log.info("Using UnifiedAllocation as primary source");
+            log.info("Using UnifiedAllocation as fallback (no transaction allocations found)");
             buildFromUnifiedAllocations(advice, unifiedAllocations);
-        } else if (!txnAllocations.isEmpty()) {
-            log.info("Using TransactionBatchAllocation as fallback");
-            buildFromTransactionAllocations(advice, txnAllocations);
         }
 
         // Sort properties by name for consistent display
