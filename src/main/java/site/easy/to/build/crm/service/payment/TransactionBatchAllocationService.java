@@ -209,8 +209,9 @@ public class TransactionBatchAllocationService {
             UnifiedAllocation.AllocationType allocationType = determineAllocationType(transaction);
             unified.setAllocationType(allocationType);
 
-            // Amount
-            unified.setAmount(amount.abs());
+            // Amount - keep the sign! Negative for expenses, positive for income
+            // This is critical for correct balance calculations
+            unified.setAmount(amount);
 
             // For OWNER allocations (rent), populate gross/commission/net breakdown
             if (allocationType == UnifiedAllocation.AllocationType.OWNER) {
@@ -246,10 +247,18 @@ public class TransactionBatchAllocationService {
             unified.setCategory(transaction.getCategory());
             unified.setDescription(transaction.getDescription());
 
-            // Property info
+            // Property info - try entity first, then fall back to direct ID lookup
             if (transaction.getProperty() != null) {
                 unified.setPropertyId(transaction.getProperty().getId());
                 unified.setPropertyName(transaction.getProperty().getPropertyName());
+            } else if (transaction.getPropertyId() != null) {
+                // Fallback: use the property_id directly if the entity wasn't loaded
+                unified.setPropertyId(transaction.getPropertyId());
+                // Try to get property name from repository
+                Property property = propertyRepository.findById(transaction.getPropertyId()).orElse(null);
+                if (property != null) {
+                    unified.setPropertyName(property.getPropertyName());
+                }
             }
 
             // Invoice/lease info
@@ -273,8 +282,8 @@ public class TransactionBatchAllocationService {
 
             unifiedAllocationRepository.save(unified);
 
-            log.debug("Created unified allocation for historical transaction: txn={}, batch={}, amount={}, gross={}, commission={}, net={}",
-                    transaction.getId(), batchReference, amount,
+            log.debug("Created unified allocation for historical transaction: txn={}, batch={}, amount={}, type={}, propertyId={}, gross={}, commission={}, net={}",
+                    transaction.getId(), batchReference, amount, allocationType, unified.getPropertyId(),
                     unified.getGrossAmount(), unified.getCommissionAmount(), unified.getNetToOwnerAmount());
 
         } catch (Exception e) {

@@ -22,10 +22,14 @@ public class HistoricalTransaction {
     private Long id;
     
     // ===== RELATIONSHIP FIELDS =====
-    
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "property_id")
     private Property property;
+
+    // Direct access to property_id without loading the Property entity
+    @Column(name = "property_id", insertable = false, updatable = false)
+    private Long propertyId;
 
     /**
      * Transaction Level - Indicates scope of transaction
@@ -457,6 +461,8 @@ public class HistoricalTransaction {
     
     public Property getProperty() { return property; }
     public void setProperty(Property property) { this.property = property; }
+
+    public Long getPropertyId() { return propertyId; }
 
     public TransactionLevel getTransactionLevel() { return transactionLevel; }
     public void setTransactionLevel(TransactionLevel transactionLevel) { this.transactionLevel = transactionLevel; }

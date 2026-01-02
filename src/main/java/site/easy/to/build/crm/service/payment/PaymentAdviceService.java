@@ -90,21 +90,15 @@ public class PaymentAdviceService {
             }
         }
 
-        // Get allocations from BOTH sources
+        // Get allocations from unified_allocations (primary source with gross/commission/net breakdown)
         List<UnifiedAllocation> unifiedAllocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
-        List<TransactionBatchAllocation> txnAllocations = transactionBatchAllocationRepository.findByBatchReference(batchId);
 
-        log.info("Found {} unified allocations and {} transaction allocations for batch {}",
-            unifiedAllocations.size(), txnAllocations.size(), batchId);
+        log.info("Found {} unified allocations for batch {}", unifiedAllocations.size(), batchId);
 
-        // ALWAYS prefer transaction_batch_allocations when it has data
-        // because it stores expenses as negative amounts (correct sign convention)
-        // while unified_allocations stores all amounts as positive (incorrect for netting)
-        if (!txnAllocations.isEmpty()) {
-            log.info("Using TransactionBatchAllocation as primary source (correct sign convention)");
-            buildFromTransactionAllocations(advice, txnAllocations);
-        } else if (!unifiedAllocations.isEmpty()) {
-            log.info("Using UnifiedAllocation as fallback (no transaction allocations found)");
+        // Use unified_allocations as the single source of truth
+        // It has gross_amount, commission_amount, and amount (net) pre-calculated
+        if (!unifiedAllocations.isEmpty()) {
+            log.info("Using UnifiedAllocation as data source (has gross/commission/net breakdown)");
             buildFromUnifiedAllocations(advice, unifiedAllocations);
         }
 
@@ -148,19 +142,27 @@ public class PaymentAdviceService {
     /**
      * Build property breakdowns from TransactionBatchAllocation data.
      * This is the same data source the UI uses.
+     * Groups by property_name since many allocations have NULL property_id.
      */
     private void buildFromTransactionAllocations(PaymentAdviceDTO advice, List<TransactionBatchAllocation> allocations) {
-        // Group allocations by property
-        Map<Long, List<TransactionBatchAllocation>> allocationsByProperty = allocations.stream()
-            .filter(a -> a.getPropertyId() != null)
-            .collect(Collectors.groupingBy(TransactionBatchAllocation::getPropertyId));
+        // Group allocations by property_name (not property_id, since many are NULL)
+        Map<String, List<TransactionBatchAllocation>> allocationsByPropertyName = allocations.stream()
+            .filter(a -> a.getPropertyName() != null && !a.getPropertyName().trim().isEmpty())
+            .collect(Collectors.groupingBy(TransactionBatchAllocation::getPropertyName));
 
         // Build property breakdowns
-        for (Map.Entry<Long, List<TransactionBatchAllocation>> entry : allocationsByProperty.entrySet()) {
-            Long propertyId = entry.getKey();
+        for (Map.Entry<String, List<TransactionBatchAllocation>> entry : allocationsByPropertyName.entrySet()) {
+            String propertyName = entry.getKey();
             List<TransactionBatchAllocation> propertyAllocations = entry.getValue();
 
-            PropertyBreakdownDTO propertyBreakdown = buildPropertyBreakdownFromTxn(propertyId, propertyAllocations);
+            // Get property_id from any allocation that has it (for linking purposes)
+            Long propertyId = propertyAllocations.stream()
+                .filter(a -> a.getPropertyId() != null)
+                .map(TransactionBatchAllocation::getPropertyId)
+                .findFirst()
+                .orElse(null);
+
+            PropertyBreakdownDTO propertyBreakdown = buildPropertyBreakdownFromTxnByName(propertyId, propertyName, propertyAllocations);
             if (propertyBreakdown.hasData()) {
                 advice.addProperty(propertyBreakdown);
             }
@@ -169,21 +171,9 @@ public class PaymentAdviceService {
 
     /**
      * Build property breakdown from TransactionBatchAllocation data.
+     * Groups by property name since many allocations have NULL property_id.
      */
-    private PropertyBreakdownDTO buildPropertyBreakdownFromTxn(Long propertyId, List<TransactionBatchAllocation> allocations) {
-        String propertyName = allocations.stream()
-            .filter(a -> a.getPropertyName() != null)
-            .map(TransactionBatchAllocation::getPropertyName)
-            .findFirst()
-            .orElse(null);
-
-        if (propertyName == null) {
-            Property property = propertyRepository.findById(propertyId).orElse(null);
-            if (property != null) {
-                propertyName = property.getPropertyName();
-            }
-        }
-
+    private PropertyBreakdownDTO buildPropertyBreakdownFromTxnByName(Long propertyId, String propertyName, List<TransactionBatchAllocation> allocations) {
         PropertyBreakdownDTO breakdown = new PropertyBreakdownDTO(propertyId, propertyName);
 
         for (TransactionBatchAllocation allocation : allocations) {
@@ -416,22 +406,17 @@ public class PaymentAdviceService {
     }
 
     /**
-     * Build a deduction line from an EXPENSE/COMMISSION/DISBURSEMENT allocation.
-     * Handles negative amounts (reversals) correctly.
+     * Build a deduction line from an EXPENSE/DISBURSEMENT allocation.
+     * Expenses are stored as NEGATIVE in unified_allocations.
+     * We display the absolute value but use the negative for correct balance calculation.
      */
     private DeductionLineDTO buildDeductionLine(UnifiedAllocation allocation) {
         BigDecimal amount = allocation.getAmount();
-        boolean isReversal = amount != null && amount.compareTo(BigDecimal.ZERO) < 0;
 
         String type = DeductionLineDTO.mapToDisplayType(
             allocation.getAllocationType() != null ? allocation.getAllocationType().name() : null,
             allocation.getCategory()
         );
-
-        // Mark reversals in the type
-        if (isReversal) {
-            type = type + " (Reversal)";
-        }
 
         // Build description
         String description = allocation.getDescription();
@@ -449,9 +434,12 @@ public class PaymentAdviceService {
         DeductionLineDTO deduction = new DeductionLineDTO();
         deduction.setType(type);
         deduction.setDescription(description);
-        deduction.setNetAmount(amount);
+        // Display amount as positive (absolute value) for readability
+        deduction.setNetAmount(amount != null ? amount.abs() : BigDecimal.ZERO);
         deduction.setVatAmount(BigDecimal.ZERO); // No VAT for now
-        deduction.setGrossAmount(amount); // Keep sign for correct totalling
+        // Use absolute value for grossAmount since PropertyBreakdownDTO.calculateBalance()
+        // does: balance = netReceipts - totalDeductions (both positive)
+        deduction.setGrossAmount(amount != null ? amount.abs() : BigDecimal.ZERO);
         deduction.setCategory(allocation.getCategory());
         deduction.setTransactionDate(transactionDate);
 
