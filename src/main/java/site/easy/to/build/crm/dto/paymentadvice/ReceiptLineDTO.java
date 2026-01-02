@@ -5,27 +5,25 @@ import java.time.LocalDate;
 
 /**
  * Represents a single receipt line (tenant payment) in the Payment Advice.
+ * Shows gross income, commission deducted, and net to owner.
  */
 public class ReceiptLineDTO {
 
     private String tenantName;
-    private BigDecimal amount;
+    private BigDecimal grossAmount;      // Gross rent received from tenant
+    private BigDecimal commissionAmount; // Commission deducted
+    private BigDecimal netAmount;        // Net to owner (gross - commission)
     private LocalDate paymentDate;
     private String leaseReference;
 
     public ReceiptLineDTO() {
     }
 
-    public ReceiptLineDTO(String tenantName, BigDecimal amount) {
+    public ReceiptLineDTO(String tenantName, BigDecimal grossAmount, BigDecimal commissionAmount, BigDecimal netAmount) {
         this.tenantName = tenantName;
-        this.amount = amount;
-    }
-
-    public ReceiptLineDTO(String tenantName, BigDecimal amount, LocalDate paymentDate, String leaseReference) {
-        this.tenantName = tenantName;
-        this.amount = amount;
-        this.paymentDate = paymentDate;
-        this.leaseReference = leaseReference;
+        this.grossAmount = grossAmount;
+        this.commissionAmount = commissionAmount != null ? commissionAmount : BigDecimal.ZERO;
+        this.netAmount = netAmount;
     }
 
     // Getters and Setters
@@ -38,12 +36,44 @@ public class ReceiptLineDTO {
         this.tenantName = tenantName;
     }
 
+    /**
+     * @deprecated Use getGrossAmount() instead
+     */
+    @Deprecated
     public BigDecimal getAmount() {
-        return amount;
+        return grossAmount;
     }
 
+    /**
+     * @deprecated Use setGrossAmount() instead
+     */
+    @Deprecated
     public void setAmount(BigDecimal amount) {
-        this.amount = amount;
+        this.grossAmount = amount;
+    }
+
+    public BigDecimal getGrossAmount() {
+        return grossAmount;
+    }
+
+    public void setGrossAmount(BigDecimal grossAmount) {
+        this.grossAmount = grossAmount;
+    }
+
+    public BigDecimal getCommissionAmount() {
+        return commissionAmount;
+    }
+
+    public void setCommissionAmount(BigDecimal commissionAmount) {
+        this.commissionAmount = commissionAmount;
+    }
+
+    public BigDecimal getNetAmount() {
+        return netAmount;
+    }
+
+    public void setNetAmount(BigDecimal netAmount) {
+        this.netAmount = netAmount;
     }
 
     public LocalDate getPaymentDate() {

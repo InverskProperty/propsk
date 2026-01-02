@@ -6,7 +6,7 @@ import java.util.List;
 
 /**
  * Represents a per-property breakdown in the Payment Advice.
- * Shows receipts (tenant payments) and deductions (commission, expenses, etc.) for one property.
+ * Shows receipts (tenant payments with gross/commission/net) and deductions (expenses) for one property.
  */
 public class PropertyBreakdownDTO {
 
@@ -17,9 +17,19 @@ public class PropertyBreakdownDTO {
     private List<ReceiptLineDTO> receipts = new ArrayList<>();
     private List<DeductionLineDTO> deductions = new ArrayList<>();
 
-    private BigDecimal totalReceipts = BigDecimal.ZERO;
+    // Receipt totals
+    private BigDecimal totalGrossReceipts = BigDecimal.ZERO;
+    private BigDecimal totalCommission = BigDecimal.ZERO;
+    private BigDecimal totalNetReceipts = BigDecimal.ZERO;
+
+    // Deduction totals (expenses/disbursements)
     private BigDecimal totalDeductions = BigDecimal.ZERO;
+
+    // Final balance = net receipts - deductions
     private BigDecimal balance = BigDecimal.ZERO;
+
+    // Legacy field for backwards compatibility
+    private BigDecimal totalReceipts = BigDecimal.ZERO;
 
     public PropertyBreakdownDTO() {
     }
@@ -34,9 +44,17 @@ public class PropertyBreakdownDTO {
      */
     public void addReceipt(ReceiptLineDTO receipt) {
         this.receipts.add(receipt);
-        if (receipt.getAmount() != null) {
-            this.totalReceipts = this.totalReceipts.add(receipt.getAmount());
+        if (receipt.getGrossAmount() != null) {
+            this.totalGrossReceipts = this.totalGrossReceipts.add(receipt.getGrossAmount());
         }
+        if (receipt.getCommissionAmount() != null) {
+            this.totalCommission = this.totalCommission.add(receipt.getCommissionAmount());
+        }
+        if (receipt.getNetAmount() != null) {
+            this.totalNetReceipts = this.totalNetReceipts.add(receipt.getNetAmount());
+        }
+        // Update legacy field
+        this.totalReceipts = this.totalGrossReceipts;
         calculateBalance();
     }
 
@@ -52,10 +70,11 @@ public class PropertyBreakdownDTO {
     }
 
     /**
-     * Calculate balance as receipts minus deductions.
+     * Calculate balance as net receipts minus deductions.
+     * Balance = Gross Receipts - Commission - Expenses = Net Receipts - Expenses
      */
     public void calculateBalance() {
-        this.balance = this.totalReceipts.subtract(this.totalDeductions);
+        this.balance = this.totalNetReceipts.subtract(this.totalDeductions);
     }
 
     // Getters and Setters
@@ -102,11 +121,44 @@ public class PropertyBreakdownDTO {
         recalculateTotals();
     }
 
-    public BigDecimal getTotalReceipts() {
-        return totalReceipts;
+    public BigDecimal getTotalGrossReceipts() {
+        return totalGrossReceipts;
     }
 
+    public void setTotalGrossReceipts(BigDecimal totalGrossReceipts) {
+        this.totalGrossReceipts = totalGrossReceipts;
+    }
+
+    public BigDecimal getTotalCommission() {
+        return totalCommission;
+    }
+
+    public void setTotalCommission(BigDecimal totalCommission) {
+        this.totalCommission = totalCommission;
+    }
+
+    public BigDecimal getTotalNetReceipts() {
+        return totalNetReceipts;
+    }
+
+    public void setTotalNetReceipts(BigDecimal totalNetReceipts) {
+        this.totalNetReceipts = totalNetReceipts;
+    }
+
+    /**
+     * @deprecated Use getTotalGrossReceipts() instead
+     */
+    @Deprecated
+    public BigDecimal getTotalReceipts() {
+        return totalGrossReceipts;
+    }
+
+    /**
+     * @deprecated Use setTotalGrossReceipts() instead
+     */
+    @Deprecated
     public void setTotalReceipts(BigDecimal totalReceipts) {
+        this.totalGrossReceipts = totalReceipts;
         this.totalReceipts = totalReceipts;
     }
 
@@ -130,13 +182,24 @@ public class PropertyBreakdownDTO {
      * Recalculate totals from receipts and deductions lists.
      */
     private void recalculateTotals() {
-        this.totalReceipts = receipts.stream()
-            .map(r -> r.getAmount() != null ? r.getAmount() : BigDecimal.ZERO)
+        this.totalGrossReceipts = receipts.stream()
+            .map(r -> r.getGrossAmount() != null ? r.getGrossAmount() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        this.totalCommission = receipts.stream()
+            .map(r -> r.getCommissionAmount() != null ? r.getCommissionAmount() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        this.totalNetReceipts = receipts.stream()
+            .map(r -> r.getNetAmount() != null ? r.getNetAmount() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         this.totalDeductions = deductions.stream()
             .map(d -> d.getGrossAmount() != null ? d.getGrossAmount() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Update legacy field
+        this.totalReceipts = this.totalGrossReceipts;
 
         calculateBalance();
     }

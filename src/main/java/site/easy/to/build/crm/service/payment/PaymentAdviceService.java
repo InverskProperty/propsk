@@ -181,8 +181,7 @@ public class PaymentAdviceService {
 
     /**
      * Build a receipt line from an OWNER allocation.
-     * Uses the NET amount (allocation.amount) which represents what actually goes to the owner.
-     * The gross amount would be what the tenant paid before commission.
+     * Shows gross income, commission deducted, and net to owner - matching the Excel output.
      */
     private ReceiptLineDTO buildReceiptLine(UnifiedAllocation allocation) {
         // Get tenant name from invoice
@@ -194,9 +193,21 @@ public class PaymentAdviceService {
             }
         }
 
-        // Use the NET amount (what owner receives after commission)
-        // This ensures Total Receipts - Total Deductions = Amount Settled
-        BigDecimal amount = allocation.getAmount();
+        // Get amounts - gross, commission, net
+        BigDecimal grossAmount = allocation.getGrossAmount();
+        BigDecimal commissionAmount = allocation.getCommissionAmount();
+        BigDecimal netAmount = allocation.getAmount();
+
+        // If grossAmount is not set, use the net amount as gross (no commission breakdown)
+        if (grossAmount == null) {
+            grossAmount = netAmount;
+            commissionAmount = BigDecimal.ZERO;
+        }
+
+        // Ensure commission is not null
+        if (commissionAmount == null) {
+            commissionAmount = BigDecimal.ZERO;
+        }
 
         // Get the actual transaction date (not the batch payment date)
         java.time.LocalDate transactionDate = allocation.getPaidDate(); // fallback
@@ -207,7 +218,9 @@ public class PaymentAdviceService {
 
         ReceiptLineDTO receipt = new ReceiptLineDTO();
         receipt.setTenantName(tenantName);
-        receipt.setAmount(amount);
+        receipt.setGrossAmount(grossAmount);
+        receipt.setCommissionAmount(commissionAmount);
+        receipt.setNetAmount(netAmount);
         receipt.setPaymentDate(transactionDate);
 
         return receipt;

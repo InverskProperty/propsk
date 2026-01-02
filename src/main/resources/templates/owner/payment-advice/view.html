@@ -131,7 +131,7 @@
                            th:text="${property.propertyAddress}">Address</small>
                 </div>
                 <div class="card-body p-0">
-                    <!-- Receipts Section -->
+                    <!-- Receipts Section - Shows Gross, Commission, Net -->
                     <div th:if="${!#lists.isEmpty(property.receipts)}">
                         <h6 class="px-3 pt-3 mb-0 text-success">
                             <i class="fas fa-arrow-down"></i> Receipts (Rent Received)
@@ -141,16 +141,26 @@
                                 <tr class="bg-light">
                                     <th>Tenant</th>
                                     <th>Date</th>
-                                    <th class="text-right">Amount</th>
+                                    <th class="text-right">Gross</th>
+                                    <th class="text-right">Commission</th>
+                                    <th class="text-right">Net</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr th:each="receipt : ${property.receipts}" class="receipt-row">
                                     <td th:text="${receipt.tenantName}">Tenant Name</td>
                                     <td th:text="${receipt.paymentDate}">2025-01-01</td>
+                                    <td class="text-right"
+                                        th:text="'£' + ${#numbers.formatDecimal(receipt.grossAmount, 1, 2)}">
+                                        £740.00
+                                    </td>
+                                    <td class="text-right text-danger"
+                                        th:text="'£' + ${#numbers.formatDecimal(receipt.commissionAmount, 1, 2)}">
+                                        £111.00
+                                    </td>
                                     <td class="text-right text-success font-weight-bold"
-                                        th:text="'£' + ${#numbers.formatDecimal(receipt.amount, 1, 2)}">
-                                        £100.00
+                                        th:text="'£' + ${#numbers.formatDecimal(receipt.netAmount, 1, 2)}">
+                                        £629.00
                                     </td>
                                 </tr>
                             </tbody>
@@ -158,8 +168,18 @@
                                 <tr class="bg-success text-white">
                                     <td colspan="2"><strong>Total Receipts</strong></td>
                                     <td class="text-right">
-                                        <strong th:text="'£' + ${#numbers.formatDecimal(property.totalReceipts, 1, 2)}">
-                                            £100.00
+                                        <strong th:text="'£' + ${#numbers.formatDecimal(property.totalGrossReceipts, 1, 2)}">
+                                            £740.00
+                                        </strong>
+                                    </td>
+                                    <td class="text-right">
+                                        <strong th:text="'£' + ${#numbers.formatDecimal(property.totalCommission, 1, 2)}">
+                                            £111.00
+                                        </strong>
+                                    </td>
+                                    <td class="text-right">
+                                        <strong th:text="'£' + ${#numbers.formatDecimal(property.totalNetReceipts, 1, 2)}">
+                                            £629.00
                                         </strong>
                                     </td>
                                 </tr>
@@ -167,10 +187,10 @@
                         </table>
                     </div>
 
-                    <!-- Deductions Section -->
+                    <!-- Deductions Section (Expenses/Disbursements) -->
                     <div th:if="${!#lists.isEmpty(property.deductions)}">
                         <h6 class="px-3 pt-3 mb-0 text-danger">
-                            <i class="fas fa-arrow-up"></i> Deductions (Payments & Expenses)
+                            <i class="fas fa-arrow-up"></i> Expenses & Disbursements
                         </h6>
                         <table class="table table-sm mb-0">
                             <thead>
@@ -178,9 +198,7 @@
                                     <th>Type</th>
                                     <th>Date</th>
                                     <th>Description</th>
-                                    <th class="text-right">Net</th>
-                                    <th class="text-right">VAT</th>
-                                    <th class="text-right">Gross</th>
+                                    <th class="text-right">Amount</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -196,8 +214,6 @@
                                     </td>
                                     <td th:text="${deduction.transactionDate}">2025-01-01</td>
                                     <td th:text="${deduction.description}">Description</td>
-                                    <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.netAmount, 1, 2)}">£50.00</td>
-                                    <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.vatAmount, 1, 2)}">£0.00</td>
                                     <td class="text-right font-weight-bold"
                                         th:classappend="${deduction.grossAmount != null and deduction.grossAmount < 0} ? 'text-success' : 'text-danger'"
                                         th:text="'£' + ${#numbers.formatDecimal(deduction.grossAmount, 1, 2)}">
@@ -207,7 +223,7 @@
                             </tbody>
                             <tfoot>
                                 <tr class="bg-danger text-white">
-                                    <td colspan="5"><strong>Total Deductions</strong></td>
+                                    <td colspan="3"><strong>Total Expenses</strong></td>
                                     <td class="text-right">
                                         <strong th:text="'£' + ${#numbers.formatDecimal(property.totalDeductions, 1, 2)}">
                                             £50.00
@@ -221,7 +237,7 @@
                     <!-- Property Balance -->
                     <table class="table table-sm mb-0">
                         <tr class="total-row">
-                            <td colspan="4"><strong>Property Balance</strong></td>
+                            <td colspan="3"><strong>Property Balance (Net Receipts - Expenses)</strong></td>
                             <td class="text-right">
                                 <strong th:classappend="${property.balance.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'"
                                         th:text="'£' + ${#numbers.formatDecimal(property.balance, 1, 2)}">
@@ -240,17 +256,21 @@
                         <h4>Settlement Summary</h4>
                         <table class="table table-borderless text-white mb-0">
                             <tr>
-                                <td>Total Receipts:</td>
-                                <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(advice.totalReceipts, 1, 2)}">£200.00</td>
+                                <td>Gross Income:</td>
+                                <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(advice.totalGrossReceipts, 1, 2)}">£740.00</td>
                             </tr>
                             <tr>
-                                <td>Total Deductions:</td>
-                                <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(advice.totalDeductions, 1, 2)}">£100.00</td>
+                                <td>Less Commission:</td>
+                                <td class="text-right" th:text="'(£' + ${#numbers.formatDecimal(advice.totalCommission, 1, 2)} + ')'">£111.00</td>
+                            </tr>
+                            <tr>
+                                <td>Less Expenses:</td>
+                                <td class="text-right" th:text="'(£' + ${#numbers.formatDecimal(advice.totalExpenses, 1, 2)} + ')'">£100.00</td>
                             </tr>
                             <tr class="border-top">
-                                <td><strong>Total Balance:</strong></td>
+                                <td><strong>Net to Owner:</strong></td>
                                 <td class="text-right">
-                                    <strong th:text="'£' + ${#numbers.formatDecimal(advice.totalBalance, 1, 2)}">£100.00</strong>
+                                    <strong th:text="'£' + ${#numbers.formatDecimal(advice.totalBalance, 1, 2)}">£529.00</strong>
                                 </td>
                             </tr>
                         </table>
@@ -259,7 +279,7 @@
                         <h3 class="mb-0">Amount Settled</h3>
                         <h1 class="display-4 font-weight-bold mb-0"
                             th:text="'£' + ${#numbers.formatDecimal(advice.amountSettled, 1, 2)}">
-                            £100.00
+                            £529.00
                         </h1>
                         <p th:if="${advice.paymentMethod}">
                             <small>via <span th:text="${advice.paymentMethod}">Bank Transfer</span></small>

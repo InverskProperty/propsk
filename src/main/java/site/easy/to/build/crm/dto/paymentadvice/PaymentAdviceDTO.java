@@ -8,6 +8,8 @@ import java.util.List;
 /**
  * Main DTO for Payment Advice document.
  * Contains all data needed to render a payment advice for a single owner payment (batch).
+ *
+ * Calculation: Gross Receipts - Commission - Expenses = Net to Owner (Amount Settled)
  */
 public class PaymentAdviceDTO {
 
@@ -33,11 +35,16 @@ public class PaymentAdviceDTO {
     // Per-property breakdowns
     private List<PropertyBreakdownDTO> properties = new ArrayList<>();
 
-    // Settlement summary
+    // Settlement summary - detailed breakdown
+    private BigDecimal totalGrossReceipts = BigDecimal.ZERO;  // Total rent received from tenants
+    private BigDecimal totalCommission = BigDecimal.ZERO;      // Total commission deducted
+    private BigDecimal totalExpenses = BigDecimal.ZERO;        // Total expenses (deductions)
+    private BigDecimal totalBalance = BigDecimal.ZERO;         // Gross - Commission - Expenses = Net
+    private BigDecimal amountSettled = BigDecimal.ZERO;        // Actual payment made to owner
+
+    // Legacy field for backwards compatibility (maps to totalGrossReceipts)
     private BigDecimal totalReceipts = BigDecimal.ZERO;
-    private BigDecimal totalDeductions = BigDecimal.ZERO;
-    private BigDecimal totalBalance = BigDecimal.ZERO;
-    private BigDecimal amountSettled = BigDecimal.ZERO;
+    private BigDecimal totalDeductions = BigDecimal.ZERO;      // Maps to totalExpenses
 
     public PaymentAdviceDTO() {
     }
@@ -52,17 +59,29 @@ public class PaymentAdviceDTO {
 
     /**
      * Update totals from all property breakdowns.
+     * Gross Receipts - Commission - Expenses = Net to Owner
      */
     public void updateTotals() {
-        this.totalReceipts = properties.stream()
-            .map(PropertyBreakdownDTO::getTotalReceipts)
+        this.totalGrossReceipts = properties.stream()
+            .map(PropertyBreakdownDTO::getTotalGrossReceipts)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        this.totalDeductions = properties.stream()
+        this.totalCommission = properties.stream()
+            .map(PropertyBreakdownDTO::getTotalCommission)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        this.totalExpenses = properties.stream()
             .map(PropertyBreakdownDTO::getTotalDeductions)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        this.totalBalance = this.totalReceipts.subtract(this.totalDeductions);
+        // Net to Owner = Gross - Commission - Expenses
+        this.totalBalance = this.totalGrossReceipts
+            .subtract(this.totalCommission)
+            .subtract(this.totalExpenses);
+
+        // Update legacy fields for backwards compatibility
+        this.totalReceipts = this.totalGrossReceipts;
+        this.totalDeductions = this.totalExpenses;
     }
 
     /**
@@ -187,19 +206,63 @@ public class PaymentAdviceDTO {
         updateTotals();
     }
 
-    public BigDecimal getTotalReceipts() {
-        return totalReceipts;
+    public BigDecimal getTotalGrossReceipts() {
+        return totalGrossReceipts;
     }
 
+    public void setTotalGrossReceipts(BigDecimal totalGrossReceipts) {
+        this.totalGrossReceipts = totalGrossReceipts;
+        this.totalReceipts = totalGrossReceipts;
+    }
+
+    public BigDecimal getTotalCommission() {
+        return totalCommission;
+    }
+
+    public void setTotalCommission(BigDecimal totalCommission) {
+        this.totalCommission = totalCommission;
+    }
+
+    public BigDecimal getTotalExpenses() {
+        return totalExpenses;
+    }
+
+    public void setTotalExpenses(BigDecimal totalExpenses) {
+        this.totalExpenses = totalExpenses;
+        this.totalDeductions = totalExpenses;
+    }
+
+    /**
+     * @deprecated Use getTotalGrossReceipts() instead
+     */
+    @Deprecated
+    public BigDecimal getTotalReceipts() {
+        return totalGrossReceipts;
+    }
+
+    /**
+     * @deprecated Use setTotalGrossReceipts() instead
+     */
+    @Deprecated
     public void setTotalReceipts(BigDecimal totalReceipts) {
+        this.totalGrossReceipts = totalReceipts;
         this.totalReceipts = totalReceipts;
     }
 
+    /**
+     * @deprecated Use getTotalExpenses() instead
+     */
+    @Deprecated
     public BigDecimal getTotalDeductions() {
-        return totalDeductions;
+        return totalExpenses;
     }
 
+    /**
+     * @deprecated Use setTotalExpenses() instead
+     */
+    @Deprecated
     public void setTotalDeductions(BigDecimal totalDeductions) {
+        this.totalExpenses = totalDeductions;
         this.totalDeductions = totalDeductions;
     }
 
