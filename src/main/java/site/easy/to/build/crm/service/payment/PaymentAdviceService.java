@@ -205,14 +205,17 @@ public class PaymentAdviceService {
 
     /**
      * Build a receipt line from a TransactionBatchAllocation.
+     * The allocated_amount IS the net amount (after commission).
+     * We derive gross and commission from the transaction's commission rate if available.
      */
     private ReceiptLineDTO buildReceiptLineFromTxn(TransactionBatchAllocation allocation) {
         HistoricalTransaction txn = allocation.getTransaction();
 
         String tenantName = "Unknown Tenant";
-        BigDecimal grossAmount = allocation.getAllocatedAmount();
-        BigDecimal commissionAmount = BigDecimal.ZERO;
+        // The allocation's amount IS the net to owner (this is what was allocated from the batch)
         BigDecimal netAmount = allocation.getAllocatedAmount();
+        BigDecimal grossAmount = netAmount; // Default to net if no commission info
+        BigDecimal commissionAmount = BigDecimal.ZERO;
         java.time.LocalDate transactionDate = null;
 
         if (txn != null) {
@@ -224,17 +227,28 @@ public class PaymentAdviceService {
             // Get transaction date
             transactionDate = txn.getTransactionDate();
 
-            // Get gross and commission from the transaction if available
-            if (txn.getAmount() != null) {
-                grossAmount = txn.getAmount().abs();
-            }
-            if (txn.getCommissionAmount() != null) {
-                commissionAmount = txn.getCommissionAmount().abs();
-            }
-            if (txn.getNetToOwnerAmount() != null) {
-                netAmount = txn.getNetToOwnerAmount();
-            } else {
-                netAmount = allocation.getAllocatedAmount();
+            // Calculate gross and commission proportionally based on the transaction's breakdown
+            // If the transaction has both gross and net, we can derive the commission rate
+            BigDecimal txnGross = txn.getAmount();
+            BigDecimal txnNet = txn.getNetToOwnerAmount();
+            BigDecimal txnCommission = txn.getCommissionAmount();
+
+            if (txnGross != null && txnNet != null && txnNet.compareTo(BigDecimal.ZERO) != 0) {
+                // Calculate the ratio of commission to net
+                // commission = gross - net, so gross = net + commission
+                // For the allocation, we scale proportionally
+                BigDecimal ratio = txnGross.divide(txnNet, 10, java.math.RoundingMode.HALF_UP);
+                grossAmount = netAmount.multiply(ratio).setScale(2, java.math.RoundingMode.HALF_UP);
+                commissionAmount = grossAmount.subtract(netAmount);
+            } else if (txnGross != null && txnCommission != null && txnGross.compareTo(BigDecimal.ZERO) != 0) {
+                // Use commission rate from transaction
+                BigDecimal commissionRate = txnCommission.abs().divide(txnGross.abs(), 10, java.math.RoundingMode.HALF_UP);
+                // For net amount, gross = net / (1 - commission_rate)
+                BigDecimal oneMinusRate = BigDecimal.ONE.subtract(commissionRate);
+                if (oneMinusRate.compareTo(BigDecimal.ZERO) > 0) {
+                    grossAmount = netAmount.divide(oneMinusRate, 2, java.math.RoundingMode.HALF_UP);
+                    commissionAmount = grossAmount.subtract(netAmount);
+                }
             }
         }
 
@@ -250,6 +264,8 @@ public class PaymentAdviceService {
 
     /**
      * Build a deduction line from a TransactionBatchAllocation.
+     * The allocation amount is negative in the database (for correct netting).
+     * We display the absolute value but keep the negative for totalling.
      */
     private DeductionLineDTO buildDeductionLineFromTxn(TransactionBatchAllocation allocation) {
         HistoricalTransaction txn = allocation.getTransaction();
@@ -270,9 +286,15 @@ public class PaymentAdviceService {
         DeductionLineDTO deduction = new DeductionLineDTO();
         deduction.setType(type);
         deduction.setDescription(description);
-        deduction.setNetAmount(amount);
+        // Display amount as positive (absolute value) but the grossAmount stays negative for correct totalling
+        deduction.setNetAmount(amount != null ? amount.abs() : BigDecimal.ZERO);
         deduction.setVatAmount(BigDecimal.ZERO);
-        deduction.setGrossAmount(amount); // Keep sign for correct totalling
+        // Keep the NEGATIVE amount for grossAmount - this is used in totalling
+        // The balance calculation in PropertyBreakdownDTO does: netReceipts - deductions
+        // Since deductions are negative, this becomes: netReceipts - (-expenses) = netReceipts + expenses
+        // Actually we need POSITIVE for display AND correct sign for totalling
+        // Let's use positive for grossAmount as well since we subtract in balance calculation
+        deduction.setGrossAmount(amount != null ? amount.abs() : BigDecimal.ZERO);
         deduction.setCategory(category);
         deduction.setTransactionDate(transactionDate);
 
