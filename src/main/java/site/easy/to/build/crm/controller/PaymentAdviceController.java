@@ -7,6 +7,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +20,7 @@ import site.easy.to.build.crm.entity.PaymentBatch;
 import site.easy.to.build.crm.repository.CustomerRepository;
 import site.easy.to.build.crm.service.payment.PaymentAdviceService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,33 +41,140 @@ public class PaymentAdviceController {
 
     /**
      * List available payment batches for selection.
-     * Can filter by owner.
+     * Respects user access: delegated users only see their assigned owner.
      */
     @GetMapping("")
     public String listPaymentBatches(
             @RequestParam(required = false) Long ownerId,
+            Authentication authentication,
             Model model) {
 
         log.info("Listing payment batches, ownerId: {}", ownerId);
 
-        // Get owners for dropdown filter
-        List<Customer> owners = customerRepository.findByCustomerType(CustomerType.PROPERTY_OWNER);
-        model.addAttribute("owners", owners);
-        model.addAttribute("selectedOwnerId", ownerId);
+        // Get the current logged-in user
+        Customer currentUser = getCurrentCustomer(authentication);
+        log.info("Current user: {} (type: {})",
+            currentUser != null ? currentUser.getName() : "null",
+            currentUser != null ? currentUser.getCustomerType() : "null");
 
-        // Get batches for selected owner (or all if none selected)
-        List<PaymentBatch> batches;
+        // Determine accessible owners based on user type
+        List<Customer> accessibleOwners = getAccessibleOwners(currentUser, authentication);
+        model.addAttribute("owners", accessibleOwners);
+
+        // Validate that the requested ownerId is accessible
+        Long effectiveOwnerId = ownerId;
         if (ownerId != null) {
-            batches = paymentAdviceService.getBatchesForOwner(ownerId);
-            Customer selectedOwner = customerRepository.findById(ownerId).orElse(null);
+            boolean hasAccess = accessibleOwners.stream()
+                .anyMatch(o -> o.getCustomerId().equals(ownerId.intValue()));
+            if (!hasAccess) {
+                log.warn("User {} attempted to access owner {} without permission",
+                    currentUser != null ? currentUser.getCustomerId() : "unknown", ownerId);
+                effectiveOwnerId = null;
+            }
+        }
+
+        // If only one owner is accessible and none selected, auto-select it
+        if (effectiveOwnerId == null && accessibleOwners.size() == 1) {
+            effectiveOwnerId = accessibleOwners.get(0).getCustomerId().longValue();
+        }
+
+        model.addAttribute("selectedOwnerId", effectiveOwnerId);
+
+        // Get batches for selected owner
+        List<PaymentBatch> batches;
+        if (effectiveOwnerId != null) {
+            batches = paymentAdviceService.getBatchesForOwner(effectiveOwnerId);
+            Customer selectedOwner = customerRepository.findById(effectiveOwnerId).orElse(null);
             model.addAttribute("selectedOwner", selectedOwner);
         } else {
-            // If no owner selected, show message to select one
             batches = List.of();
         }
         model.addAttribute("batches", batches);
 
+        // Pass flags for UI
+        model.addAttribute("singleOwnerMode", accessibleOwners.size() == 1);
+
         return "owner/payment-advice/list";
+    }
+
+    /**
+     * Get the current logged-in customer from authentication.
+     */
+    private Customer getCurrentCustomer(Authentication authentication) {
+        if (authentication == null) {
+            return null;
+        }
+
+        String email = null;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof OAuth2User) {
+            OAuth2User oauth2User = (OAuth2User) principal;
+            email = oauth2User.getAttribute("email");
+        } else if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
+            email = ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();
+        }
+
+        if (email != null) {
+            return customerRepository.findByEmail(email);
+        }
+        return null;
+    }
+
+    /**
+     * Get list of property owners accessible to the current user.
+     * - Admin/Employee: All property owners
+     * - Property Owner: Only themselves
+     * - Delegated User/Manager: Only their assigned owner
+     */
+    private List<Customer> getAccessibleOwners(Customer currentUser, Authentication authentication) {
+        // Check if user is admin/employee (has ROLE_MANAGER or ROLE_EMPLOYEE)
+        boolean isStaff = false;
+        if (authentication != null) {
+            for (GrantedAuthority authority : authentication.getAuthorities()) {
+                String auth = authority.getAuthority();
+                if ("ROLE_MANAGER".equals(auth) || "ROLE_EMPLOYEE".equals(auth) || "ROLE_ADMIN".equals(auth)) {
+                    isStaff = true;
+                    break;
+                }
+            }
+        }
+
+        if (isStaff) {
+            // Staff can see all property owners
+            log.info("Staff user - showing all property owners");
+            return customerRepository.findByCustomerType(CustomerType.PROPERTY_OWNER);
+        }
+
+        if (currentUser == null) {
+            log.warn("No current user found - returning empty list");
+            return List.of();
+        }
+
+        CustomerType userType = currentUser.getCustomerType();
+
+        if (userType == CustomerType.PROPERTY_OWNER) {
+            // Property owner sees only themselves
+            log.info("Property owner {} - showing only self", currentUser.getCustomerId());
+            return List.of(currentUser);
+        }
+
+        if (userType == CustomerType.DELEGATED_USER || userType == CustomerType.MANAGER) {
+            // Delegated user/manager sees only their assigned owner
+            Customer managesOwner = currentUser.getManagesOwner();
+            if (managesOwner != null) {
+                log.info("Delegated user {} manages owner {} - showing only that owner",
+                    currentUser.getCustomerId(), managesOwner.getCustomerId());
+                return List.of(managesOwner);
+            } else {
+                log.warn("Delegated user {} has no assigned owner", currentUser.getCustomerId());
+                return List.of();
+            }
+        }
+
+        // Default: no access
+        log.warn("User type {} has no defined access - returning empty list", userType);
+        return List.of();
     }
 
     /**
