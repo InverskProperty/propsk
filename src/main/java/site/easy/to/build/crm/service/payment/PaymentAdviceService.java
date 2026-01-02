@@ -181,6 +181,8 @@ public class PaymentAdviceService {
 
     /**
      * Build a receipt line from an OWNER allocation.
+     * Uses the NET amount (allocation.amount) which represents what actually goes to the owner.
+     * The gross amount would be what the tenant paid before commission.
      */
     private ReceiptLineDTO buildReceiptLine(UnifiedAllocation allocation) {
         // Get tenant name from invoice
@@ -192,10 +194,9 @@ public class PaymentAdviceService {
             }
         }
 
-        // Use gross amount if available, otherwise use amount
-        BigDecimal amount = allocation.getGrossAmount() != null
-            ? allocation.getGrossAmount()
-            : allocation.getAmount();
+        // Use the NET amount (what owner receives after commission)
+        // This ensures Total Receipts - Total Deductions = Amount Settled
+        BigDecimal amount = allocation.getAmount();
 
         // Get the actual transaction date (not the batch payment date)
         java.time.LocalDate transactionDate = allocation.getPaidDate(); // fallback
