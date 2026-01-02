@@ -183,19 +183,21 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr th:each="deduction : ${property.deductions}" class="deduction-row">
+                                <tr th:each="deduction : ${property.deductions}"
+                                    th:classappend="${deduction.grossAmount != null and deduction.grossAmount < 0} ? 'table-success' : 'deduction-row'">
                                     <td>
-                                        <span th:if="${deduction.type == 'Commission'}" class="badge badge-info" th:text="${deduction.type}">Commission</span>
-                                        <span th:if="${deduction.type == 'Council'}" class="badge badge-warning" th:text="${deduction.type}">Council</span>
-                                        <span th:if="${deduction.type == 'Utilities'}" class="badge badge-secondary" th:text="${deduction.type}">Utilities</span>
-                                        <span th:if="${deduction.type == 'Maintenance'}" class="badge badge-dark" th:text="${deduction.type}">Maintenance</span>
-                                        <span th:if="${deduction.type == 'Disbursement'}" class="badge badge-primary" th:text="${deduction.type}">Disbursement</span>
+                                        <span th:if="${#strings.contains(deduction.type, 'Commission')}" class="badge badge-info" th:text="${deduction.type}">Commission</span>
+                                        <span th:if="${#strings.contains(deduction.type, 'Council')}" class="badge badge-warning" th:text="${deduction.type}">Council</span>
+                                        <span th:if="${#strings.contains(deduction.type, 'Utilities')}" class="badge badge-secondary" th:text="${deduction.type}">Utilities</span>
+                                        <span th:if="${#strings.contains(deduction.type, 'Maintenance')}" class="badge badge-dark" th:text="${deduction.type}">Maintenance</span>
+                                        <span th:if="${#strings.contains(deduction.type, 'Disbursement')}" class="badge badge-primary" th:text="${deduction.type}">Disbursement</span>
                                         <span th:if="${deduction.type == 'Other'}" class="badge badge-light text-dark" th:text="${deduction.type}">Other</span>
                                     </td>
                                     <td th:text="${deduction.description}">Description</td>
                                     <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.netAmount, 1, 2)}">£50.00</td>
                                     <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.vatAmount, 1, 2)}">£0.00</td>
-                                    <td class="text-right text-danger font-weight-bold"
+                                    <td class="text-right font-weight-bold"
+                                        th:classappend="${deduction.grossAmount != null and deduction.grossAmount < 0} ? 'text-success' : 'text-danger'"
                                         th:text="'£' + ${#numbers.formatDecimal(deduction.grossAmount, 1, 2)}">
                                         £50.00
                                     </td>

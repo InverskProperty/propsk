@@ -3909,9 +3909,11 @@ public class ExcelStatementGeneratorService {
                             allocCommission = alloc.getCommissionAmount().abs().doubleValue();
                         }
                     } else if (("EXPENSE".equals(allocType) || "DISBURSEMENT".equals(allocType)) && alloc.getAmount() != null) {
-                        allocExpense = alloc.getAmount().abs().doubleValue();
+                        // Use actual amount (can be negative for reversals) so totals are correct
+                        allocExpense = alloc.getAmount().doubleValue();
                     }
 
+                    // Net calculation: income minus expense (expense can be negative for reversals)
                     double allocNet = allocIncome - allocExpense - allocCommission;
 
                     if ("B/F".equals(allocPeriod)) {
@@ -4056,11 +4058,13 @@ public class ExcelStatementGeneratorService {
                                     priorCommission += rowCommission;
                                 }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
-                                rowExpense = alloc.getAmount().abs().doubleValue();
+                                // Use actual amount (can be negative for reversals)
+                                double actualAmount = alloc.getAmount().doubleValue();
+                                rowExpense = Math.abs(actualAmount); // Display as positive
                                 Cell expenseCell = batchRow.createCell(9);
-                                expenseCell.setCellValue(rowExpense);
+                                expenseCell.setCellValue(actualAmount); // Show actual (negative for reversal)
                                 expenseCell.setCellStyle(styles.currencyStyle);
-                                priorExpense += rowExpense;
+                                priorExpense += actualAmount; // Sum with sign so reversals reduce total
                             }
                             // NOTE: COMMISSION allocations are NOT displayed as separate rows.
                             // Commission is already included in OWNER allocations via commission_amount field.
@@ -4117,11 +4121,13 @@ public class ExcelStatementGeneratorService {
                                     currentCommission += rowCommission;
                                 }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
-                                rowExpense = alloc.getAmount().abs().doubleValue();
+                                // Use actual amount (can be negative for reversals)
+                                double actualAmount = alloc.getAmount().doubleValue();
+                                rowExpense = Math.abs(actualAmount);
                                 Cell expenseCell = batchRow.createCell(15);
-                                expenseCell.setCellValue(rowExpense);
+                                expenseCell.setCellValue(actualAmount); // Show actual (negative for reversal)
                                 expenseCell.setCellStyle(styles.currencyStyle);
-                                currentExpense += rowExpense;
+                                currentExpense += actualAmount; // Sum with sign so reversals reduce total
                             }
                             // NOTE: COMMISSION allocations are NOT displayed as separate rows.
                             // Commission is already included in OWNER allocations via commission_amount field.
@@ -4172,11 +4178,13 @@ public class ExcelStatementGeneratorService {
                                     futureCommission += rowCommission;
                                 }
                             } else if ("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) {
-                                rowExpense = alloc.getAmount().abs().doubleValue();
+                                // Use actual amount (can be negative for reversals)
+                                double actualAmount = alloc.getAmount().doubleValue();
+                                rowExpense = Math.abs(actualAmount);
                                 Cell expenseCell = batchRow.createCell(21);
-                                expenseCell.setCellValue(rowExpense);
+                                expenseCell.setCellValue(actualAmount); // Show actual (negative for reversal)
                                 expenseCell.setCellStyle(styles.currencyStyle);
-                                futureExpense += rowExpense;
+                                futureExpense += actualAmount; // Sum with sign so reversals reduce total
                             }
                             // NOTE: COMMISSION allocations are NOT displayed as separate rows.
                             // Commission is already included in OWNER allocations via commission_amount field.

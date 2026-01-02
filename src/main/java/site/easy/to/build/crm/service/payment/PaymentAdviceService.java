@@ -207,12 +207,21 @@ public class PaymentAdviceService {
 
     /**
      * Build a deduction line from an EXPENSE/COMMISSION/DISBURSEMENT allocation.
+     * Handles negative amounts (reversals) correctly.
      */
     private DeductionLineDTO buildDeductionLine(UnifiedAllocation allocation) {
+        BigDecimal amount = allocation.getAmount();
+        boolean isReversal = amount != null && amount.compareTo(BigDecimal.ZERO) < 0;
+
         String type = DeductionLineDTO.mapToDisplayType(
             allocation.getAllocationType() != null ? allocation.getAllocationType().name() : null,
             allocation.getCategory()
         );
+
+        // Mark reversals in the type
+        if (isReversal) {
+            type = type + " (Reversal)";
+        }
 
         // Build description
         String description = allocation.getDescription();
@@ -223,9 +232,9 @@ public class PaymentAdviceService {
         DeductionLineDTO deduction = new DeductionLineDTO();
         deduction.setType(type);
         deduction.setDescription(description);
-        deduction.setNetAmount(allocation.getAmount());
+        deduction.setNetAmount(amount);
         deduction.setVatAmount(BigDecimal.ZERO); // No VAT for now
-        deduction.setGrossAmount(allocation.getAmount());
+        deduction.setGrossAmount(amount); // Keep sign for correct totalling
         deduction.setCategory(allocation.getCategory());
 
         return deduction;
