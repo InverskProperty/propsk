@@ -121,7 +121,8 @@
                                     </thead>
                                     <tbody>
                                         <tr th:each="batch : ${batches}" style="cursor: pointer;"
-                                            th:onclick="'window.location.href=\'/owner/payment-advice/' + ${batch.batchId} + '\''">
+                                            th:data-href="@{/owner/payment-advice/{id}(id=${batch.batchId})}"
+                                            onclick="window.location.href=this.dataset.href">
                                             <td>
                                                 <span th:text="${batch.paymentDate}">2025-01-01</span>
                                             </td>
