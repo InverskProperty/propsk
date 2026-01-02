@@ -93,6 +93,23 @@ public class TransactionBatchAllocation {
     @Column(name = "beneficiary_name", length = 255)
     private String beneficiaryName;
 
+    // ===== ALLOCATION TYPE =====
+
+    /**
+     * Type of allocation - determines how this is displayed in payment advice.
+     * OWNER = rent income (shown as receipt)
+     * COMMISSION = commission deduction (usually embedded in OWNER receipts)
+     * EXPENSE = expense deduction
+     * DISBURSEMENT = disbursement to third party (e.g., service charges)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "allocation_type")
+    private AllocationType allocationType = AllocationType.OWNER;
+
+    public enum AllocationType {
+        OWNER, COMMISSION, EXPENSE, DISBURSEMENT
+    }
+
     // ===== AUDIT =====
 
     @Column(name = "created_at")
@@ -118,6 +135,49 @@ public class TransactionBatchAllocation {
             this.propertyId = transaction.getProperty().getId();
             this.propertyName = transaction.getProperty().getPropertyName();
         }
+
+        // Determine allocation type based on transaction category
+        this.allocationType = determineAllocationType(transaction);
+    }
+
+    /**
+     * Determine allocation type from transaction category.
+     */
+    private static AllocationType determineAllocationType(HistoricalTransaction transaction) {
+        String category = transaction.getCategory();
+        if (category == null) {
+            return AllocationType.EXPENSE;
+        }
+
+        String lowerCategory = category.toLowerCase();
+
+        // DISBURSEMENT: Block property or explicit disbursement items
+        if (lowerCategory.contains("disbursement") || lowerCategory.contains("block property")) {
+            return AllocationType.DISBURSEMENT;
+        }
+
+        // EXPENSE: Refunds and other expense categories
+        if (lowerCategory.contains("refund") || lowerCategory.contains("expense") ||
+            lowerCategory.contains("council") || lowerCategory.contains("utilities") ||
+            lowerCategory.contains("maintenance") || lowerCategory.contains("cleaning") ||
+            lowerCategory.contains("contractor") || lowerCategory.contains("compliance") ||
+            lowerCategory.contains("furnishings") || lowerCategory.contains("management")) {
+            return AllocationType.EXPENSE;
+        }
+
+        // COMMISSION: Explicit commission/agency fee
+        if (lowerCategory.contains("commission") || lowerCategory.contains("agency_fee")) {
+            return AllocationType.COMMISSION;
+        }
+
+        // OWNER: Rent income and tenant payments (default for income)
+        if (lowerCategory.contains("rent") || lowerCategory.contains("income") ||
+            lowerCategory.contains("tenant")) {
+            return AllocationType.OWNER;
+        }
+
+        // Default to EXPENSE for unrecognized categories
+        return AllocationType.EXPENSE;
     }
 
     // ===== LIFECYCLE CALLBACKS =====
@@ -225,6 +285,14 @@ public class TransactionBatchAllocation {
 
     public void setBeneficiaryName(String beneficiaryName) {
         this.beneficiaryName = beneficiaryName;
+    }
+
+    public AllocationType getAllocationType() {
+        return allocationType;
+    }
+
+    public void setAllocationType(AllocationType allocationType) {
+        this.allocationType = allocationType;
     }
 
     public LocalDateTime getCreatedAt() {
