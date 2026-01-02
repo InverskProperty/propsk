@@ -205,13 +205,14 @@ public class TransactionBatchAllocationService {
             // Link to historical transaction
             unified.setHistoricalTransactionId(transaction.getId());
 
-            // Determine allocation type based on category and transaction attributes
-            UnifiedAllocation.AllocationType allocationType = determineAllocationType(transaction);
-            unified.setAllocationType(allocationType);
-
             // Amount - keep the sign! Negative for expenses, positive for income
             // This is critical for correct balance calculations
             unified.setAmount(amount);
+
+            // Determine allocation type based on category, transaction attributes, AND amount sign
+            // Negative amounts are ALWAYS expenses/disbursements, never OWNER
+            UnifiedAllocation.AllocationType allocationType = determineAllocationType(transaction, amount);
+            unified.setAllocationType(allocationType);
 
             // For OWNER allocations (rent), populate gross/commission/net breakdown
             if (allocationType == UnifiedAllocation.AllocationType.OWNER) {
@@ -296,20 +297,17 @@ public class TransactionBatchAllocationService {
     /**
      * Determine allocation type from transaction attributes.
      *
-     * Classification logic:
-     * - COMMISSION: Transactions that represent percentage-based agency/management fees
-     *   (identified by having a non-zero commission rate OR category explicitly "commission"/"agency_fee")
+     * Classification logic (based on CATEGORY, not amount sign):
+     * - DISBURSEMENT: category contains "disbursement" or "block property"
+     * - EXPENSE: category contains "refund", "expense", "council", "utilities", "maintenance", etc.
+     * - COMMISSION: Explicitly commission/agency fee OR has a commission rate
      * - OWNER: Rent income and tenant payments
-     * - EXPENSE: Fixed-cost items (management expenses like inventory, clearance, repairs)
-     * - DISBURSEMENT: Block property or explicit disbursement items
      *
-     * NOTE: The old logic classified "management" category as COMMISSION, but "management expenses"
-     * (like Inventory, Clearance) are EXPENSES, not commission. True commission has a commission_rate.
+     * Note: Amount sign does NOT determine type. Positive = expense, Negative = credit/reversal.
      */
-    private UnifiedAllocation.AllocationType determineAllocationType(HistoricalTransaction transaction) {
+    private UnifiedAllocation.AllocationType determineAllocationType(HistoricalTransaction transaction, BigDecimal amount) {
         String category = transaction.getCategory();
         BigDecimal commissionRate = transaction.getCommissionRate();
-        BigDecimal commissionAmount = transaction.getCommissionAmount();
         String description = transaction.getDescription();
 
         if (category == null) {
@@ -317,32 +315,36 @@ public class TransactionBatchAllocationService {
         }
 
         String lowerCategory = category.toLowerCase();
-        String lowerDescription = description != null ? description.toLowerCase() : "";
-
-        // OWNER: Rent income and tenant payments (check first as these are the most common)
-        if (lowerCategory.contains("rent") || lowerCategory.contains("income") ||
-            lowerCategory.contains("tenant")) {
-            return UnifiedAllocation.AllocationType.OWNER;
-        }
 
         // DISBURSEMENT: Block property or explicit disbursement items
         if (lowerCategory.contains("disbursement") || lowerCategory.contains("block property")) {
             return UnifiedAllocation.AllocationType.DISBURSEMENT;
         }
 
+        // EXPENSE: Refunds and other expense categories
+        if (lowerCategory.contains("refund") || lowerCategory.contains("expense") ||
+            lowerCategory.contains("council") || lowerCategory.contains("utilities") ||
+            lowerCategory.contains("maintenance") || lowerCategory.contains("cleaning") ||
+            lowerCategory.contains("contractor") || lowerCategory.contains("compliance") ||
+            lowerCategory.contains("furnishings") || lowerCategory.contains("management")) {
+            return UnifiedAllocation.AllocationType.EXPENSE;
+        }
+
+        // OWNER: Rent income and tenant payments
+        if (lowerCategory.contains("rent") || lowerCategory.contains("income") ||
+            lowerCategory.contains("tenant")) {
+            return UnifiedAllocation.AllocationType.OWNER;
+        }
+
         // COMMISSION: Only if it's explicitly commission/agency fee OR has a commission rate
-        // "Management" category alone does NOT make it commission - that's for management EXPENSES
         boolean hasCommissionRate = commissionRate != null && commissionRate.compareTo(BigDecimal.ZERO) > 0;
-        boolean hasCommissionAmount = commissionAmount != null && commissionAmount.compareTo(BigDecimal.ZERO) != 0;
         boolean isExplicitCommission = lowerCategory.contains("commission") || lowerCategory.contains("agency_fee");
 
-        // Only treat as COMMISSION if explicitly commission-type OR has a commission rate
-        // Management category items without commission rate are EXPENSES (e.g., Inventory, Clearance)
         if (isExplicitCommission || hasCommissionRate) {
             return UnifiedAllocation.AllocationType.COMMISSION;
         }
 
-        // Default to EXPENSE for unrecognized categories (including "management" expenses)
+        // Default to EXPENSE for unrecognized categories
         return UnifiedAllocation.AllocationType.EXPENSE;
     }
 
