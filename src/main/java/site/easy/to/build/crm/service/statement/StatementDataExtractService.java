@@ -3911,18 +3911,24 @@ public class StatementDataExtractService {
             // Skip owner payments - these are distributions to owners, not actual block expenses
             String category = ut.getCategory();
             String transactionType = ut.getTransactionType();
+            boolean isOwnerPaymentCategory = "owner_payment".equalsIgnoreCase(category) || "Owner".equalsIgnoreCase(category);
 
-            if ("owner_payment".equalsIgnoreCase(category) || "Owner".equalsIgnoreCase(category)) {
+            if (isOwnerPaymentCategory) {
                 log.debug("Skipping owner payment from service charge expenses: {}", ut.getDescription());
                 continue;
             }
-            if ("payment_to_beneficiary".equalsIgnoreCase(transactionType)) {
-                log.debug("Skipping beneficiary payment from service charge expenses: {}", ut.getDescription());
+
+            // Skip commission entries
+            if ("Commission".equalsIgnoreCase(category)) {
+                log.debug("Skipping commission entry from service charge expenses: {}", ut.getDescription());
                 continue;
             }
-            // Skip agency commission entries
-            if ("payment_to_agency".equalsIgnoreCase(transactionType) || "Commission".equalsIgnoreCase(category)) {
-                log.debug("Skipping agency/commission entry from service charge expenses: {}", ut.getDescription());
+
+            // Skip payment_to_beneficiary only if it's an owner payment (already filtered above)
+            // Allow other beneficiary payments like utilities through
+            // Skip payment_to_agency only if it's a commission (not a legitimate expense like utilities)
+            if ("payment_to_agency".equalsIgnoreCase(transactionType) && category == null) {
+                log.debug("Skipping agency payment with no category from service charge expenses: {}", ut.getDescription());
                 continue;
             }
 
@@ -3999,7 +4005,7 @@ public class StatementDataExtractService {
                 UnifiedTransaction.FlowDirection.OUTGOING);
 
         BigDecimal totalExpenses = historicalExpenses.stream()
-            .filter(ut -> !isOwnerPayment(ut))
+            .filter(ut -> !isServiceChargeExpenseExcluded(ut))
             .map(ut -> ut.getAmount() != null ? ut.getAmount().abs() : BigDecimal.ZERO)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -4018,7 +4024,7 @@ public class StatementDataExtractService {
      * - Commission/agency payments
      * - Zero-amount entries
      */
-    private boolean isOwnerPayment(UnifiedTransaction ut) {
+    private boolean isServiceChargeExpenseExcluded(UnifiedTransaction ut) {
         // Skip zero-amount entries
         BigDecimal amount = ut.getAmount();
         if (amount == null || amount.compareTo(BigDecimal.ZERO) == 0) {
@@ -4028,17 +4034,21 @@ public class StatementDataExtractService {
         String category = ut.getCategory();
         String transactionType = ut.getTransactionType();
 
-        // Owner payments
+        // Owner payments - always exclude
         if ("owner_payment".equalsIgnoreCase(category) || "Owner".equalsIgnoreCase(category)) {
             return true;
         }
-        if ("payment_to_beneficiary".equalsIgnoreCase(transactionType)) {
+
+        // Commission payments - always exclude
+        if ("Commission".equalsIgnoreCase(category)) {
             return true;
         }
-        // Commission/agency payments
-        if ("payment_to_agency".equalsIgnoreCase(transactionType) || "Commission".equalsIgnoreCase(category)) {
+
+        // Skip payment_to_agency only if it has no category (not a legitimate expense like utilities)
+        if ("payment_to_agency".equalsIgnoreCase(transactionType) && category == null) {
             return true;
         }
+
         return false;
     }
 
