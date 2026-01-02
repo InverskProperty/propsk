@@ -197,10 +197,17 @@ public class PaymentAdviceService {
             ? allocation.getGrossAmount()
             : allocation.getAmount();
 
+        // Get the actual transaction date (not the batch payment date)
+        java.time.LocalDate transactionDate = allocation.getPaidDate(); // fallback
+        if (allocation.getUnifiedTransaction() != null &&
+            allocation.getUnifiedTransaction().getTransactionDate() != null) {
+            transactionDate = allocation.getUnifiedTransaction().getTransactionDate();
+        }
+
         ReceiptLineDTO receipt = new ReceiptLineDTO();
         receipt.setTenantName(tenantName);
         receipt.setAmount(amount);
-        receipt.setPaymentDate(allocation.getPaidDate());
+        receipt.setPaymentDate(transactionDate);
 
         return receipt;
     }
@@ -229,6 +236,13 @@ public class PaymentAdviceService {
             description = type + " - " + (allocation.getPropertyName() != null ? allocation.getPropertyName() : "");
         }
 
+        // Get the actual transaction date (not the batch payment date)
+        java.time.LocalDate transactionDate = allocation.getPaidDate(); // fallback
+        if (allocation.getUnifiedTransaction() != null &&
+            allocation.getUnifiedTransaction().getTransactionDate() != null) {
+            transactionDate = allocation.getUnifiedTransaction().getTransactionDate();
+        }
+
         DeductionLineDTO deduction = new DeductionLineDTO();
         deduction.setType(type);
         deduction.setDescription(description);
@@ -236,6 +250,7 @@ public class PaymentAdviceService {
         deduction.setVatAmount(BigDecimal.ZERO); // No VAT for now
         deduction.setGrossAmount(amount); // Keep sign for correct totalling
         deduction.setCategory(allocation.getCategory());
+        deduction.setTransactionDate(transactionDate);
 
         return deduction;
     }

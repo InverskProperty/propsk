@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.dto.paymentadvice;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * Represents a single deduction line (commission, expense, disbursement) in the Payment Advice.
@@ -13,6 +14,7 @@ public class DeductionLineDTO {
     private BigDecimal vatAmount;
     private BigDecimal grossAmount;
     private String category;       // Original category from allocation
+    private LocalDate transactionDate;
 
     public DeductionLineDTO() {
         this.vatAmount = BigDecimal.ZERO;
@@ -82,6 +84,14 @@ public class DeductionLineDTO {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public LocalDate getTransactionDate() {
+        return transactionDate;
+    }
+
+    public void setTransactionDate(LocalDate transactionDate) {
+        this.transactionDate = transactionDate;
     }
 
     /**

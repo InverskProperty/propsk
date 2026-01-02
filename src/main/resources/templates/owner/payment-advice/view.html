@@ -176,6 +176,7 @@
                             <thead>
                                 <tr class="bg-light">
                                     <th>Type</th>
+                                    <th>Date</th>
                                     <th>Description</th>
                                     <th class="text-right">Net</th>
                                     <th class="text-right">VAT</th>
@@ -191,8 +192,9 @@
                                         <span th:if="${#strings.contains(deduction.type, 'Utilities')}" class="badge badge-secondary" th:text="${deduction.type}">Utilities</span>
                                         <span th:if="${#strings.contains(deduction.type, 'Maintenance')}" class="badge badge-dark" th:text="${deduction.type}">Maintenance</span>
                                         <span th:if="${#strings.contains(deduction.type, 'Disbursement')}" class="badge badge-primary" th:text="${deduction.type}">Disbursement</span>
-                                        <span th:if="${deduction.type == 'Other'}" class="badge badge-light text-dark" th:text="${deduction.type}">Other</span>
+                                        <span th:if="${deduction.type == 'Other' or #strings.contains(deduction.type, 'Other')}" class="badge badge-light text-dark" th:text="${deduction.type}">Other</span>
                                     </td>
+                                    <td th:text="${deduction.transactionDate}">2025-01-01</td>
                                     <td th:text="${deduction.description}">Description</td>
                                     <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.netAmount, 1, 2)}">£50.00</td>
                                     <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.vatAmount, 1, 2)}">£0.00</td>
@@ -205,7 +207,7 @@
                             </tbody>
                             <tfoot>
                                 <tr class="bg-danger text-white">
-                                    <td colspan="4"><strong>Total Deductions</strong></td>
+                                    <td colspan="5"><strong>Total Deductions</strong></td>
                                     <td class="text-right">
                                         <strong th:text="'£' + ${#numbers.formatDecimal(property.totalDeductions, 1, 2)}">
                                             £50.00
