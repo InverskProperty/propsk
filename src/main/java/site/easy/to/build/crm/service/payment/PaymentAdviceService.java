@@ -407,8 +407,13 @@ public class PaymentAdviceService {
 
     /**
      * Build a deduction line from an EXPENSE/DISBURSEMENT allocation.
-     * Expenses are stored as NEGATIVE in unified_allocations.
-     * We display the absolute value but use the negative for correct balance calculation.
+     *
+     * Amount sign convention:
+     * - Positive amount = expense/deduction (reduces owner payment)
+     * - Negative amount = reversal/credit (increases owner payment)
+     *
+     * The grossAmount preserves the sign so PropertyBreakdownDTO.calculateBalance()
+     * correctly handles reversals (negative deductions reduce total deductions).
      */
     private DeductionLineDTO buildDeductionLine(UnifiedAllocation allocation) {
         BigDecimal amount = allocation.getAmount();
@@ -418,10 +423,17 @@ public class PaymentAdviceService {
             allocation.getCategory()
         );
 
-        // Build description
+        // Build description - indicate if this is a reversal
         String description = allocation.getDescription();
         if (description == null || description.trim().isEmpty()) {
             description = type + " - " + (allocation.getPropertyName() != null ? allocation.getPropertyName() : "");
+        }
+
+        // Add reversal indicator if amount is negative
+        if (amount != null && amount.compareTo(BigDecimal.ZERO) < 0) {
+            if (!description.toLowerCase().contains("reversal") && !description.toLowerCase().contains("credit")) {
+                description = description + " (Reversal)";
+            }
         }
 
         // Get the actual transaction date (not the batch payment date)
@@ -434,12 +446,11 @@ public class PaymentAdviceService {
         DeductionLineDTO deduction = new DeductionLineDTO();
         deduction.setType(type);
         deduction.setDescription(description);
-        // Display amount as positive (absolute value) for readability
-        deduction.setNetAmount(amount != null ? amount.abs() : BigDecimal.ZERO);
+        // Net and gross amounts preserve sign for correct balance calculation
+        // Negative amounts = reversals/credits that reduce total deductions
+        deduction.setNetAmount(amount != null ? amount : BigDecimal.ZERO);
         deduction.setVatAmount(BigDecimal.ZERO); // No VAT for now
-        // Use absolute value for grossAmount since PropertyBreakdownDTO.calculateBalance()
-        // does: balance = netReceipts - totalDeductions (both positive)
-        deduction.setGrossAmount(amount != null ? amount.abs() : BigDecimal.ZERO);
+        deduction.setGrossAmount(amount != null ? amount : BigDecimal.ZERO);
         deduction.setCategory(allocation.getCategory());
         deduction.setTransactionDate(transactionDate);
 
