@@ -9,6 +9,7 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.entity.PaymentBatch.BatchStatus;
 import site.easy.to.build.crm.entity.UnifiedAllocation.AllocationType;
 import site.easy.to.build.crm.repository.*;
+import site.easy.to.build.crm.service.payment.TransactionBatchAllocationService;
 
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -46,8 +47,16 @@ public class PaymentAdviceService {
     @Autowired
     private PropertyRepository propertyRepository;
 
+    @Autowired
+    private TransactionBatchAllocationRepository transactionBatchAllocationRepository;
+
+    @Autowired
+    private HistoricalTransactionRepository historicalTransactionRepository;
+
     /**
      * Generate Payment Advice for a specific batch.
+     * Queries BOTH unified_allocations AND transaction_batch_allocations tables
+     * to ensure all allocations are captured.
      *
      * @param batchId The payment batch ID
      * @return PaymentAdviceDTO with all data needed to render the advice
@@ -81,24 +90,23 @@ public class PaymentAdviceService {
             }
         }
 
-        // Get all allocations for this batch
-        List<UnifiedAllocation> allocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
-        log.info("Found {} allocations for batch {}", allocations.size(), batchId);
+        // Get allocations from BOTH sources
+        List<UnifiedAllocation> unifiedAllocations = unifiedAllocationRepository.findByPaymentBatchId(batchId);
+        List<TransactionBatchAllocation> txnAllocations = transactionBatchAllocationRepository.findByBatchReference(batchId);
 
-        // Group allocations by property
-        Map<Long, List<UnifiedAllocation>> allocationsByProperty = allocations.stream()
-            .filter(a -> a.getPropertyId() != null)
-            .collect(Collectors.groupingBy(UnifiedAllocation::getPropertyId));
+        log.info("Found {} unified allocations and {} transaction allocations for batch {}",
+            unifiedAllocations.size(), txnAllocations.size(), batchId);
 
-        // Build property breakdowns
-        for (Map.Entry<Long, List<UnifiedAllocation>> entry : allocationsByProperty.entrySet()) {
-            Long propertyId = entry.getKey();
-            List<UnifiedAllocation> propertyAllocations = entry.getValue();
-
-            PropertyBreakdownDTO propertyBreakdown = buildPropertyBreakdown(propertyId, propertyAllocations);
-            if (propertyBreakdown.hasData()) {
-                advice.addProperty(propertyBreakdown);
-            }
+        // Use whichever source has more allocations, or merge if needed
+        if (txnAllocations.size() > unifiedAllocations.size()) {
+            log.info("Using TransactionBatchAllocation as primary source (more data)");
+            buildFromTransactionAllocations(advice, txnAllocations);
+        } else if (!unifiedAllocations.isEmpty()) {
+            log.info("Using UnifiedAllocation as primary source");
+            buildFromUnifiedAllocations(advice, unifiedAllocations);
+        } else if (!txnAllocations.isEmpty()) {
+            log.info("Using TransactionBatchAllocation as fallback");
+            buildFromTransactionAllocations(advice, txnAllocations);
         }
 
         // Sort properties by name for consistent display
@@ -115,6 +123,161 @@ public class PaymentAdviceService {
             advice.getPropertyCount(), advice.getTotalBalance());
 
         return advice;
+    }
+
+    /**
+     * Build property breakdowns from UnifiedAllocation data.
+     */
+    private void buildFromUnifiedAllocations(PaymentAdviceDTO advice, List<UnifiedAllocation> allocations) {
+        // Group allocations by property
+        Map<Long, List<UnifiedAllocation>> allocationsByProperty = allocations.stream()
+            .filter(a -> a.getPropertyId() != null)
+            .collect(Collectors.groupingBy(UnifiedAllocation::getPropertyId));
+
+        // Build property breakdowns
+        for (Map.Entry<Long, List<UnifiedAllocation>> entry : allocationsByProperty.entrySet()) {
+            Long propertyId = entry.getKey();
+            List<UnifiedAllocation> propertyAllocations = entry.getValue();
+
+            PropertyBreakdownDTO propertyBreakdown = buildPropertyBreakdown(propertyId, propertyAllocations);
+            if (propertyBreakdown.hasData()) {
+                advice.addProperty(propertyBreakdown);
+            }
+        }
+    }
+
+    /**
+     * Build property breakdowns from TransactionBatchAllocation data.
+     * This is the same data source the UI uses.
+     */
+    private void buildFromTransactionAllocations(PaymentAdviceDTO advice, List<TransactionBatchAllocation> allocations) {
+        // Group allocations by property
+        Map<Long, List<TransactionBatchAllocation>> allocationsByProperty = allocations.stream()
+            .filter(a -> a.getPropertyId() != null)
+            .collect(Collectors.groupingBy(TransactionBatchAllocation::getPropertyId));
+
+        // Build property breakdowns
+        for (Map.Entry<Long, List<TransactionBatchAllocation>> entry : allocationsByProperty.entrySet()) {
+            Long propertyId = entry.getKey();
+            List<TransactionBatchAllocation> propertyAllocations = entry.getValue();
+
+            PropertyBreakdownDTO propertyBreakdown = buildPropertyBreakdownFromTxn(propertyId, propertyAllocations);
+            if (propertyBreakdown.hasData()) {
+                advice.addProperty(propertyBreakdown);
+            }
+        }
+    }
+
+    /**
+     * Build property breakdown from TransactionBatchAllocation data.
+     */
+    private PropertyBreakdownDTO buildPropertyBreakdownFromTxn(Long propertyId, List<TransactionBatchAllocation> allocations) {
+        String propertyName = allocations.stream()
+            .filter(a -> a.getPropertyName() != null)
+            .map(TransactionBatchAllocation::getPropertyName)
+            .findFirst()
+            .orElse(null);
+
+        if (propertyName == null) {
+            Property property = propertyRepository.findById(propertyId).orElse(null);
+            if (property != null) {
+                propertyName = property.getPropertyName();
+            }
+        }
+
+        PropertyBreakdownDTO breakdown = new PropertyBreakdownDTO(propertyId, propertyName);
+
+        for (TransactionBatchAllocation allocation : allocations) {
+            BigDecimal amount = allocation.getAllocatedAmount();
+
+            if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
+                // Positive = income (receipt)
+                ReceiptLineDTO receipt = buildReceiptLineFromTxn(allocation);
+                breakdown.addReceipt(receipt);
+            } else if (amount != null && amount.compareTo(BigDecimal.ZERO) < 0) {
+                // Negative = expense (deduction)
+                DeductionLineDTO deduction = buildDeductionLineFromTxn(allocation);
+                breakdown.addDeduction(deduction);
+            }
+        }
+
+        return breakdown;
+    }
+
+    /**
+     * Build a receipt line from a TransactionBatchAllocation.
+     */
+    private ReceiptLineDTO buildReceiptLineFromTxn(TransactionBatchAllocation allocation) {
+        HistoricalTransaction txn = allocation.getTransaction();
+
+        String tenantName = "Unknown Tenant";
+        BigDecimal grossAmount = allocation.getAllocatedAmount();
+        BigDecimal commissionAmount = BigDecimal.ZERO;
+        BigDecimal netAmount = allocation.getAllocatedAmount();
+        java.time.LocalDate transactionDate = null;
+
+        if (txn != null) {
+            // Get tenant name
+            if (txn.getTenant() != null) {
+                tenantName = txn.getTenant().getName();
+            }
+
+            // Get transaction date
+            transactionDate = txn.getTransactionDate();
+
+            // Get gross and commission from the transaction if available
+            if (txn.getAmount() != null) {
+                grossAmount = txn.getAmount().abs();
+            }
+            if (txn.getCommissionAmount() != null) {
+                commissionAmount = txn.getCommissionAmount().abs();
+            }
+            if (txn.getNetToOwnerAmount() != null) {
+                netAmount = txn.getNetToOwnerAmount();
+            } else {
+                netAmount = allocation.getAllocatedAmount();
+            }
+        }
+
+        ReceiptLineDTO receipt = new ReceiptLineDTO();
+        receipt.setTenantName(tenantName);
+        receipt.setGrossAmount(grossAmount);
+        receipt.setCommissionAmount(commissionAmount);
+        receipt.setNetAmount(netAmount);
+        receipt.setPaymentDate(transactionDate);
+
+        return receipt;
+    }
+
+    /**
+     * Build a deduction line from a TransactionBatchAllocation.
+     */
+    private DeductionLineDTO buildDeductionLineFromTxn(TransactionBatchAllocation allocation) {
+        HistoricalTransaction txn = allocation.getTransaction();
+
+        BigDecimal amount = allocation.getAllocatedAmount(); // Will be negative
+        java.time.LocalDate transactionDate = null;
+        String description = allocation.getPropertyName();
+        String category = null;
+
+        if (txn != null) {
+            transactionDate = txn.getTransactionDate();
+            description = txn.getDescription();
+            category = txn.getCategory();
+        }
+
+        String type = DeductionLineDTO.mapToDisplayType(null, category);
+
+        DeductionLineDTO deduction = new DeductionLineDTO();
+        deduction.setType(type);
+        deduction.setDescription(description);
+        deduction.setNetAmount(amount);
+        deduction.setVatAmount(BigDecimal.ZERO);
+        deduction.setGrossAmount(amount); // Keep sign for correct totalling
+        deduction.setCategory(category);
+        deduction.setTransactionDate(transactionDate);
+
+        return deduction;
     }
 
     /**
