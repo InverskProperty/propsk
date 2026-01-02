@@ -58,6 +58,18 @@ public interface PaymentBatchRepository extends JpaRepository<PaymentBatch, Long
      */
     List<PaymentBatch> findByBeneficiaryIdAndSourceNotOrderByPaymentDateDesc(Long beneficiaryId, BatchSource source);
 
+    /**
+     * Find PAID batches for a beneficiary, ordered by payment date descending.
+     * Used for Payment Advice listing.
+     */
+    List<PaymentBatch> findByBeneficiaryIdAndStatusOrderByPaymentDateDesc(Long beneficiaryId, BatchStatus status);
+
+    /**
+     * Find all batches for a beneficiary, ordered by payment date descending.
+     * Used for Payment Advice listing (all statuses).
+     */
+    List<PaymentBatch> findByBeneficiaryIdOrderByPaymentDateDesc(Long beneficiaryId);
+
     // ===== DATE RANGE QUERIES =====
 
     /**

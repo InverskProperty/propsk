@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<style>
+    .payment-advice-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    .property-section {
+        border-left: 4px solid #667eea;
+        margin-bottom: 20px;
+    }
+    .receipt-row {
+        background-color: #e8f5e9;
+    }
+    .deduction-row {
+        background-color: #ffebee;
+    }
+    .total-row {
+        background-color: #e3f2fd;
+        font-weight: bold;
+    }
+    .settlement-summary {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+    }
+    @media print {
+        .no-print { display: none !important; }
+        .page-wrapper { margin: 0; padding: 0; }
+        .payment-advice-header { background: #667eea !important; -webkit-print-color-adjust: exact; }
+        .settlement-summary { background: #11998e !important; -webkit-print-color-adjust: exact; }
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}" class="no-print"></div>
+    <div th:replace="~{general/left-sidebar.html}" class="no-print"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb - No Print -->
+            <div class="row page-titles no-print">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-file-invoice-dollar text-primary"></i> Payment Advice
+                    </h4>
+                    <p class="text-muted" th:text="${advice.batchReference}">BATCH-001</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <a th:href="@{/owner/payment-advice(ownerId=${advice.ownerId})}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to List
+                    </a>
+                    <button onclick="window.print()" class="btn btn-info">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <a th:href="@{/owner/payment-advice/{id}/pdf(id=${advice.batchReference})}" class="btn btn-danger">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </a>
+                    <a th:href="@{/owner/payment-advice/{id}/excel(id=${advice.batchReference})}" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Excel
+                    </a>
+                </div>
+            </div>
+
+            <!-- Payment Advice Header -->
+            <div class="payment-advice-header">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h2 class="mb-3">PAYMENT ADVICE</h2>
+                        <div class="mb-2">
+                            <strong>To:</strong><br>
+                            <span th:text="${advice.ownerName}">Owner Name</span><br>
+                            <span th:if="${advice.ownerAddress}" th:text="${advice.ownerAddress}">Address</span><br>
+                            <span th:if="${advice.ownerEmail}" th:text="${advice.ownerEmail}">email@example.com</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-right">
+                        <div class="mb-2">
+                            <strong>From:</strong><br>
+                            <span th:text="${advice.agencyName}">Propsk Ltd</span><br>
+                            <small th:text="'Company No: ' + ${advice.agencyRegistrationNumber}">15933011</small><br>
+                            <small th:text="${advice.agencyAddress}">Address</small>
+                        </div>
+                        <hr style="border-color: rgba(255,255,255,0.3);">
+                        <div>
+                            <strong>Date:</strong> <span th:text="${advice.adviceDate}">2025-01-01</span><br>
+                            <strong>Reference:</strong> <span th:text="${advice.batchReference}">BATCH-001</span><br>
+                            <strong>Status:</strong>
+                            <span th:if="${advice.status == 'PAID'}" class="badge badge-light">PAID</span>
+                            <span th:if="${advice.status == 'PENDING'}" class="badge badge-warning">PENDING</span>
+                            <span th:if="${advice.status == 'DRAFT'}" class="badge badge-secondary">DRAFT</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- No Properties Message -->
+            <div th:if="${#lists.isEmpty(advice.properties)}" class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                No property allocations found for this payment batch.
+            </div>
+
+            <!-- Per-Property Breakdowns -->
+            <div th:each="property : ${advice.properties}" class="card property-section">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="fas fa-home text-primary"></i>
+                        <span th:text="${property.propertyName}">Property Name</span>
+                    </h5>
+                    <small class="text-muted" th:if="${property.propertyAddress}"
+                           th:text="${property.propertyAddress}">Address</small>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Receipts Section -->
+                    <div th:if="${!#lists.isEmpty(property.receipts)}">
+                        <h6 class="px-3 pt-3 mb-0 text-success">
+                            <i class="fas fa-arrow-down"></i> Receipts (Rent Received)
+                        </h6>
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr class="bg-light">
+                                    <th>Tenant</th>
+                                    <th>Date</th>
+                                    <th class="text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="receipt : ${property.receipts}" class="receipt-row">
+                                    <td th:text="${receipt.tenantName}">Tenant Name</td>
+                                    <td th:text="${receipt.paymentDate}">2025-01-01</td>
+                                    <td class="text-right text-success font-weight-bold"
+                                        th:text="'£' + ${#numbers.formatDecimal(receipt.amount, 1, 2)}">
+                                        £100.00
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-success text-white">
+                                    <td colspan="2"><strong>Total Receipts</strong></td>
+                                    <td class="text-right">
+                                        <strong th:text="'£' + ${#numbers.formatDecimal(property.totalReceipts, 1, 2)}">
+                                            £100.00
+                                        </strong>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Deductions Section -->
+                    <div th:if="${!#lists.isEmpty(property.deductions)}">
+                        <h6 class="px-3 pt-3 mb-0 text-danger">
+                            <i class="fas fa-arrow-up"></i> Deductions (Payments & Expenses)
+                        </h6>
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr class="bg-light">
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                    <th class="text-right">Net</th>
+                                    <th class="text-right">VAT</th>
+                                    <th class="text-right">Gross</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="deduction : ${property.deductions}" class="deduction-row">
+                                    <td>
+                                        <span th:if="${deduction.type == 'Commission'}" class="badge badge-info" th:text="${deduction.type}">Commission</span>
+                                        <span th:if="${deduction.type == 'Council'}" class="badge badge-warning" th:text="${deduction.type}">Council</span>
+                                        <span th:if="${deduction.type == 'Utilities'}" class="badge badge-secondary" th:text="${deduction.type}">Utilities</span>
+                                        <span th:if="${deduction.type == 'Maintenance'}" class="badge badge-dark" th:text="${deduction.type}">Maintenance</span>
+                                        <span th:if="${deduction.type == 'Disbursement'}" class="badge badge-primary" th:text="${deduction.type}">Disbursement</span>
+                                        <span th:if="${deduction.type == 'Other'}" class="badge badge-light text-dark" th:text="${deduction.type}">Other</span>
+                                    </td>
+                                    <td th:text="${deduction.description}">Description</td>
+                                    <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.netAmount, 1, 2)}">£50.00</td>
+                                    <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(deduction.vatAmount, 1, 2)}">£0.00</td>
+                                    <td class="text-right text-danger font-weight-bold"
+                                        th:text="'£' + ${#numbers.formatDecimal(deduction.grossAmount, 1, 2)}">
+                                        £50.00
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-danger text-white">
+                                    <td colspan="4"><strong>Total Deductions</strong></td>
+                                    <td class="text-right">
+                                        <strong th:text="'£' + ${#numbers.formatDecimal(property.totalDeductions, 1, 2)}">
+                                            £50.00
+                                        </strong>
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Property Balance -->
+                    <table class="table table-sm mb-0">
+                        <tr class="total-row">
+                            <td colspan="4"><strong>Property Balance</strong></td>
+                            <td class="text-right">
+                                <strong th:classappend="${property.balance.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'text-success' : 'text-danger'"
+                                        th:text="'£' + ${#numbers.formatDecimal(property.balance, 1, 2)}">
+                                    £50.00
+                                </strong>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Settlement Summary -->
+            <div class="settlement-summary">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4>Settlement Summary</h4>
+                        <table class="table table-borderless text-white mb-0">
+                            <tr>
+                                <td>Total Receipts:</td>
+                                <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(advice.totalReceipts, 1, 2)}">£200.00</td>
+                            </tr>
+                            <tr>
+                                <td>Total Deductions:</td>
+                                <td class="text-right" th:text="'£' + ${#numbers.formatDecimal(advice.totalDeductions, 1, 2)}">£100.00</td>
+                            </tr>
+                            <tr class="border-top">
+                                <td><strong>Total Balance:</strong></td>
+                                <td class="text-right">
+                                    <strong th:text="'£' + ${#numbers.formatDecimal(advice.totalBalance, 1, 2)}">£100.00</strong>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6 text-right align-self-center">
+                        <h3 class="mb-0">Amount Settled</h3>
+                        <h1 class="display-4 font-weight-bold mb-0"
+                            th:text="'£' + ${#numbers.formatDecimal(advice.amountSettled, 1, 2)}">
+                            £100.00
+                        </h1>
+                        <p th:if="${advice.paymentMethod}">
+                            <small>via <span th:text="${advice.paymentMethod}">Bank Transfer</span></small>
+                        </p>
+                        <p th:if="${advice.paymentReference}">
+                            <small>Ref: <span th:text="${advice.paymentReference}">REF-001</span></small>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Note -->
+            <div class="text-center text-muted mt-4 mb-4">
+                <p>
+                    <small>
+                        This payment advice was generated by <span th:text="${advice.agencyName}">Propsk Ltd</span>.
+                        If you have any questions, please contact us.
+                    </small>
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}" class="no-print"></div>
+</div>
+
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/custom.js}"></script>
+</body>
+</html>

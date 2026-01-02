@@ -354,6 +354,35 @@
                                     </div>
                                 </div>
 
+                                <!-- Payment Advice -->
+                                <div class="statement-card">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <h5><i class="fas fa-file-invoice-dollar text-info"></i> Payment Advice</h5>
+                                            <p class="text-muted">View detailed breakdowns of your owner payments. Each payment advice shows receipts (rent received) and deductions (expenses, commission) per property.</p>
+
+                                            <div class="mt-3">
+                                                <a th:href="@{/owner/payment-advice(ownerId=${customer.customerId})}" class="btn btn-info me-2">
+                                                    <i class="fas fa-eye"></i> View Payment Advice
+                                                </a>
+                                                <small class="text-muted ms-2">
+                                                    <i class="fas fa-info-circle"></i> View and download payment breakdowns for each payment batch
+                                                </small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 text-center">
+                                            <i class="fas fa-receipt fa-3x text-info mb-3"></i>
+                                            <h6>Includes:</h6>
+                                            <ul class="list-unstyled text-start">
+                                                <li><i class="fas fa-check text-success"></i> Per-Property Breakdown</li>
+                                                <li><i class="fas fa-check text-success"></i> Rent Receipts</li>
+                                                <li><i class="fas fa-check text-success"></i> Expense Deductions</li>
+                                                <li><i class="fas fa-check text-success"></i> Excel Export</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!-- Property Summary -->
                                 <div class="row mt-4">
                                     <div class="col-12">
