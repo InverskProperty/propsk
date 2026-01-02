@@ -741,7 +741,13 @@ public class UnifiedTransactionRebuildService {
                     THEN 'EXPENSE'
                     ELSE 'OWNER'  -- Default to OWNER for beneficiary_type='beneficiary' (owner distributions)
                 END as allocation_type,
-                ABS(prap.amount) as amount,
+                -- amount: Preserve sign for disbursements/expenses (negative = reversal/credit)
+                -- Only use ABS for OWNER allocations which should always be positive
+                CASE
+                    WHEN prap.category_name = 'Owner' AND prap.beneficiary_type = 'beneficiary'
+                    THEN ABS(prap.amount)
+                    ELSE prap.amount  -- Preserve sign for COMMISSION, EXPENSE, DISBURSEMENT
+                END as amount,
                 -- gross_amount: For OWNER allocations, use the incoming_transaction_amount (full rent)
                 -- For other allocation types (COMMISSION, EXPENSE, DISBURSEMENT), set to NULL
                 CASE
