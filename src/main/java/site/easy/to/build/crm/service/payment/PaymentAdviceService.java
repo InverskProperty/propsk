@@ -166,11 +166,16 @@ public class PaymentAdviceService {
             AllocationType type = allocation.getAllocationType();
 
             if (type == AllocationType.OWNER) {
-                // This is a receipt (rent received)
+                // This is a receipt (rent received) - includes commission breakdown
                 ReceiptLineDTO receipt = buildReceiptLine(allocation);
                 breakdown.addReceipt(receipt);
+            } else if (type == AllocationType.COMMISSION) {
+                // SKIP commission allocations - commission is already shown in receipts table
+                // via the commissionAmount field on OWNER allocations.
+                // Including it here would double-count.
+                continue;
             } else {
-                // This is a deduction (commission, expense, disbursement)
+                // This is an expense or disbursement
                 DeductionLineDTO deduction = buildDeductionLine(allocation);
                 breakdown.addDeduction(deduction);
             }
