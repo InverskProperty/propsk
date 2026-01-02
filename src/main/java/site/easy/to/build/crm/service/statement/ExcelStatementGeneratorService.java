@@ -4935,12 +4935,13 @@ public class ExcelStatementGeneratorService {
                 ));
                 totalRentDueCell.setCellStyle(currencyStyle);
 
-                // H: total_rent_received (SUM payments where owner_payment_date <= statement end date)
+                // H: total_rent_received (SUM payments within statement period)
                 // RENT_RECEIVED columns: A=lease_id, B=lease_ref, C=property, D=batch_id, E=owner_payment_date, N=total_rent
                 Cell totalRentReceivedCell = row.createCell(col++);
                 totalRentReceivedCell.setCellFormula(String.format(
-                    "SUMIFS(RENT_RECEIVED!N:N, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \"<=\"&DATE(%d,%d,%d))",
+                    "SUMIFS(RENT_RECEIVED!N:N, RENT_RECEIVED!A:A, %d, RENT_RECEIVED!E:E, \">=\"&DATE(%d,%d,%d), RENT_RECEIVED!E:E, \"<=\"&DATE(%d,%d,%d))",
                     lease.getLeaseId(),
+                    startDate.getYear(), startDate.getMonthValue(), startDate.getDayOfMonth(),
                     endDate.getYear(), endDate.getMonthValue(), endDate.getDayOfMonth()
                 ));
                 totalRentReceivedCell.setCellStyle(currencyStyle);
