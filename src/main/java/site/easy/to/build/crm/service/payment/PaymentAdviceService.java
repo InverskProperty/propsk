@@ -375,17 +375,23 @@ public class PaymentAdviceService {
         // Get amounts - gross, commission, net
         BigDecimal grossAmount = allocation.getGrossAmount();
         BigDecimal commissionAmount = allocation.getCommissionAmount();
-        BigDecimal netAmount = allocation.getAmount();
+        BigDecimal netAmount;
 
-        // If grossAmount is not set, use the net amount as gross (no commission breakdown)
+        // If grossAmount is not set, use the allocation amount as gross (no commission breakdown)
         if (grossAmount == null) {
-            grossAmount = netAmount;
+            grossAmount = allocation.getAmount();
             commissionAmount = BigDecimal.ZERO;
-        }
-
-        // Ensure commission is not null
-        if (commissionAmount == null) {
-            commissionAmount = BigDecimal.ZERO;
+            netAmount = grossAmount;
+        } else {
+            // Ensure commission is not null
+            if (commissionAmount == null) {
+                commissionAmount = BigDecimal.ZERO;
+            }
+            // Calculate net as gross - commission
+            // This is important because allocation.getAmount() from PayProp may already have
+            // disbursements deducted, but we want net = gross - commission only.
+            // Disbursements are shown separately in the deductions section.
+            netAmount = grossAmount.subtract(commissionAmount);
         }
 
         // Get the actual transaction date (not the batch payment date)
