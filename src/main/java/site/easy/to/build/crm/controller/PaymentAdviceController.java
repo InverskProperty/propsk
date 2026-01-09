@@ -200,32 +200,29 @@ public class PaymentAdviceController {
 
     /**
      * Export payment advice as PDF.
-     * For now, redirects to the print view which can be printed to PDF.
+     * Generates a PDF document with full payment advice details.
      */
     @GetMapping("/{batchId}/pdf")
     public ResponseEntity<byte[]> exportPdf(@PathVariable String batchId) {
         log.info("Exporting PDF for batch: {}", batchId);
 
         try {
-            // For now, return the Excel file as PDF is more complex to generate
-            // Users can use browser print to PDF for the view page
-            byte[] excelBytes = paymentAdviceService.exportToExcel(batchId);
+            byte[] pdfBytes = paymentAdviceService.exportToPdf(batchId);
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.setContentDispositionFormData("attachment",
                 "PaymentAdvice_" + batchId + ".pdf");
+            headers.setContentLength(pdfBytes.length);
 
-            // Note: For a proper PDF, we'd need to use iText html2pdf or similar
-            // For now, return a message suggesting print to PDF
-            String message = "PDF export coming soon. Please use the Print button and select 'Save as PDF' in your browser.";
             return ResponseEntity.ok()
-                .header("Content-Type", "text/plain")
-                .body(message.getBytes());
+                .headers(headers)
+                .body(pdfBytes);
         } catch (Exception e) {
-            log.error("Error exporting PDF for batch {}: {}", batchId, e.getMessage());
+            log.error("Error exporting PDF for batch {}: {}", batchId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(("Error: " + e.getMessage()).getBytes());
+                .header("Content-Type", "text/plain")
+                .body(("Error generating PDF: " + e.getMessage()).getBytes());
         }
     }
 

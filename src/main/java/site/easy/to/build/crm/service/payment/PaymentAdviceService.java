@@ -15,6 +15,12 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import com.itextpdf.html2pdf.HtmlConverter;
+import com.itextpdf.html2pdf.ConverterProperties;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.geom.PageSize;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -766,5 +772,217 @@ public class PaymentAdviceService {
         style.setFillForegroundColor(IndexedColors.ROSE.getIndex());
         style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         return style;
+    }
+
+    /**
+     * Export Payment Advice to PDF format.
+     * Generates a standalone HTML document and converts it to PDF using iText html2pdf.
+     *
+     * @param batchId The payment batch ID
+     * @return byte array containing the PDF file
+     */
+    public byte[] exportToPdf(String batchId) throws IOException {
+        log.info("Exporting Payment Advice to PDF for batch: {}", batchId);
+
+        PaymentAdviceDTO advice = generatePaymentAdvice(batchId);
+
+        // Generate HTML content
+        String htmlContent = generatePdfHtml(advice);
+
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            ConverterProperties properties = new ConverterProperties();
+            HtmlConverter.convertToPdf(htmlContent, outputStream, properties);
+
+            log.info("PDF export complete for batch: {}", batchId);
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            log.error("Error generating PDF for batch {}: {}", batchId, e.getMessage(), e);
+            throw new IOException("Failed to generate PDF: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Generate standalone HTML for PDF conversion.
+     * This creates a self-contained HTML document with embedded CSS.
+     */
+    private String generatePdfHtml(PaymentAdviceDTO advice) {
+        StringBuilder html = new StringBuilder();
+
+        html.append("<!DOCTYPE html>\n");
+        html.append("<html><head>\n");
+        html.append("<meta charset=\"UTF-8\"/>\n");
+        html.append("<style>\n");
+        html.append("body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #333; }\n");
+        html.append(".header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }\n");
+        html.append(".header h1 { margin: 0 0 10px 0; font-size: 24px; }\n");
+        html.append(".header-row { display: flex; justify-content: space-between; }\n");
+        html.append(".header-left, .header-right { width: 48%; }\n");
+        html.append(".header-right { text-align: right; }\n");
+        html.append(".property-section { border: 1px solid #ddd; border-left: 4px solid #667eea; margin-bottom: 15px; border-radius: 4px; }\n");
+        html.append(".property-header { background: #f5f5f5; padding: 10px; font-weight: bold; font-size: 13px; }\n");
+        html.append(".section-title { background: #e8f5e9; padding: 8px 10px; font-weight: bold; color: #2e7d32; font-size: 11px; }\n");
+        html.append(".section-title.expenses { background: #ffebee; color: #c62828; }\n");
+        html.append("table { width: 100%; border-collapse: collapse; font-size: 10px; }\n");
+        html.append("th { background: #f5f5f5; padding: 6px 8px; text-align: left; border-bottom: 1px solid #ddd; }\n");
+        html.append("td { padding: 6px 8px; border-bottom: 1px solid #eee; }\n");
+        html.append(".text-right { text-align: right; }\n");
+        html.append(".text-success { color: #2e7d32; }\n");
+        html.append(".text-danger { color: #c62828; }\n");
+        html.append(".receipt-row { background: #e8f5e9; }\n");
+        html.append(".deduction-row { background: #ffebee; }\n");
+        html.append(".total-row { background: #e3f2fd; font-weight: bold; }\n");
+        html.append(".total-row-green { background: #c8e6c9; font-weight: bold; }\n");
+        html.append(".total-row-red { background: #ffcdd2; font-weight: bold; }\n");
+        html.append(".settlement-summary { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 20px; border-radius: 8px; margin-top: 20px; }\n");
+        html.append(".settlement-summary h2 { margin: 0 0 15px 0; font-size: 18px; }\n");
+        html.append(".settlement-table { width: 100%; }\n");
+        html.append(".settlement-table td { padding: 5px 0; border: none; color: white; }\n");
+        html.append(".amount-settled { font-size: 28px; font-weight: bold; text-align: right; }\n");
+        html.append(".footer { text-align: center; margin-top: 20px; font-size: 10px; color: #666; }\n");
+        html.append(".badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 9px; }\n");
+        html.append(".badge-paid { background: #c8e6c9; color: #2e7d32; }\n");
+        html.append(".badge-pending { background: #fff3e0; color: #e65100; }\n");
+        html.append("</style>\n");
+        html.append("</head><body>\n");
+
+        // Header
+        html.append("<div class=\"header\">\n");
+        html.append("<div class=\"header-row\">\n");
+        html.append("<div class=\"header-left\">\n");
+        html.append("<h1>PAYMENT ADVICE</h1>\n");
+        html.append("<p><strong>To:</strong><br/>");
+        html.append(escapeHtml(advice.getOwnerName() != null ? advice.getOwnerName() : ""));
+        if (advice.getOwnerAddress() != null) {
+            html.append("<br/>").append(escapeHtml(advice.getOwnerAddress()));
+        }
+        if (advice.getOwnerEmail() != null) {
+            html.append("<br/>").append(escapeHtml(advice.getOwnerEmail()));
+        }
+        html.append("</p>\n");
+        html.append("</div>\n");
+        html.append("<div class=\"header-right\">\n");
+        html.append("<p><strong>From:</strong><br/>");
+        html.append(escapeHtml(advice.getAgencyName())).append("<br/>");
+        html.append("<small>Company No: ").append(escapeHtml(advice.getAgencyRegistrationNumber())).append("</small></p>\n");
+        html.append("<p><strong>Date:</strong> ").append(advice.getAdviceDate() != null ? advice.getAdviceDate().format(DateTimeFormatter.ofPattern("dd MMM yyyy")) : "").append("<br/>");
+        html.append("<strong>Reference:</strong> ").append(escapeHtml(advice.getBatchReference())).append("<br/>");
+        html.append("<strong>Status:</strong> <span class=\"badge badge-").append("PAID".equals(advice.getStatus()) ? "paid" : "pending").append("\">");
+        html.append(escapeHtml(advice.getStatus())).append("</span></p>\n");
+        html.append("</div>\n");
+        html.append("</div>\n");
+        html.append("</div>\n");
+
+        // Property breakdowns
+        for (PropertyBreakdownDTO property : advice.getProperties()) {
+            html.append("<div class=\"property-section\">\n");
+            html.append("<div class=\"property-header\">&#127968; ").append(escapeHtml(property.getPropertyName() != null ? property.getPropertyName() : "Unknown Property")).append("</div>\n");
+
+            // Receipts section
+            if (!property.getReceipts().isEmpty()) {
+                html.append("<div class=\"section-title\">&#8595; Receipts (Rent Received)</div>\n");
+                html.append("<table>\n");
+                html.append("<tr><th>Tenant</th><th>Date</th><th class=\"text-right\">Gross</th><th class=\"text-right\">Commission</th><th class=\"text-right\">Net</th></tr>\n");
+
+                for (ReceiptLineDTO receipt : property.getReceipts()) {
+                    html.append("<tr class=\"receipt-row\">");
+                    html.append("<td>").append(escapeHtml(receipt.getTenantName() != null ? receipt.getTenantName() : "")).append("</td>");
+                    html.append("<td>").append(receipt.getPaymentDate() != null ? receipt.getPaymentDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "").append("</td>");
+                    html.append("<td class=\"text-right\">").append(formatCurrency(receipt.getGrossAmount())).append("</td>");
+                    html.append("<td class=\"text-right text-danger\">").append(formatCurrency(receipt.getCommissionAmount())).append("</td>");
+                    html.append("<td class=\"text-right text-success\"><strong>").append(formatCurrency(receipt.getNetAmount())).append("</strong></td>");
+                    html.append("</tr>\n");
+                }
+
+                html.append("<tr class=\"total-row-green\">");
+                html.append("<td colspan=\"2\"><strong>Total Receipts</strong></td>");
+                html.append("<td class=\"text-right\"><strong>").append(formatCurrency(property.getTotalGrossReceipts())).append("</strong></td>");
+                html.append("<td class=\"text-right\"><strong>").append(formatCurrency(property.getTotalCommission())).append("</strong></td>");
+                html.append("<td class=\"text-right\"><strong>").append(formatCurrency(property.getTotalNetReceipts())).append("</strong></td>");
+                html.append("</tr>\n");
+                html.append("</table>\n");
+            }
+
+            // Deductions section
+            if (!property.getDeductions().isEmpty()) {
+                html.append("<div class=\"section-title expenses\">&#8593; Expenses &amp; Disbursements</div>\n");
+                html.append("<table>\n");
+                html.append("<tr><th>Type</th><th>Date</th><th>Description</th><th class=\"text-right\">Amount</th></tr>\n");
+
+                for (DeductionLineDTO deduction : property.getDeductions()) {
+                    boolean isReversal = deduction.getGrossAmount() != null && deduction.getGrossAmount().compareTo(BigDecimal.ZERO) < 0;
+                    html.append("<tr class=\"").append(isReversal ? "receipt-row" : "deduction-row").append("\">");
+                    html.append("<td>").append(escapeHtml(deduction.getType() != null ? deduction.getType() : "")).append("</td>");
+                    html.append("<td>").append(deduction.getTransactionDate() != null ? deduction.getTransactionDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) : "").append("</td>");
+                    html.append("<td>").append(escapeHtml(deduction.getDescription() != null ? deduction.getDescription() : "")).append("</td>");
+                    html.append("<td class=\"text-right ").append(isReversal ? "text-success" : "text-danger").append("\"><strong>");
+                    html.append(formatCurrency(deduction.getGrossAmount())).append("</strong></td>");
+                    html.append("</tr>\n");
+                }
+
+                html.append("<tr class=\"total-row-red\">");
+                html.append("<td colspan=\"3\"><strong>Total Expenses</strong></td>");
+                html.append("<td class=\"text-right\"><strong>").append(formatCurrency(property.getTotalDeductions())).append("</strong></td>");
+                html.append("</tr>\n");
+                html.append("</table>\n");
+            }
+
+            // Property balance
+            html.append("<table>\n");
+            html.append("<tr class=\"total-row\">");
+            html.append("<td colspan=\"3\"><strong>Property Balance (Net Receipts - Expenses)</strong></td>");
+            html.append("<td class=\"text-right\"><strong class=\"").append(property.getBalance().compareTo(BigDecimal.ZERO) >= 0 ? "text-success" : "text-danger").append("\">");
+            html.append(formatCurrency(property.getBalance())).append("</strong></td>");
+            html.append("</tr>\n");
+            html.append("</table>\n");
+
+            html.append("</div>\n");
+        }
+
+        // Settlement summary
+        html.append("<div class=\"settlement-summary\">\n");
+        html.append("<h2>Settlement Summary</h2>\n");
+        html.append("<table class=\"settlement-table\">\n");
+        html.append("<tr><td>Gross Income:</td><td class=\"text-right\">").append(formatCurrency(advice.getTotalGrossReceipts())).append("</td></tr>\n");
+        html.append("<tr><td>Less Commission:</td><td class=\"text-right\">(").append(formatCurrency(advice.getTotalCommission())).append(")</td></tr>\n");
+        html.append("<tr><td>Less Expenses:</td><td class=\"text-right\">(").append(formatCurrency(advice.getTotalExpenses())).append(")</td></tr>\n");
+        html.append("<tr style=\"border-top: 1px solid rgba(255,255,255,0.3);\"><td><strong>Net to Owner:</strong></td><td class=\"text-right\"><strong>").append(formatCurrency(advice.getTotalBalance())).append("</strong></td></tr>\n");
+        html.append("</table>\n");
+        html.append("<div class=\"amount-settled\">Amount Settled: ").append(formatCurrency(advice.getAmountSettled())).append("</div>\n");
+        if (advice.getPaymentMethod() != null) {
+            html.append("<p style=\"text-align: right; margin: 5px 0 0 0;\"><small>via ").append(escapeHtml(advice.getPaymentMethod())).append("</small></p>\n");
+        }
+        if (advice.getPaymentReference() != null) {
+            html.append("<p style=\"text-align: right; margin: 0;\"><small>Ref: ").append(escapeHtml(advice.getPaymentReference())).append("</small></p>\n");
+        }
+        html.append("</div>\n");
+
+        // Footer
+        html.append("<div class=\"footer\">\n");
+        html.append("<p>This payment advice was generated by ").append(escapeHtml(advice.getAgencyName())).append(". If you have any questions, please contact us.</p>\n");
+        html.append("</div>\n");
+
+        html.append("</body></html>");
+
+        return html.toString();
+    }
+
+    /**
+     * Escape HTML special characters for safe output.
+     */
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace("\"", "&quot;")
+                   .replace("'", "&#39;");
+    }
+
+    /**
+     * Format a BigDecimal as GBP currency.
+     */
+    private String formatCurrency(BigDecimal amount) {
+        if (amount == null) return "£0.00";
+        return String.format("£%,.2f", amount);
     }
 }
