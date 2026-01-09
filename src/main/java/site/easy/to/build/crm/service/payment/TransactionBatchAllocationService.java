@@ -89,6 +89,9 @@ public class TransactionBatchAllocationService {
     @Autowired
     private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
 
+    @Autowired
+    private site.easy.to.build.crm.repository.BlockRepository blockRepository;
+
     // ===== ALLOCATION CREATION =====
 
     /**
@@ -169,9 +172,26 @@ public class TransactionBatchAllocationService {
                                                         Long userId) {
         TransactionBatchAllocation allocation = new TransactionBatchAllocation(transaction, batchReference, amount);
 
-        // Set beneficiary info if available
+        // Determine allocation type to decide beneficiary
+        UnifiedAllocation.AllocationType allocationType = determineAllocationType(transaction, amount);
+
+        // Set beneficiary info based on allocation type
         Customer owner = getOwnerFromTransaction(transaction);
-        if (owner != null) {
+
+        if (allocationType == UnifiedAllocation.AllocationType.DISBURSEMENT) {
+            // For DISBURSEMENT (service charge to block), beneficiary is the block property
+            String blockPropertyName = getBlockPropertyNameForProperty(transaction.getProperty());
+            if (blockPropertyName != null) {
+                allocation.setBeneficiaryName(blockPropertyName);
+                log.debug("DISBURSEMENT allocation: set beneficiary to block property '{}'", blockPropertyName);
+            } else if (owner != null) {
+                // Fallback to owner if no block property found
+                allocation.setBeneficiaryId((long) owner.getCustomerId());
+                allocation.setBeneficiaryName(owner.getName());
+                log.warn("DISBURSEMENT allocation: no block property found, falling back to owner '{}'", owner.getName());
+            }
+        } else if (owner != null) {
+            // For other allocation types, beneficiary is the property owner
             allocation.setBeneficiaryId((long) owner.getCustomerId());
             allocation.setBeneficiaryName(owner.getName());
         }
@@ -180,11 +200,11 @@ public class TransactionBatchAllocationService {
 
         TransactionBatchAllocation saved = allocationRepository.save(allocation);
 
-        log.debug("Created allocation: transaction={}, batch={}, amount={}",
-                transaction.getId(), batchReference, amount);
+        log.debug("Created allocation: transaction={}, batch={}, amount={}, type={}",
+                transaction.getId(), batchReference, amount, allocationType);
 
         // Also create a UnifiedAllocation record for immediate statement visibility
-        createUnifiedAllocationFromHistorical(transaction, batchReference, amount, userId, saved.getId(), owner);
+        createUnifiedAllocationFromHistorical(transaction, batchReference, amount, userId, saved.getId(), owner, allocationType);
 
         return saved;
     }
@@ -198,7 +218,8 @@ public class TransactionBatchAllocationService {
                                                         BigDecimal amount,
                                                         Long userId,
                                                         Long sourceRecordId,
-                                                        Customer owner) {
+                                                        Customer owner,
+                                                        UnifiedAllocation.AllocationType allocationType) {
         try {
             UnifiedAllocation unified = new UnifiedAllocation();
 
@@ -209,9 +230,7 @@ public class TransactionBatchAllocationService {
             // This is critical for correct balance calculations
             unified.setAmount(amount);
 
-            // Determine allocation type based on category, transaction attributes, AND amount sign
-            // Negative amounts are ALWAYS expenses/disbursements, never OWNER
-            UnifiedAllocation.AllocationType allocationType = determineAllocationType(transaction, amount);
+            // Use the allocation type passed in (already determined by caller)
             unified.setAllocationType(allocationType);
 
             // For OWNER allocations (rent), populate gross/commission/net breakdown
@@ -267,11 +286,25 @@ public class TransactionBatchAllocationService {
                 unified.setInvoiceId(transaction.getInvoice().getId());
             }
 
-            // Beneficiary info
-            unified.setBeneficiaryType("OWNER");
-            if (owner != null) {
-                unified.setBeneficiaryId((long) owner.getCustomerId());
-                unified.setBeneficiaryName(owner.getName());
+            // Beneficiary info - depends on allocation type
+            if (allocationType == UnifiedAllocation.AllocationType.DISBURSEMENT) {
+                // For DISBURSEMENT (service charge to block), beneficiary is the block property
+                unified.setBeneficiaryType("BLOCK_PROPERTY");
+                String blockPropertyName = getBlockPropertyNameForProperty(transaction.getProperty());
+                if (blockPropertyName != null) {
+                    unified.setBeneficiaryName(blockPropertyName);
+                } else if (owner != null) {
+                    // Fallback to owner if no block property found
+                    unified.setBeneficiaryId((long) owner.getCustomerId());
+                    unified.setBeneficiaryName(owner.getName());
+                }
+            } else {
+                // For other allocation types, beneficiary is the property owner
+                unified.setBeneficiaryType("OWNER");
+                if (owner != null) {
+                    unified.setBeneficiaryId((long) owner.getCustomerId());
+                    unified.setBeneficiaryName(owner.getName());
+                }
             }
 
             // Payment tracking
@@ -819,6 +852,48 @@ public class TransactionBatchAllocationService {
                 return ownerAssignment.getCustomer();
             }
         }
+        return null;
+    }
+
+    /**
+     * Get the block property name for a property that belongs to a block.
+     * For service charge disbursements, this is the beneficiary (the block property receives the funds).
+     *
+     * @param property The flat/unit property
+     * @return The block property name, or null if property doesn't belong to a block
+     */
+    private String getBlockPropertyNameForProperty(Property property) {
+        if (property == null) {
+            return null;
+        }
+
+        // Check if property has a block assigned
+        if (property.getBlock() != null) {
+            Property blockProperty = property.getBlock().getBlockProperty();
+            if (blockProperty != null) {
+                return blockProperty.getPropertyName();
+            }
+        }
+
+        // Fallback: Try to find block by property name pattern (e.g., "Flat X - 3 West Gate" -> "Boden House Block")
+        // This handles cases where the block relationship isn't directly set
+        String propertyName = property.getPropertyName();
+        if (propertyName != null && propertyName.contains(" - ")) {
+            // Extract the address part (e.g., "3 West Gate" from "Flat 1 - 3 West Gate")
+            String addressPart = propertyName.substring(propertyName.lastIndexOf(" - ") + 3);
+
+            // Find blocks where properties have matching address patterns
+            for (site.easy.to.build.crm.entity.Block block : blockRepository.findAll()) {
+                if (block.getBlockProperty() != null) {
+                    // Check if block property name or any assigned properties match the address
+                    String blockPropertyName = block.getBlockProperty().getPropertyName();
+                    if (blockPropertyName != null && blockPropertyName.contains(addressPart)) {
+                        return blockPropertyName;
+                    }
+                }
+            }
+        }
+
         return null;
     }
 

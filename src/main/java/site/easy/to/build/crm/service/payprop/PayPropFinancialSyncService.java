@@ -2773,7 +2773,7 @@ public class PayPropFinancialSyncService {
             logger.info("💸 Starting expense payment sync from payprop_report_all_payments to financial_transactions");
 
             // Query expense payments from payprop_report_all_payments
-            // Categories: Council (council tax), Disbursement (service charges), Other (utilities)
+            // Categories: Council (council tax), Disbursement (service charges), Contractor, Other (utilities)
             // Exclude Owner and Commission which are handled separately
             String query = """
                 SELECT
@@ -2784,7 +2784,7 @@ public class PayPropFinancialSyncService {
                     payment_batch_id, payment_batch_transfer_date,
                     reconciliation_date
                 FROM payprop_report_all_payments
-                WHERE category_name IN ('Council', 'Disbursement', 'Other')
+                WHERE category_name IN ('Council', 'Disbursement', 'Contractor', 'Other')
                 AND amount != 0
                 ORDER BY due_date DESC
                 """;

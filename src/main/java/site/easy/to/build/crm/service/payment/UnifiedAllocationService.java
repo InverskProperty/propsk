@@ -51,6 +51,9 @@ public class UnifiedAllocationService {
     @Autowired
     private PaymentBatchRepository paymentBatchRepository;
 
+    @Autowired
+    private site.easy.to.build.crm.repository.BlockRepository blockRepository;
+
     // ===== ALLOCATION CREATION =====
 
     /**
@@ -440,17 +443,37 @@ public class UnifiedAllocationService {
             allocation.setInvoiceId(transaction.getInvoiceId());
         }
 
-        // Beneficiary info - always the property owner for allocations
-        allocation.setBeneficiaryType("OWNER");
-        if (transaction.getPropertyId() != null) {
-            propertyRepository.findById(transaction.getPropertyId()).ifPresent(property -> {
-                if (property.getPropertyOwnerId() != null) {
-                    allocation.setBeneficiaryId(property.getPropertyOwnerId());
-                    customerRepository.findById(property.getPropertyOwnerId()).ifPresent(owner -> {
-                        allocation.setBeneficiaryName(owner.getName());
-                    });
-                }
-            });
+        // Beneficiary info - depends on allocation type
+        if (allocationType == AllocationType.DISBURSEMENT) {
+            // For DISBURSEMENT (service charge to block), beneficiary is the block property
+            allocation.setBeneficiaryType("BLOCK_PROPERTY");
+            if (transaction.getPropertyId() != null) {
+                propertyRepository.findById(transaction.getPropertyId()).ifPresent(property -> {
+                    String blockPropertyName = getBlockPropertyNameForProperty(property);
+                    if (blockPropertyName != null) {
+                        allocation.setBeneficiaryName(blockPropertyName);
+                    } else if (property.getPropertyOwnerId() != null) {
+                        // Fallback to owner if no block property found
+                        allocation.setBeneficiaryId(property.getPropertyOwnerId());
+                        customerRepository.findById(property.getPropertyOwnerId()).ifPresent(owner -> {
+                            allocation.setBeneficiaryName(owner.getName());
+                        });
+                    }
+                });
+            }
+        } else {
+            // For other allocation types, beneficiary is the property owner
+            allocation.setBeneficiaryType("OWNER");
+            if (transaction.getPropertyId() != null) {
+                propertyRepository.findById(transaction.getPropertyId()).ifPresent(property -> {
+                    if (property.getPropertyOwnerId() != null) {
+                        allocation.setBeneficiaryId(property.getPropertyOwnerId());
+                        customerRepository.findById(property.getPropertyOwnerId()).ifPresent(owner -> {
+                            allocation.setBeneficiaryName(owner.getName());
+                        });
+                    }
+                });
+            }
         }
 
         // Payment tracking
@@ -928,5 +951,47 @@ public class UnifiedAllocationService {
         public BigDecimal getOriginalPaymentAmount() { return originalPaymentAmount; }
         public String getStatus() { return status; }
         public LocalDate getPaymentDate() { return paymentDate; }
+    }
+
+    // ===== HELPER: Block Property Name =====
+
+    /**
+     * Get the block property name for a property that belongs to a block.
+     * For service charge disbursements, this is the beneficiary (the block property receives the funds).
+     *
+     * @param property The flat/unit property
+     * @return The block property name, or null if property doesn't belong to a block
+     */
+    private String getBlockPropertyNameForProperty(Property property) {
+        if (property == null) {
+            return null;
+        }
+
+        // Check if property has a block assigned
+        if (property.getBlock() != null) {
+            Property blockProperty = property.getBlock().getBlockProperty();
+            if (blockProperty != null) {
+                return blockProperty.getPropertyName();
+            }
+        }
+
+        // Fallback: Try to find block by property name pattern (e.g., "Flat X - 3 West Gate" -> "Boden House Block")
+        String propertyName = property.getPropertyName();
+        if (propertyName != null && propertyName.contains(" - ")) {
+            // Extract the address part (e.g., "3 West Gate" from "Flat 1 - 3 West Gate")
+            String addressPart = propertyName.substring(propertyName.lastIndexOf(" - ") + 3);
+
+            // Find blocks where properties have matching address patterns
+            for (Block block : blockRepository.findAll()) {
+                if (block.getBlockProperty() != null) {
+                    String blockPropertyName = block.getBlockProperty().getPropertyName();
+                    if (blockPropertyName != null && blockPropertyName.contains(addressPart)) {
+                        return blockPropertyName;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 }
