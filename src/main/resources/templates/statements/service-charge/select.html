@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-building text-primary"></i> Service Charge Statement
+                    </h4>
+                    <p class="text-muted">Generate statements for block property accounts</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <a href="/owner/payment-advice" class="btn btn-secondary">
+                        <i class="fas fa-file-invoice-dollar"></i> Payment Advice
+                    </a>
+                </div>
+            </div>
+
+            <!-- Messages -->
+            <div th:if="${error}" class="row">
+                <div class="col-12">
+                    <div class="alert alert-danger alert-dismissible">
+                        <button type="button" class="close" data-dismiss="alert">&times;</button>
+                        <i class="fas fa-exclamation-triangle"></i> <span th:text="${error}">Error</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row justify-content-center">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="card-title text-white mb-0">
+                                <i class="fas fa-filter"></i> Generate Statement
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <form th:action="@{/statements/service-charge/view}" method="get" id="statementForm">
+
+                                <!-- Block Selection -->
+                                <div class="form-group">
+                                    <label for="blockId"><strong>Block Property</strong></label>
+                                    <select name="blockId" id="blockId" class="form-control select2" required>
+                                        <option value="">-- Select a Block --</option>
+                                        <option th:each="block : ${blocks}"
+                                                th:value="${block.id}"
+                                                th:text="${block.name} + ' - ' + ${block.blockProperty?.propertyName}">
+                                            Block Name
+                                        </option>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        Select the block to generate a statement for
+                                    </small>
+                                </div>
+
+                                <!-- Period Selection -->
+                                <div class="form-group">
+                                    <label><strong>Statement Period</strong></label>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label for="periodStart">From</label>
+                                            <input type="date" name="periodStart" id="periodStart"
+                                                   class="form-control" required
+                                                   th:value="${defaultStart}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="periodEnd">To</label>
+                                            <input type="date" name="periodEnd" id="periodEnd"
+                                                   class="form-control" required
+                                                   th:value="${defaultEnd}">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Quick Period Buttons -->
+                                <div class="form-group">
+                                    <label>Quick Select</label>
+                                    <div class="btn-group btn-group-sm d-flex" role="group">
+                                        <button type="button" class="btn btn-outline-secondary" onclick="setThisMonth()">
+                                            This Month
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="setLastMonth()">
+                                            Last Month
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="setThisQuarter()">
+                                            This Quarter
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="setThisYear()">
+                                            This Year
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <hr>
+
+                                <!-- Submit Buttons -->
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-eye"></i> View Statement
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-lg" onclick="downloadPdf()">
+                                        <i class="fas fa-file-pdf"></i> Download PDF
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Info Card -->
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="card-title text-white mb-0">
+                                <i class="fas fa-info-circle"></i> About Service Charge Statements
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Service Charge Statements show the financial activity for a block property account:</p>
+                            <ul class="mb-0">
+                                <li><strong>Opening Balance</strong> - Balance at the start of the period</li>
+                                <li><strong>Income</strong> - Service charge payments received</li>
+                                <li><strong>Expenses</strong> - Block expenses paid (utilities, maintenance, etc.)</li>
+                                <li><strong>Closing Balance</strong> - Balance at the end of the period</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}"></div>
+</div>
+
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/custom.js}"></script>
+<script>
+    $(document).ready(function() {
+        $('.select2').select2({
+            placeholder: 'Select a block',
+            allowClear: true
+        });
+    });
+
+    function setThisMonth() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = now;
+        document.getElementById('periodStart').value = formatDate(start);
+        document.getElementById('periodEnd').value = formatDate(end);
+    }
+
+    function setLastMonth() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(now.getFullYear(), now.getMonth(), 0);
+        document.getElementById('periodStart').value = formatDate(start);
+        document.getElementById('periodEnd').value = formatDate(end);
+    }
+
+    function setThisQuarter() {
+        const now = new Date();
+        const quarter = Math.floor(now.getMonth() / 3);
+        const start = new Date(now.getFullYear(), quarter * 3, 1);
+        const end = now;
+        document.getElementById('periodStart').value = formatDate(start);
+        document.getElementById('periodEnd').value = formatDate(end);
+    }
+
+    function setThisYear() {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), 0, 1);
+        const end = now;
+        document.getElementById('periodStart').value = formatDate(start);
+        document.getElementById('periodEnd').value = formatDate(end);
+    }
+
+    function formatDate(date) {
+        return date.toISOString().split('T')[0];
+    }
+
+    function downloadPdf() {
+        const blockId = document.getElementById('blockId').value;
+        const periodStart = document.getElementById('periodStart').value;
+        const periodEnd = document.getElementById('periodEnd').value;
+
+        if (!blockId) {
+            alert('Please select a block');
+            return;
+        }
+        if (!periodStart || !periodEnd) {
+            alert('Please select a period');
+            return;
+        }
+
+        window.location.href = '/statements/service-charge/pdf?blockId=' + blockId +
+            '&periodStart=' + periodStart + '&periodEnd=' + periodEnd;
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+<style>
+    .statement-header {
+        background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    .summary-box {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 4px solid #3498db;
+    }
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .summary-row:last-child {
+        border-bottom: none;
+    }
+    .summary-row.total {
+        border-top: 2px solid #333;
+        margin-top: 10px;
+        padding-top: 15px;
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+    .opening-balance-row {
+        background-color: #e3f2fd !important;
+        font-weight: bold;
+    }
+    .closing-balance-row {
+        background-color: #e8f5e9 !important;
+        font-weight: bold;
+    }
+    .totals-row {
+        background-color: #fff3cd !important;
+        font-weight: bold;
+    }
+    .income-amount {
+        color: #28a745;
+    }
+    .expense-amount {
+        color: #dc3545;
+    }
+    .balance-positive {
+        color: #28a745;
+    }
+    .balance-negative {
+        color: #dc3545;
+    }
+    @media print {
+        .no-print { display: none !important; }
+        .page-wrapper { margin: 0; padding: 0; }
+        .statement-header { background: #2c3e50 !important; -webkit-print-color-adjust: exact; }
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}" class="no-print"></div>
+    <div th:replace="~{general/left-sidebar.html}" class="no-print"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb - No Print -->
+            <div class="row page-titles no-print">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-building text-primary"></i> Service Charge Statement
+                    </h4>
+                    <p class="text-muted" th:text="${statement.blockName}">Block Name</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <a th:href="@{/statements/service-charge}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                    <button onclick="window.print()" class="btn btn-info">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                    <a th:href="@{/statements/service-charge/pdf(blockId=${blockId}, periodStart=${periodStart}, periodEnd=${periodEnd})}"
+                       class="btn btn-danger">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </a>
+                </div>
+            </div>
+
+            <!-- Statement Header -->
+            <div class="statement-header">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h2 class="mb-3">SERVICE CHARGE STATEMENT</h2>
+                        <div class="mb-2">
+                            <strong>Block:</strong> <span th:text="${statement.blockName}">Block Name</span><br>
+                            <strong>Property:</strong> <span th:text="${statement.blockPropertyName}">Block Property Name</span><br>
+                            <span th:if="${statement.serviceChargePayer}">
+                                <strong>Service Charge Payer:</strong> <span th:text="${statement.serviceChargePayer}">Payer Name</span>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-right">
+                        <div class="mb-2">
+                            <strong>From:</strong><br>
+                            <span th:text="${statement.agencyName}">Propsk Ltd</span><br>
+                            <small th:text="'Company No: ' + ${statement.agencyRegistrationNumber}">15933011</small><br>
+                            <small th:text="${statement.agencyAddress}">Address</small>
+                        </div>
+                        <hr style="border-color: rgba(255,255,255,0.3);">
+                        <div>
+                            <strong>Statement Date:</strong> <span th:text="${#temporals.format(statement.statementDate, 'dd/MM/yyyy')}">01/01/2026</span><br>
+                            <strong>Period:</strong>
+                            <span th:text="${#temporals.format(statement.periodStart, 'dd/MM/yyyy')}">01/11/2025</span> -
+                            <span th:text="${#temporals.format(statement.periodEnd, 'dd/MM/yyyy')}">09/01/2026</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Summary Box -->
+                <div class="col-lg-4">
+                    <div class="summary-box">
+                        <h5 class="mb-3"><i class="fas fa-calculator"></i> Summary</h5>
+                        <div class="summary-row">
+                            <span>Opening Balance</span>
+                            <span th:text="'£' + ${#numbers.formatDecimal(statement.openingBalance, 1, 2)}">£0.00</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Total Income</span>
+                            <span class="income-amount" th:text="'£' + ${#numbers.formatDecimal(statement.totalIncome, 1, 2)}">£4,780.00</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Total Expenses</span>
+                            <span class="expense-amount" th:text="'(£' + ${#numbers.formatDecimal(statement.totalExpenses, 1, 2)} + ')'">£4,000.00</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Closing Balance</span>
+                            <span th:classappend="${statement.closingBalance.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'balance-positive' : 'balance-negative'"
+                                  th:text="'£' + ${#numbers.formatDecimal(statement.closingBalance, 1, 2)}">£780.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transaction Table -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header bg-dark text-white">
+                            <h5 class="card-title text-white mb-0">
+                                <i class="fas fa-list"></i> Transaction Details
+                                <span class="badge badge-light" th:text="${#lists.size(statement.transactions)}">0</span>
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover mb-0">
+                                    <thead class="thead-dark">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Description</th>
+                                            <th>Category</th>
+                                            <th class="text-right">In</th>
+                                            <th class="text-right">Out</th>
+                                            <th class="text-right">Balance</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Opening Balance Row -->
+                                        <tr class="opening-balance-row">
+                                            <td></td>
+                                            <td colspan="2"><strong>Opening Balance</strong></td>
+                                            <td></td>
+                                            <td></td>
+                                            <td class="text-right"
+                                                th:text="'£' + ${#numbers.formatDecimal(statement.openingBalance, 1, 2)}">
+                                                £0.00
+                                            </td>
+                                        </tr>
+
+                                        <!-- Transaction Rows -->
+                                        <tr th:each="txn : ${statement.transactions}">
+                                            <td th:text="${#temporals.format(txn.transactionDate, 'dd/MM/yyyy')}">01/01/2026</td>
+                                            <td th:text="${txn.description}">Description</td>
+                                            <td>
+                                                <span th:if="${txn.category != null and txn.category != ''}"
+                                                      th:text="${txn.category}"
+                                                      th:class="${txn.income ? 'badge badge-success' : 'badge badge-warning'}">
+                                                    Category
+                                                </span>
+                                            </td>
+                                            <td class="text-right income-amount"
+                                                th:if="${txn.income}"
+                                                th:text="'£' + ${#numbers.formatDecimal(txn.amountIn, 1, 2)}">
+                                                £100.00
+                                            </td>
+                                            <td class="text-right" th:unless="${txn.income}"></td>
+                                            <td class="text-right" th:if="${txn.income}"></td>
+                                            <td class="text-right expense-amount"
+                                                th:unless="${txn.income}"
+                                                th:text="'£' + ${#numbers.formatDecimal(txn.amountOut, 1, 2)}">
+                                                £50.00
+                                            </td>
+                                            <td class="text-right"
+                                                th:classappend="${txn.runningBalance.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'balance-positive' : 'balance-negative'"
+                                                th:text="'£' + ${#numbers.formatDecimal(txn.runningBalance, 1, 2)}">
+                                                £50.00
+                                            </td>
+                                        </tr>
+
+                                        <!-- Totals Row -->
+                                        <tr class="totals-row">
+                                            <td></td>
+                                            <td colspan="2"><strong>Totals</strong></td>
+                                            <td class="text-right income-amount">
+                                                <strong th:text="'£' + ${#numbers.formatDecimal(statement.totalIncome, 1, 2)}">
+                                                    £4,780.00
+                                                </strong>
+                                            </td>
+                                            <td class="text-right expense-amount">
+                                                <strong th:text="'£' + ${#numbers.formatDecimal(statement.totalExpenses, 1, 2)}">
+                                                    £4,000.00
+                                                </strong>
+                                            </td>
+                                            <td></td>
+                                        </tr>
+
+                                        <!-- Closing Balance Row -->
+                                        <tr class="closing-balance-row">
+                                            <td></td>
+                                            <td colspan="2"><strong>Closing Balance</strong></td>
+                                            <td></td>
+                                            <td></td>
+                                            <td class="text-right"
+                                                th:classappend="${statement.closingBalance.compareTo(T(java.math.BigDecimal).ZERO) >= 0} ? 'balance-positive' : 'balance-negative'"
+                                                th:text="'£' + ${#numbers.formatDecimal(statement.closingBalance, 1, 2)}">
+                                                £780.00
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- No Activity Message -->
+            <div th:if="${!statement.hasActivity() and statement.openingBalance.compareTo(T(java.math.BigDecimal).ZERO) == 0}"
+                 class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                No transactions found for this block property in the selected period.
+            </div>
+
+            <!-- Footer Note -->
+            <div class="text-center text-muted mt-4 mb-4">
+                <p>
+                    <small>
+                        This statement was generated by <span th:text="${statement.agencyName}">Propsk Ltd</span>.
+                        If you have any questions, please contact us.
+                    </small>
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <div th:replace="~{general/footer.html}" class="no-print"></div>
+</div>
+
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/custom.js}"></script>
+</body>
+</html>
