@@ -27,6 +27,7 @@ public interface CustomerPropertyAssignmentRepository extends JpaRepository<Cust
 
     // ✅ ADDED: Missing methods from paste.txt
     List<CustomerPropertyAssignment> findByCustomerCustomerIdAndAssignmentType(Long customerId, AssignmentType assignmentType);
+
     
     // Count assignments by type
     @Query("SELECT COUNT(cpa) FROM CustomerPropertyAssignment cpa WHERE cpa.assignmentType = :assignmentType")

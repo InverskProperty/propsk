@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Documents</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .expense-card {
+            transition: all 0.3s ease;
+            border-left: 4px solid #dc3545;
+        }
+        .expense-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .has-receipt { border-left-color: #28a745; }
+        .has-invoice { border-left-color: #007bff; }
+        .stat-card {
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+        }
+        .stat-card.total { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); }
+        .stat-card.count { background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); }
+        .stat-card.receipts { background: linear-gradient(135deg, #28a745 0%, #218838 100%); }
+        .stat-card.invoices { background: linear-gradient(135deg, #007bff 0%, #0069d9 100%); }
+        .stat-card h3 { font-size: 2rem; margin-bottom: 5px; }
+        .stat-card p { margin: 0; opacity: 0.9; }
+        .doc-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .property-filter {
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 20px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            transition: all 0.2s;
+        }
+        .property-filter:hover, .property-filter.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2><i class="fas fa-file-invoice-dollar text-danger"></i> Expense Documents</h2>
+                        <p class="text-muted mb-0">View and download invoices and receipts for property expenses</p>
+                    </div>
+                    <div>
+                        <a href="/customer/portal/dashboard" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Back to Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stat-card total">
+                    <h3 th:text="${#numbers.formatCurrency(totalExpenses)}">£0.00</h3>
+                    <p><i class="fas fa-pound-sign"></i> Total Expenses</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card count">
+                    <h3 th:text="${expenseCount}">0</h3>
+                    <p><i class="fas fa-list"></i> Total Transactions</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card receipts">
+                    <h3 th:text="${receiptsCount}">0</h3>
+                    <p><i class="fas fa-receipt"></i> With Receipts</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card invoices">
+                    <h3 th:text="${invoicesCount}">0</h3>
+                    <p><i class="fas fa-file-invoice"></i> With Invoices</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Property Filter -->
+        <div class="row mb-4" th:if="${#lists.size(properties) > 1}">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="mb-3"><i class="fas fa-filter"></i> Filter by Property</h6>
+                        <div class="d-flex flex-wrap">
+                            <span class="property-filter active" data-property-id="all">
+                                <i class="fas fa-building"></i> All Properties
+                            </span>
+                            <span class="property-filter" th:each="property : ${properties}"
+                                  th:data-property-id="${property.id}"
+                                  th:text="${property.propertyName}">
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Expenses List -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-list-alt"></i> Property Expenses</h5>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary active" data-view="list">
+                                    <i class="fas fa-list"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" data-view="grid">
+                                    <i class="fas fa-th"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div th:if="${#lists.isEmpty(expenses)}" class="text-center py-5">
+                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No expenses found for your properties</p>
+                        </div>
+
+                        <div th:unless="${#lists.isEmpty(expenses)}" class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Property</th>
+                                        <th>Description</th>
+                                        <th>Category</th>
+                                        <th class="text-end">Amount</th>
+                                        <th>Documents</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="expense : ${expenses}"
+                                        th:data-property-id="${expense.propertyId}"
+                                        th:classappend="${expense.hasReceipt ? 'table-success' : (expense.hasInvoice ? 'table-info' : '')}">
+                                        <td>
+                                            <span th:text="${#temporals.format(expense.date, 'dd MMM yyyy')}">01 Jan 2024</span>
+                                        </td>
+                                        <td>
+                                            <a th:href="@{/customer/expense-documents/property/{id}(id=${expense.propertyId})}"
+                                               class="text-decoration-none">
+                                                <i class="fas fa-building text-muted"></i>
+                                                <span th:text="${expense.propertyName}">Property Name</span>
+                                            </a>
+                                        </td>
+                                        <td th:text="${expense.description}">Expense description</td>
+                                        <td>
+                                            <span class="badge bg-secondary" th:text="${expense.category}">Category</span>
+                                        </td>
+                                        <td class="text-end">
+                                            <strong class="text-danger"
+                                                    th:text="${#numbers.formatCurrency(expense.amount?.abs())}">£0.00</strong>
+                                        </td>
+                                        <td>
+                                            <span th:if="${expense.hasReceipt}" class="doc-badge badge bg-success me-1">
+                                                <i class="fas fa-receipt"></i> Receipt
+                                            </span>
+                                            <span th:if="${expense.hasInvoice}" class="doc-badge badge bg-primary">
+                                                <i class="fas fa-file-invoice"></i> Invoice
+                                            </span>
+                                            <span th:unless="${expense.hasReceipt or expense.hasInvoice}"
+                                                  class="doc-badge badge bg-light text-muted">
+                                                No docs
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <!-- Download Invoice PDF (always available - generated on demand) -->
+                                                <a th:href="@{/customer/expense-documents/invoice/{id}/pdf(id=${expense.transactionId})}"
+                                                   class="btn btn-outline-primary" title="Download Invoice PDF">
+                                                    <i class="fas fa-file-pdf"></i>
+                                                </a>
+                                                <!-- View Invoice -->
+                                                <a th:href="@{/customer/expense-documents/invoice/{id}/view(id=${expense.transactionId})}"
+                                                   class="btn btn-outline-secondary" title="View Invoice" target="_blank">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <!-- View Documents (if any attached) -->
+                                                <button th:if="${expense.documentCount > 0}"
+                                                        class="btn btn-outline-info"
+                                                        onclick="showDocuments(this)"
+                                                        th:data-transaction-id="${expense.transactionId}"
+                                                        title="View Attached Documents">
+                                                    <i class="fas fa-paperclip"></i>
+                                                    <span class="badge bg-info" th:text="${expense.documentCount}">0</span>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Documents Modal -->
+    <div class="modal fade" id="documentsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-paperclip"></i> Attached Documents</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="documentsLoading" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="documentsList" class="d-none">
+                        <!-- Documents will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Property filter
+        document.querySelectorAll('.property-filter').forEach(filter => {
+            filter.addEventListener('click', function() {
+                document.querySelectorAll('.property-filter').forEach(f => f.classList.remove('active'));
+                this.classList.add('active');
+
+                const propertyId = this.getAttribute('data-property-id');
+                filterByProperty(propertyId);
+            });
+        });
+
+        function filterByProperty(propertyId) {
+            const rows = document.querySelectorAll('tbody tr[data-property-id]');
+            rows.forEach(row => {
+                if (propertyId === 'all' || row.getAttribute('data-property-id') === propertyId) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Show documents modal
+        function showDocuments(button) {
+            const transactionId = button.getAttribute('data-transaction-id');
+            const modal = new bootstrap.Modal(document.getElementById('documentsModal'));
+
+            document.getElementById('documentsLoading').classList.remove('d-none');
+            document.getElementById('documentsList').classList.add('d-none');
+
+            modal.show();
+
+            // Fetch documents
+            fetch(`/customer/expense-documents/api/transaction/${transactionId}/documents`)
+                .then(response => response.json())
+                .then(documents => {
+                    const listDiv = document.getElementById('documentsList');
+                    listDiv.innerHTML = '';
+
+                    if (documents.length === 0) {
+                        listDiv.innerHTML = '<p class="text-muted text-center">No documents attached</p>';
+                    } else {
+                        documents.forEach(doc => {
+                            const docHtml = `
+                                <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
+                                    <div>
+                                        <i class="fas ${doc.documentType === 'RECEIPT' ? 'fa-receipt text-success' : 'fa-file-invoice text-primary'}"></i>
+                                        <span class="ms-2">${doc.documentDescription || doc.displayType}</span>
+                                        <br>
+                                        <small class="text-muted">${doc.vendorName || ''}</small>
+                                    </div>
+                                    <div>
+                                        ${doc.hasReceipt ? `<a href="/customer/expense-documents/receipt/${doc.documentId}/download" class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i></a>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                            listDiv.innerHTML += docHtml;
+                        });
+                    }
+
+                    document.getElementById('documentsLoading').classList.add('d-none');
+                    document.getElementById('documentsList').classList.remove('d-none');
+                })
+                .catch(error => {
+                    console.error('Error loading documents:', error);
+                    document.getElementById('documentsLoading').innerHTML = '<p class="text-danger">Error loading documents</p>';
+                });
+        }
+    </script>
+</body>
+</html>

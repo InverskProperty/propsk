@@ -229,9 +229,21 @@ public class UnifiedFinancialDataService {
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // COMMISSIONS (calculated from rent received × property commission percentage)
-        BigDecimal commissionPercentage = property.getCommissionPercentage() != null
-            ? property.getCommissionPercentage()
-            : BigDecimal.valueOf(15.0); // Default to 15% if not set
+        // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
+        // This aligns with Option C Excel statement generator behavior
+        boolean isBlockProperty = Boolean.TRUE.equals(property.getIsBlockProperty()) ||
+                                  "BLOCK".equalsIgnoreCase(property.getPropertyType());
+
+        BigDecimal commissionPercentage;
+        if (isBlockProperty) {
+            // Block properties ALWAYS have 0% commission regardless of stored value
+            commissionPercentage = BigDecimal.ZERO;
+            log.debug("Block property {} - forcing 0% commission (communal funds, not rent)", property.getId());
+        } else {
+            commissionPercentage = property.getCommissionPercentage() != null
+                ? property.getCommissionPercentage()
+                : BigDecimal.valueOf(15.0); // Default to 15% if not set
+        }
 
         BigDecimal totalCommissions = rentReceived
             .multiply(commissionPercentage)

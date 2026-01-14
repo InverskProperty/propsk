@@ -29,6 +29,11 @@ public interface UnifiedTransactionRepository extends JpaRepository<UnifiedTrans
     List<UnifiedTransaction> findByPropertyId(Long propertyId);
 
     /**
+     * Find transactions by property ID and flow direction (for expense document service)
+     */
+    List<UnifiedTransaction> findByPropertyIdAndFlowDirection(Long propertyId, UnifiedTransaction.FlowDirection flowDirection);
+
+    /**
      * Find transactions by customer ID
      */
     List<UnifiedTransaction> findByCustomerId(Long customerId);

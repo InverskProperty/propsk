@@ -57,7 +57,9 @@ public class SharedDriveFileService {
         "EICR",
         "EPC",
         "Insurance",
-        "Miscellaneous"
+        "Miscellaneous",
+        "Expense Invoices",
+        "Receipts"
     );
 
     // Tenant/Lease document subfolders (within each tenant folder)
@@ -992,6 +994,8 @@ public class SharedDriveFileService {
             case "EPC": return "Energy Performance Certificates";
             case "Insurance": return "Insurance documents and policies";
             case "Miscellaneous": return "Other property-related documents";
+            case "Expense Invoices": return "Generated expense invoices for property costs";
+            case "Receipts": return "Uploaded receipts and vendor invoices";
             default: return "Property documents";
         }
     }

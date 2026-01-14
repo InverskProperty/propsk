@@ -116,6 +116,10 @@ public class PropertyFinancialSummaryService {
      * CENTRALIZED CLASSIFICATION LOGIC - SINGLE SOURCE OF TRUTH
      *
      * Determines if a transaction is RENT/INCOME
+     *
+     * For BLOCK PROPERTIES: Income represents communal service charge funds,
+     * not traditional rent. These are still classified as "income" but will
+     * have 0% commission applied (see getPropertySummary).
      */
     public boolean isRentTransaction(UnifiedTransaction tx) {
         if (tx.getFlowDirection() != UnifiedTransaction.FlowDirection.INCOMING) {
@@ -128,7 +132,41 @@ public class PropertyFinancialSummaryService {
         String typeLower = type.toLowerCase();
         return typeLower.contains("rent") ||
                typeLower.contains("income") ||
-               typeLower.contains("payment");
+               typeLower.contains("payment") ||
+               typeLower.contains("incoming");
+    }
+
+    /**
+     * Check if a transaction is related to a block property.
+     * Block property income is communal service charge funds, not rent.
+     */
+    public boolean isBlockPropertyTransaction(UnifiedTransaction tx) {
+        // Check if the transaction has block property indicators
+        String category = tx.getCategory();
+        String description = tx.getDescription();
+
+        // Category-based detection
+        if (category != null) {
+            String catLower = category.toLowerCase();
+            if (catLower.contains("block") ||
+                catLower.contains("service_charge") ||
+                catLower.contains("communal") ||
+                catLower.equals("property_account_allocation")) {
+                return true;
+            }
+        }
+
+        // Description-based detection
+        if (description != null) {
+            String descLower = description.toLowerCase();
+            if (descLower.contains("block property") ||
+                descLower.contains("service charge") ||
+                descLower.contains("communal")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -278,9 +316,21 @@ public class PropertyFinancialSummaryService {
         }
 
         // CALCULATE commission from percentage, not from transactions
-        BigDecimal commissionPercentage = property.getCommissionPercentage() != null
-            ? property.getCommissionPercentage()
-            : BigDecimal.valueOf(15.0); // Default to 15% if not set
+        // BLOCK PROPERTY: No commission for block properties (they're communal funds, not rent)
+        // This aligns with Option C Excel statement generator behavior
+        boolean isBlockProperty = Boolean.TRUE.equals(property.getIsBlockProperty()) ||
+                                  "BLOCK".equalsIgnoreCase(property.getPropertyType());
+
+        BigDecimal commissionPercentage;
+        if (isBlockProperty) {
+            // Block properties ALWAYS have 0% commission regardless of stored value
+            commissionPercentage = BigDecimal.ZERO;
+            log.debug("Block property {} - forcing 0% commission (communal funds, not rent)", propertyId);
+        } else {
+            commissionPercentage = property.getCommissionPercentage() != null
+                ? property.getCommissionPercentage()
+                : BigDecimal.valueOf(15.0); // Default to 15% if not set
+        }
 
         BigDecimal totalCommission = totalRent
             .multiply(commissionPercentage)

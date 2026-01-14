@@ -124,14 +124,33 @@ public class StatementTransactionDto {
 
     /**
      * Check if this is a rent payment (incoming)
+     *
+     * ALIGNED WITH PropertyFinancialSummaryService.isRentTransaction()
+     * For BLOCK PROPERTIES: Income represents communal service charge funds,
+     * not traditional rent. These are still classified as "income" but will
+     * have 0% commission applied at the property level.
      */
     public boolean isRentPayment() {
-        return "invoice".equalsIgnoreCase(transactionType) ||
-               "payment".equalsIgnoreCase(transactionType) ||
-               "incoming_payment".equalsIgnoreCase(transactionType) ||  // PayProp incoming payments
-               "rent_received".equalsIgnoreCase(transactionType) ||     // Historical rent received
-               "tenant_payment".equalsIgnoreCase(transactionType) ||    // Alternative tenant payment type
-               "rent".equalsIgnoreCase(category);
+        // Exact match checks (for performance on common types)
+        if ("invoice".equalsIgnoreCase(transactionType) ||
+            "payment".equalsIgnoreCase(transactionType) ||
+            "incoming_payment".equalsIgnoreCase(transactionType) ||  // PayProp incoming payments
+            "rent_received".equalsIgnoreCase(transactionType) ||     // Historical rent received
+            "tenant_payment".equalsIgnoreCase(transactionType) ||    // Alternative tenant payment type
+            "rent".equalsIgnoreCase(category)) {
+            return true;
+        }
+
+        // Partial match checks (aligned with PropertyFinancialSummaryService)
+        if (transactionType != null) {
+            String typeLower = transactionType.toLowerCase();
+            return typeLower.contains("rent") ||
+                   typeLower.contains("income") ||
+                   typeLower.contains("payment") ||
+                   typeLower.contains("incoming");
+        }
+
+        return false;
     }
 
     /**
