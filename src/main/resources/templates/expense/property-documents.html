@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<div th:insert="~{general/head.html}"></div>
+<meta name="_csrf" th:content="${_csrf.token}"/>
+<meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+
+<link th:href="@{/css/dataTables.bootstrap4.css}" rel="stylesheet">
+<link th:href="@{/css/style.min.css}" rel="stylesheet">
+
+<style>
+    .expense-card {
+        border-left: 4px solid #dc3545;
+        transition: all 0.2s;
+    }
+    .expense-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .expense-card.has-receipt {
+        border-left-color: #28a745;
+    }
+    .expense-card.has-invoice {
+        border-left-color: #007bff;
+    }
+    .upload-zone {
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        background: #f8f9fa;
+        transition: all 0.2s;
+    }
+    .upload-zone:hover {
+        border-color: #007bff;
+        background: #e3f2fd;
+    }
+    .upload-zone.dragover {
+        border-color: #28a745;
+        background: #e8f5e9;
+    }
+    .doc-badge {
+        font-size: 0.75rem;
+    }
+</style>
+
+</head>
+
+<body class="skin-blue fixed-layout">
+<div class="preloader">
+    <div class="loader">
+        <div class="loader__figure"></div>
+        <p class="loader__label">CRM</p>
+    </div>
+</div>
+
+<div id="main-wrapper">
+    <div th:replace="~{general/header.html}"></div>
+    <div th:replace="~{general/left-sidebar.html}"></div>
+
+    <div class="page-wrapper">
+        <div class="container-fluid">
+            <!-- Breadcrumb -->
+            <div class="row page-titles">
+                <div class="col-md-6 align-self-center">
+                    <h4 class="text-themecolor">
+                        <i class="fas fa-file-invoice-dollar text-danger"></i>
+                        Expense Documents - <span th:text="${property.propertyName}">Property</span>
+                    </h4>
+                    <p class="text-muted">Manage expense invoices and receipts for this property</p>
+                </div>
+                <div class="col-md-6 align-self-center text-right">
+                    <a th:href="@{/properties/{id}(id=${property.id})}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Property
+                    </a>
+                </div>
+            </div>
+
+            <!-- Property Info Card -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h5><i class="fas fa-building"></i> <span th:text="${property.propertyName}">Property Name</span></h5>
+                                    <p class="mb-0 text-muted">
+                                        <span th:text="${property.addressLine1}">Address</span>
+                                        <span th:if="${property.city}">, <span th:text="${property.city}"></span></span>
+                                        <span th:if="${property.postcode}">, <span th:text="${property.postcode}"></span></span>
+                                    </p>
+                                </div>
+                                <div class="col-md-6 text-right">
+                                    <div class="h4 text-danger mb-0">
+                                        <span th:text="${#lists.size(expensesWithDocs)}">0</span> Expenses
+                                    </div>
+                                    <small class="text-muted">Total transactions with expense data</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expenses List -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-list"></i> Property Expenses
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div th:if="${#lists.isEmpty(expensesWithDocs)}" class="text-center py-5">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No expenses found for this property</p>
+                            </div>
+
+                            <div th:unless="${#lists.isEmpty(expensesWithDocs)}" class="table-responsive">
+                                <table class="table table-hover" id="expensesTable">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Description</th>
+                                            <th>Category</th>
+                                            <th class="text-right">Amount</th>
+                                            <th>Documents</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="expense : ${expensesWithDocs}"
+                                            th:class="${expense.hasReceipt ? 'table-success' : (expense.hasInvoice ? 'table-info' : '')}">
+                                            <td>
+                                                <strong th:text="${#temporals.format(expense.date, 'dd MMM yyyy')}">01 Jan 2024</strong>
+                                            </td>
+                                            <td th:text="${expense.description}">Expense description</td>
+                                            <td>
+                                                <span class="badge badge-secondary" th:text="${expense.category}">Category</span>
+                                            </td>
+                                            <td class="text-right">
+                                                <strong class="text-danger" th:text="${#numbers.formatCurrency(expense.amount?.abs())}">£0.00</strong>
+                                            </td>
+                                            <td>
+                                                <span th:if="${expense.hasReceipt}" class="badge badge-success doc-badge mr-1">
+                                                    <i class="fas fa-receipt"></i> Receipt
+                                                </span>
+                                                <span th:if="${expense.hasInvoice}" class="badge badge-primary doc-badge">
+                                                    <i class="fas fa-file-invoice"></i> Invoice
+                                                </span>
+                                                <span th:unless="${expense.hasReceipt or expense.hasInvoice}" class="text-muted">
+                                                    <i class="fas fa-minus"></i> None
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <!-- Download Invoice PDF -->
+                                                    <a th:href="@{/expense-documents/invoice/{id}/pdf(id=${expense.transactionId})}"
+                                                       class="btn btn-primary" title="Download Invoice PDF">
+                                                        <i class="fas fa-file-pdf"></i>
+                                                    </a>
+                                                    <!-- View Invoice -->
+                                                    <a th:href="@{/expense-documents/invoice/{id}/view(id=${expense.transactionId})}"
+                                                       class="btn btn-outline-primary" title="View Invoice" target="_blank">
+                                                        <i class="fas fa-eye"></i>
+                                                    </a>
+                                                    <!-- Upload Receipt -->
+                                                    <button type="button" class="btn btn-success"
+                                                            onclick="openUploadModal(this)"
+                                                            th:data-transaction-id="${expense.transactionId}"
+                                                            th:data-description="${expense.description}"
+                                                            title="Upload Receipt">
+                                                        <i class="fas fa-upload"></i>
+                                                    </button>
+                                                    <!-- View Documents -->
+                                                    <button th:if="${expense.documentCount > 0}"
+                                                            type="button" class="btn btn-info"
+                                                            onclick="viewDocuments(this)"
+                                                            th:data-transaction-id="${expense.transactionId}"
+                                                            title="View Attached Documents">
+                                                        <i class="fas fa-paperclip"></i>
+                                                        <span class="badge badge-light" th:text="${expense.documentCount}">0</span>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Existing Documents -->
+            <div class="row" th:if="${not #lists.isEmpty(documents)}">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title mb-0">
+                                <i class="fas fa-folder-open"></i> All Uploaded Documents
+                                <span class="badge badge-info" th:text="${#lists.size(documents)}">0</span>
+                            </h4>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Type</th>
+                                            <th>Description</th>
+                                            <th>Vendor</th>
+                                            <th>Status</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="doc : ${documents}">
+                                            <td>
+                                                <span class="badge"
+                                                      th:classappend="${doc.documentType == 'RECEIPT' ? 'badge-success' : 'badge-primary'}"
+                                                      th:text="${doc.displayType}">Type</span>
+                                            </td>
+                                            <td th:text="${doc.documentDescription}">Description</td>
+                                            <td th:text="${doc.vendorName}">Vendor</td>
+                                            <td>
+                                                <span class="badge" th:classappend="${doc.statusBadgeClass}"
+                                                      th:text="${doc.documentStatus}">Status</span>
+                                            </td>
+                                            <td th:text="${#temporals.format(doc.createdAt, 'dd/MM/yyyy HH:mm')}">Date</td>
+                                            <td>
+                                                <a th:if="${doc.hasReceipt}"
+                                                   th:href="@{/expense-documents/receipt/{id}/download(id=${doc.documentId})}"
+                                                   class="btn btn-sm btn-outline-success">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                                        onclick="archiveDocument(this)"
+                                                        th:data-document-id="${doc.documentId}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Receipt Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-upload"></i> Upload Receipt</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <input type="hidden" id="uploadTransactionId" name="transactionId">
+
+                    <div class="form-group">
+                        <label>Expense:</label>
+                        <p id="uploadExpenseDescription" class="form-control-plaintext font-weight-bold"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Document Type</label>
+                        <select class="form-control" id="uploadDocType" name="docType">
+                            <option value="receipt">Receipt / Proof of Payment</option>
+                            <option value="vendor-invoice">Vendor Invoice</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="vendorFields" style="display:none;">
+                        <label>Vendor Name</label>
+                        <input type="text" class="form-control" name="vendorName" placeholder="e.g. British Gas, Local Plumber">
+                        <label class="mt-2">Invoice Number</label>
+                        <input type="text" class="form-control" name="invoiceNumber" placeholder="e.g. INV-12345">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Description (optional)</label>
+                        <input type="text" class="form-control" name="description" placeholder="Brief description of the document">
+                    </div>
+
+                    <div class="form-group">
+                        <label>File</label>
+                        <div class="upload-zone" id="dropZone">
+                            <i class="fas fa-cloud-upload-alt fa-2x text-muted mb-2"></i>
+                            <p class="mb-1">Drag and drop file here or click to browse</p>
+                            <small class="text-muted">Supported: PDF, JPG, PNG (max 10MB)</small>
+                            <input type="file" class="d-none" id="fileInput" name="file" accept=".pdf,.jpg,.jpeg,.png">
+                        </div>
+                        <div id="filePreview" class="mt-2 d-none">
+                            <span class="badge badge-success"><i class="fas fa-check"></i> <span id="fileName"></span></span>
+                            <button type="button" class="btn btn-sm btn-link text-danger" onclick="clearFile()">Remove</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="submitUpload()" id="uploadBtn">
+                    <i class="fas fa-upload"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Documents Modal -->
+<div class="modal fade" id="documentsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-paperclip"></i> Attached Documents</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="documentsLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+                <div id="documentsList" class="d-none"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{general/scripts.html}"></div>
+<script th:src="@{/js/datatables.min.js}"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#expensesTable').DataTable({
+            order: [[0, 'desc']],
+            pageLength: 25
+        });
+    });
+
+    // Upload modal functions
+    function openUploadModal(button) {
+        const transactionId = button.getAttribute('data-transaction-id');
+        const description = button.getAttribute('data-description');
+
+        document.getElementById('uploadTransactionId').value = transactionId;
+        document.getElementById('uploadExpenseDescription').textContent = description;
+        clearFile();
+
+        $('#uploadModal').modal('show');
+    }
+
+    // Toggle vendor fields based on doc type
+    document.getElementById('uploadDocType').addEventListener('change', function() {
+        const vendorFields = document.getElementById('vendorFields');
+        vendorFields.style.display = this.value === 'vendor-invoice' ? 'block' : 'none';
+    });
+
+    // Drag and drop
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            showFilePreview(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (this.files.length) {
+            showFilePreview(this.files[0]);
+        }
+    });
+
+    function showFilePreview(file) {
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('filePreview').classList.remove('d-none');
+        dropZone.classList.add('d-none');
+    }
+
+    function clearFile() {
+        fileInput.value = '';
+        document.getElementById('filePreview').classList.add('d-none');
+        dropZone.classList.remove('d-none');
+    }
+
+    function submitUpload() {
+        const form = document.getElementById('uploadForm');
+        const formData = new FormData(form);
+        const docType = document.getElementById('uploadDocType').value;
+
+        if (!fileInput.files.length) {
+            alert('Please select a file to upload');
+            return;
+        }
+
+        const uploadBtn = document.getElementById('uploadBtn');
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
+
+        const endpoint = docType === 'vendor-invoice'
+            ? '/expense-documents/vendor-invoice/upload'
+            : '/expense-documents/receipt/upload';
+
+        const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                [csrfHeader]: csrfToken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Document uploaded successfully!');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error uploading document');
+        })
+        .finally(() => {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="fas fa-upload"></i> Upload';
+        });
+    }
+
+    // View documents modal
+    function viewDocuments(button) {
+        const transactionId = button.getAttribute('data-transaction-id');
+
+        document.getElementById('documentsLoading').classList.remove('d-none');
+        document.getElementById('documentsList').classList.add('d-none');
+
+        $('#documentsModal').modal('show');
+
+        fetch(`/expense-documents/api/transaction/${transactionId}`)
+            .then(response => response.json())
+            .then(documents => {
+                const listDiv = document.getElementById('documentsList');
+                listDiv.innerHTML = '';
+
+                if (documents.length === 0) {
+                    listDiv.innerHTML = '<p class="text-muted text-center">No documents attached</p>';
+                } else {
+                    documents.forEach(doc => {
+                        const iconClass = doc.documentType === 'RECEIPT' ? 'fa-receipt text-success' : 'fa-file-invoice text-primary';
+                        listDiv.innerHTML += `
+                            <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
+                                <div>
+                                    <i class="fas ${iconClass}"></i>
+                                    <span class="ml-2">${doc.documentDescription || doc.documentType}</span>
+                                    ${doc.vendorName ? `<br><small class="text-muted">${doc.vendorName}</small>` : ''}
+                                </div>
+                                <div>
+                                    ${doc.hasReceipt ? `<a href="/expense-documents/receipt/${doc.documentId}/download" class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i></a>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                document.getElementById('documentsLoading').classList.add('d-none');
+                document.getElementById('documentsList').classList.remove('d-none');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('documentsLoading').innerHTML = '<p class="text-danger">Error loading documents</p>';
+            });
+    }
+
+    // Archive document
+    function archiveDocument(button) {
+        if (!confirm('Are you sure you want to archive this document?')) return;
+
+        const documentId = button.getAttribute('data-document-id');
+        const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
+        fetch(`/expense-documents/archive/${documentId}`, {
+            method: 'POST',
+            headers: {
+                [csrfHeader]: csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Document archived');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error archiving document');
+        });
+    }
+</script>
+
+</body>
+</html>

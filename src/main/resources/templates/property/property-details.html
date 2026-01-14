@@ -205,6 +205,10 @@
                         class="btn btn-primary">
                             <i class="fas fa-folder"></i> View Documents
                         </a>
+                        <a th:href="${home + 'expense-documents/property/' + property.id}"
+                           class="btn btn-outline-danger">
+                            <i class="fas fa-file-invoice-dollar"></i> Expense Documents
+                        </a>
                         <!-- Delete Property Button (Manager Only) -->
                         <form th:if="${#authorization.expression('hasRole(''ROLE_MANAGER'')')}"
                               th:action="@{/employee/property/delete/{id}(id=${property.id})}"
@@ -657,11 +661,12 @@
                                                             <th style="width: 120px;">Type</th>
                                                             <th style="width: 120px;" class="text-end">Amount</th>
                                                             <th style="width: 100px;" class="text-center">Source</th>
+                                                            <th style="width: 80px;" class="text-center">Invoice</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody id="recentTransactionsBody">
                                                         <tr>
-                                                            <td colspan="5" class="text-center text-muted">Loading financial data...</td>
+                                                            <td colspan="6" class="text-center text-muted">Loading financial data...</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -1359,7 +1364,7 @@ function displayTransactions(transactions, filterType) {
     tbody.empty();
 
     if (!transactions || transactions.length === 0) {
-        tbody.html('<tr><td colspan="5" class="text-center text-muted">No recent transactions</td></tr>');
+        tbody.html('<tr><td colspan="6" class="text-center text-muted">No recent transactions</td></tr>');
         return;
     }
 
@@ -1387,6 +1392,10 @@ function displayTransactions(transactions, filterType) {
             categoryClass = 'badge-danger';
         }
 
+        // Get transaction ID for invoice generation (expenses only)
+        const transactionId = transaction.id || transaction.transactionId;
+        const showInvoiceBtn = isExpense && transactionId;
+
         const row = `
             <tr class="transaction-row">
                 <td>${formatDate(transactionDate)}</td>
@@ -1402,6 +1411,14 @@ function displayTransactions(transactions, filterType) {
                 <td class="${amountClass} fw-bold text-end">${amountPrefix}£${formatNumber(Math.abs(amount))}</td>
                 <td class="text-center">
                     <span class="badge badge-info badge-sm">${currentDataSource === 'historical' ? 'Historical' : (currentDataSource === 'payprop' ? 'PayProp' : 'Auto')}</span>
+                </td>
+                <td class="text-center">
+                    ${showInvoiceBtn ? `
+                        <a href="/expense-documents/invoice/${transactionId}/pdf"
+                           class="btn btn-sm btn-outline-danger" title="Download Expense Invoice">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                    ` : '<span class="text-muted">-</span>'}
                 </td>
             </tr>
         `;
