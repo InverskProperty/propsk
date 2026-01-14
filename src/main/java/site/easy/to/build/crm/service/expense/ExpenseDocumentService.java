@@ -429,6 +429,11 @@ public class ExpenseDocumentService {
             return false;
         }
 
+        // EXCLUDE property account allocations - these are internal transfers, not expenses
+        if (isPropertyAccountAllocation(category, description, transactionType)) {
+            return false;
+        }
+
         // Check for expense-related categories
         if (category.contains("expense") ||
             category.contains("repair") ||
@@ -491,16 +496,15 @@ public class ExpenseDocumentService {
      * Block service charges are disbursements TO the block property, not to the owner.
      */
     private boolean isBlockServiceCharge(String category, String description) {
-        // Block service charge descriptions contain block property names
+        // Block service charge descriptions contain specific block property names
         if (description.contains("boden house block") ||
             description.contains("block property") ||
-            description.contains("service charge payment")) {
+            description.contains("service charge payment to block")) {
             return true;
         }
-        // Disbursement category with block-related description
-        if (category.contains("disbursement") &&
-            (description.contains("block") || description.contains("beneficiary:"))) {
-            // Check if it's to a block property (not to owner)
+        // Disbursement category with explicit block mention (not just "beneficiary:")
+        if (category.contains("disbursement") && description.contains("block")) {
+            // Must be to a block property, not to landlord/owner
             if (!description.contains("landlord") && !description.contains("owner")) {
                 return true;
             }
@@ -559,6 +563,21 @@ public class ExpenseDocumentService {
                description.contains("rental payment") ||
                transactionType.contains("rent") ||
                transactionType.contains("income");
+    }
+
+    /**
+     * Check if transaction is a property account allocation (NOT an expense).
+     * These are internal transfers/allocations, not actual expenses.
+     */
+    private boolean isPropertyAccountAllocation(String category, String description, String transactionType) {
+        return category.contains("allocation") ||
+               category.contains("property account") ||
+               category.contains("internal transfer") ||
+               description.contains("property account allocation") ||
+               description.contains("account allocation") ||
+               description.contains("internal transfer") ||
+               transactionType.contains("allocation") ||
+               transactionType.contains("transfer");
     }
 
     // ===== HELPER METHODS =====
