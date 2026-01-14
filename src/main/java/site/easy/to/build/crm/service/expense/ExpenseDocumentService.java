@@ -554,15 +554,26 @@ public class ExpenseDocumentService {
      * Check if transaction is rent income (NOT an expense).
      */
     private boolean isRentIncome(String category, String description, String transactionType) {
-        return category.contains("rent received") ||
-               category.contains("rental income") ||
-               category.contains("tenant payment") ||
-               description.contains("rent from") ||
-               description.contains("rent received") ||
-               description.contains("tenant payment") ||
-               description.contains("rental payment") ||
-               transactionType.contains("rent") ||
-               transactionType.contains("income");
+        // Category equals "rent" or contains rent-related terms
+        if (category.equals("rent") ||
+            category.contains("rent received") ||
+            category.contains("rental income") ||
+            category.contains("tenant payment")) {
+            return true;
+        }
+        // Description contains rent/tenant payment indicators
+        if (description.contains("rent from") ||
+            description.contains("rent received") ||
+            description.contains("tenant payment") ||
+            description.contains("rental payment")) {
+            return true;
+        }
+        // Transaction type indicates rent/income
+        if (transactionType.contains("rent") ||
+            transactionType.contains("income")) {
+            return true;
+        }
+        return false;
     }
 
     /**
