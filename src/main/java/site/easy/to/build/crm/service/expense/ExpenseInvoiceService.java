@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import site.easy.to.build.crm.dto.expense.ExpenseInvoiceDTO;
 import site.easy.to.build.crm.dto.expense.ExpenseInvoiceDTO.ExpenseLineItemDTO;
+import site.easy.to.build.crm.dto.expense.ExpenseInvoiceDTO.InvoiceSourceType;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 
@@ -41,6 +42,9 @@ public class ExpenseInvoiceService {
     @Autowired
     private CustomerPropertyAssignmentRepository customerPropertyAssignmentRepository;
 
+    @Autowired
+    private FinancialTransactionRepository financialTransactionRepository;
+
     /**
      * Generate an expense invoice DTO from a unified transaction.
      *
@@ -54,6 +58,12 @@ public class ExpenseInvoiceService {
                 .orElseThrow(() -> new RuntimeException("Transaction not found: " + transactionId));
 
         ExpenseInvoiceDTO invoice = new ExpenseInvoiceDTO();
+
+        // Determine invoice source type based on transaction data
+        InvoiceSourceInfo sourceInfo = determineInvoiceSourceType(transaction);
+        invoice.setInvoiceSourceType(sourceInfo.sourceType);
+        invoice.setShouldGenerateInvoice(sourceInfo.shouldGenerate);
+        invoice.setThirdPartyVendorName(sourceInfo.vendorName);
 
         // Set transaction details
         invoice.setTransactionId(transactionId);
@@ -105,7 +115,7 @@ public class ExpenseInvoiceService {
             }
         }
 
-        // Set agency details
+        // Set agency details (for agency-generated invoices)
         AgencySettings agency = agencySettingsRepository.getSettings().orElse(null);
         if (agency != null) {
             invoice.setAgencyName(agency.getCompanyName());
@@ -115,11 +125,151 @@ public class ExpenseInvoiceService {
             invoice.setAgencyRegistrationNumber(agency.getCompanyRegistrationNumber());
         }
 
+        // For third-party invoices, set vendor details
+        if (sourceInfo.sourceType == InvoiceSourceType.THIRD_PARTY_VENDOR && sourceInfo.vendorName != null) {
+            invoice.setVendorName(sourceInfo.vendorName);
+        }
+
         // Set description from transaction
         invoice.setDescription(transaction.getDescription());
 
-        log.info("Generated expense invoice: {}", invoice.getInvoiceNumber());
+        log.info("Generated expense invoice: {} (source: {}, shouldGenerate: {})",
+                invoice.getInvoiceNumber(), sourceInfo.sourceType, sourceInfo.shouldGenerate);
         return invoice;
+    }
+
+    /**
+     * Helper class to hold invoice source determination results.
+     */
+    private static class InvoiceSourceInfo {
+        InvoiceSourceType sourceType;
+        boolean shouldGenerate;
+        String vendorName;
+
+        InvoiceSourceInfo(InvoiceSourceType sourceType, boolean shouldGenerate, String vendorName) {
+            this.sourceType = sourceType;
+            this.shouldGenerate = shouldGenerate;
+            this.vendorName = vendorName;
+        }
+    }
+
+    /**
+     * Determine the invoice source type based on transaction data.
+     *
+     * Rules:
+     * - payprop_beneficiary_type = 'agency' → AGENCY_GENERATED (generate invoice)
+     * - transaction_type = 'payment_to_agency' → AGENCY_GENERATED (generate invoice)
+     * - Description contains block property names → BLOCK_SERVICE_CHARGE (generate invoice)
+     * - payprop_beneficiary_type = 'beneficiary' with utility/council → THIRD_PARTY_VENDOR (no generate)
+     * - category = 'Owner' or description like 'Landlord' → OWNER_PAYMENT (no generate, not expense)
+     */
+    private InvoiceSourceInfo determineInvoiceSourceType(UnifiedTransaction transaction) {
+        String description = transaction.getDescription() != null ? transaction.getDescription().toLowerCase() : "";
+        String category = transaction.getCategory() != null ? transaction.getCategory().toLowerCase() : "";
+        String transactionType = transaction.getTransactionType() != null ? transaction.getTransactionType().toLowerCase() : "";
+
+        // Get beneficiary type from linked financial transaction if available
+        String beneficiaryType = null;
+        String beneficiaryName = null;
+        if ("financial_transactions".equals(transaction.getSourceTable()) && transaction.getSourceRecordId() != null) {
+            FinancialTransaction ft = financialTransactionRepository.findById(transaction.getSourceRecordId()).orElse(null);
+            if (ft != null) {
+                beneficiaryType = ft.getPaypropBeneficiaryType();
+                // Extract vendor name from description if it contains "Beneficiary:" pattern
+                if (ft.getDescription() != null && ft.getDescription().contains("Beneficiary:")) {
+                    beneficiaryName = extractBeneficiaryName(ft.getDescription());
+                }
+            }
+        }
+
+        // Rule 1: Owner payments - NOT an expense, shouldn't show invoice
+        if ("owner".equals(category) || description.contains("landlord rental payment") ||
+            description.contains("landlord payment") || description.contains("payment to owner")) {
+            return new InvoiceSourceInfo(InvoiceSourceType.OWNER_PAYMENT, false, null);
+        }
+
+        // Rule 2: Block/service charge payments - Agency generates invoice
+        if (description.contains("boden house block") || description.contains("block property") ||
+            description.contains("service charge") || "disbursement".equals(category)) {
+            String blockName = extractBlockName(description);
+            return new InvoiceSourceInfo(InvoiceSourceType.BLOCK_SERVICE_CHARGE, true, blockName);
+        }
+
+        // Rule 3: Agency beneficiary type or payment_to_agency - Agency generates invoice
+        if ("agency".equals(beneficiaryType) || transactionType.contains("payment_to_agency")) {
+            return new InvoiceSourceInfo(InvoiceSourceType.AGENCY_GENERATED, true, null);
+        }
+
+        // Rule 4: Direct utility/council payments to third party - No system invoice
+        if ("beneficiary".equals(beneficiaryType) || transactionType.contains("payment_to_beneficiary")) {
+            // Check if it's a utility or council payment
+            if (description.contains("eon") || description.contains("scottishpower") ||
+                description.contains("electric") || description.contains("gas") ||
+                description.contains("water") || description.contains("council")) {
+                String vendorName = beneficiaryName != null ? beneficiaryName : extractVendorFromDescription(description);
+                return new InvoiceSourceInfo(InvoiceSourceType.THIRD_PARTY_VENDOR, false, vendorName);
+            }
+        }
+
+        // Rule 5: Contractor payments
+        if ("contractor".equals(category) || transactionType.contains("payment_to_contractor")) {
+            // If paid via agency, generate invoice; if direct to contractor, don't
+            if ("agency".equals(beneficiaryType) || transactionType.contains("payment_to_agency")) {
+                return new InvoiceSourceInfo(InvoiceSourceType.AGENCY_GENERATED, true, null);
+            } else {
+                String vendorName = beneficiaryName != null ? beneficiaryName : "Contractor";
+                return new InvoiceSourceInfo(InvoiceSourceType.THIRD_PARTY_VENDOR, false, vendorName);
+            }
+        }
+
+        // Default: Agency generated invoice
+        return new InvoiceSourceInfo(InvoiceSourceType.AGENCY_GENERATED, true, null);
+    }
+
+    /**
+     * Extract beneficiary name from description like "Beneficiary: SOME NAME (beneficiary)"
+     */
+    private String extractBeneficiaryName(String description) {
+        if (description == null) return null;
+        int startIdx = description.indexOf("Beneficiary:");
+        if (startIdx >= 0) {
+            String afterBeneficiary = description.substring(startIdx + 12).trim();
+            int endIdx = afterBeneficiary.indexOf("(");
+            if (endIdx > 0) {
+                return afterBeneficiary.substring(0, endIdx).trim();
+            }
+            return afterBeneficiary;
+        }
+        return null;
+    }
+
+    /**
+     * Extract block name from description
+     */
+    private String extractBlockName(String description) {
+        if (description == null) return "Block Property";
+        String descLower = description.toLowerCase();
+        if (descLower.contains("boden house block")) {
+            return "BODEN HOUSE BLOCK PROPERTY";
+        }
+        return "Block Property";
+    }
+
+    /**
+     * Extract vendor name from description for utilities/council
+     */
+    private String extractVendorFromDescription(String description) {
+        if (description == null) return null;
+        String descLower = description.toLowerCase();
+        if (descLower.contains("eon")) return "EON";
+        if (descLower.contains("scottishpower")) return "ScottishPower";
+        if (descLower.contains("council")) return "Council";
+        // Try to extract from "VENDOR NAME - Description" pattern
+        int dashIdx = description.indexOf(" - ");
+        if (dashIdx > 0) {
+            return description.substring(0, dashIdx).trim();
+        }
+        return null;
     }
 
     /**

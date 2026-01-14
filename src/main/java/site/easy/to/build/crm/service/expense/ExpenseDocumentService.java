@@ -381,6 +381,19 @@ public class ExpenseDocumentService {
                     .map(ExpenseDocumentDTO::fromEntity)
                     .collect(Collectors.toList()));
 
+            // Get invoice source type info
+            try {
+                ExpenseInvoiceDTO invoiceInfo = expenseInvoiceService.generateExpenseInvoice(expense.getId());
+                expenseInfo.put("invoiceSourceType", invoiceInfo.getInvoiceSourceType().name());
+                expenseInfo.put("shouldGenerateInvoice", invoiceInfo.isShouldGenerateInvoice());
+                expenseInfo.put("thirdPartyVendorName", invoiceInfo.getThirdPartyVendorName());
+            } catch (Exception e) {
+                log.warn("Could not determine invoice source type for transaction {}: {}", expense.getId(), e.getMessage());
+                expenseInfo.put("invoiceSourceType", "AGENCY_GENERATED");
+                expenseInfo.put("shouldGenerateInvoice", true);
+                expenseInfo.put("thirdPartyVendorName", null);
+            }
+
             result.add(expenseInfo);
         }
 

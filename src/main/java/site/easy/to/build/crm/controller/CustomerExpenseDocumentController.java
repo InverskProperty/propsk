@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import site.easy.to.build.crm.dto.expense.ExpenseDocumentDTO;
 import site.easy.to.build.crm.dto.expense.ExpenseInvoiceDTO;
 import site.easy.to.build.crm.entity.*;
@@ -283,6 +284,133 @@ public class CustomerExpenseDocumentController {
         } catch (Exception e) {
             log.error("Error downloading receipt: {}", e.getMessage(), e);
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error downloading file");
+        }
+    }
+
+    // ===== UPLOAD ENDPOINTS FOR CUSTOMERS =====
+
+    /**
+     * Upload a receipt for an expense transaction (customer portal).
+     */
+    @PostMapping("/receipt/upload")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadReceipt(
+            @RequestParam("transactionId") Long transactionId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "description", required = false) String description,
+            Authentication authentication) {
+
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
+        if (customer == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "error", "Not authenticated"));
+        }
+
+        // Verify customer has access to this transaction
+        UnifiedTransaction transaction = unifiedTransactionRepository.findById(transactionId).orElse(null);
+        if (transaction == null || !customerHasAccessToProperty(customer.getCustomerId(), transaction.getPropertyId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "error", "Access denied"));
+        }
+
+        try {
+            ExpenseDocument document = expenseDocumentService.uploadReceipt(
+                    transactionId, file, description, customer.getCustomerId().intValue());
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "documentId", document.getId(),
+                    "message", "Receipt uploaded successfully"
+            ));
+
+        } catch (Exception e) {
+            log.error("Error uploading receipt: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Upload a vendor invoice for an expense transaction (customer portal).
+     */
+    @PostMapping("/vendor-invoice/upload")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> uploadVendorInvoice(
+            @RequestParam("transactionId") Long transactionId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "vendorName", required = false) String vendorName,
+            @RequestParam(value = "invoiceNumber", required = false) String invoiceNumber,
+            @RequestParam(value = "description", required = false) String description,
+            Authentication authentication) {
+
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
+        if (customer == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "error", "Not authenticated"));
+        }
+
+        // Verify customer has access to this transaction
+        UnifiedTransaction transaction = unifiedTransactionRepository.findById(transactionId).orElse(null);
+        if (transaction == null || !customerHasAccessToProperty(customer.getCustomerId(), transaction.getPropertyId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("success", false, "error", "Access denied"));
+        }
+
+        try {
+            ExpenseDocument document = expenseDocumentService.uploadVendorInvoice(
+                    transactionId, file, vendorName, invoiceNumber, description, customer.getCustomerId().intValue());
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "documentId", document.getId(),
+                    "message", "Vendor invoice uploaded successfully"
+            ));
+
+        } catch (Exception e) {
+            log.error("Error uploading vendor invoice: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Delete (archive) a document (customer portal).
+     * Customers can only delete documents they uploaded.
+     */
+    @PostMapping("/document/{documentId}/delete")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteDocument(
+            @PathVariable Long documentId,
+            Authentication authentication) {
+
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
+        if (customer == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "error", "Not authenticated"));
+        }
+
+        try {
+            ExpenseDocument document = expenseDocumentService.getDocument(documentId);
+
+            // Verify customer has access to the property
+            if (document.getPropertyId() != null &&
+                !customerHasAccessToProperty(customer.getCustomerId(), document.getPropertyId())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("success", false, "error", "Access denied"));
+            }
+
+            // Archive the document (soft delete)
+            expenseDocumentService.archiveDocument(documentId);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Document deleted successfully"
+            ));
+
+        } catch (Exception e) {
+            log.error("Error deleting document: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
 

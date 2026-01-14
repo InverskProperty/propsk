@@ -285,6 +285,15 @@ public class ExpenseDocumentController {
     }
 
     /**
+     * Delete (archive) a document - alias for archive endpoint.
+     */
+    @PostMapping("/document/{documentId}/delete")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteDocument(@PathVariable Long documentId) {
+        return archiveDocument(documentId);
+    }
+
+    /**
      * Generate and store an expense invoice for later retrieval.
      */
     @PostMapping("/invoice/generate/{transactionId}")

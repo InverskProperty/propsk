@@ -12,6 +12,40 @@ import java.util.List;
  */
 public class ExpenseInvoiceDTO {
 
+    /**
+     * Invoice source type - determines who the invoice is FROM and whether it should be generated.
+     */
+    public enum InvoiceSourceType {
+        /**
+         * Agency-generated invoice (commission, fees, pass-through expenses).
+         * Invoice is FROM agency TO property owner.
+         */
+        AGENCY_GENERATED,
+
+        /**
+         * Third-party invoice (utilities, council, direct vendor payment).
+         * No system-generated invoice - vendor provides their own.
+         */
+        THIRD_PARTY_VENDOR,
+
+        /**
+         * Block/freeholder service charge.
+         * Agency generates invoice for service charge paid to block.
+         */
+        BLOCK_SERVICE_CHARGE,
+
+        /**
+         * Owner payment/disbursement - NOT an expense invoice.
+         */
+        OWNER_PAYMENT
+    }
+
+    // ===== INVOICE SOURCE TYPE =====
+
+    private InvoiceSourceType invoiceSourceType = InvoiceSourceType.AGENCY_GENERATED;
+    private boolean shouldGenerateInvoice = true;
+    private String thirdPartyVendorName; // For third-party invoices, the vendor who should provide invoice
+
     // ===== INVOICE HEADER =====
 
     private String invoiceNumber;
@@ -304,4 +338,13 @@ public class ExpenseInvoiceDTO {
 
     public String getGeneratedBy() { return generatedBy; }
     public void setGeneratedBy(String generatedBy) { this.generatedBy = generatedBy; }
+
+    public InvoiceSourceType getInvoiceSourceType() { return invoiceSourceType; }
+    public void setInvoiceSourceType(InvoiceSourceType invoiceSourceType) { this.invoiceSourceType = invoiceSourceType; }
+
+    public boolean isShouldGenerateInvoice() { return shouldGenerateInvoice; }
+    public void setShouldGenerateInvoice(boolean shouldGenerateInvoice) { this.shouldGenerateInvoice = shouldGenerateInvoice; }
+
+    public String getThirdPartyVendorName() { return thirdPartyVendorName; }
+    public void setThirdPartyVendorName(String thirdPartyVendorName) { this.thirdPartyVendorName = thirdPartyVendorName; }
 }
