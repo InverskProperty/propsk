@@ -389,54 +389,110 @@ public class ExpenseDocumentService {
     }
 
     /**
-     * Determine if a transaction is an expense (outgoing money).
-     * Checks:
-     * 1. FlowDirection = OUTGOING
-     * 2. Negative amount
-     * 3. Expense-related categories
+     * Determine if a transaction is an expense (property costs, NOT owner payments).
+     *
+     * EXPENSES include: repairs, maintenance, agency fees, commissions, utilities, insurance, etc.
+     * NOT EXPENSES: owner payments/disbursements (money paid TO the property owner)
      */
     private boolean isExpenseTransaction(UnifiedTransaction tx) {
-        // Check FlowDirection if set
-        if (tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING) {
-            return true;
+        String category = tx.getCategory() != null ? tx.getCategory().toLowerCase() : "";
+        String description = tx.getDescription() != null ? tx.getDescription().toLowerCase() : "";
+        String transactionType = tx.getTransactionType() != null ? tx.getTransactionType().toLowerCase() : "";
+
+        // EXCLUDE owner payments/disbursements - these are NOT expenses
+        if (isOwnerPayment(category, description, transactionType)) {
+            return false;
         }
 
-        // Check for negative amount (expense/outflow)
-        if (tx.getAmount() != null && tx.getAmount().compareTo(java.math.BigDecimal.ZERO) < 0) {
-            return true;
+        // EXCLUDE rent received - this is income, not expense
+        if (isRentIncome(category, description, transactionType)) {
+            return false;
         }
 
         // Check for expense-related categories
-        String category = tx.getCategory();
-        if (category != null) {
-            String catLower = category.toLowerCase();
-            if (catLower.contains("expense") ||
-                catLower.contains("repair") ||
-                catLower.contains("maintenance") ||
-                catLower.contains("fee") ||
-                catLower.contains("commission") ||
-                catLower.contains("payment to") ||
-                catLower.contains("payout") ||
-                catLower.contains("outgoing")) {
-                return true;
-            }
+        if (category.contains("expense") ||
+            category.contains("repair") ||
+            category.contains("maintenance") ||
+            category.contains("commission") ||
+            category.contains("agency fee") ||
+            category.contains("management fee") ||
+            category.contains("insurance") ||
+            category.contains("utility") ||
+            category.contains("utilities") ||
+            category.contains("cleaning") ||
+            category.contains("gardening") ||
+            category.contains("contractor") ||
+            category.contains("service charge") ||
+            category.contains("ground rent") ||
+            category.contains("legal") ||
+            category.contains("accounting")) {
+            return true;
         }
 
         // Check description for expense indicators
-        String description = tx.getDescription();
-        if (description != null) {
-            String descLower = description.toLowerCase();
-            if (descLower.contains("expense") ||
-                descLower.contains("repair") ||
-                descLower.contains("maintenance") ||
-                descLower.contains("commission") ||
-                descLower.contains("agency fee") ||
-                descLower.contains("management fee")) {
-                return true;
-            }
+        if (description.contains("repair") ||
+            description.contains("maintenance") ||
+            description.contains("commission") ||
+            description.contains("agency fee") ||
+            description.contains("management fee") ||
+            description.contains("expense") ||
+            description.contains("invoice") ||
+            description.contains("contractor") ||
+            description.contains("plumber") ||
+            description.contains("electrician") ||
+            description.contains("cleaning") ||
+            description.contains("gardening") ||
+            description.contains("insurance") ||
+            description.contains("service charge")) {
+            return true;
+        }
+
+        // Check transaction type
+        if (transactionType.contains("expense") ||
+            transactionType.contains("commission") ||
+            transactionType.contains("fee")) {
+            return true;
         }
 
         return false;
+    }
+
+    /**
+     * Check if transaction is an owner payment/disbursement (NOT an expense).
+     */
+    private boolean isOwnerPayment(String category, String description, String transactionType) {
+        return category.contains("owner payment") ||
+               category.contains("owner payout") ||
+               category.contains("landlord payment") ||
+               category.contains("disbursement") ||
+               category.contains("net to owner") ||
+               category.contains("payment to owner") ||
+               category.contains("payout to owner") ||
+               description.contains("owner payment") ||
+               description.contains("payment to owner") ||
+               description.contains("landlord payment") ||
+               description.contains("net to owner") ||
+               description.contains("disbursement to") ||
+               description.contains("payout to owner") ||
+               description.contains("owner payout") ||
+               transactionType.contains("owner_payment") ||
+               transactionType.contains("disbursement") ||
+               transactionType.contains("payout");
+    }
+
+    /**
+     * Check if transaction is rent income (NOT an expense).
+     */
+    private boolean isRentIncome(String category, String description, String transactionType) {
+        return category.contains("rent received") ||
+               category.contains("rental income") ||
+               category.contains("tenant payment") ||
+               description.contains("rent from") ||
+               description.contains("rent received") ||
+               description.contains("tenant payment") ||
+               description.contains("rental payment") ||
+               transactionType.contains("rent") ||
+               transactionType.contains("income");
     }
 
     // ===== HELPER METHODS =====
