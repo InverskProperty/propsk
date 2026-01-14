@@ -496,17 +496,19 @@ public class ExpenseDocumentService {
      * Block service charges are disbursements TO the block property, not to the owner.
      */
     private boolean isBlockServiceCharge(String category, String description) {
-        // Block service charge descriptions contain specific block property names
-        if (description.contains("boden house block") ||
-            description.contains("block property") ||
-            description.contains("service charge payment to block")) {
-            return true;
+        // Exclude rent - not a block service charge
+        if (category.equals("rent")) {
+            return false;
         }
-        // Disbursement category with explicit block mention (not just "beneficiary:")
-        if (category.contains("disbursement") && description.contains("block")) {
-            // Must be to a block property, not to landlord/owner
-            if (!description.contains("landlord") && !description.contains("owner")) {
-                return true;
+
+        // Block service charge - disbursement to block property
+        if (category.contains("disbursement") || category.contains("service charge")) {
+            if (description.contains("boden house block") ||
+                description.contains("block property") ||
+                description.contains("service charge payment")) {
+                if (!description.contains("landlord") && !description.contains("owner")) {
+                    return true;
+                }
             }
         }
         return false;
