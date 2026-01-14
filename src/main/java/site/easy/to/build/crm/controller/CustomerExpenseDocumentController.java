@@ -424,26 +424,28 @@ public class CustomerExpenseDocumentController {
     }
 
     /**
-     * Get properties owned by customer.
+     * Get properties accessible by customer.
+     * Uses PropertyService.findPropertiesAccessibleByCustomer() which handles:
+     * - PROPERTY_OWNER type customers (owner assignment)
+     * - DELEGATED_USER type customers (delegated access)
+     * - Filtering inactive properties
      */
     private List<Property> getCustomerProperties(Long customerId) {
-        return customerPropertyAssignmentRepository.findByCustomerCustomerIdAndAssignmentType(
-                        customerId, AssignmentType.OWNER)
-                .stream()
-                .map(CustomerPropertyAssignment::getProperty)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        log.debug("Getting accessible properties for customer: {}", customerId);
+        List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+        log.debug("Found {} accessible properties for customer {}", properties.size(), customerId);
+        return properties;
     }
 
     /**
      * Check if customer has access to a property.
+     * Uses PropertyService.findPropertiesAccessibleByCustomer() for consistency.
      */
     private boolean customerHasAccessToProperty(Long customerId, Long propertyId) {
         if (propertyId == null) return false;
 
-        return customerPropertyAssignmentRepository.findByCustomerCustomerIdAndAssignmentType(
-                        customerId, AssignmentType.OWNER)
-                .stream()
-                .anyMatch(cpa -> cpa.getProperty() != null && cpa.getProperty().getId().equals(propertyId));
+        List<Property> accessibleProperties = propertyService.findPropertiesAccessibleByCustomer(customerId);
+        return accessibleProperties.stream()
+                .anyMatch(p -> p.getId() != null && p.getId().equals(propertyId));
     }
 }

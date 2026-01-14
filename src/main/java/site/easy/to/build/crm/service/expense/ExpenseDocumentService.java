@@ -333,11 +333,25 @@ public class ExpenseDocumentService {
     /**
      * Get expenses for a property with document availability info.
      * This is useful for showing which expenses have receipts/invoices attached.
+     *
+     * Expenses are identified by:
+     * 1. FlowDirection.OUTGOING if set
+     * 2. OR negative amounts (outflows)
+     * 3. OR expense-related categories
      */
     public List<Map<String, Object>> getExpensesWithDocumentStatus(Long propertyId) {
-        // Get all expense transactions for property
-        List<UnifiedTransaction> expenses = unifiedTransactionRepository
-                .findByPropertyIdAndFlowDirection(propertyId, UnifiedTransaction.FlowDirection.OUTGOING);
+        log.debug("Getting expenses with document status for property: {}", propertyId);
+
+        // Get ALL transactions for property and filter for expenses
+        List<UnifiedTransaction> allTransactions = unifiedTransactionRepository.findByPropertyId(propertyId);
+        log.debug("Found {} total transactions for property {}", allTransactions.size(), propertyId);
+
+        // Filter for expense transactions (outgoing/negative amounts)
+        List<UnifiedTransaction> expenses = allTransactions.stream()
+                .filter(tx -> isExpenseTransaction(tx))
+                .collect(Collectors.toList());
+
+        log.debug("Filtered to {} expense transactions for property {}", expenses.size(), propertyId);
 
         // Get all documents for property
         Map<Long, List<ExpenseDocument>> docsByTransaction = expenseDocumentRepository
@@ -370,7 +384,59 @@ public class ExpenseDocumentService {
             result.add(expenseInfo);
         }
 
+        log.debug("Returning {} expenses with document status for property {}", result.size(), propertyId);
         return result;
+    }
+
+    /**
+     * Determine if a transaction is an expense (outgoing money).
+     * Checks:
+     * 1. FlowDirection = OUTGOING
+     * 2. Negative amount
+     * 3. Expense-related categories
+     */
+    private boolean isExpenseTransaction(UnifiedTransaction tx) {
+        // Check FlowDirection if set
+        if (tx.getFlowDirection() == UnifiedTransaction.FlowDirection.OUTGOING) {
+            return true;
+        }
+
+        // Check for negative amount (expense/outflow)
+        if (tx.getAmount() != null && tx.getAmount().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            return true;
+        }
+
+        // Check for expense-related categories
+        String category = tx.getCategory();
+        if (category != null) {
+            String catLower = category.toLowerCase();
+            if (catLower.contains("expense") ||
+                catLower.contains("repair") ||
+                catLower.contains("maintenance") ||
+                catLower.contains("fee") ||
+                catLower.contains("commission") ||
+                catLower.contains("payment to") ||
+                catLower.contains("payout") ||
+                catLower.contains("outgoing")) {
+                return true;
+            }
+        }
+
+        // Check description for expense indicators
+        String description = tx.getDescription();
+        if (description != null) {
+            String descLower = description.toLowerCase();
+            if (descLower.contains("expense") ||
+                descLower.contains("repair") ||
+                descLower.contains("maintenance") ||
+                descLower.contains("commission") ||
+                descLower.contains("agency fee") ||
+                descLower.contains("management fee")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ===== HELPER METHODS =====
