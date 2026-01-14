@@ -405,12 +405,19 @@ public class ExpenseDocumentService {
      * Determine if a transaction is an expense (property costs, NOT owner payments).
      *
      * EXPENSES include: repairs, maintenance, agency fees, commissions, utilities, insurance, etc.
+     * Also includes: Block service charges (Disbursement to block property)
      * NOT EXPENSES: owner payments/disbursements (money paid TO the property owner)
      */
     private boolean isExpenseTransaction(UnifiedTransaction tx) {
         String category = tx.getCategory() != null ? tx.getCategory().toLowerCase() : "";
         String description = tx.getDescription() != null ? tx.getDescription().toLowerCase() : "";
         String transactionType = tx.getTransactionType() != null ? tx.getTransactionType().toLowerCase() : "";
+
+        // INCLUDE block service charges (these are expenses paid to the block/freeholder)
+        // Check this BEFORE owner payment exclusion
+        if (isBlockServiceCharge(category, description)) {
+            return true;
+        }
 
         // EXCLUDE owner payments/disbursements - these are NOT expenses
         if (isOwnerPayment(category, description, transactionType)) {
@@ -438,7 +445,9 @@ public class ExpenseDocumentService {
             category.contains("service charge") ||
             category.contains("ground rent") ||
             category.contains("legal") ||
-            category.contains("accounting")) {
+            category.contains("accounting") ||
+            category.contains("council") ||
+            category.contains("other")) {
             return true;
         }
 
@@ -456,14 +465,21 @@ public class ExpenseDocumentService {
             description.contains("cleaning") ||
             description.contains("gardening") ||
             description.contains("insurance") ||
-            description.contains("service charge")) {
+            description.contains("service charge") ||
+            description.contains("council tax") ||
+            description.contains("eon") ||
+            description.contains("scottishpower") ||
+            description.contains("block charge")) {
             return true;
         }
 
         // Check transaction type
         if (transactionType.contains("expense") ||
             transactionType.contains("commission") ||
-            transactionType.contains("fee")) {
+            transactionType.contains("fee") ||
+            transactionType.contains("payment_to_agency") ||
+            transactionType.contains("payment_to_beneficiary") ||
+            transactionType.contains("payment_to_contractor")) {
             return true;
         }
 
@@ -471,26 +487,63 @@ public class ExpenseDocumentService {
     }
 
     /**
+     * Check if transaction is a block service charge (IS an expense, NOT an owner payment).
+     * Block service charges are disbursements TO the block property, not to the owner.
+     */
+    private boolean isBlockServiceCharge(String category, String description) {
+        // Block service charge descriptions contain block property names
+        if (description.contains("boden house block") ||
+            description.contains("block property") ||
+            description.contains("service charge payment")) {
+            return true;
+        }
+        // Disbursement category with block-related description
+        if (category.contains("disbursement") &&
+            (description.contains("block") || description.contains("beneficiary:"))) {
+            // Check if it's to a block property (not to owner)
+            if (!description.contains("landlord") && !description.contains("owner")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Check if transaction is an owner payment/disbursement (NOT an expense).
      */
     private boolean isOwnerPayment(String category, String description, String transactionType) {
-        return category.contains("owner payment") ||
-               category.contains("owner payout") ||
-               category.contains("landlord payment") ||
-               category.contains("disbursement") ||
-               category.contains("net to owner") ||
-               category.contains("payment to owner") ||
-               category.contains("payout to owner") ||
-               description.contains("owner payment") ||
-               description.contains("payment to owner") ||
-               description.contains("landlord payment") ||
-               description.contains("net to owner") ||
-               description.contains("disbursement to") ||
-               description.contains("payout to owner") ||
-               description.contains("owner payout") ||
-               transactionType.contains("owner_payment") ||
-               transactionType.contains("disbursement") ||
-               transactionType.contains("payout");
+        // Check category for owner-related terms
+        if (category.contains("owner payment") ||
+            category.contains("owner payout") ||
+            category.contains("landlord payment") ||
+            category.contains("net to owner") ||
+            category.contains("payment to owner") ||
+            category.contains("payout to owner") ||
+            category.equals("owner")) {
+            return true;
+        }
+
+        // Check description for owner-related terms
+        if (description.contains("owner payment") ||
+            description.contains("payment to owner") ||
+            description.contains("landlord payment") ||
+            description.contains("landlord rental payment") ||
+            description.contains("net to owner") ||
+            description.contains("payout to owner") ||
+            description.contains("owner payout")) {
+            return true;
+        }
+
+        // Check transaction type for owner-related terms
+        if (transactionType.contains("owner_payment") ||
+            transactionType.contains("payout")) {
+            return true;
+        }
+
+        // Disbursement category that's NOT a block service charge is likely owner payment
+        // But this is now handled by checking isBlockServiceCharge first
+
+        return false;
     }
 
     /**
