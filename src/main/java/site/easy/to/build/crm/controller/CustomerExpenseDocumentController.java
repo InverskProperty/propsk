@@ -1,7 +1,6 @@
 package site.easy.to.build.crm.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,10 +8,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import site.easy.to.build.crm.dto.expense.ExpenseDocumentDTO;
 import site.easy.to.build.crm.dto.expense.ExpenseInvoiceDTO;
 import site.easy.to.build.crm.entity.*;
@@ -22,6 +22,7 @@ import site.easy.to.build.crm.service.customer.CustomerService;
 import site.easy.to.build.crm.service.expense.ExpenseDocumentService;
 import site.easy.to.build.crm.service.expense.ExpenseInvoiceService;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.util.AuthenticationUtils;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -58,16 +59,19 @@ public class CustomerExpenseDocumentController {
     @Autowired
     private UnifiedTransactionRepository unifiedTransactionRepository;
 
+    @Autowired
+    private AuthenticationUtils authenticationUtils;
+
     // ===== PORTAL VIEWS =====
 
     /**
      * Main expense documents page for logged-in customer.
      */
     @GetMapping
-    public String expenseDocumentsPortal(HttpSession session, Model model) {
-        Customer customer = getLoggedInCustomer(session);
+    public String expenseDocumentsPortal(Model model, Authentication authentication) {
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
         if (customer == null) {
-            return "redirect:/customer-login";
+            return "redirect:/customer-login?error=not_found";
         }
 
         // Get properties owned by this customer
@@ -124,10 +128,10 @@ public class CustomerExpenseDocumentController {
      * Expense documents for a specific property.
      */
     @GetMapping("/property/{propertyId}")
-    public String propertyExpenseDocuments(@PathVariable Long propertyId, HttpSession session, Model model) {
-        Customer customer = getLoggedInCustomer(session);
+    public String propertyExpenseDocuments(@PathVariable Long propertyId, Model model, Authentication authentication) {
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
         if (customer == null) {
-            return "redirect:/customer-login";
+            return "redirect:/customer-login?error=not_found";
         }
 
         // Verify customer has access to this property
@@ -172,12 +176,12 @@ public class CustomerExpenseDocumentController {
      * Download expense invoice PDF for customer.
      */
     @GetMapping("/invoice/{transactionId}/pdf")
-    public void downloadExpenseInvoice(@PathVariable Long transactionId, HttpSession session,
+    public void downloadExpenseInvoice(@PathVariable Long transactionId, Authentication authentication,
                                         HttpServletResponse response) throws IOException {
 
-        Customer customer = getLoggedInCustomer(session);
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
         if (customer == null) {
-            response.sendRedirect("/customer/login");
+            response.sendRedirect("/customer-login?error=not_found");
             return;
         }
 
@@ -209,12 +213,12 @@ public class CustomerExpenseDocumentController {
      * View expense invoice PDF inline for customer.
      */
     @GetMapping("/invoice/{transactionId}/view")
-    public void viewExpenseInvoice(@PathVariable Long transactionId, HttpSession session,
+    public void viewExpenseInvoice(@PathVariable Long transactionId, Authentication authentication,
                                     HttpServletResponse response) throws IOException {
 
-        Customer customer = getLoggedInCustomer(session);
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
         if (customer == null) {
-            response.sendRedirect("/customer/login");
+            response.sendRedirect("/customer-login?error=not_found");
             return;
         }
 
@@ -247,12 +251,12 @@ public class CustomerExpenseDocumentController {
      * Download receipt for customer.
      */
     @GetMapping("/receipt/{documentId}/download")
-    public void downloadReceipt(@PathVariable Long documentId, HttpSession session,
+    public void downloadReceipt(@PathVariable Long documentId, Authentication authentication,
                                  HttpServletResponse response) throws IOException {
 
-        Customer customer = getLoggedInCustomer(session);
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
         if (customer == null) {
-            response.sendRedirect("/customer/login");
+            response.sendRedirect("/customer-login?error=not_found");
             return;
         }
 
@@ -289,8 +293,8 @@ public class CustomerExpenseDocumentController {
      */
     @GetMapping("/api/my-expenses")
     @ResponseBody
-    public ResponseEntity<Map<String, Object>> getMyExpenses(HttpSession session) {
-        Customer customer = getLoggedInCustomer(session);
+    public ResponseEntity<Map<String, Object>> getMyExpenses(Authentication authentication) {
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
         if (customer == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -321,9 +325,9 @@ public class CustomerExpenseDocumentController {
     @GetMapping("/api/transaction/{transactionId}/documents")
     @ResponseBody
     public ResponseEntity<List<ExpenseDocumentDTO>> getTransactionDocuments(
-            @PathVariable Long transactionId, HttpSession session) {
+            @PathVariable Long transactionId, Authentication authentication) {
 
-        Customer customer = getLoggedInCustomer(session);
+        Customer customer = getAuthenticatedPropertyOwner(authentication);
         if (customer == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -338,16 +342,84 @@ public class CustomerExpenseDocumentController {
         return ResponseEntity.ok(documents);
     }
 
-    // ===== HELPER METHODS =====
+    // ===== AUTHENTICATION HELPER - Matches PropertyOwnerController pattern =====
 
     /**
-     * Get logged-in customer from session.
+     * Get the authenticated property owner customer.
+     * This method mirrors the authentication logic in PropertyOwnerController.
      */
-    private Customer getLoggedInCustomer(HttpSession session) {
-        Object customerObj = session.getAttribute("loggedInCustomer");
-        if (customerObj instanceof Customer) {
-            return (Customer) customerObj;
+    private Customer getAuthenticatedPropertyOwner(Authentication authentication) {
+        if (authentication == null) {
+            log.warn("No authentication provided");
+            return null;
         }
+
+        try {
+            String email = null;
+
+            // Check if user is admin/manager - they can access any property owner data
+            int userId = authenticationUtils.getLoggedInUserId(authentication);
+            boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN") ||
+                                auth.getAuthority().equals("ROLE_SUPER_ADMIN") ||
+                                auth.getAuthority().equals("ROLE_MANAGER"));
+
+            if (isAdmin && userId > 0) {
+                List<Customer> propertyOwners = customerService.findPropertyOwners();
+                if (!propertyOwners.isEmpty()) {
+                    return propertyOwners.get(0);
+                }
+            }
+
+            // Try to extract email from OAuth2 authentication
+            if (authentication instanceof OAuth2AuthenticationToken) {
+                OAuth2AuthenticationToken oauthToken = (OAuth2AuthenticationToken) authentication;
+                Object emailAttr = oauthToken.getPrincipal().getAttributes().get("email");
+                if (emailAttr != null) {
+                    email = emailAttr.toString();
+                }
+            }
+
+            // Fallback to authentication name
+            if (email == null) {
+                String authName = authentication.getName();
+                // Known OAuth ID mappings
+                if ("107225176783195838221".equals(authName)) {
+                    email = "sajidkazmi@inversk.com";
+                } else if (!authName.matches("\\d+")) {
+                    email = authName;
+                }
+            }
+
+            // Lookup customer by email
+            if (email != null && !email.trim().isEmpty()) {
+                Customer customer = customerService.findByEmail(email);
+                if (customer != null) {
+                    boolean isPropertyOwner = customer.getCustomerType() == CustomerType.PROPERTY_OWNER;
+                    boolean isDelegatedUser = customer.getCustomerType() == CustomerType.DELEGATED_USER;
+                    boolean hasOwnerFlag = Boolean.TRUE.equals(customer.getIsPropertyOwner());
+
+                    if (isPropertyOwner || isDelegatedUser || hasOwnerFlag) {
+                        return customer;
+                    }
+                }
+            }
+
+            // Fallback: Search all customers
+            List<Customer> allCustomers = customerService.findAll();
+            for (Customer customer : allCustomers) {
+                if (email != null && email.equals(customer.getEmail()) &&
+                    (customer.getCustomerType() == CustomerType.PROPERTY_OWNER ||
+                     customer.getCustomerType() == CustomerType.DELEGATED_USER ||
+                     Boolean.TRUE.equals(customer.getIsPropertyOwner()))) {
+                    return customer;
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("Error getting authenticated property owner: {}", e.getMessage(), e);
+        }
+
         return null;
     }
 
