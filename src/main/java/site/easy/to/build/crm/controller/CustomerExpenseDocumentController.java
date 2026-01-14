@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * Allows property owners to view and download expense invoices and receipts.
  */
 @Controller
-@RequestMapping("/customer/expense-documents")
+@RequestMapping("/property-owner/expense-documents")
 public class CustomerExpenseDocumentController {
 
     private static final Logger log = LoggerFactory.getLogger(CustomerExpenseDocumentController.class);
@@ -67,7 +67,7 @@ public class CustomerExpenseDocumentController {
     public String expenseDocumentsPortal(HttpSession session, Model model) {
         Customer customer = getLoggedInCustomer(session);
         if (customer == null) {
-            return "redirect:/customer/login";
+            return "redirect:/customer-login";
         }
 
         // Get properties owned by this customer
@@ -117,7 +117,7 @@ public class CustomerExpenseDocumentController {
         model.addAttribute("receiptsCount", expensesWithReceipts);
         model.addAttribute("invoicesCount", expensesWithInvoices);
 
-        return "customer/expense-documents";
+        return "property-owner/expense-documents";
     }
 
     /**
@@ -127,17 +127,17 @@ public class CustomerExpenseDocumentController {
     public String propertyExpenseDocuments(@PathVariable Long propertyId, HttpSession session, Model model) {
         Customer customer = getLoggedInCustomer(session);
         if (customer == null) {
-            return "redirect:/customer/login";
+            return "redirect:/customer-login";
         }
 
         // Verify customer has access to this property
         if (!customerHasAccessToProperty(customer.getCustomerId(), propertyId)) {
-            return "redirect:/customer/expense-documents";
+            return "redirect:/property-owner/expense-documents";
         }
 
         Property property = propertyService.findById(propertyId);
         if (property == null) {
-            return "redirect:/customer/expense-documents";
+            return "redirect:/property-owner/expense-documents";
         }
 
         List<Map<String, Object>> expenses = expenseDocumentService.getExpensesWithDocumentStatus(propertyId);
@@ -163,7 +163,7 @@ public class CustomerExpenseDocumentController {
         model.addAttribute("expenses", expenses);
         model.addAttribute("totalExpenses", totalExpenses);
 
-        return "customer/property-expense-documents";
+        return "property-owner/property-expense-documents";
     }
 
     // ===== PDF DOWNLOAD ENDPOINTS =====

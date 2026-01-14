@@ -159,7 +159,7 @@
                                             <span th:text="${#temporals.format(expense.date, 'dd MMM yyyy')}">01 Jan 2024</span>
                                         </td>
                                         <td>
-                                            <a th:href="@{/customer/expense-documents/property/{id}(id=${expense.propertyId})}"
+                                            <a th:href="@{/property-owner/expense-documents/property/{id}(id=${expense.propertyId})}"
                                                class="text-decoration-none">
                                                 <i class="fas fa-building text-muted"></i>
                                                 <span th:text="${expense.propertyName}">Property Name</span>
@@ -188,12 +188,12 @@
                                         <td>
                                             <div class="btn-group btn-group-sm">
                                                 <!-- Download Invoice PDF (always available - generated on demand) -->
-                                                <a th:href="@{/customer/expense-documents/invoice/{id}/pdf(id=${expense.transactionId})}"
+                                                <a th:href="@{/property-owner/expense-documents/invoice/{id}/pdf(id=${expense.transactionId})}"
                                                    class="btn btn-outline-primary" title="Download Invoice PDF">
                                                     <i class="fas fa-file-pdf"></i>
                                                 </a>
                                                 <!-- View Invoice -->
-                                                <a th:href="@{/customer/expense-documents/invoice/{id}/view(id=${expense.transactionId})}"
+                                                <a th:href="@{/property-owner/expense-documents/invoice/{id}/view(id=${expense.transactionId})}"
                                                    class="btn btn-outline-secondary" title="View Invoice" target="_blank">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
@@ -275,7 +275,7 @@
             modal.show();
 
             // Fetch documents
-            fetch(`/customer/expense-documents/api/transaction/${transactionId}/documents`)
+            fetch(`/property-owner/expense-documents/api/transaction/${transactionId}/documents`)
                 .then(response => response.json())
                 .then(documents => {
                     const listDiv = document.getElementById('documentsList');
@@ -294,7 +294,7 @@
                                         <small class="text-muted">${doc.vendorName || ''}</small>
                                     </div>
                                     <div>
-                                        ${doc.hasReceipt ? `<a href="/customer/expense-documents/receipt/${doc.documentId}/download" class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i></a>` : ''}
+                                        ${doc.hasReceipt ? `<a href="/property-owner/expense-documents/receipt/${doc.documentId}/download" class="btn btn-sm btn-outline-success"><i class="fas fa-download"></i></a>` : ''}
                                     </div>
                                 </div>
                             `;
