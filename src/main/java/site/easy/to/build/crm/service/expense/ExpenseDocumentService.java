@@ -449,6 +449,7 @@ public class ExpenseDocumentService {
             category.contains("commission") ||
             category.contains("agency fee") ||
             category.contains("management fee") ||
+            category.contains("management") ||
             category.contains("insurance") ||
             category.contains("utility") ||
             category.contains("utilities") ||
@@ -460,6 +461,10 @@ public class ExpenseDocumentService {
             category.contains("legal") ||
             category.contains("accounting") ||
             category.contains("council") ||
+            category.contains("disbursement") ||
+            category.contains("furnishings") ||
+            category.contains("compliance") ||
+            category.contains("refund") ||
             category.contains("other")) {
             return true;
         }
@@ -599,6 +604,46 @@ public class ExpenseDocumentService {
                description.contains("internal transfer") ||
                transactionType.contains("allocation") ||
                transactionType.contains("transfer");
+    }
+
+    // ===== BLOCK EXPENSE METHODS =====
+
+    /**
+     * Get expenses from a block property account.
+     * Block expenses are expenses paid from the block property (isBlockProperty = true).
+     *
+     * @param blockPropertyId The block property ID
+     * @return List of expense info maps for the block property
+     */
+    public List<Map<String, Object>> getBlockExpenses(Long blockPropertyId) {
+        log.debug("Getting block expenses for block property: {}", blockPropertyId);
+
+        // Verify this is actually a block property
+        Property blockProperty = propertyRepository.findById(blockPropertyId).orElse(null);
+        if (blockProperty == null || !Boolean.TRUE.equals(blockProperty.getIsBlockProperty())) {
+            log.warn("Property {} is not a block property", blockPropertyId);
+            return Collections.emptyList();
+        }
+
+        return getExpensesWithDocumentStatus(blockPropertyId);
+    }
+
+    /**
+     * Check if a property is a block property.
+     */
+    public boolean isBlockProperty(Long propertyId) {
+        if (propertyId == null) return false;
+        Property property = propertyRepository.findById(propertyId).orElse(null);
+        return property != null && Boolean.TRUE.equals(property.getIsBlockProperty());
+    }
+
+    /**
+     * Determine if a transaction is a block expense (expense from a block property account).
+     * This is determined by checking if the property is a block property.
+     */
+    public boolean isBlockExpenseTransaction(UnifiedTransaction tx) {
+        if (tx.getPropertyId() == null) return false;
+        return isBlockProperty(tx.getPropertyId());
     }
 
     // ===== HELPER METHODS =====

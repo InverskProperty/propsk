@@ -78,28 +78,52 @@ public class CustomerExpenseDocumentController {
         // Get properties owned by this customer
         List<Property> properties = getCustomerProperties(customer.getCustomerId());
 
-        // Get all expenses across all properties
+        // Separate regular properties from block properties
+        List<Property> regularProperties = properties.stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getIsBlockProperty()))
+                .collect(Collectors.toList());
+        List<Property> blockProperties = properties.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getIsBlockProperty()))
+                .collect(Collectors.toList());
+
+        // Get all expenses across all regular properties
         List<Map<String, Object>> allExpenses = new ArrayList<>();
-        for (Property property : properties) {
+        for (Property property : regularProperties) {
             List<Map<String, Object>> propertyExpenses = expenseDocumentService.getExpensesWithDocumentStatus(property.getId());
             for (Map<String, Object> expense : propertyExpenses) {
                 expense.put("propertyName", property.getPropertyName());
                 expense.put("propertyId", property.getId());
+                expense.put("isBlockExpense", false);
             }
             allExpenses.addAll(propertyExpenses);
         }
 
-        // Sort by date descending
-        allExpenses.sort((a, b) -> {
+        // Get all expenses from block properties (block expenses)
+        List<Map<String, Object>> blockExpenses = new ArrayList<>();
+        for (Property blockProperty : blockProperties) {
+            List<Map<String, Object>> blockPropertyExpenses = expenseDocumentService.getExpensesWithDocumentStatus(blockProperty.getId());
+            for (Map<String, Object> expense : blockPropertyExpenses) {
+                expense.put("propertyName", blockProperty.getPropertyName());
+                expense.put("propertyId", blockProperty.getId());
+                expense.put("isBlockExpense", true);
+                expense.put("blockPropertyName", blockProperty.getPropertyName());
+            }
+            blockExpenses.addAll(blockPropertyExpenses);
+        }
+
+        // Sort expenses by date descending
+        java.util.Comparator<Map<String, Object>> dateComparator = (a, b) -> {
             LocalDate dateA = (LocalDate) a.get("date");
             LocalDate dateB = (LocalDate) b.get("date");
             if (dateA == null && dateB == null) return 0;
             if (dateA == null) return 1;
             if (dateB == null) return -1;
             return dateB.compareTo(dateA);
-        });
+        };
+        allExpenses.sort(dateComparator);
+        blockExpenses.sort(dateComparator);
 
-        // Calculate totals
+        // Calculate totals for regular expenses
         BigDecimal totalExpenses = allExpenses.stream()
                 .map(e -> (BigDecimal) e.get("amount"))
                 .filter(Objects::nonNull)
@@ -114,13 +138,25 @@ public class CustomerExpenseDocumentController {
                 .filter(e -> Boolean.TRUE.equals(e.get("hasInvoice")))
                 .count();
 
+        // Calculate totals for block expenses
+        BigDecimal totalBlockExpenses = blockExpenses.stream()
+                .map(e -> (BigDecimal) e.get("amount"))
+                .filter(Objects::nonNull)
+                .map(BigDecimal::abs)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         model.addAttribute("customer", customer);
-        model.addAttribute("properties", properties);
+        model.addAttribute("properties", regularProperties);
+        model.addAttribute("blockProperties", blockProperties);
         model.addAttribute("expenses", allExpenses);
+        model.addAttribute("blockExpenses", blockExpenses);
         model.addAttribute("totalExpenses", totalExpenses);
+        model.addAttribute("totalBlockExpenses", totalBlockExpenses);
         model.addAttribute("expenseCount", allExpenses.size());
+        model.addAttribute("blockExpenseCount", blockExpenses.size());
         model.addAttribute("receiptsCount", expensesWithReceipts);
         model.addAttribute("invoicesCount", expensesWithInvoices);
+        model.addAttribute("hasBlockExpenses", !blockExpenses.isEmpty());
 
         return "property-owner/expense-documents";
     }

@@ -74,6 +74,13 @@ public class ExpenseInvoiceDTO {
     private String vendorEmail;
     private String vendorReference; // Contractor ID or reference
 
+    // ===== BLOCK PROPERTY DETAILS (For block service charges) =====
+
+    private Long blockPropertyId;
+    private String blockPropertyName;
+    private String blockPropertyAddress;
+    private boolean isBlockExpense = false;
+
     // ===== AGENCY DETAILS =====
 
     private String agencyName;
@@ -347,4 +354,16 @@ public class ExpenseInvoiceDTO {
 
     public String getThirdPartyVendorName() { return thirdPartyVendorName; }
     public void setThirdPartyVendorName(String thirdPartyVendorName) { this.thirdPartyVendorName = thirdPartyVendorName; }
+
+    public Long getBlockPropertyId() { return blockPropertyId; }
+    public void setBlockPropertyId(Long blockPropertyId) { this.blockPropertyId = blockPropertyId; }
+
+    public String getBlockPropertyName() { return blockPropertyName; }
+    public void setBlockPropertyName(String blockPropertyName) { this.blockPropertyName = blockPropertyName; }
+
+    public String getBlockPropertyAddress() { return blockPropertyAddress; }
+    public void setBlockPropertyAddress(String blockPropertyAddress) { this.blockPropertyAddress = blockPropertyAddress; }
+
+    public boolean isBlockExpense() { return isBlockExpense; }
+    public void setBlockExpense(boolean blockExpense) { isBlockExpense = blockExpense; }
 }

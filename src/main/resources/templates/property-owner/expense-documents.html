@@ -48,6 +48,36 @@
             color: white;
             border-color: #007bff;
         }
+        .block-filter {
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 20px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border: 1px solid #17a2b8;
+            transition: all 0.2s;
+        }
+        .block-filter:hover, .block-filter.active {
+            background: #17a2b8;
+            color: white;
+            border-color: #17a2b8;
+        }
+        .nav-tabs .nav-link {
+            color: #495057;
+            border: none;
+            border-bottom: 2px solid transparent;
+        }
+        .nav-tabs .nav-link:hover {
+            border-color: transparent;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .nav-tabs .nav-link.active {
+            color: #007bff;
+            background-color: transparent;
+            border-color: transparent;
+            border-bottom: 2px solid #007bff;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -69,8 +99,26 @@
             </div>
         </div>
 
-        <!-- Statistics Cards -->
-        <div class="row mb-4">
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs mb-4" id="expensesTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="property-expenses-tab" data-bs-toggle="tab"
+                        data-bs-target="#property-expenses" type="button" role="tab">
+                    <i class="fas fa-home"></i> Property Expenses
+                    <span class="badge bg-danger ms-2" th:text="${expenseCount}">0</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation" th:if="${hasBlockExpenses}">
+                <button class="nav-link" id="block-expenses-tab" data-bs-toggle="tab"
+                        data-bs-target="#block-expenses" type="button" role="tab">
+                    <i class="fas fa-building"></i> Block Expenses
+                    <span class="badge bg-info ms-2" th:text="${blockExpenseCount}">0</span>
+                </button>
+            </li>
+        </ul>
+
+        <!-- Statistics Cards for Property Expenses -->
+        <div class="row mb-4" id="property-stats">
             <div class="col-md-3">
                 <div class="stat-card total">
                     <h3 th:text="${#numbers.formatCurrency(totalExpenses)}">£0.00</h3>
@@ -97,138 +145,293 @@
             </div>
         </div>
 
-        <!-- Property Filter -->
-        <div class="row mb-4" th:if="${#lists.size(properties) > 1}">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h6 class="mb-3"><i class="fas fa-filter"></i> Filter by Property</h6>
-                        <div class="d-flex flex-wrap">
-                            <span class="property-filter active" data-property-id="all">
-                                <i class="fas fa-building"></i> All Properties
-                            </span>
-                            <span class="property-filter" th:each="property : ${properties}"
-                                  th:data-property-id="${property.id}"
-                                  th:text="${property.propertyName}">
-                            </span>
+        <!-- Tab Content -->
+        <div class="tab-content" id="expensesTabContent">
+            <!-- Property Expenses Tab -->
+            <div class="tab-pane fade show active" id="property-expenses" role="tabpanel">
+                <!-- Property Filter -->
+                <div class="row mb-4" th:if="${#lists.size(properties) > 1}">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="mb-3"><i class="fas fa-filter"></i> Filter by Property</h6>
+                                <div class="d-flex flex-wrap">
+                                    <span class="property-filter active" data-property-id="all">
+                                        <i class="fas fa-building"></i> All Properties
+                                    </span>
+                                    <span class="property-filter" th:each="property : ${properties}"
+                                          th:data-property-id="${property.id}"
+                                          th:text="${property.propertyName}">
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expenses List -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0"><i class="fas fa-list-alt"></i> Property Expenses</h5>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary active" data-view="list">
+                                            <i class="fas fa-list"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" data-view="grid">
+                                            <i class="fas fa-th"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div th:if="${#lists.isEmpty(expenses)}" class="text-center py-5">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">No expenses found for your properties</p>
+                                </div>
+
+                                <div th:unless="${#lists.isEmpty(expenses)}" class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Property</th>
+                                                <th>Description</th>
+                                                <th>Category</th>
+                                                <th class="text-end">Amount</th>
+                                                <th>Documents</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="expense : ${expenses}"
+                                                th:data-property-id="${expense.propertyId}"
+                                                th:classappend="${expense.hasReceipt ? 'table-success' : (expense.hasInvoice ? 'table-info' : '')}">
+                                                <td>
+                                                    <span th:text="${#temporals.format(expense.date, 'dd MMM yyyy')}">01 Jan 2024</span>
+                                                </td>
+                                                <td>
+                                                    <a th:href="@{/property-owner/expense-documents/property/{id}(id=${expense.propertyId})}"
+                                                       class="text-decoration-none">
+                                                        <i class="fas fa-building text-muted"></i>
+                                                        <span th:text="${expense.propertyName}">Property Name</span>
+                                                    </a>
+                                                </td>
+                                                <td th:text="${expense.description}">Expense description</td>
+                                                <td>
+                                                    <span class="badge bg-secondary" th:text="${expense.category}">Category</span>
+                                                </td>
+                                                <td class="text-end">
+                                                    <strong class="text-danger"
+                                                            th:text="${#numbers.formatCurrency(expense.amount?.abs())}">£0.00</strong>
+                                                </td>
+                                                <td>
+                                                    <span th:if="${expense.hasReceipt}" class="doc-badge badge bg-success me-1">
+                                                        <i class="fas fa-receipt"></i> Receipt
+                                                    </span>
+                                                    <span th:if="${expense.hasInvoice}" class="doc-badge badge bg-primary">
+                                                        <i class="fas fa-file-invoice"></i> Invoice
+                                                    </span>
+                                                    <span th:unless="${expense.hasReceipt or expense.hasInvoice}"
+                                                          class="doc-badge badge bg-light text-muted">
+                                                        No docs
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <!-- Download Invoice PDF (only for agency-generated invoices) -->
+                                                        <a th:if="${expense.shouldGenerateInvoice != false}"
+                                                           th:href="@{/property-owner/expense-documents/invoice/{id}/pdf(id=${expense.transactionId})}"
+                                                           class="btn btn-outline-primary" title="Download Invoice PDF">
+                                                            <i class="fas fa-file-pdf"></i>
+                                                        </a>
+                                                        <!-- View Invoice (only for agency-generated invoices) -->
+                                                        <a th:if="${expense.shouldGenerateInvoice != false}"
+                                                           th:href="@{/property-owner/expense-documents/invoice/{id}/view(id=${expense.transactionId})}"
+                                                           class="btn btn-outline-secondary" title="View Invoice" target="_blank">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                        <!-- For third-party invoices, show info badge -->
+                                                        <span th:if="${expense.shouldGenerateInvoice == false}"
+                                                              class="btn btn-outline-warning"
+                                                              th:title="${'Invoice from: ' + (expense.thirdPartyVendorName ?: 'Third Party')}">
+                                                            <i class="fas fa-external-link-alt"></i>
+                                                        </span>
+                                                        <!-- Upload Document -->
+                                                        <button class="btn btn-outline-success"
+                                                                onclick="showUploadModal(this)"
+                                                                th:data-transaction-id="${expense.transactionId}"
+                                                                th:data-description="${expense.description}"
+                                                                title="Upload Receipt/Invoice">
+                                                            <i class="fas fa-upload"></i>
+                                                        </button>
+                                                        <!-- View Documents (if any attached) -->
+                                                        <button th:if="${expense.documentCount > 0}"
+                                                                class="btn btn-outline-info"
+                                                                onclick="showDocuments(this)"
+                                                                th:data-transaction-id="${expense.transactionId}"
+                                                                title="View Attached Documents">
+                                                            <i class="fas fa-paperclip"></i>
+                                                            <span class="badge bg-info" th:text="${expense.documentCount}">0</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Expenses List -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0"><i class="fas fa-list-alt"></i> Property Expenses</h5>
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-secondary active" data-view="list">
-                                    <i class="fas fa-list"></i>
-                                </button>
-                                <button class="btn btn-outline-secondary" data-view="grid">
-                                    <i class="fas fa-th"></i>
-                                </button>
+            <!-- Block Expenses Tab -->
+            <div class="tab-pane fade" id="block-expenses" role="tabpanel" th:if="${hasBlockExpenses}">
+                <!-- Block Statistics -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                            <h3 th:text="${#numbers.formatCurrency(totalBlockExpenses)}">£0.00</h3>
+                            <p><i class="fas fa-building"></i> Total Block Expenses</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card count">
+                            <h3 th:text="${blockExpenseCount}">0</h3>
+                            <p><i class="fas fa-list"></i> Block Transactions</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stat-card" style="background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%);">
+                            <h3 th:text="${#lists.size(blockProperties)}">0</h3>
+                            <p><i class="fas fa-city"></i> Block Properties</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Block Filter -->
+                <div class="row mb-4" th:if="${#lists.size(blockProperties) > 1}">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="mb-3"><i class="fas fa-filter"></i> Filter by Block</h6>
+                                <div class="d-flex flex-wrap">
+                                    <span class="block-filter active" data-block-id="all">
+                                        <i class="fas fa-building"></i> All Blocks
+                                    </span>
+                                    <span class="block-filter" th:each="block : ${blockProperties}"
+                                          th:data-block-id="${block.id}"
+                                          th:text="${block.propertyName}">
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <div th:if="${#lists.isEmpty(expenses)}" class="text-center py-5">
-                            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                            <p class="text-muted">No expenses found for your properties</p>
-                        </div>
+                </div>
 
-                        <div th:unless="${#lists.isEmpty(expenses)}" class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Property</th>
-                                        <th>Description</th>
-                                        <th>Category</th>
-                                        <th class="text-end">Amount</th>
-                                        <th>Documents</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr th:each="expense : ${expenses}"
-                                        th:data-property-id="${expense.propertyId}"
-                                        th:classappend="${expense.hasReceipt ? 'table-success' : (expense.hasInvoice ? 'table-info' : '')}">
-                                        <td>
-                                            <span th:text="${#temporals.format(expense.date, 'dd MMM yyyy')}">01 Jan 2024</span>
-                                        </td>
-                                        <td>
-                                            <a th:href="@{/property-owner/expense-documents/property/{id}(id=${expense.propertyId})}"
-                                               class="text-decoration-none">
-                                                <i class="fas fa-building text-muted"></i>
-                                                <span th:text="${expense.propertyName}">Property Name</span>
-                                            </a>
-                                        </td>
-                                        <td th:text="${expense.description}">Expense description</td>
-                                        <td>
-                                            <span class="badge bg-secondary" th:text="${expense.category}">Category</span>
-                                        </td>
-                                        <td class="text-end">
-                                            <strong class="text-danger"
-                                                    th:text="${#numbers.formatCurrency(expense.amount?.abs())}">£0.00</strong>
-                                        </td>
-                                        <td>
-                                            <span th:if="${expense.hasReceipt}" class="doc-badge badge bg-success me-1">
-                                                <i class="fas fa-receipt"></i> Receipt
-                                            </span>
-                                            <span th:if="${expense.hasInvoice}" class="doc-badge badge bg-primary">
-                                                <i class="fas fa-file-invoice"></i> Invoice
-                                            </span>
-                                            <span th:unless="${expense.hasReceipt or expense.hasInvoice}"
-                                                  class="doc-badge badge bg-light text-muted">
-                                                No docs
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <!-- Download Invoice PDF (only for agency-generated invoices) -->
-                                                <a th:if="${expense.shouldGenerateInvoice != false}"
-                                                   th:href="@{/property-owner/expense-documents/invoice/{id}/pdf(id=${expense.transactionId})}"
-                                                   class="btn btn-outline-primary" title="Download Invoice PDF">
-                                                    <i class="fas fa-file-pdf"></i>
-                                                </a>
-                                                <!-- View Invoice (only for agency-generated invoices) -->
-                                                <a th:if="${expense.shouldGenerateInvoice != false}"
-                                                   th:href="@{/property-owner/expense-documents/invoice/{id}/view(id=${expense.transactionId})}"
-                                                   class="btn btn-outline-secondary" title="View Invoice" target="_blank">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                                <!-- For third-party invoices, show info badge -->
-                                                <span th:if="${expense.shouldGenerateInvoice == false}"
-                                                      class="btn btn-outline-warning"
-                                                      th:title="${'Invoice from: ' + (expense.thirdPartyVendorName ?: 'Third Party')}">
-                                                    <i class="fas fa-external-link-alt"></i>
-                                                </span>
-                                                <!-- Upload Document -->
-                                                <button class="btn btn-outline-success"
-                                                        onclick="showUploadModal(this)"
-                                                        th:data-transaction-id="${expense.transactionId}"
-                                                        th:data-description="${expense.description}"
-                                                        title="Upload Receipt/Invoice">
-                                                    <i class="fas fa-upload"></i>
-                                                </button>
-                                                <!-- View Documents (if any attached) -->
-                                                <button th:if="${expense.documentCount > 0}"
-                                                        class="btn btn-outline-info"
-                                                        onclick="showDocuments(this)"
-                                                        th:data-transaction-id="${expense.transactionId}"
-                                                        title="View Attached Documents">
-                                                    <i class="fas fa-paperclip"></i>
-                                                    <span class="badge bg-info" th:text="${expense.documentCount}">0</span>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                <!-- Block Expenses List -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0"><i class="fas fa-building"></i> Block Expenses</h5>
+                                    <span class="badge bg-light text-info" th:text="${'From Block Account'}">From Block Account</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div th:if="${#lists.isEmpty(blockExpenses)}" class="text-center py-5">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">No block expenses found</p>
+                                </div>
+
+                                <div th:unless="${#lists.isEmpty(blockExpenses)}" class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-info">
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Block</th>
+                                                <th>Description</th>
+                                                <th>Category</th>
+                                                <th class="text-end">Amount</th>
+                                                <th>Documents</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr th:each="expense : ${blockExpenses}"
+                                                th:data-block-id="${expense.propertyId}"
+                                                th:classappend="${expense.hasReceipt ? 'table-success' : (expense.hasInvoice ? 'table-info' : '')}">
+                                                <td>
+                                                    <span th:text="${#temporals.format(expense.date, 'dd MMM yyyy')}">01 Jan 2024</span>
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-info">
+                                                        <i class="fas fa-building"></i>
+                                                        <span th:text="${expense.propertyName}">Block Name</span>
+                                                    </span>
+                                                </td>
+                                                <td th:text="${expense.description}">Expense description</td>
+                                                <td>
+                                                    <span class="badge bg-secondary" th:text="${expense.category}">Category</span>
+                                                </td>
+                                                <td class="text-end">
+                                                    <strong class="text-info"
+                                                            th:text="${#numbers.formatCurrency(expense.amount?.abs())}">£0.00</strong>
+                                                </td>
+                                                <td>
+                                                    <span th:if="${expense.hasReceipt}" class="doc-badge badge bg-success me-1">
+                                                        <i class="fas fa-receipt"></i> Receipt
+                                                    </span>
+                                                    <span th:if="${expense.hasInvoice}" class="doc-badge badge bg-primary">
+                                                        <i class="fas fa-file-invoice"></i> Invoice
+                                                    </span>
+                                                    <span th:unless="${expense.hasReceipt or expense.hasInvoice}"
+                                                          class="doc-badge badge bg-light text-muted">
+                                                        No docs
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <!-- Download Invoice PDF -->
+                                                        <a th:if="${expense.shouldGenerateInvoice != false}"
+                                                           th:href="@{/property-owner/expense-documents/invoice/{id}/pdf(id=${expense.transactionId})}"
+                                                           class="btn btn-outline-info" title="Download Invoice PDF">
+                                                            <i class="fas fa-file-pdf"></i>
+                                                        </a>
+                                                        <!-- View Invoice -->
+                                                        <a th:if="${expense.shouldGenerateInvoice != false}"
+                                                           th:href="@{/property-owner/expense-documents/invoice/{id}/view(id=${expense.transactionId})}"
+                                                           class="btn btn-outline-secondary" title="View Invoice" target="_blank">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                        <!-- Upload Document -->
+                                                        <button class="btn btn-outline-success"
+                                                                onclick="showUploadModal(this)"
+                                                                th:data-transaction-id="${expense.transactionId}"
+                                                                th:data-description="${expense.description}"
+                                                                title="Upload Receipt/Invoice">
+                                                            <i class="fas fa-upload"></i>
+                                                        </button>
+                                                        <!-- View Documents -->
+                                                        <button th:if="${expense.documentCount > 0}"
+                                                                class="btn btn-outline-info"
+                                                                onclick="showDocuments(this)"
+                                                                th:data-transaction-id="${expense.transactionId}"
+                                                                title="View Attached Documents">
+                                                            <i class="fas fa-paperclip"></i>
+                                                            <span class="badge bg-info" th:text="${expense.documentCount}">0</span>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -342,9 +545,31 @@
         });
 
         function filterByProperty(propertyId) {
-            const rows = document.querySelectorAll('tbody tr[data-property-id]');
+            const rows = document.querySelectorAll('#property-expenses tbody tr[data-property-id]');
             rows.forEach(row => {
                 if (propertyId === 'all' || row.getAttribute('data-property-id') === propertyId) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        // Block filter
+        document.querySelectorAll('.block-filter').forEach(filter => {
+            filter.addEventListener('click', function() {
+                document.querySelectorAll('.block-filter').forEach(f => f.classList.remove('active'));
+                this.classList.add('active');
+
+                const blockId = this.getAttribute('data-block-id');
+                filterByBlock(blockId);
+            });
+        });
+
+        function filterByBlock(blockId) {
+            const rows = document.querySelectorAll('#block-expenses tbody tr[data-block-id]');
+            rows.forEach(row => {
+                if (blockId === 'all' || row.getAttribute('data-block-id') === blockId) {
                     row.style.display = '';
                 } else {
                     row.style.display = 'none';

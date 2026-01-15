@@ -11,6 +11,7 @@ import site.easy.to.build.crm.dto.expense.ExpenseInvoiceDTO.ExpenseLineItemDTO;
 import site.easy.to.build.crm.dto.expense.ExpenseInvoiceDTO.InvoiceSourceType;
 import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
+import site.easy.to.build.crm.service.portfolio.PortfolioBlockService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -44,6 +45,12 @@ public class ExpenseInvoiceService {
 
     @Autowired
     private FinancialTransactionRepository financialTransactionRepository;
+
+    @Autowired
+    private PortfolioBlockService portfolioBlockService;
+
+    @Autowired
+    private BlockRepository blockRepository;
 
     /**
      * Generate an expense invoice DTO from a unified transaction.
@@ -128,6 +135,12 @@ public class ExpenseInvoiceService {
         // For third-party invoices, set vendor details
         if (sourceInfo.sourceType == InvoiceSourceType.THIRD_PARTY_VENDOR && sourceInfo.vendorName != null) {
             invoice.setVendorName(sourceInfo.vendorName);
+        }
+
+        // For block service charges, fetch the block property details
+        if (sourceInfo.sourceType == InvoiceSourceType.BLOCK_SERVICE_CHARGE) {
+            invoice.setBlockExpense(true);
+            populateBlockPropertyDetails(invoice, transaction);
         }
 
         // Set description from transaction
@@ -256,6 +269,46 @@ public class ExpenseInvoiceService {
     }
 
     /**
+     * Populate block property details for block service charge invoices.
+     * Finds the block associated with the property and gets the block property details.
+     */
+    private void populateBlockPropertyDetails(ExpenseInvoiceDTO invoice, UnifiedTransaction transaction) {
+        if (transaction.getPropertyId() == null) {
+            return;
+        }
+
+        // Try to find the block property through the property's block assignment
+        Property property = propertyRepository.findById(transaction.getPropertyId()).orElse(null);
+        if (property == null) {
+            return;
+        }
+
+        // Get the block this property belongs to
+        Block block = property.getBlock();
+        if (block == null) {
+            log.debug("Property {} has no block assigned", transaction.getPropertyId());
+            // Try to extract block name from description
+            String blockName = extractBlockName(transaction.getDescription());
+            invoice.setBlockPropertyName(blockName);
+            return;
+        }
+
+        // Get the block property (the property representing the block itself)
+        Property blockProperty = block.getBlockProperty();
+        if (blockProperty != null) {
+            invoice.setBlockPropertyId(blockProperty.getId());
+            invoice.setBlockPropertyName(blockProperty.getPropertyName());
+            invoice.setBlockPropertyAddress(buildPropertyAddress(blockProperty));
+            log.debug("Found block property: {} for block: {}", blockProperty.getPropertyName(), block.getName());
+        } else {
+            // Use the block name as fallback
+            invoice.setBlockPropertyName(block.getName());
+            invoice.setBlockPropertyAddress(block.getFullAddress());
+            log.debug("Using block name as fallback: {}", block.getName());
+        }
+    }
+
+    /**
      * Extract vendor name from description for utilities/council
      */
     private String extractVendorFromDescription(String description) {
@@ -361,14 +414,25 @@ public class ExpenseInvoiceService {
         // Info sections (From/To/Property)
         html.append("<table style=\"width:100%;margin-bottom:20px\"><tr>");
 
-        // Agency (From)
+        // From section - Use block property for block expenses, otherwise agency
         html.append("<td width=\"33%\" style=\"vertical-align:top;padding-right:10px\">");
         html.append("<div class=\"info-box\">");
         html.append("<h3>From</h3>");
-        html.append("<p><strong>").append(escapeHtml(invoice.getAgencyName())).append("</strong></p>");
-        if (invoice.getAgencyAddress() != null) html.append("<p>").append(escapeHtml(invoice.getAgencyAddress()).replace("\n", "<br/>")).append("</p>");
-        if (invoice.getAgencyPhone() != null) html.append("<p>Tel: ").append(escapeHtml(invoice.getAgencyPhone())).append("</p>");
-        if (invoice.getAgencyEmail() != null) html.append("<p>").append(escapeHtml(invoice.getAgencyEmail())).append("</p>");
+
+        if (invoice.isBlockExpense() && invoice.getBlockPropertyName() != null) {
+            // Block service charge - show block property as the "From"
+            html.append("<p><strong>").append(escapeHtml(invoice.getBlockPropertyName())).append("</strong></p>");
+            if (invoice.getBlockPropertyAddress() != null) {
+                html.append("<p>").append(escapeHtml(invoice.getBlockPropertyAddress()).replace("\n", "<br/>")).append("</p>");
+            }
+            html.append("<p><em>Block Service Charge</em></p>");
+        } else {
+            // Regular expense - show agency
+            html.append("<p><strong>").append(escapeHtml(invoice.getAgencyName())).append("</strong></p>");
+            if (invoice.getAgencyAddress() != null) html.append("<p>").append(escapeHtml(invoice.getAgencyAddress()).replace("\n", "<br/>")).append("</p>");
+            if (invoice.getAgencyPhone() != null) html.append("<p>Tel: ").append(escapeHtml(invoice.getAgencyPhone())).append("</p>");
+            if (invoice.getAgencyEmail() != null) html.append("<p>").append(escapeHtml(invoice.getAgencyEmail())).append("</p>");
+        }
         html.append("</div></td>");
 
         // Owner (Bill To)
