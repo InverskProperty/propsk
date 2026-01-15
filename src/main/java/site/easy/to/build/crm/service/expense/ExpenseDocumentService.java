@@ -412,6 +412,14 @@ public class ExpenseDocumentService {
         String category = tx.getCategory() != null ? tx.getCategory().toLowerCase() : "";
         String description = tx.getDescription() != null ? tx.getDescription().toLowerCase() : "";
         String transactionType = tx.getTransactionType() != null ? tx.getTransactionType().toLowerCase() : "";
+        String dataSource = tx.getPaypropDataSource() != null ? tx.getPaypropDataSource() : "";
+
+        // EXCLUDE COMMISSION_PAYMENT data source - these are calculated/anticipated commissions,
+        // not actual transactions. The actual commission payments come from BATCH_PAYMENT with
+        // "Management Fee" descriptions.
+        if ("COMMISSION_PAYMENT".equals(dataSource)) {
+            return false;
+        }
 
         // INCLUDE block service charges (these are expenses paid to the block/freeholder)
         // Check this BEFORE owner payment exclusion
