@@ -5,4 +5,4 @@ JAVA_VERSION = "17"
 cmd = "mvn clean package -DskipTests"
 
 [phases.start]
-cmd = "java -Dserver.port=$PORT -jar target/*.jar"
+cmd = "java -Dserver.port=$PORT -jar target/crm.war"
