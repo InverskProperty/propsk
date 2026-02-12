@@ -17,5 +17,5 @@ FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/target/crm.war app.war
 EXPOSE 8080
-# Optimized JVM configuration without artificial memory limits
-CMD ["java", "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", "-XX:+UseStringDeduplication", "-XX:+UseCompressedOops", "-jar", "app.war"]
+# Optimized JVM configuration - shell form to expand $PORT env var
+CMD java -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+UseCompressedOops -Dserver.port=${PORT:-8080} -jar app.war

@@ -1,8 +1,0 @@
-[variables]
-JAVA_VERSION = "17"
-
-[phases.build]
-cmd = "mvn clean package -DskipTests"
-
-[phases.start]
-cmd = "java -Dserver.port=$PORT -jar target/crm.war"
