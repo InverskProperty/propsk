@@ -13,6 +13,8 @@ import site.easy.to.build.crm.entity.*;
 import site.easy.to.build.crm.repository.*;
 import site.easy.to.build.crm.service.portfolio.PortfolioBlockService;
 
+import org.springframework.core.env.Environment;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -51,6 +53,9 @@ public class ExpenseInvoiceService {
 
     @Autowired
     private BlockRepository blockRepository;
+
+    @Autowired
+    private Environment environment;
 
     /**
      * Generate an expense invoice DTO from a unified transaction.
@@ -125,11 +130,22 @@ public class ExpenseInvoiceService {
         // Set agency details (for agency-generated invoices)
         AgencySettings agency = agencySettingsRepository.getSettings().orElse(null);
         if (agency != null) {
-            invoice.setAgencyName(agency.getCompanyName());
+            // Use agency settings from database, but fall back to environment variable if placeholder
+            String agencyName = agency.getCompanyName();
+            if (agencyName == null || agencyName.isEmpty() ||
+                agencyName.equals("Your Company Name") || agencyName.equals("Company Name")) {
+                // Fall back to environment variable
+                agencyName = environment.getProperty("company.name", "Property Management Agency");
+            }
+            invoice.setAgencyName(agencyName);
             invoice.setAgencyAddress(agency.getCompanyAddress());
             invoice.setAgencyPhone(agency.getCompanyPhone());
             invoice.setAgencyEmail(agency.getCompanyEmail());
             invoice.setAgencyRegistrationNumber(agency.getCompanyRegistrationNumber());
+        } else {
+            // No agency settings in database, use environment variable
+            String agencyName = environment.getProperty("company.name", "Property Management Agency");
+            invoice.setAgencyName(agencyName);
         }
 
         // For third-party invoices, set vendor details
