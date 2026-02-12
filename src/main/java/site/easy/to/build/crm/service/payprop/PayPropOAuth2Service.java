@@ -61,9 +61,14 @@ public class PayPropOAuth2Service {
         
         MemoryDiagnostics.logMemoryUsage("PayPropOAuth2Service Dependencies Injected");
         
-        // Load existing tokens from database on startup
-        loadTokensFromDatabase();
-        
+        // Load existing tokens from database on startup (don't crash if DB is unavailable)
+        try {
+            loadTokensFromDatabase();
+        } catch (Exception e) {
+            System.out.println("⚠️ Could not load PayProp tokens from database on startup: " + e.getMessage());
+            System.out.println("   Tokens will be loaded on first API call when database is available.");
+        }
+
         MemoryDiagnostics.logMemoryUsage("PayPropOAuth2Service Constructor Complete");
     }
     
