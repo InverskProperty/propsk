@@ -44,9 +44,8 @@ public class CustomerLoginInfo {
     @Column(name = "account_locked")
     private Boolean accountLocked = false;
 
-    // FIXED: Correct the relationship - CustomerLoginInfo.id = Customer.profile_id
-    @OneToOne
-    @JoinColumn(name = "id", referencedColumnName = "profile_id")
+    // Customer owns the FK (customers.profile_id -> customer_login_info.id)
+    @OneToOne(mappedBy = "customerLoginInfo")
     @JsonIgnoreProperties("customerLoginInfo")
     private Customer customer;
 
