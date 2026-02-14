@@ -512,10 +512,10 @@ public class UnifiedTransactionRebuildService {
         }
 
         // Step 5a: Truncate unified_allocations (disable FK checks for safety)
+        // Keep FK checks disabled through all inserts - IDs change after unified_transactions truncate+reinsert
         log.info("  📋 Step 5a: Truncating unified_allocations...");
         jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
         jdbcTemplate.execute("TRUNCATE TABLE unified_allocations");
-        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
 
         // Step 5b: Insert from transaction_batch_allocations with proper mapping
         log.info("  📋 Step 5b: Inserting from transaction_batch_allocations...");
@@ -980,6 +980,9 @@ public class UnifiedTransactionRebuildService {
 
         int zeroOwnerCount = jdbcTemplate.update(zeroOwnerSql);
         log.info("  ✓ Created {} synthetic £0 OWNER allocations for fully-consumed rent payments", zeroOwnerCount);
+
+        // Re-enable FK checks after all inserts complete
+        jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 1");
 
         return historicalCount + paypropCount + zeroOwnerCount;
     }
