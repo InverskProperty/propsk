@@ -25,6 +25,7 @@ import site.easy.to.build.crm.repository.PaymentRepository;
 import site.easy.to.build.crm.repository.BeneficiaryBalanceRepository;
 import site.easy.to.build.crm.entity.Property;
 import site.easy.to.build.crm.service.property.PropertyService;
+import site.easy.to.build.crm.service.transaction.UnifiedTransactionRebuildService;
 
 import java.time.LocalDate;
 import java.util.HashMap;
@@ -50,6 +51,7 @@ public class PayPropPaymentsSyncController {
     private final BeneficiaryBalanceRepository beneficiaryBalanceRepository;
     private final RestTemplate restTemplate;
     private final PropertyService propertyService;
+    private final UnifiedTransactionRebuildService unifiedRebuildService;
 
     @Autowired
     public PayPropPaymentsSyncController(PayPropOAuth2Service oAuth2Service,
@@ -59,7 +61,8 @@ public class PayPropPaymentsSyncController {
                                         PaymentRepository paymentRepository,
                                         BeneficiaryBalanceRepository beneficiaryBalanceRepository,
                                         RestTemplate restTemplate,
-                                        PropertyService propertyService) {
+                                        PropertyService propertyService,
+                                        UnifiedTransactionRebuildService unifiedRebuildService) {
         this.oAuth2Service = oAuth2Service;
         this.syncService = syncService;
         this.syncOrchestrator = syncOrchestrator;
@@ -68,6 +71,7 @@ public class PayPropPaymentsSyncController {
         this.beneficiaryBalanceRepository = beneficiaryBalanceRepository;
         this.restTemplate = restTemplate;
         this.propertyService = propertyService;
+        this.unifiedRebuildService = unifiedRebuildService;
     }
 
     /**
@@ -275,27 +279,44 @@ public class PayPropPaymentsSyncController {
             
             // Step 3: Sync beneficiary balances - returns Map<String, Object>
             Map<String, Object> balancesResult = syncService.syncBeneficiaryBalancesToDatabase(initiatedBy);
-            
+
+            // Step 4: Rebuild unified transactions + allocations so Option C statements have data
+            Map<String, Object> unifiedRebuildResult = new HashMap<>();
+            boolean unifiedSuccess = false;
+            try {
+                log.info("Step 4: Rebuilding unified transactions and allocations...");
+                unifiedRebuildResult = unifiedRebuildService.rebuildComplete();
+                unifiedSuccess = "SUCCESS".equals(unifiedRebuildResult.get("status"));
+                log.info("Unified rebuild completed: {}", unifiedRebuildResult.get("status"));
+            } catch (Exception e) {
+                log.error("Unified rebuild failed (non-critical): {}", e.getMessage());
+                unifiedRebuildResult.put("status", "FAILED");
+                unifiedRebuildResult.put("error", e.getMessage());
+            }
+
             // Combine results
             boolean categoriesSuccess = categoriesResult.isSuccess();
             boolean paymentsSuccess = (Boolean) paymentsResult.getOrDefault("success", false);
             boolean balancesSuccess = (Boolean) balancesResult.getOrDefault("success", false);
-            
+
             boolean overallSuccess = categoriesSuccess && paymentsSuccess && balancesSuccess;
-            
+
             Map<String, Object> details = new HashMap<>();
             details.put("categories", categoriesResult.getDetails());
             details.put("payments", paymentsResult);
             details.put("balances", balancesResult);
-            
+            details.put("unifiedRebuild", unifiedRebuildResult);
+
             response.put("success", overallSuccess);
-            response.put("message", overallSuccess ? 
-                "All payment data synced successfully" : 
+            response.put("message", overallSuccess ?
+                (unifiedSuccess ? "All payment data synced and unified layer rebuilt successfully" :
+                    "Payment data synced successfully (unified rebuild had issues - run manually from import page)") :
                 "Payment data sync completed with some issues");
             response.put("details", details);
             response.put("categoriesResult", categoriesResult.getMessage());
             response.put("paymentsResult", paymentsResult.getOrDefault("message", "Payments sync completed"));
             response.put("balancesResult", balancesResult.getOrDefault("message", "Balances sync completed"));
+            response.put("unifiedRebuildResult", unifiedSuccess ? "Unified layer rebuilt" : "Unified rebuild failed - run manually");
             
             return ResponseEntity.ok(response);
 
