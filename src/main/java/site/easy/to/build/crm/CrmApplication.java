@@ -13,6 +13,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import site.easy.to.build.crm.google.service.GoogleTokenRefreshScheduler;
 import site.easy.to.build.crm.util.MemoryDiagnostics;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
 @SpringBootApplication
 @EnableScheduling  // CRITICAL: Enable scheduled tasks for token refresh
 @EnableAsync      // CRITICAL: Enable async event listeners for unified dataset rebuild
@@ -35,13 +40,37 @@ public class CrmApplication extends SpringBootServletInitializer {
      * Run startup checks and fixes
      */
     @Bean
-    CommandLineRunner init(@Autowired(required = false) GoogleTokenRefreshScheduler tokenRefreshScheduler) {
+    CommandLineRunner init(@Autowired(required = false) GoogleTokenRefreshScheduler tokenRefreshScheduler,
+                           @Autowired DataSource dataSource) {
         return args -> {
             MemoryDiagnostics.logMemoryUsage("CommandLineRunner init - Start");
-            
+
             System.out.println("========================================");
-            System.out.println("🚀 CRM Application Started Successfully");
+            System.out.println("CRM Application Started Successfully");
             System.out.println("========================================");
+
+            // DIAGNOSTIC: Log which database we're connected to
+            try (Connection conn = dataSource.getConnection()) {
+                String dbUrl = conn.getMetaData().getURL();
+                System.out.println("DIAGNOSTIC: Connected to database URL: " + dbUrl);
+                System.out.println("DIAGNOSTIC: Database product: " + conn.getMetaData().getDatabaseProductName() + " " + conn.getMetaData().getDatabaseProductVersion());
+
+                try (Statement stmt = conn.createStatement()) {
+                    ResultSet rs = stmt.executeQuery("SELECT COUNT(*) as cnt FROM customer_login_info");
+                    if (rs.next()) {
+                        System.out.println("DIAGNOSTIC: customer_login_info row count: " + rs.getInt("cnt"));
+                    }
+                    rs.close();
+
+                    rs = stmt.executeQuery("SELECT id, username FROM customer_login_info LIMIT 10");
+                    while (rs.next()) {
+                        System.out.println("DIAGNOSTIC: customer_login_info row - id=" + rs.getInt("id") + ", username=" + rs.getString("username"));
+                    }
+                    rs.close();
+                }
+            } catch (Exception e) {
+                System.out.println("DIAGNOSTIC ERROR: " + e.getMessage());
+            }
             
             MemoryDiagnostics.logMemoryUsage("Before Google Token Status Check");
             
