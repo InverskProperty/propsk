@@ -161,7 +161,55 @@ public class TransactionBatchAllocationService {
 
         log.info("Allocated {} of {} transactions to batch {}",
                 allocations.size(), transactionIds.size(), batchReference);
+
+        // Create the PaymentBatch record if allocations were created
+        if (!allocations.isEmpty()) {
+            createPaymentBatchForAllocations(allocations, batchReference, userId);
+        }
+
         return allocations;
+    }
+
+    /**
+     * Create a PaymentBatch record for a set of allocations.
+     * This ensures the batch is visible in the owner payments screen.
+     */
+    private void createPaymentBatchForAllocations(List<TransactionBatchAllocation> allocations,
+                                                   String batchReference, Long userId) {
+        try {
+            // Skip if a PaymentBatch already exists for this batch reference
+            if (paymentBatchRepository.findByBatchId(batchReference).isPresent()) {
+                log.debug("PaymentBatch already exists for batch {}", batchReference);
+                return;
+            }
+
+            // Calculate total from allocations
+            BigDecimal totalPayment = allocations.stream()
+                    .map(TransactionBatchAllocation::getAllocatedAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            // Get beneficiary info from the first allocation
+            Long beneficiaryId = allocations.get(0).getBeneficiaryId();
+            String beneficiaryName = allocations.get(0).getBeneficiaryName();
+
+            PaymentBatch batch = new PaymentBatch();
+            batch.setBatchId(batchReference);
+            batch.setBatchType(PaymentBatch.BatchType.OWNER_PAYMENT);
+            batch.setPaymentDate(LocalDate.now());
+            batch.setBeneficiaryId(beneficiaryId);
+            batch.setBeneficiaryName(beneficiaryName);
+            batch.setTotalAllocations(totalPayment);
+            batch.setTotalPayment(totalPayment);
+            batch.setStatus(PaymentBatch.BatchStatus.PENDING);
+            batch.setSource(PaymentBatch.BatchSource.MANUAL);
+
+            paymentBatchRepository.save(batch);
+
+            log.info("Created PaymentBatch {} with total {} for beneficiary {}",
+                    batchReference, totalPayment, beneficiaryName);
+        } catch (Exception e) {
+            log.error("Failed to create PaymentBatch for batch {}: {}", batchReference, e.getMessage(), e);
+        }
     }
 
     // ===== HELPER: CREATE ALLOCATION =====
