@@ -1565,6 +1565,24 @@ public class StatementDataExtractService {
      */
     public long countCycleStartDatesInPeriod(LocalDate leaseStartDate, LocalDate periodStart,
                                               LocalDate periodEnd, int cycleMonths) {
+        return countCycleStartDatesInPeriod(leaseStartDate, periodStart, periodEnd, cycleMonths, null);
+    }
+
+    /**
+     * Count how many cycle start dates fall WITHIN a given period, respecting lease end date.
+     *
+     * RENT IN ADVANCE: Rent is due on lease start and every cycleMonths thereafter.
+     * Cycle start dates that fall AFTER the lease end date are NOT counted.
+     *
+     * @param leaseStartDate The first cycle start date (lease start)
+     * @param periodStart Start of the period (inclusive)
+     * @param periodEnd End of the period (inclusive)
+     * @param cycleMonths Months per billing cycle
+     * @param leaseEndDate The lease end date (null for ongoing leases)
+     * @return Number of cycle start dates within the period
+     */
+    public long countCycleStartDatesInPeriod(LocalDate leaseStartDate, LocalDate periodStart,
+                                              LocalDate periodEnd, int cycleMonths, LocalDate leaseEndDate) {
         if (leaseStartDate == null || periodStart == null || periodEnd == null) {
             return 0;
         }
@@ -1580,8 +1598,11 @@ public class StatementDataExtractService {
         }
 
         // Count cycles within the period [periodStart, periodEnd]
+        // but skip cycle starts that fall after the lease end date
         while (!cycleStart.isAfter(periodEnd)) {
-            cycleCount++;
+            if (leaseEndDate == null || !cycleStart.isAfter(leaseEndDate)) {
+                cycleCount++;
+            }
             cycleStart = cycleStart.plusMonths(cycleMonths);
         }
 

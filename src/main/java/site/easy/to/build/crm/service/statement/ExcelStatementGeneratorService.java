@@ -720,8 +720,9 @@ public class ExcelStatementGeneratorService {
             }
         } else {
             // Multi-month billing - rent is due when a cycle starts in the period
+            // Pass leaseEnd to prevent counting cycles that start after the lease has ended
             long cyclesInPeriod = dataExtractService.countCycleStartDatesInPeriod(
-                leaseStart, periodStart, periodEnd, cycleMonths);
+                leaseStart, periodStart, periodEnd, cycleMonths, leaseEnd);
 
             if (cyclesInPeriod > 0) {
                 // Find the cycle start date to check for proration
@@ -1374,8 +1375,9 @@ public class ExcelStatementGeneratorService {
                         rentDueCell.setCellFormula(proratedFormula);
                     } else {
                         // Multi-month billing: check if a cycle start date falls in this month
+                        // Pass leaseEnd to prevent counting cycles that start after the lease has ended
                         long cyclesInMonth = dataExtractService.countCycleStartDatesInPeriod(
-                            leaseStart, monthStart, monthEnd, cycleMonths);
+                            leaseStart, monthStart, monthEnd, cycleMonths, leaseEnd);
 
                         if (cyclesInMonth > 0) {
                             // Cycle starts in this month - calculate rent with proration if lease ends mid-cycle
@@ -2653,8 +2655,9 @@ public class ExcelStatementGeneratorService {
                     isCycleStart = true;
                 } else {
                     // Multi-month billing - check if a cycle start date falls within this period
+                    // Pass leaseEnd to prevent counting cycles that start after the lease has ended
                     long cyclesInPeriod = dataExtractService.countCycleStartDatesInPeriod(
-                        leaseStart, period.periodStart, period.periodEnd, frequencyMonths);
+                        leaseStart, period.periodStart, period.periodEnd, frequencyMonths, leaseEnd);
                     isCycleStart = cyclesInPeriod > 0;
                 }
 
