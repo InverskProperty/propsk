@@ -805,13 +805,13 @@ public class FormulaAuditStatementService {
                 ALLOC_SHEET_NAME, allocLastRow));
             agCell.setCellStyle(styles.currency);
 
-            // P: alloc_commission — SUMIFS(commission_amount where OWNER) + SUMIFS(amount where COMMISSION)
+            // P: alloc_commission — SUMIFS(commission_amount where OWNER)
+            // Note: COMMISSION allocation rows duplicate the OWNER.commission_amount for PayProp batches,
+            // so we only use OWNER.commission_amount to avoid double-counting.
+            // Historical batches only have OWNER.commission_amount (no separate COMMISSION rows).
             Cell acCell = row.createCell(col++);
             acCell.setCellFormula(String.format(
-                "SUMIFS(%s!$E$2:$E$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"OWNER\")" +
-                "+SUMIFS(%s!$C$2:$C$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"COMMISSION\")",
-                ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
-                ALLOC_SHEET_NAME, allocLastRow,
+                "SUMIFS(%s!$E$2:$E$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"OWNER\")",
                 ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
                 ALLOC_SHEET_NAME, allocLastRow));
             acCell.setCellStyle(styles.currency);
