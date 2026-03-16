@@ -38,6 +38,9 @@ public class UnifiedTransactionRebuildService {
     @Autowired
     private UnifiedTransactionRepository unifiedTransactionRepository;
 
+    @Autowired
+    private PaymentCorrectionService paymentCorrectionService;
+
     /**
      * Complete rebuild of unified_transactions table
      * Deletes all records and rebuilds from source tables
@@ -107,8 +110,30 @@ public class UnifiedTransactionRebuildService {
                 result.put("syncedAllocations", "SKIPPED: " + e.getMessage());
             }
 
-            // Step 7: Verify rebuild
-            log.info("📋 Step 7: Verifying rebuild...");
+            // Step 7: Apply payment corrections (overrides for PayProp misallocations)
+            log.info("📋 Step 7: Applying payment corrections...");
+            try {
+                int correctionsApplied = paymentCorrectionService.applyCorrections();
+                result.put("correctionsApplied", correctionsApplied);
+                log.info("✅ Applied {} payment correction(s)", correctionsApplied);
+            } catch (Exception e) {
+                log.warn("⚠️ Step 7 failed (non-critical): {}. Continuing...", e.getMessage());
+                result.put("correctionsApplied", "SKIPPED: " + e.getMessage());
+            }
+
+            // Step 8: Sync PayProp payment batches to payment_batches table
+            log.info("📋 Step 8: Syncing PayProp payment batches...");
+            try {
+                int batchesSynced = syncPayPropPaymentBatches();
+                result.put("paymentBatchesSynced", batchesSynced);
+                log.info("✅ Synced {} PayProp payment batches", batchesSynced);
+            } catch (Exception e) {
+                log.warn("⚠️ Step 8 failed (non-critical): {}. Continuing...", e.getMessage());
+                result.put("paymentBatchesSynced", "SKIPPED: " + e.getMessage());
+            }
+
+            // Step 9: Verify rebuild
+            log.info("📋 Step 9: Verifying rebuild...");
             Map<String, Object> verification = verifyRebuild();
             result.put("verification", verification);
 
@@ -1015,6 +1040,74 @@ public class UnifiedTransactionRebuildService {
         });
 
         return stats;
+    }
+
+    /**
+     * Create payment_batches records for PayProp batches that exist in unified_allocations
+     * but don't have a corresponding payment_batches record.
+     *
+     * PayProp allocations are rebuilt from payprop_report_all_payments which includes
+     * payment_batch_id and paid_date, but the rebuild doesn't create payment_batches records.
+     * This method fills that gap by creating records from the PayProp source data.
+     *
+     * @return Number of payment_batches records created
+     */
+    private int syncPayPropPaymentBatches() {
+        String sql = """
+            INSERT INTO payment_batches (
+                batch_id, batch_type, beneficiary_id, beneficiary_name,
+                payment_date, total_allocations, balance_adjustment,
+                adjustment_source, total_payment, status, source,
+                payprop_batch_id, created_at, updated_at
+            )
+            SELECT
+                ua_batch.payment_batch_id as batch_id,
+                'OWNER_PAYMENT' as batch_type,
+                ua_batch.beneficiary_id,
+                ua_batch.beneficiary_name,
+                ua_batch.paid_date as payment_date,
+                ua_batch.total_owner as total_allocations,
+                0.00 as balance_adjustment,
+                'NONE' as adjustment_source,
+                ua_batch.total_owner as total_payment,
+                'PAID' as status,
+                'PAYPROP' as source,
+                ua_batch.payment_batch_id as payprop_batch_id,
+                NOW() as created_at,
+                NOW() as updated_at
+            FROM (
+                SELECT
+                    ua.payment_batch_id,
+                    MIN(ua.paid_date) as paid_date,
+                    -- Use the beneficiary from the OWNER allocation with the largest amount
+                    -- to avoid picking up misclassified expense beneficiaries
+                    (SELECT ua2.beneficiary_id FROM unified_allocations ua2
+                     WHERE ua2.payment_batch_id = ua.payment_batch_id
+                       AND ua2.allocation_type = 'OWNER' AND ua2.amount > 0
+                     ORDER BY ua2.amount DESC LIMIT 1) as beneficiary_id,
+                    (SELECT ua2.beneficiary_name FROM unified_allocations ua2
+                     WHERE ua2.payment_batch_id = ua.payment_batch_id
+                       AND ua2.allocation_type = 'OWNER' AND ua2.amount > 0
+                     ORDER BY ua2.amount DESC LIMIT 1) as beneficiary_name,
+                    SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as total_owner
+                FROM unified_allocations ua
+                WHERE ua.source = 'PAYPROP'
+                  AND ua.payment_batch_id IS NOT NULL
+                  AND ua.paid_date IS NOT NULL
+                  AND NOT EXISTS (
+                      SELECT 1 FROM payment_batches pb
+                      WHERE pb.batch_id = ua.payment_batch_id
+                  )
+                GROUP BY ua.payment_batch_id
+                HAVING total_owner > 0
+            ) ua_batch
+        """;
+
+        int created = jdbcTemplate.update(sql);
+        if (created > 0) {
+            log.info("  Created {} payment_batches records from PayProp allocation data", created);
+        }
+        return created;
     }
 
     /**
