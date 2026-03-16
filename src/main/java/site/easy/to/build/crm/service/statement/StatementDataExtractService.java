@@ -3201,6 +3201,27 @@ public class StatementDataExtractService {
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
+    /**
+     * Extract all allocations for a list of lease (invoice) IDs.
+     * Returns raw rows for the ALLOCATIONS sheet: lease_reference, allocation_type,
+     * amount, gross_amount, commission_amount, batch_id, paid_date, beneficiary, property.
+     */
+    public List<Map<String, Object>> extractAllocationsForLeases(List<Long> leaseIds) {
+        if (leaseIds == null || leaseIds.isEmpty()) return new ArrayList<>();
+
+        String placeholders = leaseIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        String sql = String.format(
+            "SELECT i.lease_reference, ua.allocation_type, ua.amount, " +
+            "  ua.gross_amount, ua.commission_amount, ua.net_to_owner_amount, " +
+            "  ua.payment_batch_id, ua.paid_date, ua.beneficiary_name, ua.property_name " +
+            "FROM unified_allocations ua " +
+            "JOIN invoices i ON i.id = ua.invoice_id " +
+            "WHERE ua.invoice_id IN (%s) " +
+            "ORDER BY i.lease_reference, ua.paid_date, ua.allocation_type", placeholders);
+
+        return jdbcTemplate.queryForList(sql, leaseIds.toArray());
+    }
+
     // ===== BATCH-GROUPED PAYMENT EXTRACTION =====
 
     /**

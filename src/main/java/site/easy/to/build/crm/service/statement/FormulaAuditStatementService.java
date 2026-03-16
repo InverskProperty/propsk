@@ -116,6 +116,9 @@ public class FormulaAuditStatementService {
     // A: transaction_id, B: transaction_date, C: lease_reference, D: property_name, E: amount, F: category, G: description
     private static final String RENT_SHEET_NAME = "RENT_RECEIVED";
     private static final String EXPENSE_SHEET_NAME = "EXPENSES";
+    // ALLOCATIONS sheet: A: lease_reference, B: allocation_type, C: amount, D: gross_amount,
+    //   E: commission_amount, F: batch_id, G: paid_date, H: beneficiary, I: property
+    private static final String ALLOC_SHEET_NAME = "ALLOCATIONS";
 
     /**
      * Generate the formula audit workbook.
@@ -156,6 +159,12 @@ public class FormulaAuditStatementService {
         int expenseDataRows = createExpensesSheet(workbook, expenseTransactions, styles);
         expenseTransactions = null; // free memory
 
+        // 4b. Create ALLOCATIONS sheet
+        List<Long> leaseIds = leases.stream().map(LeaseMasterDTO::getLeaseId).collect(Collectors.toList());
+        List<Map<String, Object>> allocations = dataExtractService.extractAllocationsForLeases(leaseIds);
+        int allocDataRows = createAllocationsSheet(workbook, allocations, styles);
+        allocations = null; // free memory
+
         // 5. Generate periods
         List<Period> periods = generatePeriods(startDate, endDate, periodStartDay, statementFrequency);
         log.info("Formula Audit v2: {} periods", periods.size());
@@ -175,8 +184,8 @@ public class FormulaAuditStatementService {
                     startDate, styles, customerId, rentDataRows, expenseDataRows);
         }
 
-        // 7. Create TOTALS sheet
-        createTotalsSheet(workbook, leases, periodSheetNames, startDate, styles);
+        // 7. Create TOTALS sheet (with allocation reconciliation)
+        createTotalsSheet(workbook, leases, periodSheetNames, startDate, styles, allocDataRows);
 
         log.info("Formula Audit v2: Complete in {}ms, {} sheets",
                 System.currentTimeMillis() - start, workbook.getNumberOfSheets());
@@ -347,6 +356,72 @@ public class FormulaAuditStatementService {
         applyWidths(sheet, headers.length);
         log.info("EXPENSES: {} rows", transactions.size());
         return transactions.size();
+    }
+
+    // ========================================================================
+    // ALLOCATIONS Sheet — every allocation as a row for SUMIFS
+    // ========================================================================
+
+    /**
+     * Creates the ALLOCATIONS sheet with all unified_allocation records.
+     * Columns: lease_reference | allocation_type | amount | gross_amount | commission_amount |
+     *          batch_id | paid_date | beneficiary | property
+     * TOTALS sheet uses SUMIFS against cols A (lease_reference), B (type), C/D/E (amounts).
+     *
+     * @return number of data rows written
+     */
+    private int createAllocationsSheet(Workbook workbook, List<Map<String, Object>> allocations, Styles styles) {
+        Sheet sheet = workbook.createSheet(ALLOC_SHEET_NAME);
+
+        String[] headers = {
+            "lease_reference", "allocation_type", "amount", "gross_amount",
+            "commission_amount", "batch_id", "paid_date", "beneficiary", "property"
+        };
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(styles.header);
+        }
+
+        int rowNum = 1;
+        for (Map<String, Object> alloc : allocations) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(str((String) alloc.get("lease_reference")));
+            row.createCell(1).setCellValue(str((String) alloc.get("allocation_type")));
+
+            Cell amtCell = row.createCell(2);
+            Number amount = (Number) alloc.get("amount");
+            if (amount != null) { amtCell.setCellValue(amount.doubleValue()); amtCell.setCellStyle(styles.currency); }
+
+            Cell grossCell = row.createCell(3);
+            Number gross = (Number) alloc.get("gross_amount");
+            if (gross != null) { grossCell.setCellValue(gross.doubleValue()); grossCell.setCellStyle(styles.currency); }
+
+            Cell commCell = row.createCell(4);
+            Number comm = (Number) alloc.get("commission_amount");
+            if (comm != null) { commCell.setCellValue(comm.doubleValue()); commCell.setCellStyle(styles.currency); }
+
+            row.createCell(5).setCellValue(str((String) alloc.get("payment_batch_id")));
+
+            Cell paidCell = row.createCell(6);
+            Object paidDate = alloc.get("paid_date");
+            if (paidDate instanceof java.sql.Date) {
+                paidCell.setCellValue(((java.sql.Date) paidDate).toLocalDate());
+                paidCell.setCellStyle(styles.date);
+            } else if (paidDate instanceof LocalDate) {
+                paidCell.setCellValue((LocalDate) paidDate);
+                paidCell.setCellStyle(styles.date);
+            }
+
+            row.createCell(7).setCellValue(str((String) alloc.get("beneficiary_name")));
+            row.createCell(8).setCellValue(str((String) alloc.get("property_name")));
+        }
+
+        applyWidths(sheet, headers.length);
+        log.info("ALLOCATIONS: {} rows", allocations.size());
+        return allocations.size();
     }
 
     // ========================================================================
@@ -615,15 +690,27 @@ public class FormulaAuditStatementService {
     // ========================================================================
 
     private void createTotalsSheet(Workbook workbook, List<LeaseMasterDTO> leases,
-                                   List<String> periodSheetNames, LocalDate overallStartDate, Styles styles) {
+                                   List<String> periodSheetNames, LocalDate overallStartDate,
+                                   Styles styles, int allocDataRows) {
 
         Sheet sheet = workbook.createSheet("TOTALS");
 
+        // Headers: formula-based columns | spacer | allocation-based columns | reconciliation
         String[] headers = {
             "lease_id", "lease_reference", "property_name", "tenant_name",
+            // Formula-based (E-K)
             "total_rent_due", "total_rent_received", "total_arrears",
             "commission_rate", "total_commission", "total_expenses",
-            "total_net_to_owner", "first_opening_balance", "last_closing_balance"
+            "total_net_to_owner",
+            // Balance (L-M)
+            "first_opening_balance", "last_closing_balance",
+            // Spacer (N)
+            "",
+            // Allocation-based (O-S) — SUMIFS from ALLOCATIONS sheet
+            "alloc_gross_income", "alloc_commission", "alloc_expenses",
+            "alloc_disbursements", "alloc_net_to_owner",
+            // Reconciliation (T-U)
+            "rent_vs_alloc_diff", "net_diff"
         };
 
         Row headerRow = sheet.createRow(0);
@@ -633,7 +720,9 @@ public class FormulaAuditStatementService {
             cell.setCellStyle(styles.header);
         }
 
-        // Column letters in new period sheet layout:
+        int allocLastRow = allocDataRows + 1; // 1-based, +1 for header
+
+        // Column letters in period sheet layout:
         // H = rent_due, J = total_rent, L = period_arrears,
         // I = opening_balance, M = closing_balance,
         // O = total_commission, P = total_expenses, R = net_to_owner
@@ -641,28 +730,29 @@ public class FormulaAuditStatementService {
         for (int leaseIdx = 0; leaseIdx < leases.size(); leaseIdx++) {
             LeaseMasterDTO lease = leases.get(leaseIdx);
             int periodExcelRow = leaseIdx + 2;
-            int totalsExcelRow = leaseIdx + 2;
+            int r = leaseIdx + 2; // this row in Excel (1-based)
             Row row = sheet.createRow(leaseIdx + 1);
 
             int col = 0;
-            row.createCell(col++).setCellValue(lease.getLeaseId());
-            row.createCell(col++).setCellValue(str(lease.getLeaseReference()));
-            row.createCell(col++).setCellValue(str(lease.getPropertyName()));
-            row.createCell(col++).setCellValue(str(lease.getTenantName()));
+            // A-D: Identification
+            row.createCell(col++).setCellValue(lease.getLeaseId());       // A
+            row.createCell(col++).setCellValue(str(lease.getLeaseReference())); // B
+            row.createCell(col++).setCellValue(str(lease.getPropertyName()));   // C
+            row.createCell(col++).setCellValue(str(lease.getTenantName()));     // D
 
-            // E: total_rent_due — SUM of col H across period sheets
+            // E: total_rent_due
             Cell trdCell = row.createCell(col++);
             trdCell.setCellFormula(buildCrossSheetSum(periodSheetNames, "H", periodExcelRow));
             trdCell.setCellStyle(styles.currency);
 
-            // F: total_rent_received — SUM of col J across period sheets
+            // F: total_rent_received
             Cell trrCell = row.createCell(col++);
             trrCell.setCellFormula(buildCrossSheetSum(periodSheetNames, "J", periodExcelRow));
             trrCell.setCellStyle(styles.currency);
 
-            // G: total_arrears = total_rent_due - total_rent_received
+            // G: total_arrears = E - F
             Cell taCell = row.createCell(col++);
-            taCell.setCellFormula(String.format("E%d-F%d", totalsExcelRow, totalsExcelRow));
+            taCell.setCellFormula(String.format("E%d-F%d", r, r));
             taCell.setCellStyle(styles.currency);
 
             // H: commission_rate
@@ -670,22 +760,22 @@ public class FormulaAuditStatementService {
             crCell.setCellValue(getCommissionRate(lease));
             crCell.setCellStyle(styles.percent);
 
-            // I: total_commission — SUM of col O across period sheets
+            // I: total_commission
             Cell tcCell = row.createCell(col++);
             tcCell.setCellFormula(buildCrossSheetSum(periodSheetNames, "O", periodExcelRow));
             tcCell.setCellStyle(styles.currency);
 
-            // J: total_expenses — SUM of col P across period sheets
+            // J: total_expenses
             Cell teCell = row.createCell(col++);
             teCell.setCellFormula(buildCrossSheetSum(periodSheetNames, "P", periodExcelRow));
             teCell.setCellStyle(styles.currency);
 
-            // K: total_net_to_owner — SUM of col R across period sheets
+            // K: total_net_to_owner = F - I - J
             Cell tnCell = row.createCell(col++);
-            tnCell.setCellFormula(buildCrossSheetSum(periodSheetNames, "R", periodExcelRow));
+            tnCell.setCellFormula(String.format("F%d-I%d-J%d", r, r, r));
             tnCell.setCellStyle(styles.currency);
 
-            // L: first_opening_balance — from first period sheet col I
+            // L: first_opening_balance
             Cell obCell = row.createCell(col++);
             if (!periodSheetNames.isEmpty()) {
                 obCell.setCellFormula(String.format("'%s'!I%d", periodSheetNames.get(0), periodExcelRow));
@@ -694,7 +784,7 @@ public class FormulaAuditStatementService {
             }
             obCell.setCellStyle(styles.currency);
 
-            // M: last_closing_balance — from last period sheet col M
+            // M: last_closing_balance
             Cell cbCell = row.createCell(col++);
             if (!periodSheetNames.isEmpty()) {
                 String lastSheet = periodSheetNames.get(periodSheetNames.size() - 1);
@@ -703,6 +793,59 @@ public class FormulaAuditStatementService {
                 cbCell.setCellValue(0);
             }
             cbCell.setCellStyle(styles.currency);
+
+            // N: spacer
+            row.createCell(col++);
+
+            // O: alloc_gross_income — SUMIFS(ALLOCATIONS gross_amount where lease_ref matches AND type=OWNER)
+            Cell agCell = row.createCell(col++);
+            agCell.setCellFormula(String.format(
+                "SUMIFS(%s!$D$2:$D$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"OWNER\")",
+                ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
+                ALLOC_SHEET_NAME, allocLastRow));
+            agCell.setCellStyle(styles.currency);
+
+            // P: alloc_commission — SUMIFS(commission_amount where OWNER) + SUMIFS(amount where COMMISSION)
+            Cell acCell = row.createCell(col++);
+            acCell.setCellFormula(String.format(
+                "SUMIFS(%s!$E$2:$E$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"OWNER\")" +
+                "+SUMIFS(%s!$C$2:$C$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"COMMISSION\")",
+                ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
+                ALLOC_SHEET_NAME, allocLastRow,
+                ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
+                ALLOC_SHEET_NAME, allocLastRow));
+            acCell.setCellStyle(styles.currency);
+
+            // Q: alloc_expenses — SUMIFS(amount where EXPENSE)
+            Cell aeCell = row.createCell(col++);
+            aeCell.setCellFormula(String.format(
+                "SUMIFS(%s!$C$2:$C$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"EXPENSE\")",
+                ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
+                ALLOC_SHEET_NAME, allocLastRow));
+            aeCell.setCellStyle(styles.currency);
+
+            // R: alloc_disbursements — SUMIFS(amount where DISBURSEMENT)
+            Cell adCell = row.createCell(col++);
+            adCell.setCellFormula(String.format(
+                "SUMIFS(%s!$C$2:$C$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"DISBURSEMENT\")",
+                ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
+                ALLOC_SHEET_NAME, allocLastRow));
+            adCell.setCellStyle(styles.currency);
+
+            // S: alloc_net_to_owner = alloc_gross - alloc_commission - alloc_expenses - alloc_disbursements
+            Cell anCell = row.createCell(col++);
+            anCell.setCellFormula(String.format("O%d-P%d-Q%d-R%d", r, r, r, r));
+            anCell.setCellStyle(styles.currency);
+
+            // T: rent_vs_alloc_diff = total_rent_received - alloc_gross_income
+            Cell rdCell = row.createCell(col++);
+            rdCell.setCellFormula(String.format("F%d-O%d", r, r));
+            rdCell.setCellStyle(styles.currency);
+
+            // U: net_diff = total_net_to_owner - alloc_net_to_owner
+            Cell ndCell = row.createCell(col++);
+            ndCell.setCellFormula(String.format("K%d-S%d", r, r));
+            ndCell.setCellStyle(styles.currency);
         }
 
         // GRAND TOTAL row
@@ -714,9 +857,9 @@ public class FormulaAuditStatementService {
         grandLabel.setCellValue("GRAND TOTAL");
         grandLabel.setCellStyle(styles.bold);
 
-        // SUM columns E through M (skip H = commission_rate)
-        for (int c = 4; c <= 12; c++) {
-            if (c == 7) continue; // skip commission_rate
+        // SUM all numeric columns (skip D=commission_rate, N=spacer)
+        int[] sumCols = {4, 5, 6, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20};
+        for (int c : sumCols) {
             Cell cell = totalsRow.createCell(c);
             String colLetter = colLetter(c);
             cell.setCellFormula(String.format("SUM(%s2:%s%d)", colLetter, colLetter, totalsExcelRow - 1));
@@ -724,7 +867,8 @@ public class FormulaAuditStatementService {
         }
 
         applyWidths(sheet, headers.length);
-        log.info("TOTALS: {} leases, {} period sheets", leases.size(), periodSheetNames.size());
+        log.info("TOTALS: {} leases, {} period sheets, {} allocation rows",
+                leases.size(), periodSheetNames.size(), allocDataRows);
     }
 
     // ========================================================================
