@@ -575,6 +575,15 @@ public class StatementDataExtractService {
         List<TransactionDTO> transactionDTOs = new ArrayList<>();
 
         for (UnifiedTransaction ut : transactions) {
+            // Filter out non-rent INCOMING records (e.g. PROPERTY_ACCOUNT_ALLOCATION for block properties)
+            String category = ut.getCategory();
+            if (category != null) {
+                String lower = category.toLowerCase();
+                if (lower.equals("property_account_allocation")) {
+                    continue;
+                }
+            }
+
             TransactionDTO dto = new TransactionDTO();
 
             dto.setTransactionId(ut.getId());
@@ -587,6 +596,7 @@ public class StatementDataExtractService {
             dto.setTransactionType(ut.getTransactionType());
             dto.setAmount(ut.getAmount());
             dto.setDescription(ut.getDescription());
+            dto.setLeaseReference(ut.getLeaseReference());
             dto.setLeaseStartDate(ut.getLeaseStartDate());
             dto.setLeaseEndDate(ut.getLeaseEndDate());
             dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
@@ -596,6 +606,71 @@ public class StatementDataExtractService {
 
         log.info("[STMT-DEBUG] ✨ COMPLETE extractAllRentReceivedForCustomer - {} records", transactionDTOs.size());
         logMemoryUsage("EXTRACT_ALL_RENT_RECEIVED_COMPLETE");
+        return transactionDTOs;
+    }
+
+    /**
+     * Extract ALL expense transactions for a customer (no date filter).
+     * Used for the EXPENSES sheet in Formula Audit statements.
+     * Filters out owner/commission/disbursement categories — only real expenses.
+     */
+    public List<TransactionDTO> extractAllExpensesForCustomer(Long customerId) {
+        log.info("[STMT-DEBUG] START extractAllExpensesForCustomer({}) - NO DATE FILTER", customerId);
+
+        Customer customer = customerRepository.findById(customerId).orElse(null);
+        if (customer == null) {
+            log.error("Customer {} not found - returning empty list", customerId);
+            return new ArrayList<>();
+        }
+
+        List<UnifiedTransaction> transactions = unifiedTransactionRepository
+            .findByCustomerOwnedPropertiesAndFlowDirection(
+                customerId,
+                UnifiedTransaction.FlowDirection.OUTGOING
+            );
+
+        log.info("[STMT-DEBUG] Found {} TOTAL OUTGOING transactions for customer {}", transactions.size(), customerId);
+
+        List<TransactionDTO> transactionDTOs = new ArrayList<>();
+
+        for (UnifiedTransaction ut : transactions) {
+            // Filter out non-expense categories (owner payments, commission, disbursements)
+            // Also skip NULL/empty categories (zero-amount placeholder records) and zero amounts
+            String category = ut.getCategory();
+            if (category == null || category.trim().isEmpty()) {
+                continue;
+            }
+            String lower = category.toLowerCase();
+            if (lower.equals("owner") || lower.equals("commission") ||
+                lower.contains("owner_payment") || lower.equals("disbursement")) {
+                continue;
+            }
+            // Skip zero-amount records (placeholder/noise)
+            if (ut.getAmount() == null || ut.getAmount().compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
+
+            TransactionDTO dto = new TransactionDTO();
+            dto.setTransactionId(ut.getId());
+            dto.setTransactionDate(ut.getTransactionDate());
+            dto.setInvoiceId(ut.getInvoiceId());
+            dto.setPropertyId(ut.getPropertyId());
+            dto.setPropertyName(ut.getPropertyName());
+            dto.setCustomerId(ut.getCustomerId());
+            dto.setCategory(ut.getCategory());
+            dto.setTransactionType(ut.getTransactionType());
+            dto.setAmount(ut.getAmount());
+            dto.setDescription(ut.getDescription());
+            dto.setLeaseReference(ut.getLeaseReference());
+            dto.setLeaseStartDate(ut.getLeaseStartDate());
+            dto.setLeaseEndDate(ut.getLeaseEndDate());
+            dto.setRentAmountAtTransaction(ut.getRentAmountAtTransaction());
+
+            transactionDTOs.add(dto);
+        }
+
+        log.info("[STMT-DEBUG] COMPLETE extractAllExpensesForCustomer - {} expense records (filtered from {} outgoing)",
+            transactionDTOs.size(), transactions.size());
         return transactionDTOs;
     }
 
