@@ -151,6 +151,7 @@ public class StatementDataExtractService {
 
                 // Block property support
                 dto.setIsBlockProperty(property.getIsBlockProperty());
+                dto.setIsParking(property.isParking());
                 dto.setPropertyAccountBalance(property.getAccountBalance());
                 if (property.getBlock() != null) {
                     dto.setBlockId(property.getBlock().getId());
@@ -278,6 +279,7 @@ public class StatementDataExtractService {
 
                 // Block property support
                 dto.setIsBlockProperty(property.getIsBlockProperty());
+                dto.setIsParking(property.isParking());
                 dto.setPropertyAccountBalance(property.getAccountBalance());
                 if (property.getBlock() != null) {
                     dto.setBlockId(property.getBlock().getId());
@@ -3888,6 +3890,7 @@ public class StatementDataExtractService {
                 dto.setPropertyName(property.getPropertyName());
                 dto.setPropertyAddress(property.getFullAddress());
                 dto.setIsBlockProperty(property.getIsBlockProperty());
+                dto.setIsParking(property.isParking());
                 dto.setPropertyAccountBalance(property.getAccountBalance());
                 if (property.getBlock() != null) {
                     dto.setBlockId(property.getBlock().getId());

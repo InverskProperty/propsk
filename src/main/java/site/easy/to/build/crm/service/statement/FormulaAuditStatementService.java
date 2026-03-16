@@ -136,6 +136,7 @@ public class FormulaAuditStatementService {
 
         List<LeaseMasterDTO> leases = allLeases.stream()
                 .filter(l -> !Boolean.TRUE.equals(l.getIsBlockProperty()))
+                .filter(l -> !Boolean.TRUE.equals(l.getIsParking()))
                 .collect(Collectors.toList());
 
         List<TransactionDTO> rentTransactions = dataExtractService.extractAllRentReceivedForCustomer(customerId);

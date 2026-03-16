@@ -34,6 +34,7 @@ public class LeaseMasterDTO {
     private Long blockId;              // ID of the block this property belongs to (null if standalone)
     private String blockName;          // Name of the block (e.g., "Boden House Block")
     private Boolean isBlockProperty;   // True if this IS the block property itself (not a unit)
+    private Boolean isParking;         // True if property is a parking space (excluded from statements)
     private BigDecimal propertyAccountBalance;  // Current property account balance (for block properties)
 
     // Constructor
@@ -207,6 +208,14 @@ public class LeaseMasterDTO {
 
     public void setIsBlockProperty(Boolean isBlockProperty) {
         this.isBlockProperty = isBlockProperty;
+    }
+
+    public Boolean getIsParking() {
+        return isParking;
+    }
+
+    public void setIsParking(Boolean isParking) {
+        this.isParking = isParking;
     }
 
     public BigDecimal getPropertyAccountBalance() {
