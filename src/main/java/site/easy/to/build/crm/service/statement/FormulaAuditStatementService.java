@@ -282,8 +282,7 @@ public class FormulaAuditStatementService {
      *   Row 1: Headers
      *   Row 2..N+1: One row per lease (lease summary with first batch if any)
      *   Row N+2: PERIOD TOTAL (SUM formulas)
-     *   Row N+4+: Additional batch rows for leases with >1 batch (spillover)
-     *   Row after spillover: PAYMENT RECONCILIATION section
+     *   Row N+2: PAYMENT RECONCILIATION section
      */
     private void createPeriodSheet(Workbook workbook, String sheetName,
                                    List<LeaseMasterDTO> leases, Period period,
@@ -300,10 +299,7 @@ public class FormulaAuditStatementService {
             cell.setCellStyle(styles.header);
         }
 
-        // Spillover rows for leases with multiple batches
-        List<SpilloverData> spillovers = new ArrayList<>();
-
-        // Fixed rows: one per lease
+        // Fixed rows: one per lease — ALL batches aggregated into single row
         for (int leaseIdx = 0; leaseIdx < leases.size(); leaseIdx++) {
             LeaseMasterDTO lease = leases.get(leaseIdx);
             int excelRow = leaseIdx + 2; // 1-based, +1 for header
@@ -311,7 +307,7 @@ public class FormulaAuditStatementService {
 
             boolean active = isLeaseActiveInPeriod(lease, period);
 
-            // Get batch data for this lease in this period
+            // Get ALL batch data for this lease in this period
             List<BatchPaymentGroupDTO> batchGroups = active
                     ? dataExtractService.extractBatchPaymentGroups(lease, period.start, period.end)
                     : Collections.emptyList();
@@ -321,51 +317,40 @@ public class FormulaAuditStatementService {
                     ? generateRentDuePeriodsForLease(lease, period.start, period.end)
                     : Collections.emptyList();
 
-            // Calculate rent due total
             BigDecimal leaseRentDue = BigDecimal.ZERO;
             for (RentDuePeriodInfo rp : rentDuePeriods) {
                 leaseRentDue = leaseRentDue.add(rp.rentDue);
             }
 
-            // Calculate total rent received
-            BigDecimal leaseRentReceived = BigDecimal.ZERO;
+            // Aggregate ALL rent payments and expenses across ALL batches
+            List<PaymentDetailDTO> allRentPayments = new ArrayList<>();
+            List<PaymentDetailDTO> allExpenses = new ArrayList<>();
+            List<String> batchIds = new ArrayList<>();
+            LocalDate firstPaymentDate = null;
+
             for (BatchPaymentGroupDTO batch : batchGroups) {
-                for (PaymentDetailDTO payment : batch.getRentPayments()) {
-                    if (payment.getAmount() != null) {
-                        leaseRentReceived = leaseRentReceived.add(payment.getAmount());
-                    }
+                allRentPayments.addAll(batch.getRentPayments());
+                allExpenses.addAll(batch.getExpenses());
+                if (batch.getBatchId() != null) batchIds.add(batch.getBatchId());
+                if (batch.getOwnerPaymentDate() != null && firstPaymentDate == null) {
+                    firstPaymentDate = batch.getOwnerPaymentDate();
                 }
             }
 
-            BigDecimal periodArrears = leaseRentDue.subtract(leaseRentReceived);
-
-            // Commission rate
             double commissionRate = getCommissionRate(lease);
 
-            // A: lease_id
+            // A-E: Lease identification (always present)
             row.createCell(COL_LEASE_ID).setCellValue(lease.getLeaseId());
-            // B: lease_reference
             row.createCell(COL_LEASE_REF).setCellValue(str(lease.getLeaseReference()));
-            // C: property_name
             row.createCell(COL_PROPERTY).setCellValue(str(lease.getPropertyName()));
-            // D: customer_name
             row.createCell(COL_CUSTOMER).setCellValue(str(lease.getCustomerName()));
-            // E: tenant_name
             row.createCell(COL_TENANT).setCellValue(str(lease.getTenantName()));
 
-            // F: rent_due_from
+            // F-G: rent_due_from/to
             Cell rentDueFromCell = row.createCell(COL_RENT_DUE_FROM);
-            if (!rentDuePeriods.isEmpty()) {
-                rentDueFromCell.setCellValue(rentDuePeriods.get(0).periodStart);
-                rentDueFromCell.setCellStyle(styles.date);
-            }
-
-            // G: rent_due_to
+            if (!rentDuePeriods.isEmpty()) { rentDueFromCell.setCellValue(rentDuePeriods.get(0).periodStart); rentDueFromCell.setCellStyle(styles.date); }
             Cell rentDueToCell = row.createCell(COL_RENT_DUE_TO);
-            if (!rentDuePeriods.isEmpty()) {
-                rentDueToCell.setCellValue(rentDuePeriods.get(rentDuePeriods.size() - 1).periodEnd);
-                rentDueToCell.setCellStyle(styles.date);
-            }
+            if (!rentDuePeriods.isEmpty()) { rentDueToCell.setCellValue(rentDuePeriods.get(rentDuePeriods.size() - 1).periodEnd); rentDueToCell.setCellStyle(styles.date); }
 
             // H: rent_due
             Cell rentDueCell = row.createCell(COL_RENT_DUE);
@@ -375,10 +360,8 @@ public class FormulaAuditStatementService {
             // I: opening_balance — chained from previous sheet or calculated for first period
             Cell obCell = row.createCell(COL_OPENING_BAL);
             if (prevSheetName != null) {
-                // Chain from previous period's closing balance
                 obCell.setCellFormula(String.format("'%s'!K%d", prevSheetName, excelRow));
             } else {
-                // First period: calculate from database
                 BigDecimal openingBal = dataExtractService.calculateTenantOpeningBalance(
                         lease.getLeaseId(), lease.getStartDate(), overallStartDate,
                         lease.getMonthlyRent(), lease.getFrequencyMonths(), lease.getEndDate());
@@ -396,17 +379,72 @@ public class FormulaAuditStatementService {
             cbCell.setCellFormula(String.format("I%d+J%d", excelRow, excelRow));
             cbCell.setCellStyle(styles.currency);
 
-            // Now fill in the batch detail columns for the FIRST batch (or zeroes if no batches)
-            BatchPaymentGroupDTO firstBatch = batchGroups.isEmpty() ? null : batchGroups.get(0);
+            // L: batch_id(s) — comma-separated if multiple
+            row.createCell(COL_BATCH_ID).setCellValue(String.join(", ", batchIds));
 
-            writeBatchColumns(row, firstBatch, commissionRate, styles);
+            // M: owner_payment_date (first batch)
+            Cell payDateCell = row.createCell(COL_OWNER_PAY_DATE);
+            if (firstPaymentDate != null) { payDateCell.setCellValue(firstPaymentDate); payDateCell.setCellStyle(styles.date); }
 
-            // If there are additional batches, save them as spillover
-            if (batchGroups.size() > 1) {
-                for (int b = 1; b < batchGroups.size(); b++) {
-                    spillovers.add(new SpilloverData(lease, batchGroups.get(b), commissionRate));
+            // N-U: rent_1..rent_4 (aggregated across all batches, first 4 payments)
+            for (int i = 0; i < 4; i++) {
+                int dateCol = 13 + (i * 2);
+                int amtCol = 14 + (i * 2);
+                if (i < allRentPayments.size()) {
+                    PaymentDetailDTO p = allRentPayments.get(i);
+                    Cell rdCell = row.createCell(dateCol);
+                    if (p.getPaymentDate() != null) { rdCell.setCellValue(p.getPaymentDate()); rdCell.setCellStyle(styles.date); }
+                    Cell raCell = row.createCell(amtCol);
+                    if (p.getAmount() != null) { raCell.setCellValue(p.getAmount().doubleValue()); raCell.setCellStyle(styles.currency); }
+                } else {
+                    row.createCell(dateCol);
+                    row.createCell(amtCol);
                 }
             }
+
+            // V: total_rent — SUM formula of rent columns
+            Cell totalRentCell = row.createCell(COL_TOTAL_RENT);
+            totalRentCell.setCellFormula(String.format("O%d+Q%d+S%d+U%d", excelRow, excelRow, excelRow, excelRow));
+            totalRentCell.setCellStyle(styles.currency);
+
+            // W: commission_rate
+            Cell commRateCell = row.createCell(COL_COMM_RATE);
+            commRateCell.setCellValue(commissionRate);
+            commRateCell.setCellStyle(styles.percent);
+
+            // X: total_commission = total_rent * commission_rate (formula)
+            Cell totalCommCell = row.createCell(COL_TOTAL_COMM);
+            totalCommCell.setCellFormula(String.format("V%d*W%d", excelRow, excelRow));
+            totalCommCell.setCellStyle(styles.currency);
+
+            // Y-AJ: expense_1..expense_4 (aggregated across all batches, first 4 expenses)
+            for (int i = 0; i < 4; i++) {
+                int dateCol = 24 + (i * 3);
+                int amtCol = 25 + (i * 3);
+                int catCol = 26 + (i * 3);
+                if (i < allExpenses.size()) {
+                    PaymentDetailDTO exp = allExpenses.get(i);
+                    Cell edCell = row.createCell(dateCol);
+                    if (exp.getPaymentDate() != null) { edCell.setCellValue(exp.getPaymentDate()); edCell.setCellStyle(styles.date); }
+                    Cell eaCell = row.createCell(amtCol);
+                    if (exp.getAmount() != null) { eaCell.setCellValue(Math.abs(exp.getAmount().doubleValue())); eaCell.setCellStyle(styles.currency); }
+                    row.createCell(catCol).setCellValue(exp.getCategory() != null ? exp.getCategory() : "");
+                } else {
+                    row.createCell(dateCol);
+                    row.createCell(amtCol);
+                    row.createCell(catCol);
+                }
+            }
+
+            // AK: total_expenses — SUM formula of expense amount columns
+            Cell totalExpCell = row.createCell(COL_TOTAL_EXPENSES);
+            totalExpCell.setCellFormula(String.format("Z%d+AC%d+AF%d+AI%d", excelRow, excelRow, excelRow, excelRow));
+            totalExpCell.setCellStyle(styles.currency);
+
+            // AL: net_to_owner = total_rent - total_commission - total_expenses (formula)
+            Cell netCell = row.createCell(COL_NET_TO_OWNER);
+            netCell.setCellFormula(String.format("V%d-X%d-AK%d", excelRow, excelRow, excelRow));
+            netCell.setCellStyle(styles.currency);
         }
 
         // PERIOD TOTAL row (right after the fixed lease rows)
@@ -418,7 +456,6 @@ public class FormulaAuditStatementService {
         labelCell.setCellValue("PERIOD TOTAL");
         labelCell.setCellStyle(styles.bold);
 
-        // SUM formulas for key columns
         writeSumFormula(totalsRow, COL_RENT_DUE, 2, totalsExcelRow - 1, styles.boldCurrency);
         writeSumFormula(totalsRow, COL_OPENING_BAL, 2, totalsExcelRow - 1, styles.boldCurrency);
         writeSumFormula(totalsRow, COL_PERIOD_ARREARS, 2, totalsExcelRow - 1, styles.boldCurrency);
@@ -428,44 +465,8 @@ public class FormulaAuditStatementService {
         writeSumFormula(totalsRow, COL_TOTAL_EXPENSES, 2, totalsExcelRow - 1, styles.boldCurrency);
         writeSumFormula(totalsRow, COL_NET_TO_OWNER, 2, totalsExcelRow - 1, styles.boldCurrency);
 
-        // Spillover section: additional batch rows for leases with multiple batches
-        int nextRow = totalsRowIdx + 2; // blank row after totals
-        if (!spillovers.isEmpty()) {
-            Row spillHeaderRow = sheet.createRow(nextRow++);
-            Cell spillLabel = spillHeaderRow.createCell(0);
-            spillLabel.setCellValue("ADDITIONAL BATCHES (leases with multiple payments in this period)");
-            spillLabel.setCellStyle(styles.bold);
-
-            // Repeat the header row
-            Row spillColHeaders = sheet.createRow(nextRow++);
-            for (int i = 0; i < PERIOD_HEADERS.length; i++) {
-                Cell cell = spillColHeaders.createCell(i);
-                cell.setCellValue(PERIOD_HEADERS[i]);
-                cell.setCellStyle(styles.header);
-            }
-
-            for (SpilloverData spill : spillovers) {
-                Row spillRow = sheet.createRow(nextRow++);
-                spillRow.createCell(COL_LEASE_ID).setCellValue(spill.lease.getLeaseId());
-                spillRow.createCell(COL_LEASE_REF).setCellValue(str(spill.lease.getLeaseReference()));
-                spillRow.createCell(COL_PROPERTY).setCellValue(str(spill.lease.getPropertyName()));
-                spillRow.createCell(COL_CUSTOMER).setCellValue(str(spill.lease.getCustomerName()));
-                spillRow.createCell(COL_TENANT).setCellValue(str(spill.lease.getTenantName()));
-                // rent_due columns left empty for spillover (already counted on main row)
-                spillRow.createCell(COL_RENT_DUE_FROM);
-                spillRow.createCell(COL_RENT_DUE_TO);
-                Cell rdCell = spillRow.createCell(COL_RENT_DUE);
-                rdCell.setCellStyle(styles.currency);
-                spillRow.createCell(COL_OPENING_BAL).setCellStyle(styles.currency);
-                spillRow.createCell(COL_PERIOD_ARREARS).setCellStyle(styles.currency);
-                spillRow.createCell(COL_CLOSING_BAL).setCellStyle(styles.currency);
-
-                writeBatchColumns(spillRow, spill.batch, spill.commissionRate, styles);
-            }
-        }
-
         // PAYMENT RECONCILIATION section
-        nextRow += 2;
+        int nextRow = totalsRowIdx + 2;
         Long resolvedOwnerId = resolveActualOwnerId(customerId);
         Set<Long> allPropertyIds = leases.stream()
                 .map(LeaseMasterDTO::getPropertyId)
@@ -477,123 +478,7 @@ public class FormulaAuditStatementService {
         applyWidths(sheet, PERIOD_HEADERS.length);
     }
 
-    /**
-     * Write batch detail columns (L through AL) for a single batch.
-     * If batch is null, writes zeroes/blanks.
-     */
-    private void writeBatchColumns(Row row, BatchPaymentGroupDTO batch,
-                                    double commissionRate, Styles styles) {
-        int excelRow = row.getRowNum() + 1; // 1-based
-
-        if (batch == null) {
-            // No batch — blank/zero columns
-            row.createCell(COL_BATCH_ID);
-            row.createCell(COL_OWNER_PAY_DATE);
-            for (int i = 13; i <= 20; i++) row.createCell(i); // rent_1..rent_4
-            Cell trCell = row.createCell(COL_TOTAL_RENT);
-            trCell.setCellValue(0);
-            trCell.setCellStyle(styles.currency);
-            Cell crCell = row.createCell(COL_COMM_RATE);
-            crCell.setCellValue(commissionRate);
-            crCell.setCellStyle(styles.percent);
-            Cell tcCell = row.createCell(COL_TOTAL_COMM);
-            tcCell.setCellValue(0);
-            tcCell.setCellStyle(styles.currency);
-            for (int i = 24; i <= 35; i++) row.createCell(i); // expense_1..expense_4
-            Cell teCell = row.createCell(COL_TOTAL_EXPENSES);
-            teCell.setCellValue(0);
-            teCell.setCellStyle(styles.currency);
-            Cell nCell = row.createCell(COL_NET_TO_OWNER);
-            nCell.setCellValue(0);
-            nCell.setCellStyle(styles.currency);
-            return;
-        }
-
-        List<PaymentDetailDTO> rentPayments = batch.getRentPayments();
-        List<PaymentDetailDTO> expenses = batch.getExpenses();
-
-        // L: batch_id
-        row.createCell(COL_BATCH_ID).setCellValue(batch.getBatchId() != null ? batch.getBatchId() : "");
-
-        // M: owner_payment_date
-        Cell payDateCell = row.createCell(COL_OWNER_PAY_DATE);
-        if (batch.getOwnerPaymentDate() != null) {
-            payDateCell.setCellValue(batch.getOwnerPaymentDate());
-            payDateCell.setCellStyle(styles.date);
-        }
-
-        // N-U: rent_1 through rent_4 (date and amount)
-        for (int i = 0; i < 4; i++) {
-            int dateCol = 13 + (i * 2);
-            int amtCol = 14 + (i * 2);
-            if (i < rentPayments.size()) {
-                PaymentDetailDTO payment = rentPayments.get(i);
-                Cell rdCell = row.createCell(dateCol);
-                if (payment.getPaymentDate() != null) {
-                    rdCell.setCellValue(payment.getPaymentDate());
-                    rdCell.setCellStyle(styles.date);
-                }
-                Cell raCell = row.createCell(amtCol);
-                if (payment.getAmount() != null) {
-                    raCell.setCellValue(payment.getAmount().doubleValue());
-                    raCell.setCellStyle(styles.currency);
-                }
-            } else {
-                row.createCell(dateCol);
-                row.createCell(amtCol);
-            }
-        }
-
-        // V: total_rent — SUM formula of rent amounts in this row
-        Cell totalRentCell = row.createCell(COL_TOTAL_RENT);
-        totalRentCell.setCellFormula(String.format("O%d+Q%d+S%d+U%d", excelRow, excelRow, excelRow, excelRow));
-        totalRentCell.setCellStyle(styles.currency);
-
-        // W: commission_rate
-        Cell commRateCell = row.createCell(COL_COMM_RATE);
-        commRateCell.setCellValue(commissionRate);
-        commRateCell.setCellStyle(styles.percent);
-
-        // X: total_commission = total_rent * commission_rate (formula)
-        Cell totalCommCell = row.createCell(COL_TOTAL_COMM);
-        totalCommCell.setCellFormula(String.format("V%d*W%d", excelRow, excelRow));
-        totalCommCell.setCellStyle(styles.currency);
-
-        // Y-AJ: expense_1 through expense_4 (date, amount, category)
-        for (int i = 0; i < 4; i++) {
-            int dateCol = 24 + (i * 3);
-            int amtCol = 25 + (i * 3);
-            int catCol = 26 + (i * 3);
-            if (i < expenses.size()) {
-                PaymentDetailDTO expense = expenses.get(i);
-                Cell edCell = row.createCell(dateCol);
-                if (expense.getPaymentDate() != null) {
-                    edCell.setCellValue(expense.getPaymentDate());
-                    edCell.setCellStyle(styles.date);
-                }
-                Cell eaCell = row.createCell(amtCol);
-                if (expense.getAmount() != null) {
-                    eaCell.setCellValue(Math.abs(expense.getAmount().doubleValue()));
-                    eaCell.setCellStyle(styles.currency);
-                }
-                row.createCell(catCol).setCellValue(expense.getCategory() != null ? expense.getCategory() : "");
-            } else {
-                row.createCell(dateCol);
-                row.createCell(amtCol);
-                row.createCell(catCol);
-            }
-        }
-
-        // AK: total_expenses — SUM formula of expense amounts
-        Cell totalExpCell = row.createCell(COL_TOTAL_EXPENSES);
-        totalExpCell.setCellFormula(String.format("Z%d+AC%d+AF%d+AI%d", excelRow, excelRow, excelRow, excelRow));
-        totalExpCell.setCellStyle(styles.currency);
-
-        // AL: net_to_owner = total_rent - total_commission - total_expenses (formula)
-        Cell netCell = row.createCell(COL_NET_TO_OWNER);
-        netCell.setCellFormula(String.format("V%d-X%d-AK%d", excelRow, excelRow, excelRow));
-        netCell.setCellStyle(styles.currency);
-    }
+    // writeBatchColumns removed — batch data is now aggregated directly in createPeriodSheet
 
     // ========================================================================
     // TOTALS Sheet
@@ -1187,15 +1072,6 @@ public class FormulaAuditStatementService {
         final BigDecimal rentDue;
         RentDuePeriodInfo(LocalDate start, LocalDate end, BigDecimal rent) {
             this.periodStart = start; this.periodEnd = end; this.rentDue = rent;
-        }
-    }
-
-    private static class SpilloverData {
-        final LeaseMasterDTO lease;
-        final BatchPaymentGroupDTO batch;
-        final double commissionRate;
-        SpilloverData(LeaseMasterDTO lease, BatchPaymentGroupDTO batch, double commissionRate) {
-            this.lease = lease; this.batch = batch; this.commissionRate = commissionRate;
         }
     }
 
