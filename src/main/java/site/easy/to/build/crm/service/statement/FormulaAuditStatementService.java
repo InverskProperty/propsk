@@ -459,9 +459,9 @@ public class FormulaAuditStatementService {
             obCell.setCellStyle(styles.currency);
 
             // J: total_rent — SUMIFS formula querying RENT_RECEIVED sheet
-            // Matches by lease_reference (col C) and transaction_date (col B) within the period
+            // Always write SUMIFS (even for inactive leases) to capture late payments
             Cell totalRentCell = row.createCell(COL_TOTAL_RENT);
-            if (active && !leaseRef.isEmpty()) {
+            if (!leaseRef.isEmpty()) {
                 String formula = String.format(
                     "SUMIFS(%s!$E$2:$E$%d,%s!$C$2:$C$%d,B%d,%s!$B$2:$B$%d,\">=\"&%s,%s!$B$2:$B$%d,\"<=\"&%s)",
                     RENT_SHEET_NAME, rentLastRow, RENT_SHEET_NAME, rentLastRow, excelRow,
@@ -498,8 +498,9 @@ public class FormulaAuditStatementService {
             totalCommCell.setCellStyle(styles.currency);
 
             // P: total_expenses — SUMIFS formula querying EXPENSES sheet
+            // Always write SUMIFS (even for inactive leases) to capture late expenses
             Cell totalExpCell = row.createCell(COL_TOTAL_EXPENSES);
-            if (active && !leaseRef.isEmpty()) {
+            if (!leaseRef.isEmpty()) {
                 String formula = String.format(
                     "SUMIFS(%s!$E$2:$E$%d,%s!$C$2:$C$%d,B%d,%s!$B$2:$B$%d,\">=\"&%s,%s!$B$2:$B$%d,\"<=\"&%s)",
                     EXPENSE_SHEET_NAME, expenseLastRow, EXPENSE_SHEET_NAME, expenseLastRow, excelRow,
