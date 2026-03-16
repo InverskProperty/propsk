@@ -1138,6 +1138,8 @@ public class FormulaAuditStatementService {
                 cycleStart = cycleStart.plusMonths(cycleMonths);
             }
             while (!cycleStart.isAfter(periodEnd)) {
+                // Stop if cycle starts after lease has ended
+                if (leaseEnd != null && cycleStart.isAfter(leaseEnd)) break;
                 LocalDate cycleEnd = cycleStart.plusMonths(cycleMonths).minusDays(1);
                 BigDecimal rent;
                 if (leaseEnd != null && leaseEnd.isBefore(cycleEnd) && !leaseEnd.isBefore(cycleStart)) {
