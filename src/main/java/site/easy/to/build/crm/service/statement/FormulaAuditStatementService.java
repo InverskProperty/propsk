@@ -333,8 +333,9 @@ public class FormulaAuditStatementService {
 
             Cell amtCell = row.createCell(4);
             if (txn.getAmount() != null) {
-                // Store as positive for clean SUMIFS
-                amtCell.setCellValue(Math.abs(txn.getAmount().doubleValue()));
+                // Store as-is (preserve sign) so reversals cancel out in SUMIFS
+                // Most expenses are positive; disbursement reversals are negative
+                amtCell.setCellValue(txn.getAmount().doubleValue());
                 amtCell.setCellStyle(styles.currency);
             }
 

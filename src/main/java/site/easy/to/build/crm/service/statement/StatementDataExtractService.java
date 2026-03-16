@@ -634,7 +634,8 @@ public class StatementDataExtractService {
         List<TransactionDTO> transactionDTOs = new ArrayList<>();
 
         for (UnifiedTransaction ut : transactions) {
-            // Filter out non-expense categories (owner payments, commission, disbursements)
+            // Filter out non-expense categories (owner payments, commission)
+            // Disbursements ARE included — they're real deductions from owner payments (block fund contributions)
             // Also skip NULL/empty categories (zero-amount placeholder records) and zero amounts
             String category = ut.getCategory();
             if (category == null || category.trim().isEmpty()) {
@@ -642,7 +643,7 @@ public class StatementDataExtractService {
             }
             String lower = category.toLowerCase();
             if (lower.equals("owner") || lower.equals("commission") ||
-                lower.contains("owner_payment") || lower.equals("disbursement")) {
+                lower.contains("owner_payment")) {
                 continue;
             }
             // Skip zero-amount records (placeholder/noise)
