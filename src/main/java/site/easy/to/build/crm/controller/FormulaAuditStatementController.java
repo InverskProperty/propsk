@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.controller;
 
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,7 +103,13 @@ public class FormulaAuditStatementController {
                 try { out.close(); } catch (Exception ignored) {}
             }
             if (workbook != null) {
-                try { workbook.close(); } catch (Exception ignored) {}
+                try {
+                    if (workbook instanceof SXSSFWorkbook) {
+                        ((SXSSFWorkbook) workbook).dispose();
+                        log.info("SXSSF temp files disposed");
+                    }
+                    workbook.close();
+                } catch (Exception ignored) {}
             }
         }
     }

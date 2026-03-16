@@ -1,6 +1,7 @@
 package site.easy.to.build.crm.service.statement;
 
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,7 +111,11 @@ public class FormulaAuditStatementService {
         log.info("Formula Audit: Customer {} from {} to {} (day={}, freq={})",
                 customerId, startDate, endDate, periodStartDay, statementFrequency);
 
-        Workbook workbook = new XSSFWorkbook();
+        // Use SXSSF (streaming) for memory efficiency — same as Option C
+        // Window size of 100 is enough for ~30 lease rows + headers + totals + reconciliation
+        // SXSSF flushes older rows to disk, keeping only the window in memory
+        SXSSFWorkbook workbook = new SXSSFWorkbook(100);
+        workbook.setCompressTempFiles(true);
         Styles styles = new Styles(workbook);
 
         // 1. Extract data
