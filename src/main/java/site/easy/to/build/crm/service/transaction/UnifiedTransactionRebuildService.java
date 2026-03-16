@@ -192,7 +192,7 @@ public class UnifiedTransactionRebuildService {
                 ht.category,
                 COALESCE(ht.invoice_id, active_lease.id) as invoice_id,
                 ht.property_id,
-                ht.customer_id,
+                COALESCE(ht.customer_id, i.customer_id, active_lease.customer_id) as customer_id,
                 COALESCE(i.lease_reference, active_lease.lease_reference) as lease_reference,
                 ht.lease_start_date,
                 ht.lease_end_date,
@@ -1203,7 +1203,7 @@ public class UnifiedTransactionRebuildService {
                     ELSE ht.amount
                 END,
                 ht.description, ht.category,
-                COALESCE(ht.invoice_id, active_lease.id), ht.property_id, ht.customer_id,
+                COALESCE(ht.invoice_id, active_lease.id), ht.property_id, COALESCE(ht.customer_id, i.customer_id, active_lease.customer_id),
                 COALESCE(i.lease_reference, active_lease.lease_reference), ht.lease_start_date, ht.lease_end_date,
                 ht.rent_amount_at_transaction, p.property_name,
                 CASE

@@ -715,14 +715,14 @@ public class FormulaAuditStatementService {
     // Payment Reconciliation section (embedded in each period sheet)
     // ========================================================================
 
+    @SuppressWarnings("unchecked")
     private int writeReconciliationSection(Sheet sheet, int startRow, Long resolvedOwnerId,
                                             Period period, Set<Long> propertyIds, Styles styles) {
         int rowNum = startRow;
 
-        Row headerRow = sheet.createRow(rowNum++);
-        Cell headerCell = headerRow.createCell(0);
-        headerCell.setCellValue("PAYMENT RECONCILIATION");
-        headerCell.setCellStyle(styles.bold);
+        Row sectionHeader = sheet.createRow(rowNum++);
+        sectionHeader.createCell(0).setCellValue("PAYMENT RECONCILIATION");
+        sectionHeader.getCell(0).setCellStyle(styles.bold);
 
         Row periodRow = sheet.createRow(rowNum++);
         periodRow.createCell(0).setCellValue("Period: " + period.start + " to " + period.end);
@@ -739,7 +739,7 @@ public class FormulaAuditStatementService {
             batchStatuses = Collections.emptyList();
         }
 
-        // Allocation status summary
+        // ===== ALLOCATION STATUS SUMMARY =====
         try {
             Row statusHeader = sheet.createRow(rowNum++);
             statusHeader.createCell(0).setCellValue("ALLOCATION STATUS");
@@ -779,7 +779,7 @@ public class FormulaAuditStatementService {
 
         rowNum++; // blank
 
-        // Owner payments detail
+        // ===== OWNER PAYMENTS THIS PERIOD =====
         Row paymentsHeader = sheet.createRow(rowNum++);
         paymentsHeader.createCell(0).setCellValue("OWNER PAYMENTS THIS PERIOD");
         paymentsHeader.getCell(0).setCellStyle(styles.bold);
@@ -789,61 +789,245 @@ public class FormulaAuditStatementService {
 
         rowNum++; // blank
 
-        // Column headers for batch detail
-        Row batchHeaderRow = sheet.createRow(rowNum++);
-        String[] batchHeaders = {"Batch ID", "Payment Date", "Gross Income", "Commission", "Expenses", "Net to Owner"};
-        for (int i = 0; i < batchHeaders.length; i++) {
-            Cell cell = batchHeaderRow.createCell(i);
-            cell.setCellValue(batchHeaders[i]);
+        // Period category headers
+        Row periodCatRow = sheet.createRow(rowNum++);
+        periodCatRow.createCell(6).setCellValue("Prior");
+        periodCatRow.getCell(6).setCellStyle(styles.bold);
+        periodCatRow.createCell(12).setCellValue("This Period");
+        periodCatRow.getCell(12).setCellStyle(styles.bold);
+        periodCatRow.createCell(18).setCellValue("Future");
+        periodCatRow.getCell(18).setCellStyle(styles.bold);
+
+        // Column headers
+        Row colHeaderRow = sheet.createRow(rowNum++);
+        String[] payHeaders = {"Batch ID", "Payment Date", "Gross Income", "Commission", "Expenses", "Net to Owner",
+                               "Property", "Txn Date", "Income", "Expense", "Commission", "Net",
+                               "Property", "Txn Date", "Income", "Expense", "Commission", "Net",
+                               "Property", "Txn Date", "Income", "Expense", "Commission", "Net"};
+        for (int i = 0; i < payHeaders.length; i++) {
+            Cell cell = colHeaderRow.createCell(i);
+            cell.setCellValue(payHeaders[i]);
             cell.setCellStyle(styles.header);
         }
 
         if (batchStatuses.isEmpty()) {
-            Row noPaymentsRow = sheet.createRow(rowNum++);
-            noPaymentsRow.createCell(0).setCellValue("(No payments made during this period)");
-        } else {
-            for (BatchAllocationStatusDTO batch : batchStatuses) {
-                Row batchRow = sheet.createRow(rowNum++);
-                batchRow.createCell(0).setCellValue(str(batch.getBatchId()));
+            Row noPayments = sheet.createRow(rowNum++);
+            noPayments.createCell(0).setCellValue("(No payments made during this period)");
+            return rowNum;
+        }
 
-                Cell bDateCell = batchRow.createCell(1);
-                if (batch.getPaymentDate() != null) {
-                    bDateCell.setCellValue(batch.getPaymentDate());
-                    bDateCell.setCellStyle(styles.date);
+        // ===== PRE-CALCULATE ALL TOTALS (so we can write the TOTALS row first) =====
+        BigDecimal totalGross = BigDecimal.ZERO;
+        BigDecimal totalComm = BigDecimal.ZERO;
+        BigDecimal totalExp = BigDecimal.ZERO;
+        BigDecimal totalPayments = BigDecimal.ZERO;
+        double priorIncome = 0, priorExpense = 0, priorCommission = 0, priorNet = 0;
+        double currentIncome = 0, currentExpense = 0, currentCommission = 0, currentNet = 0;
+        double futureIncome = 0, futureExpense = 0, futureCommission = 0, futureNet = 0;
+
+        // Pre-process all batches to calculate totals and classify allocations
+        List<ProcessedBatch> processedBatches = new ArrayList<>();
+
+        for (BatchAllocationStatusDTO batch : batchStatuses) {
+            ProcessedBatch pb = new ProcessedBatch(batch);
+
+            for (BatchAllocationStatusDTO.AllocationDetailDTO alloc : batch.getAllocations()) {
+                String allocType = alloc.getAllocationType();
+                if ("COMMISSION".equals(allocType)) continue; // already in OWNER via commission_amount
+
+                double allocInc = 0, allocExp = 0, allocComm = 0;
+                if ("OWNER".equals(allocType) && alloc.getAmount() != null) {
+                    allocInc = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
+                    if (alloc.getCommissionAmount() != null) allocComm = alloc.getCommissionAmount().abs().doubleValue();
+                } else if (("EXPENSE".equals(allocType) || "DISBURSEMENT".equals(allocType)) && alloc.getAmount() != null) {
+                    allocExp = alloc.getAmount().doubleValue();
                 }
+                double allocNet = allocInc - allocExp - allocComm;
 
-                Cell grossCell = batchRow.createCell(2);
-                grossCell.setCellValue(batch.getGrossIncome() != null ? batch.getGrossIncome().doubleValue() : 0);
-                grossCell.setCellStyle(styles.currency);
-
-                Cell commCell = batchRow.createCell(3);
-                commCell.setCellValue(batch.getCommission() != null ? batch.getCommission().doubleValue() : 0);
-                commCell.setCellStyle(styles.currency);
-
-                Cell expCell = batchRow.createCell(4);
-                expCell.setCellValue(batch.getExpenses() != null ? batch.getExpenses().doubleValue() : 0);
-                expCell.setCellStyle(styles.currency);
-
-                Cell netCell = batchRow.createCell(5);
-                netCell.setCellValue(batch.getNetToOwner() != null ? batch.getNetToOwner().doubleValue() : 0);
-                netCell.setCellStyle(styles.currency);
-
-                // Prior/This Period/Future breakdown
-                Row priorLabel = sheet.createRow(rowNum++);
-                priorLabel.createCell(1).setCellValue("Prior:");
-                Cell priorAmt = priorLabel.createCell(2);
-                priorAmt.setCellValue(batch.getAllocatedFromPriorPeriods() != null ? batch.getAllocatedFromPriorPeriods().doubleValue() : 0);
-                priorAmt.setCellStyle(styles.currency);
-
-                Row thisLabel = sheet.createRow(rowNum++);
-                thisLabel.createCell(1).setCellValue("This Period:");
-                Cell thisAmt = thisLabel.createCell(2);
-                thisAmt.setCellValue(batch.getAllocatedFromThisPeriod() != null ? batch.getAllocatedFromThisPeriod().doubleValue() : 0);
-                thisAmt.setCellStyle(styles.currency);
+                String classification = alloc.getPeriodClassification();
+                if ("B/F".equals(classification)) {
+                    pb.priorAllocations.add(alloc);
+                    pb.priorIncome += allocInc; pb.priorExpense += allocExp; pb.priorCommission += allocComm; pb.priorNet += allocNet;
+                    priorIncome += allocInc; priorExpense += allocExp; priorCommission += allocComm; priorNet += allocNet;
+                } else if ("FUTURE".equals(classification)) {
+                    pb.futureAllocations.add(alloc);
+                    pb.futureIncome += allocInc; pb.futureExpense += allocExp; pb.futureCommission += allocComm; pb.futureNet += allocNet;
+                    futureIncome += allocInc; futureExpense += allocExp; futureCommission += allocComm; futureNet += allocNet;
+                } else {
+                    pb.currentAllocations.add(alloc);
+                    pb.currentIncome += allocInc; pb.currentExpense += allocExp; pb.currentCommission += allocComm; pb.currentNet += allocNet;
+                    currentIncome += allocInc; currentExpense += allocExp; currentCommission += allocComm; currentNet += allocNet;
+                }
             }
+
+            totalGross = totalGross.add(batch.getGrossIncome());
+            totalComm = totalComm.add(batch.getCommission());
+            totalExp = totalExp.add(batch.getExpenses());
+            totalPayments = totalPayments.add(batch.getNetToOwner());
+            processedBatches.add(pb);
+        }
+
+        // ===== TOTALS ROW FIRST (above batch details) =====
+        Row totalsRow = sheet.createRow(rowNum++);
+        Cell totalsLabel = totalsRow.createCell(0);
+        totalsLabel.setCellValue("TOTALS");
+        totalsLabel.setCellStyle(styles.bold);
+
+        Cell tGrossCell = totalsRow.createCell(2);
+        tGrossCell.setCellValue(totalGross.doubleValue());
+        tGrossCell.setCellStyle(styles.boldCurrency);
+        Cell tCommCell = totalsRow.createCell(3);
+        tCommCell.setCellValue(totalComm.doubleValue());
+        tCommCell.setCellStyle(styles.boldCurrency);
+        Cell tExpCell = totalsRow.createCell(4);
+        tExpCell.setCellValue(totalExp.doubleValue());
+        tExpCell.setCellStyle(styles.boldCurrency);
+        Cell tNetCell = totalsRow.createCell(5);
+        tNetCell.setCellValue(totalPayments.doubleValue());
+        tNetCell.setCellStyle(styles.boldCurrency);
+
+        // Prior totals
+        writeCurrencyCell(totalsRow, 8, priorIncome, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 9, priorExpense, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 10, priorCommission, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 11, priorNet, styles.boldCurrency);
+        // This Period totals
+        writeCurrencyCell(totalsRow, 14, currentIncome, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 15, currentExpense, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 16, currentCommission, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 17, currentNet, styles.boldCurrency);
+        // Future totals
+        writeCurrencyCell(totalsRow, 20, futureIncome, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 21, futureExpense, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 22, futureCommission, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 23, futureNet, styles.boldCurrency);
+
+        rowNum++; // blank row between totals and details
+
+        // ===== BATCH DETAIL ROWS (below the totals) =====
+        for (ProcessedBatch pb : processedBatches) {
+            BatchAllocationStatusDTO batch = pb.batch;
+
+            // Batch header row
+            Row batchRow = sheet.createRow(rowNum++);
+            batchRow.createCell(0).setCellValue(str(batch.getBatchId()));
+            Cell payDateCell = batchRow.createCell(1);
+            if (batch.getPaymentDate() != null) {
+                payDateCell.setCellValue(batch.getPaymentDate());
+                payDateCell.setCellStyle(styles.date);
+            } else {
+                payDateCell.setCellValue("Pending");
+            }
+            writeCurrencyCell(batchRow, 2, batch.getGrossIncome().doubleValue(), styles.boldCurrency);
+            writeCurrencyCell(batchRow, 3, batch.getCommission().doubleValue(), styles.currency);
+            writeCurrencyCell(batchRow, 4, batch.getExpenses().doubleValue(), styles.currency);
+            writeCurrencyCell(batchRow, 5, batch.getNetToOwner().doubleValue(), styles.boldCurrency);
+
+            // Period breakdown sub-rows
+            Row priorSumRow = sheet.createRow(rowNum++);
+            priorSumRow.createCell(1).setCellValue("Prior:");
+            writeCurrencyCell(priorSumRow, 2, pb.priorIncome, styles.currency);
+            writeCurrencyCell(priorSumRow, 3, pb.priorCommission, styles.currency);
+            writeCurrencyCell(priorSumRow, 4, pb.priorExpense, styles.currency);
+            writeCurrencyCell(priorSumRow, 5, pb.priorNet, styles.currency);
+
+            Row currSumRow = sheet.createRow(rowNum++);
+            currSumRow.createCell(1).setCellValue("This Period:");
+            writeCurrencyCell(currSumRow, 2, pb.currentIncome, styles.currency);
+            writeCurrencyCell(currSumRow, 3, pb.currentCommission, styles.currency);
+            writeCurrencyCell(currSumRow, 4, pb.currentExpense, styles.currency);
+            writeCurrencyCell(currSumRow, 5, pb.currentNet, styles.currency);
+
+            Row futSumRow = sheet.createRow(rowNum++);
+            futSumRow.createCell(1).setCellValue("Future:");
+            writeCurrencyCell(futSumRow, 2, pb.futureIncome, styles.currency);
+            writeCurrencyCell(futSumRow, 3, pb.futureCommission, styles.currency);
+            writeCurrencyCell(futSumRow, 4, pb.futureExpense, styles.currency);
+            writeCurrencyCell(futSumRow, 5, pb.futureNet, styles.currency);
+
+            // Allocation detail rows (Prior | This Period | Future side by side)
+            int maxRows = Math.max(1, Math.max(pb.priorAllocations.size(),
+                    Math.max(pb.currentAllocations.size(), pb.futureAllocations.size())));
+
+            for (int rowIdx = 0; rowIdx < maxRows; rowIdx++) {
+                Row detailRow = sheet.createRow(rowNum++);
+
+                // Prior (cols 6-11)
+                if (rowIdx < pb.priorAllocations.size()) {
+                    writeAllocationDetail(detailRow, 6, pb.priorAllocations.get(rowIdx), styles);
+                }
+                // This Period (cols 12-17)
+                if (rowIdx < pb.currentAllocations.size()) {
+                    writeAllocationDetail(detailRow, 12, pb.currentAllocations.get(rowIdx), styles);
+                }
+                // Future (cols 18-23)
+                if (rowIdx < pb.futureAllocations.size()) {
+                    writeAllocationDetail(detailRow, 18, pb.futureAllocations.get(rowIdx), styles);
+                }
+            }
+
+            rowNum++; // blank between batches
         }
 
         return rowNum;
+    }
+
+    /**
+     * Write a single allocation detail into 6 columns starting at startCol.
+     * Columns: Property, Txn Date, Income, Expense, Commission, Net
+     */
+    private void writeAllocationDetail(Row row, int startCol, BatchAllocationStatusDTO.AllocationDetailDTO alloc, Styles styles) {
+        row.createCell(startCol).setCellValue(str(alloc.getPropertyName()));
+
+        Cell txnDateCell = row.createCell(startCol + 1);
+        if (alloc.getTransactionDate() != null) {
+            txnDateCell.setCellValue(alloc.getTransactionDate());
+            txnDateCell.setCellStyle(styles.date);
+        }
+
+        double income = 0, expense = 0, commission = 0;
+        String type = alloc.getAllocationType();
+        if ("OWNER".equals(type) && alloc.getAmount() != null) {
+            income = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
+            Cell incCell = row.createCell(startCol + 2);
+            incCell.setCellValue(income);
+            incCell.setCellStyle(styles.currency);
+            if (alloc.getCommissionAmount() != null) {
+                commission = alloc.getCommissionAmount().abs().doubleValue();
+                Cell commCell = row.createCell(startCol + 4);
+                commCell.setCellValue(commission);
+                commCell.setCellStyle(styles.currency);
+            }
+        } else if (("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) && alloc.getAmount() != null) {
+            expense = alloc.getAmount().doubleValue();
+            Cell expCell = row.createCell(startCol + 3);
+            expCell.setCellValue(expense);
+            expCell.setCellStyle(styles.currency);
+        }
+
+        double net = income - Math.abs(expense) - commission;
+        Cell netCell = row.createCell(startCol + 5);
+        netCell.setCellValue(net);
+        netCell.setCellStyle(styles.currency);
+    }
+
+    private void writeCurrencyCell(Row row, int col, double value, CellStyle style) {
+        Cell cell = row.createCell(col);
+        cell.setCellValue(value);
+        cell.setCellStyle(style);
+    }
+
+    /** Pre-processed batch with allocations classified by period */
+    private static class ProcessedBatch {
+        final BatchAllocationStatusDTO batch;
+        final List<BatchAllocationStatusDTO.AllocationDetailDTO> priorAllocations = new ArrayList<>();
+        final List<BatchAllocationStatusDTO.AllocationDetailDTO> currentAllocations = new ArrayList<>();
+        final List<BatchAllocationStatusDTO.AllocationDetailDTO> futureAllocations = new ArrayList<>();
+        double priorIncome, priorExpense, priorCommission, priorNet;
+        double currentIncome, currentExpense, currentCommission, currentNet;
+        double futureIncome, futureExpense, futureCommission, futureNet;
+
+        ProcessedBatch(BatchAllocationStatusDTO batch) { this.batch = batch; }
     }
 
     // ========================================================================
