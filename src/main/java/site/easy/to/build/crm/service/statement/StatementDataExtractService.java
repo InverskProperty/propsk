@@ -3228,15 +3228,22 @@ public class StatementDataExtractService {
      * Returns: batch_id, payment_date, total_payment, beneficiary_name
      */
     public List<Map<String, Object>> extractOwnerPayments(List<Long> leaseIds) {
-        // Use payment_batches for actual amounts, not recalculated from allocations
-        String sql =
+        if (leaseIds == null || leaseIds.isEmpty()) return new ArrayList<>();
+
+        // Get batch IDs that contain allocations for our leases, then pull actual payment amounts
+        String placeholders = leaseIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        String sql = String.format(
             "SELECT pb.batch_id, pb.payment_date, pb.total_payment, " +
             "  pb.beneficiary_name, pb.source " +
             "FROM payment_batches pb " +
             "WHERE pb.batch_type = 'OWNER_PAYMENT' AND pb.status = 'PAID' " +
-            "ORDER BY pb.payment_date, pb.batch_id";
+            "  AND pb.batch_id IN (" +
+            "    SELECT DISTINCT ua.payment_batch_id FROM unified_allocations ua " +
+            "    WHERE ua.invoice_id IN (%s)" +
+            "  ) " +
+            "ORDER BY pb.payment_date, pb.batch_id", placeholders);
 
-        return jdbcTemplate.queryForList(sql);
+        return jdbcTemplate.queryForList(sql, leaseIds.toArray());
     }
 
     // ===== BATCH-GROUPED PAYMENT EXTRACTION =====
