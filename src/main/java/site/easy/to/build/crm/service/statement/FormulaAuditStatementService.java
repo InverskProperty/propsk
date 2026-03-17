@@ -908,9 +908,13 @@ public class FormulaAuditStatementService {
                 ALLOC_SHEET_NAME, allocLastRow));
             adCell.setCellStyle(styles.currency);
 
-            // S: alloc_net_to_owner = alloc_gross - alloc_commission - alloc_expenses - alloc_disbursements
+            // S: alloc_net_to_owner — SUMIFS(OWNER.amount) directly, NOT gross-commission-expenses
+            // Because OWNER.amount already has expenses deducted by PayProp in many cases
             Cell anCell = row.createCell(col++);
-            anCell.setCellFormula(String.format("O%d-P%d-Q%d-R%d", r, r, r, r));
+            anCell.setCellFormula(String.format(
+                "SUMIFS(%s!$C$2:$C$%d,%s!$A$2:$A$%d,B%d,%s!$B$2:$B$%d,\"OWNER\")",
+                ALLOC_SHEET_NAME, allocLastRow, ALLOC_SHEET_NAME, allocLastRow, r,
+                ALLOC_SHEET_NAME, allocLastRow));
             anCell.setCellStyle(styles.currency);
 
             // T: rent_vs_alloc_diff = total_rent_received - alloc_gross_income
