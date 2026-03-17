@@ -3222,6 +3222,45 @@ public class StatementDataExtractService {
         return jdbcTemplate.queryForList(sql, leaseIds.toArray());
     }
 
+    /**
+     * Extract all owner payment batches for a customer.
+     * Combines historical owner payments and PayProp batch totals.
+     * Returns: batch_id, payment_date, gross_income, commission, expenses, disbursements, net_to_owner
+     */
+    public List<Map<String, Object>> extractOwnerPayments(Long customerId) {
+        // Resolve actual owner ID for delegated users
+        Customer customer = customerRepository.findById(customerId).orElse(null);
+        Long resolvedId = customerId;
+        if (customer != null &&
+            (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER ||
+             customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.MANAGER) &&
+            customer.getManagesOwnerId() != null) {
+            resolvedId = customer.getManagesOwnerId();
+        }
+
+        // Get all unique batch IDs from allocations for this customer's properties
+        String sql =
+            "SELECT ua.payment_batch_id as batch_id, " +
+            "  ua.paid_date as payment_date, " +
+            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.gross_amount, 0) ELSE 0 END) as gross_income, " +
+            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.commission_amount, 0) ELSE 0 END) as commission, " +
+            "  SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ABS(ua.amount) ELSE 0 END) as expenses, " +
+            "  SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ABS(ua.amount) ELSE 0 END) as disbursements, " +
+            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) " +
+            "    - SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ABS(ua.amount) ELSE 0 END) " +
+            "    - SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ABS(ua.amount) ELSE 0 END) as net_to_owner " +
+            "FROM unified_allocations ua " +
+            "JOIN invoices i ON i.id = ua.invoice_id " +
+            "JOIN properties p ON p.id = i.property_id " +
+            "JOIN customer_property_assignments cpa ON cpa.property_id = p.id " +
+            "  AND cpa.customer_id = ? AND cpa.assignment_type IN ('OWNER', 'MANAGER') " +
+            "WHERE ua.payment_batch_id IS NOT NULL " +
+            "GROUP BY ua.payment_batch_id, ua.paid_date " +
+            "ORDER BY ua.paid_date, ua.payment_batch_id";
+
+        return jdbcTemplate.queryForList(sql, resolvedId);
+    }
+
     // ===== BATCH-GROUPED PAYMENT EXTRACTION =====
 
     /**

@@ -165,6 +165,11 @@ public class FormulaAuditStatementService {
         int allocDataRows = createAllocationsSheet(workbook, allocations, styles);
         allocations = null; // free memory
 
+        // 4c. Create OWNER_PAYMENTS sheet
+        List<Map<String, Object>> ownerPayments = dataExtractService.extractOwnerPayments(customerId);
+        createOwnerPaymentsSheet(workbook, ownerPayments, styles);
+        ownerPayments = null; // free memory
+
         // 5. Generate periods
         List<Period> periods = generatePeriods(startDate, endDate, periodStartDay, statementFrequency);
         log.info("Formula Audit v2: {} periods", periods.size());
@@ -422,6 +427,77 @@ public class FormulaAuditStatementService {
         applyWidths(sheet, headers.length);
         log.info("ALLOCATIONS: {} rows", allocations.size());
         return allocations.size();
+    }
+
+    // ========================================================================
+    // OWNER_PAYMENTS Sheet — every batch payment to the owner
+    // ========================================================================
+
+    /**
+     * Creates the OWNER_PAYMENTS sheet listing every batch payment made to the property owner.
+     * Each row = one batch: batch_id, payment_date, gross_income, commission, expenses,
+     * disbursements, net_to_owner (the actual bank transfer amount).
+     */
+    private void createOwnerPaymentsSheet(Workbook workbook, List<Map<String, Object>> ownerPayments, Styles styles) {
+        Sheet sheet = workbook.createSheet("OWNER_PAYMENTS");
+
+        String[] headers = {
+            "batch_id", "payment_date", "gross_income", "commission",
+            "expenses", "disbursements", "net_to_owner"
+        };
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < headers.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(headers[i]);
+            cell.setCellStyle(styles.header);
+        }
+
+        int rowNum = 1;
+        for (Map<String, Object> payment : ownerPayments) {
+            Row row = sheet.createRow(rowNum++);
+            row.createCell(0).setCellValue(str((String) payment.get("batch_id")));
+
+            Cell dateCell = row.createCell(1);
+            Object payDate = payment.get("payment_date");
+            if (payDate instanceof java.sql.Date) {
+                dateCell.setCellValue(((java.sql.Date) payDate).toLocalDate());
+                dateCell.setCellStyle(styles.date);
+            } else if (payDate instanceof LocalDate) {
+                dateCell.setCellValue((LocalDate) payDate);
+                dateCell.setCellStyle(styles.date);
+            }
+
+            setCurrencyFromNumber(row.createCell(2), payment.get("gross_income"), styles.currency);
+            setCurrencyFromNumber(row.createCell(3), payment.get("commission"), styles.currency);
+            setCurrencyFromNumber(row.createCell(4), payment.get("expenses"), styles.currency);
+            setCurrencyFromNumber(row.createCell(5), payment.get("disbursements"), styles.currency);
+            setCurrencyFromNumber(row.createCell(6), payment.get("net_to_owner"), styles.currency);
+        }
+
+        // TOTAL row
+        int totalExcelRow = rowNum + 1;
+        Row totalsRow = sheet.createRow(rowNum);
+        Cell label = totalsRow.createCell(0);
+        label.setCellValue("TOTAL");
+        label.setCellStyle(styles.bold);
+
+        for (int c = 2; c <= 6; c++) {
+            Cell cell = totalsRow.createCell(c);
+            String colLetter = colLetter(c);
+            cell.setCellFormula(String.format("SUM(%s2:%s%d)", colLetter, colLetter, totalExcelRow - 1));
+            cell.setCellStyle(styles.boldCurrency);
+        }
+
+        applyWidths(sheet, headers.length);
+        log.info("OWNER_PAYMENTS: {} rows", ownerPayments.size());
+    }
+
+    private void setCurrencyFromNumber(Cell cell, Object value, CellStyle style) {
+        if (value instanceof Number) {
+            cell.setCellValue(((Number) value).doubleValue());
+            cell.setCellStyle(style);
+        }
     }
 
     // ========================================================================
