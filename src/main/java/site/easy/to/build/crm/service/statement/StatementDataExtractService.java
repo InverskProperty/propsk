@@ -3255,6 +3255,8 @@ public class StatementDataExtractService {
             "JOIN customer_property_assignments cpa ON cpa.property_id = p.id " +
             "  AND cpa.customer_id = ? AND cpa.assignment_type IN ('OWNER', 'MANAGER') " +
             "WHERE ua.payment_batch_id IS NOT NULL " +
+            "  AND p.is_block_property = 0 " +
+            "  AND (p.property_type IS NULL OR p.property_type NOT IN ('PARKING', 'BLOCK')) " +
             "GROUP BY ua.payment_batch_id, ua.paid_date " +
             "ORDER BY ua.paid_date, ua.payment_batch_id";
 
