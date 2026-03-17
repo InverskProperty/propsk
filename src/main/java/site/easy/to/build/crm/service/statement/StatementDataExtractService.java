@@ -3223,32 +3223,20 @@ public class StatementDataExtractService {
     }
 
     /**
-     * Extract all owner payment batches for the given leases.
-     * Uses the same lease IDs as the TOTALS sheet to ensure alignment.
-     * Returns: batch_id, payment_date, gross_income, commission, expenses, disbursements, net_to_owner
+     * Extract all owner payment batches — actual bank transfers.
+     * Uses payment_batches table which stores the real payment amounts.
+     * Returns: batch_id, payment_date, total_payment, beneficiary_name
      */
     public List<Map<String, Object>> extractOwnerPayments(List<Long> leaseIds) {
-        if (leaseIds == null || leaseIds.isEmpty()) return new ArrayList<>();
+        // Use payment_batches for actual amounts, not recalculated from allocations
+        String sql =
+            "SELECT pb.batch_id, pb.payment_date, pb.total_payment, " +
+            "  pb.beneficiary_name, pb.source " +
+            "FROM payment_batches pb " +
+            "WHERE pb.batch_type = 'OWNER_PAYMENT' AND pb.status = 'PAID' " +
+            "ORDER BY pb.payment_date, pb.batch_id";
 
-        String placeholders = leaseIds.stream().map(id -> "?").collect(Collectors.joining(","));
-        String sql = String.format(
-            "SELECT ua.payment_batch_id as batch_id, " +
-            "  ua.paid_date as payment_date, " +
-            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.gross_amount, 0) ELSE 0 END) as gross_income, " +
-            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.commission_amount, 0) ELSE 0 END) as commission, " +
-            "  SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ABS(ua.amount) ELSE 0 END) as expenses, " +
-            "  SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ABS(ua.amount) ELSE 0 END) as disbursements, " +
-            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.gross_amount, 0) ELSE 0 END) " +
-            "    - SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.commission_amount, 0) ELSE 0 END) " +
-            "    - SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ABS(ua.amount) ELSE 0 END) " +
-            "    - SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ABS(ua.amount) ELSE 0 END) as net_to_owner " +
-            "FROM unified_allocations ua " +
-            "WHERE ua.payment_batch_id IS NOT NULL " +
-            "  AND ua.invoice_id IN (%s) " +
-            "GROUP BY ua.payment_batch_id, ua.paid_date " +
-            "ORDER BY ua.paid_date, ua.payment_batch_id", placeholders);
-
-        return jdbcTemplate.queryForList(sql, leaseIds.toArray());
+        return jdbcTemplate.queryForList(sql);
     }
 
     // ===== BATCH-GROUPED PAYMENT EXTRACTION =====

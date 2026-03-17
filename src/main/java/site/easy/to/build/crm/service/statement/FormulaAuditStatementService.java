@@ -442,8 +442,7 @@ public class FormulaAuditStatementService {
         Sheet sheet = workbook.createSheet("OWNER_PAYMENTS");
 
         String[] headers = {
-            "batch_id", "payment_date", "gross_income", "commission",
-            "expenses", "disbursements", "net_to_owner"
+            "batch_id", "payment_date", "amount_paid", "beneficiary", "source"
         };
 
         Row headerRow = sheet.createRow(0);
@@ -468,11 +467,9 @@ public class FormulaAuditStatementService {
                 dateCell.setCellStyle(styles.date);
             }
 
-            setCurrencyFromNumber(row.createCell(2), payment.get("gross_income"), styles.currency);
-            setCurrencyFromNumber(row.createCell(3), payment.get("commission"), styles.currency);
-            setCurrencyFromNumber(row.createCell(4), payment.get("expenses"), styles.currency);
-            setCurrencyFromNumber(row.createCell(5), payment.get("disbursements"), styles.currency);
-            setCurrencyFromNumber(row.createCell(6), payment.get("net_to_owner"), styles.currency);
+            setCurrencyFromNumber(row.createCell(2), payment.get("total_payment"), styles.currency);
+            row.createCell(3).setCellValue(str((String) payment.get("beneficiary_name")));
+            row.createCell(4).setCellValue(str((String) payment.get("source")));
         }
 
         // TOTAL row
@@ -482,12 +479,9 @@ public class FormulaAuditStatementService {
         label.setCellValue("TOTAL");
         label.setCellStyle(styles.bold);
 
-        for (int c = 2; c <= 6; c++) {
-            Cell cell = totalsRow.createCell(c);
-            String colLetter = colLetter(c);
-            cell.setCellFormula(String.format("SUM(%s2:%s%d)", colLetter, colLetter, totalExcelRow - 1));
-            cell.setCellStyle(styles.boldCurrency);
-        }
+        Cell totalCell = totalsRow.createCell(2);
+        totalCell.setCellFormula(String.format("SUM(C2:C%d)", totalExcelRow - 1));
+        totalCell.setCellStyle(styles.boldCurrency);
 
         applyWidths(sheet, headers.length);
         log.info("OWNER_PAYMENTS: {} rows", ownerPayments.size());
