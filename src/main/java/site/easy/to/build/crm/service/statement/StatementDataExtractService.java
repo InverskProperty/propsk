@@ -3223,23 +3223,15 @@ public class StatementDataExtractService {
     }
 
     /**
-     * Extract all owner payment batches for a customer.
-     * Combines historical owner payments and PayProp batch totals.
+     * Extract all owner payment batches for the given leases.
+     * Uses the same lease IDs as the TOTALS sheet to ensure alignment.
      * Returns: batch_id, payment_date, gross_income, commission, expenses, disbursements, net_to_owner
      */
-    public List<Map<String, Object>> extractOwnerPayments(Long customerId) {
-        // Resolve actual owner ID for delegated users
-        Customer customer = customerRepository.findById(customerId).orElse(null);
-        Long resolvedId = customerId;
-        if (customer != null &&
-            (customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.DELEGATED_USER ||
-             customer.getCustomerType() == site.easy.to.build.crm.entity.CustomerType.MANAGER) &&
-            customer.getManagesOwnerId() != null) {
-            resolvedId = customer.getManagesOwnerId();
-        }
+    public List<Map<String, Object>> extractOwnerPayments(List<Long> leaseIds) {
+        if (leaseIds == null || leaseIds.isEmpty()) return new ArrayList<>();
 
-        // Get all unique batch IDs from allocations for this customer's properties
-        String sql =
+        String placeholders = leaseIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        String sql = String.format(
             "SELECT ua.payment_batch_id as batch_id, " +
             "  ua.paid_date as payment_date, " +
             "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.gross_amount, 0) ELSE 0 END) as gross_income, " +
@@ -3251,17 +3243,12 @@ public class StatementDataExtractService {
             "    - SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ABS(ua.amount) ELSE 0 END) " +
             "    - SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ABS(ua.amount) ELSE 0 END) as net_to_owner " +
             "FROM unified_allocations ua " +
-            "JOIN invoices i ON i.id = ua.invoice_id " +
-            "JOIN properties p ON p.id = i.property_id " +
-            "JOIN customer_property_assignments cpa ON cpa.property_id = p.id " +
-            "  AND cpa.customer_id = ? AND cpa.assignment_type IN ('OWNER', 'MANAGER') " +
             "WHERE ua.payment_batch_id IS NOT NULL " +
-            "  AND p.is_block_property = 0 " +
-            "  AND (p.property_type IS NULL OR p.property_type NOT IN ('PARKING', 'BLOCK')) " +
+            "  AND ua.invoice_id IN (%s) " +
             "GROUP BY ua.payment_batch_id, ua.paid_date " +
-            "ORDER BY ua.paid_date, ua.payment_batch_id";
+            "ORDER BY ua.paid_date, ua.payment_batch_id", placeholders);
 
-        return jdbcTemplate.queryForList(sql, resolvedId);
+        return jdbcTemplate.queryForList(sql, leaseIds.toArray());
     }
 
     // ===== BATCH-GROUPED PAYMENT EXTRACTION =====

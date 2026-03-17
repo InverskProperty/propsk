@@ -165,8 +165,8 @@ public class FormulaAuditStatementService {
         int allocDataRows = createAllocationsSheet(workbook, allocations, styles);
         allocations = null; // free memory
 
-        // 4c. Create OWNER_PAYMENTS sheet
-        List<Map<String, Object>> ownerPayments = dataExtractService.extractOwnerPayments(customerId);
+        // 4c. Create OWNER_PAYMENTS sheet (uses same leaseIds as TOTALS for alignment)
+        List<Map<String, Object>> ownerPayments = dataExtractService.extractOwnerPayments(leaseIds);
         createOwnerPaymentsSheet(workbook, ownerPayments, styles);
         ownerPayments = null; // free memory
 
