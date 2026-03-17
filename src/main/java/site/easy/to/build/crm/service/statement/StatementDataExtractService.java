@@ -3246,10 +3246,7 @@ public class StatementDataExtractService {
             "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.commission_amount, 0) ELSE 0 END) as commission, " +
             "  SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ABS(ua.amount) ELSE 0 END) as expenses, " +
             "  SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ABS(ua.amount) ELSE 0 END) as disbursements, " +
-            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.gross_amount, 0) ELSE 0 END) " +
-            "    - SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN COALESCE(ua.commission_amount, 0) ELSE 0 END) " +
-            "    - SUM(CASE WHEN ua.allocation_type = 'EXPENSE' THEN ABS(ua.amount) ELSE 0 END) " +
-            "    - SUM(CASE WHEN ua.allocation_type = 'DISBURSEMENT' THEN ABS(ua.amount) ELSE 0 END) as net_to_owner " +
+            "  SUM(CASE WHEN ua.allocation_type = 'OWNER' THEN ua.amount ELSE 0 END) as net_to_owner " +
             "FROM unified_allocations ua " +
             "JOIN invoices i ON i.id = ua.invoice_id " +
             "JOIN properties p ON p.id = i.property_id " +
