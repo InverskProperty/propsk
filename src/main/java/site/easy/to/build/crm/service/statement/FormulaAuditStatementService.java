@@ -1184,11 +1184,7 @@ public class FormulaAuditStatementService {
             processedBatches.add(pb);
         }
 
-        // Reserve TOTALS row — we'll fill in SUM formulas after writing batch rows
-        int totalsRowNum = rowNum++;
-        rowNum++; // blank after totals
-
-        // Track batch header row numbers for TOTALS SUM formulas
+        // Track batch header row numbers for TOTALS SUM formulas (TOTALS written at end due to SXSSFWorkbook)
         List<Integer> batchHeaderExcelRows = new ArrayList<>();
 
         // BATCH DETAIL ROWS — each batch: header, Prior/This/Future sub-rows, then detail rows
@@ -1274,9 +1270,9 @@ public class FormulaAuditStatementService {
             rowNum++; // blank between batches
         }
 
-        // NOW fill in the TOTALS row with SUM formulas over batch header rows
-        Row totalsRow = sheet.getRow(totalsRowNum);
-        if (totalsRow == null) totalsRow = sheet.createRow(totalsRowNum);
+        // TOTALS row — written after batch rows (SXSSFWorkbook can't write earlier rows)
+        Row totalsRow = sheet.createRow(rowNum++);
+        int totalsRowNum = rowNum - 1; // 0-based for later reference
         Cell totalsLabel = totalsRow.createCell(0);
         totalsLabel.setCellValue("TOTALS");
         totalsLabel.setCellStyle(styles.bold);
