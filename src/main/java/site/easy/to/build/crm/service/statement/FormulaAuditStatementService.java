@@ -1114,85 +1114,40 @@ public class FormulaAuditStatementService {
             return rowNum;
         }
 
-        // PRE-CALCULATE ALL TOTALS
-        BigDecimal totalGross = BigDecimal.ZERO;
-        BigDecimal totalComm = BigDecimal.ZERO;
-        BigDecimal totalExp = BigDecimal.ZERO;
-        BigDecimal totalPayments = BigDecimal.ZERO;
-        double priorIncome = 0, priorExpense = 0, priorCommission = 0, priorNet = 0;
-        double currentIncome = 0, currentExpense = 0, currentCommission = 0, currentNet = 0;
-        double futureIncome = 0, futureExpense = 0, futureCommission = 0, futureNet = 0;
-
+        // Classify allocations by period for each batch
         List<ProcessedBatch> processedBatches = new ArrayList<>();
-
         for (BatchAllocationStatusDTO batch : batchStatuses) {
             ProcessedBatch pb = new ProcessedBatch(batch);
-
             for (BatchAllocationStatusDTO.AllocationDetailDTO alloc : batch.getAllocations()) {
                 String allocType = alloc.getAllocationType();
                 if ("COMMISSION".equals(allocType)) continue;
 
-                double allocInc = 0, allocExp = 0, allocComm = 0;
-                if ("OWNER".equals(allocType) && alloc.getAmount() != null) {
-                    allocInc = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
-                    if (alloc.getCommissionAmount() != null) allocComm = alloc.getCommissionAmount().abs().doubleValue();
-                } else if (("EXPENSE".equals(allocType) || "DISBURSEMENT".equals(allocType)) && alloc.getAmount() != null) {
-                    allocExp = alloc.getAmount().doubleValue();
-                }
-                double allocNet = allocInc - allocExp - allocComm;
-
                 String classification = alloc.getPeriodClassification();
                 if ("B/F".equals(classification)) {
                     pb.priorAllocations.add(alloc);
-                    pb.priorIncome += allocInc; pb.priorExpense += allocExp; pb.priorCommission += allocComm; pb.priorNet += allocNet;
-                    priorIncome += allocInc; priorExpense += allocExp; priorCommission += allocComm; priorNet += allocNet;
                 } else if ("FUTURE".equals(classification)) {
                     pb.futureAllocations.add(alloc);
-                    pb.futureIncome += allocInc; pb.futureExpense += allocExp; pb.futureCommission += allocComm; pb.futureNet += allocNet;
-                    futureIncome += allocInc; futureExpense += allocExp; futureCommission += allocComm; futureNet += allocNet;
                 } else {
                     pb.currentAllocations.add(alloc);
-                    pb.currentIncome += allocInc; pb.currentExpense += allocExp; pb.currentCommission += allocComm; pb.currentNet += allocNet;
-                    currentIncome += allocInc; currentExpense += allocExp; currentCommission += allocComm; currentNet += allocNet;
                 }
             }
-
-            totalGross = totalGross.add(batch.getGrossIncome());
-            totalComm = totalComm.add(batch.getCommission());
-            totalExp = totalExp.add(batch.getExpenses());
-            totalPayments = totalPayments.add(batch.getNetToOwner());
             processedBatches.add(pb);
         }
 
-        // TOTALS ROW FIRST
-        Row totalsRow = sheet.createRow(rowNum++);
-        Cell totalsLabel = totalsRow.createCell(0);
-        totalsLabel.setCellValue("TOTALS");
-        totalsLabel.setCellStyle(styles.bold);
+        // Reserve TOTALS row — we'll fill in SUM formulas after writing batch rows
+        int totalsRowNum = rowNum++;
+        rowNum++; // blank after totals
 
-        writeCurrencyCell(totalsRow, 2, totalGross.doubleValue(), styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 3, totalComm.doubleValue(), styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 4, totalExp.doubleValue(), styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 5, totalPayments.doubleValue(), styles.boldCurrency);
+        // Track batch header row numbers for TOTALS SUM formulas
+        List<Integer> batchHeaderExcelRows = new ArrayList<>();
 
-        writeCurrencyCell(totalsRow, 8, priorIncome, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 9, priorExpense, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 10, priorCommission, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 11, priorNet, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 14, currentIncome, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 15, currentExpense, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 16, currentCommission, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 17, currentNet, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 20, futureIncome, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 21, futureExpense, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 22, futureCommission, styles.boldCurrency);
-        writeCurrencyCell(totalsRow, 23, futureNet, styles.boldCurrency);
-
-        rowNum++; // blank
-
-        // BATCH DETAIL ROWS
+        // BATCH DETAIL ROWS — each batch: header, Prior/This/Future sub-rows, then detail rows
         for (ProcessedBatch pb : processedBatches) {
             BatchAllocationStatusDTO batch = pb.batch;
+
+            int batchHeaderRowNum = rowNum;
+            int batchHeaderExcelRow = batchHeaderRowNum + 1; // 1-based
+            batchHeaderExcelRows.add(batchHeaderExcelRow);
 
             Row batchRow = sheet.createRow(rowNum++);
             batchRow.createCell(0).setCellValue(str(batch.getBatchId()));
@@ -1203,32 +1158,53 @@ public class FormulaAuditStatementService {
             } else {
                 payDateCell.setCellValue("Pending");
             }
-            writeCurrencyCell(batchRow, 2, batch.getGrossIncome().doubleValue(), styles.boldCurrency);
-            writeCurrencyCell(batchRow, 3, batch.getCommission().doubleValue(), styles.currency);
-            writeCurrencyCell(batchRow, 4, batch.getExpenses().doubleValue(), styles.currency);
-            writeCurrencyCell(batchRow, 5, batch.getNetToOwner().doubleValue(), styles.boldCurrency);
+            // Batch header C-F: formulas summing the 3 sub-rows below
+            int priorSubExcel = batchHeaderExcelRow + 1;
+            int currSubExcel = batchHeaderExcelRow + 2;
+            int futSubExcel = batchHeaderExcelRow + 3;
+            for (int c = 2; c <= 5; c++) {
+                String cl = colLetter(c);
+                Cell cell = batchRow.createCell(c);
+                cell.setCellFormula(String.format("%s%d+%s%d+%s%d", cl, priorSubExcel, cl, currSubExcel, cl, futSubExcel));
+                cell.setCellStyle(c == 2 || c == 5 ? styles.boldCurrency : styles.currency);
+            }
+
+            // Prior sub-row: SUM over prior detail rows (cols I/J/K/L = 8/9/10/11)
+            int detailStartExcel = batchHeaderExcelRow + 4; // detail rows start after 3 sub-rows + header
+            int detailEndExcel = detailStartExcel + Math.max(pb.priorAllocations.size(), Math.max(pb.currentAllocations.size(), pb.futureAllocations.size())) - 1;
+            if (detailEndExcel < detailStartExcel) detailEndExcel = detailStartExcel;
 
             Row priorSumRow = sheet.createRow(rowNum++);
             priorSumRow.createCell(1).setCellValue("Prior:");
-            writeCurrencyCell(priorSumRow, 2, pb.priorIncome, styles.currency);
-            writeCurrencyCell(priorSumRow, 3, pb.priorCommission, styles.currency);
-            writeCurrencyCell(priorSumRow, 4, pb.priorExpense, styles.currency);
-            writeCurrencyCell(priorSumRow, 5, pb.priorNet, styles.currency);
+            // Prior sub-row C-F: SUM of prior detail columns (I/J/K/L = cols 8,9,10,11)
+            for (int c = 2; c <= 5; c++) {
+                Cell cell = priorSumRow.createCell(c);
+                String detailCol = colLetter(c + 6); // C->I, D->J, E->K, F->L
+                cell.setCellFormula(String.format("SUM(%s%d:%s%d)", detailCol, detailStartExcel, detailCol, detailEndExcel));
+                cell.setCellStyle(styles.currency);
+            }
 
             Row currSumRow = sheet.createRow(rowNum++);
             currSumRow.createCell(1).setCellValue("This Period:");
-            writeCurrencyCell(currSumRow, 2, pb.currentIncome, styles.currency);
-            writeCurrencyCell(currSumRow, 3, pb.currentCommission, styles.currency);
-            writeCurrencyCell(currSumRow, 4, pb.currentExpense, styles.currency);
-            writeCurrencyCell(currSumRow, 5, pb.currentNet, styles.currency);
+            // This Period sub-row C-F: SUM of current detail columns (O/P/Q/R = cols 14,15,16,17)
+            for (int c = 2; c <= 5; c++) {
+                Cell cell = currSumRow.createCell(c);
+                String detailCol = colLetter(c + 12); // C->O, D->P, E->Q, F->R
+                cell.setCellFormula(String.format("SUM(%s%d:%s%d)", detailCol, detailStartExcel, detailCol, detailEndExcel));
+                cell.setCellStyle(styles.currency);
+            }
 
             Row futSumRow = sheet.createRow(rowNum++);
             futSumRow.createCell(1).setCellValue("Future:");
-            writeCurrencyCell(futSumRow, 2, pb.futureIncome, styles.currency);
-            writeCurrencyCell(futSumRow, 3, pb.futureCommission, styles.currency);
-            writeCurrencyCell(futSumRow, 4, pb.futureExpense, styles.currency);
-            writeCurrencyCell(futSumRow, 5, pb.futureNet, styles.currency);
+            // Future sub-row C-F: SUM of future detail columns (U/V/W/X = cols 20,21,22,23)
+            for (int c = 2; c <= 5; c++) {
+                Cell cell = futSumRow.createCell(c);
+                String detailCol = colLetter(c + 18); // C->U, D->V, E->W, F->X
+                cell.setCellFormula(String.format("SUM(%s%d:%s%d)", detailCol, detailStartExcel, detailCol, detailEndExcel));
+                cell.setCellStyle(styles.currency);
+            }
 
+            // Allocation detail rows
             int maxRows = Math.max(1, Math.max(pb.priorAllocations.size(),
                     Math.max(pb.currentAllocations.size(), pb.futureAllocations.size())));
 
@@ -1248,6 +1224,67 @@ public class FormulaAuditStatementService {
             rowNum++; // blank between batches
         }
 
+        // NOW fill in the TOTALS row with SUM formulas over batch header rows
+        Row totalsRow = sheet.getRow(totalsRowNum);
+        if (totalsRow == null) totalsRow = sheet.createRow(totalsRowNum);
+        Cell totalsLabel = totalsRow.createCell(0);
+        totalsLabel.setCellValue("TOTALS");
+        totalsLabel.setCellStyle(styles.bold);
+
+        if (!batchHeaderExcelRows.isEmpty()) {
+            // Build SUM formulas that add up specific batch header rows (not a range, since rows aren't contiguous)
+            for (int c = 2; c <= 5; c++) {
+                String cl = colLetter(c);
+                StringBuilder formula = new StringBuilder();
+                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
+                    if (i > 0) formula.append("+");
+                    formula.append(cl).append(batchHeaderExcelRows.get(i));
+                }
+                Cell cell = totalsRow.createCell(c);
+                cell.setCellFormula(formula.toString());
+                cell.setCellStyle(styles.boldCurrency);
+            }
+
+            // Prior totals (cols 8-11): sum prior sub-rows
+            for (int c = 8; c <= 11; c++) {
+                String cl = colLetter(c);
+                StringBuilder formula = new StringBuilder();
+                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
+                    if (i > 0) formula.append("+");
+                    formula.append(colLetter(c - 6)).append(batchHeaderExcelRows.get(i) + 1); // prior sub-row is +1
+                }
+                Cell cell = totalsRow.createCell(c);
+                cell.setCellFormula(formula.toString());
+                cell.setCellStyle(styles.boldCurrency);
+            }
+
+            // This Period totals (cols 14-17): sum current sub-rows
+            for (int c = 14; c <= 17; c++) {
+                String cl = colLetter(c);
+                StringBuilder formula = new StringBuilder();
+                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
+                    if (i > 0) formula.append("+");
+                    formula.append(colLetter(c - 12)).append(batchHeaderExcelRows.get(i) + 2); // current sub-row is +2
+                }
+                Cell cell = totalsRow.createCell(c);
+                cell.setCellFormula(formula.toString());
+                cell.setCellStyle(styles.boldCurrency);
+            }
+
+            // Future totals (cols 20-23): sum future sub-rows
+            for (int c = 20; c <= 23; c++) {
+                String cl = colLetter(c);
+                StringBuilder formula = new StringBuilder();
+                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
+                    if (i > 0) formula.append("+");
+                    formula.append(colLetter(c - 18)).append(batchHeaderExcelRows.get(i) + 3); // future sub-row is +3
+                }
+                Cell cell = totalsRow.createCell(c);
+                cell.setCellFormula(formula.toString());
+                cell.setCellStyle(styles.boldCurrency);
+            }
+        }
+
         return rowNum;
     }
 
@@ -1260,29 +1297,32 @@ public class FormulaAuditStatementService {
             txnDateCell.setCellStyle(styles.date);
         }
 
-        double income = 0, expense = 0, commission = 0;
         String type = alloc.getAllocationType();
+        int excelRow = row.getRowNum() + 1; // 1-based
+        String incCol = colLetter(startCol + 2);
+        String expCol = colLetter(startCol + 3);
+        String commCol = colLetter(startCol + 4);
+        String netCol = colLetter(startCol + 5);
+
         if ("OWNER".equals(type) && alloc.getAmount() != null) {
-            income = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
+            double income = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
             Cell incCell = row.createCell(startCol + 2);
             incCell.setCellValue(income);
             incCell.setCellStyle(styles.currency);
             if (alloc.getCommissionAmount() != null) {
-                commission = alloc.getCommissionAmount().abs().doubleValue();
                 Cell commCell = row.createCell(startCol + 4);
-                commCell.setCellValue(commission);
+                commCell.setCellValue(alloc.getCommissionAmount().abs().doubleValue());
                 commCell.setCellStyle(styles.currency);
             }
         } else if (("EXPENSE".equals(type) || "DISBURSEMENT".equals(type)) && alloc.getAmount() != null) {
-            expense = alloc.getAmount().doubleValue();
             Cell expCell = row.createCell(startCol + 3);
-            expCell.setCellValue(expense);
+            expCell.setCellValue(alloc.getAmount().doubleValue());
             expCell.setCellStyle(styles.currency);
         }
 
-        double net = income - Math.abs(expense) - commission;
+        // Net = Income - Expense - Commission (formula)
         Cell netCell = row.createCell(startCol + 5);
-        netCell.setCellValue(net);
+        netCell.setCellFormula(String.format("%s%d-%s%d-%s%d", incCol, excelRow, expCol, excelRow, commCol, excelRow));
         netCell.setCellStyle(styles.currency);
     }
 
