@@ -758,7 +758,7 @@ public class UnifiedTransactionRebuildService {
                          OR prap.category_name IN ('Other', 'Council Tax', 'Insurance',
                                                    'Repairs', 'Legal', 'Service Charge', 'Ground Rent',
                                                    'Professional Fees', 'Utilities', 'Maintenance',
-                                                   'Contractor', 'Council')
+                                                   'Contractor', 'Council', 'Let Only Fee')
                     THEN 'EXPENSE'
                     -- Payments to block property accounts that aren't Owner category should be EXPENSE
                     WHEN prap.beneficiary_name LIKE '%BLOCK%PROPERTY%'

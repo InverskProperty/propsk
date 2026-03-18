@@ -1437,9 +1437,16 @@ public class PropertyOwnerController {
             if (customer == null) {
                 return "redirect:/customer-login?error=not_found";
             }
-            
-            System.out.println("✅ Loading statements centre for customer: " + customer.getCustomerId());
-            
+
+            // Delegated users should see their managed owner's data
+            Customer statementCustomer = customer;
+            if (customer.getManagesOwner() != null) {
+                statementCustomer = customer.getManagesOwner();
+                System.out.println("✅ Delegated user " + customer.getCustomerId() + " (" + customer.getName() + ") -> using managed owner " + statementCustomer.getCustomerId() + " (" + statementCustomer.getName() + ")");
+            }
+
+            System.out.println("✅ Loading statements centre for customer: " + statementCustomer.getCustomerId());
+
             // Check OAuth/Google connection (optional for Google Sheets)
             OAuthUser oAuthUser = authenticationUtils.getOAuthUserFromAuthentication(authentication);
             boolean hasGoogleAuth = (oAuthUser != null && oAuthUser.getAccessToken() != null);
@@ -1447,8 +1454,8 @@ public class PropertyOwnerController {
             // Check if service account is available for shared drive access
             boolean hasServiceAccount = serviceAccountAvailable();
 
-            model.addAttribute("customer", customer);
-            model.addAttribute("customerId", customer.getCustomerId());
+            model.addAttribute("customer", statementCustomer);
+            model.addAttribute("customerId", statementCustomer.getCustomerId());
             model.addAttribute("pageTitle", "Statements Centre");
             model.addAttribute("hasGoogleAuth", hasGoogleAuth);
             model.addAttribute("hasServiceAccount", hasServiceAccount);
@@ -1465,11 +1472,11 @@ public class PropertyOwnerController {
             }
             
             // Get property owner's properties for statement generation
-            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(customer.getCustomerId());
+            List<Property> properties = propertyService.findPropertiesAccessibleByCustomer(statementCustomer.getCustomerId());
             model.addAttribute("properties", properties);
-            model.addAttribute("propertyOwners", Arrays.asList(customer)); // Only show this property owner
+            model.addAttribute("propertyOwners", Arrays.asList(statementCustomer)); // Only show this property owner
             model.addAttribute("isOwnStatements", true);
-            model.addAttribute("currentCustomer", customer);
+            model.addAttribute("currentCustomer", statementCustomer);
             model.addAttribute("viewMode", "owner");
             
             // Set default date range (current month)
