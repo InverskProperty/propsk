@@ -178,6 +178,19 @@ public class FormulaAuditStatementService {
         List<Period> periods = generatePeriods(startDate, endDate, periodStartDay, statementFrequency);
         log.info("Formula Audit v2: {} periods", periods.size());
 
+        // 5b. Pre-extract service charge data for all periods to avoid repeated DB queries
+        // Key: "leaseId:periodIndex", Value: ServiceChargeDataDTO
+        Map<String, ServiceChargeDataDTO> serviceChargeCache = new HashMap<>();
+        for (LeaseMasterDTO blockLease : blockPropertyLeases) {
+            for (int i = 0; i < periods.size(); i++) {
+                Period p = periods.get(i);
+                ServiceChargeDataDTO scData = dataExtractService.extractServiceChargeData(
+                        blockLease.getLeaseId(), p.start, p.end);
+                serviceChargeCache.put(blockLease.getLeaseId() + ":" + i, scData);
+            }
+        }
+        log.info("Formula Audit v2: pre-cached {} service charge extractions", serviceChargeCache.size());
+
         // 6. Create period sheets — fixed row per lease, SUMIFS formulas
         List<String> periodSheetNames = new ArrayList<>();
 
@@ -189,9 +202,10 @@ public class FormulaAuditStatementService {
             periodSheetNames.add(sheetName);
 
             String prevSheetName = (i > 0) ? periodSheetNames.get(i - 1) : null;
+            int periodIdx = i;
             createPeriodSheet(workbook, sheetName, leases, period, prevSheetName,
                     startDate, styles, customerId, rentDataRows, expenseDataRows,
-                    blockPropertyLeases);
+                    blockPropertyLeases, serviceChargeCache, periodIdx);
         }
 
         // 7. Create TOTALS sheet (with allocation reconciliation and service charge summary)
@@ -520,7 +534,9 @@ public class FormulaAuditStatementService {
                                    String prevSheetName, LocalDate overallStartDate,
                                    Styles styles, Long customerId,
                                    int rentDataRows, int expenseDataRows,
-                                   List<LeaseMasterDTO> blockPropertyLeases) {
+                                   List<LeaseMasterDTO> blockPropertyLeases,
+                                   Map<String, ServiceChargeDataDTO> serviceChargeCache,
+                                   int periodIdx) {
 
         Sheet sheet = workbook.createSheet(sheetName);
 
@@ -703,8 +719,11 @@ public class FormulaAuditStatementService {
         // SERVICE CHARGE section (between period total and payment reconciliation)
         int nextRow = totalsRowIdx + 2;
         for (LeaseMasterDTO blockLease : blockPropertyLeases) {
-            ServiceChargeDataDTO scData = dataExtractService.extractServiceChargeData(
-                    blockLease.getLeaseId(), period.start, period.end);
+            ServiceChargeDataDTO scData = serviceChargeCache.get(blockLease.getLeaseId() + ":" + periodIdx);
+            if (scData == null) {
+                scData = new ServiceChargeDataDTO();
+                if (blockLease.getPropertyName() != null) scData.setBlockPropertyName(blockLease.getPropertyName());
+            }
             nextRow = addServiceChargeSection(sheet, nextRow, scData, styles);
         }
 
