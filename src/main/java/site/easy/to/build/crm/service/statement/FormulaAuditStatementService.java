@@ -170,6 +170,10 @@ public class FormulaAuditStatementService {
         createOwnerPaymentsSheet(workbook, ownerPayments, styles);
         ownerPayments = null; // free memory
 
+        // 4d. Extract block property leases for service charge sections
+        List<LeaseMasterDTO> blockPropertyLeases = dataExtractService.extractBlockPropertyLeases(customerId);
+        log.info("Formula Audit v2: {} block property leases", blockPropertyLeases.size());
+
         // 5. Generate periods
         List<Period> periods = generatePeriods(startDate, endDate, periodStartDay, statementFrequency);
         log.info("Formula Audit v2: {} periods", periods.size());
@@ -186,11 +190,13 @@ public class FormulaAuditStatementService {
 
             String prevSheetName = (i > 0) ? periodSheetNames.get(i - 1) : null;
             createPeriodSheet(workbook, sheetName, leases, period, prevSheetName,
-                    startDate, styles, customerId, rentDataRows, expenseDataRows);
+                    startDate, styles, customerId, rentDataRows, expenseDataRows,
+                    blockPropertyLeases);
         }
 
-        // 7. Create TOTALS sheet (with allocation reconciliation)
-        createTotalsSheet(workbook, leases, periodSheetNames, startDate, styles, allocDataRows);
+        // 7. Create TOTALS sheet (with allocation reconciliation and service charge summary)
+        createTotalsSheet(workbook, leases, periodSheetNames, startDate, styles, allocDataRows,
+                blockPropertyLeases, endDate);
 
         log.info("Formula Audit v2: Complete in {}ms, {} sheets",
                 System.currentTimeMillis() - start, workbook.getNumberOfSheets());
@@ -513,7 +519,8 @@ public class FormulaAuditStatementService {
                                    List<LeaseMasterDTO> leases, Period period,
                                    String prevSheetName, LocalDate overallStartDate,
                                    Styles styles, Long customerId,
-                                   int rentDataRows, int expenseDataRows) {
+                                   int rentDataRows, int expenseDataRows,
+                                   List<LeaseMasterDTO> blockPropertyLeases) {
 
         Sheet sheet = workbook.createSheet(sheetName);
 
@@ -701,7 +708,21 @@ public class FormulaAuditStatementService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        writeReconciliationSection(sheet, nextRow, resolvedOwnerId, period, allPropertyIds, styles);
+        int reconEndRow = writeReconciliationSection(sheet, nextRow, resolvedOwnerId, period, allPropertyIds, styles);
+
+        // SERVICE CHARGE section (after reconciliation)
+        if (!blockPropertyLeases.isEmpty()) {
+            int scRow = reconEndRow + 2;
+            for (LeaseMasterDTO blockLease : blockPropertyLeases) {
+                ServiceChargeDataDTO scData = dataExtractService.extractServiceChargeData(
+                        blockLease.getLeaseId(), period.start, period.end);
+                if (scData.getOpeningBalance().compareTo(BigDecimal.ZERO) != 0
+                        || !scData.getIncomeTransactions().isEmpty()
+                        || !scData.getExpenseTransactions().isEmpty()) {
+                    scRow = addServiceChargeSection(sheet, scRow, scData, styles);
+                }
+            }
+        }
 
         applyWidths(sheet, PERIOD_HEADERS.length);
     }
@@ -761,7 +782,8 @@ public class FormulaAuditStatementService {
 
     private void createTotalsSheet(Workbook workbook, List<LeaseMasterDTO> leases,
                                    List<String> periodSheetNames, LocalDate overallStartDate,
-                                   Styles styles, int allocDataRows) {
+                                   Styles styles, int allocDataRows,
+                                   List<LeaseMasterDTO> blockPropertyLeases, LocalDate overallEndDate) {
 
         Sheet sheet = workbook.createSheet("TOTALS");
 
@@ -934,6 +956,59 @@ public class FormulaAuditStatementService {
             String colLetter = colLetter(c);
             cell.setCellFormula(String.format("SUM(%s2:%s%d)", colLetter, colLetter, totalsExcelRow - 1));
             cell.setCellStyle(styles.boldCurrency);
+        }
+
+        // SERVICE CHARGE ACCOUNTS summary section
+        if (!blockPropertyLeases.isEmpty()) {
+            int scRowNum = totalsRowNum + 3;
+
+            Row scSeparator = sheet.createRow(scRowNum++);
+            Cell scSepCell = scSeparator.createCell(0);
+            scSepCell.setCellValue("═══════════════════════════════════════════════════════════════════════════════");
+            scSepCell.setCellStyle(styles.bold);
+
+            Row scHeader = sheet.createRow(scRowNum++);
+            Cell scHeaderCell = scHeader.createCell(0);
+            scHeaderCell.setCellValue("SERVICE CHARGE ACCOUNTS");
+            scHeaderCell.setCellStyle(styles.bold);
+
+            scRowNum++; // blank
+
+            Row scColHeaders = sheet.createRow(scRowNum++);
+            String[] scHeaders = {"Block Property Name", "Tenant", "Opening Balance",
+                                  "Total Income", "Total Expenses", "Closing Balance"};
+            for (int i = 0; i < scHeaders.length; i++) {
+                Cell cell = scColHeaders.createCell(i);
+                cell.setCellValue(scHeaders[i]);
+                cell.setCellStyle(styles.header);
+            }
+
+            for (LeaseMasterDTO blockLease : blockPropertyLeases) {
+                ServiceChargeDataDTO scData = dataExtractService.extractServiceChargeData(
+                        blockLease.getLeaseId(), overallStartDate, overallEndDate);
+
+                Row scRow = sheet.createRow(scRowNum++);
+                scRow.createCell(0).setCellValue(str(blockLease.getPropertyName()));
+                scRow.createCell(1).setCellValue(str(blockLease.getTenantName()));
+
+                Cell obCell = scRow.createCell(2);
+                obCell.setCellValue(scData.getOpeningBalance().doubleValue());
+                obCell.setCellStyle(styles.currency);
+
+                Cell incCell = scRow.createCell(3);
+                incCell.setCellValue(scData.getTotalIncome().doubleValue());
+                incCell.setCellStyle(styles.currency);
+
+                Cell expCell = scRow.createCell(4);
+                expCell.setCellValue(scData.getTotalExpenses().doubleValue());
+                expCell.setCellStyle(styles.currency);
+
+                Cell cbCell = scRow.createCell(5);
+                cbCell.setCellValue(scData.getClosingBalance().doubleValue());
+                cbCell.setCellStyle(styles.boldCurrency);
+            }
+
+            log.info("TOTALS: Added {} service charge account rows", blockPropertyLeases.size());
         }
 
         applyWidths(sheet, headers.length);
@@ -1448,6 +1523,107 @@ public class FormulaAuditStatementService {
                 sheet.setColumnWidth(i, 15 * 256);
             }
         }
+    }
+
+    // ========================================================================
+    // Service Charge section (embedded in each period sheet + TOTALS)
+    // ========================================================================
+
+    private int addServiceChargeSection(Sheet sheet, int startRow, ServiceChargeDataDTO data, Styles styles) {
+        int rowNum = startRow;
+
+        if (data.getBlockPropertyName() == null) return rowNum;
+
+        // Section separator
+        Row separatorRow = sheet.createRow(rowNum++);
+        Cell separatorCell = separatorRow.createCell(0);
+        separatorCell.setCellValue("═══════════════════════════════════════════════════════════════════════════════");
+        separatorCell.setCellStyle(styles.bold);
+
+        // Section header
+        Row headerRow = sheet.createRow(rowNum++);
+        Cell headerCell = headerRow.createCell(0);
+        headerCell.setCellValue("SERVICE CHARGE ACCOUNT - " + data.getBlockPropertyName());
+        headerCell.setCellStyle(styles.bold);
+
+        if (data.getTenantName() != null) {
+            Row tenantRow = sheet.createRow(rowNum++);
+            tenantRow.createCell(0).setCellValue("Service Charge Payer: " + data.getTenantName());
+        }
+
+        rowNum++; // blank
+
+        // Summary headers
+        Row summaryHeaderRow = sheet.createRow(rowNum++);
+        summaryHeaderRow.createCell(0).setCellValue("");
+        Cell obH = summaryHeaderRow.createCell(1); obH.setCellValue("Opening Balance"); obH.setCellStyle(styles.bold);
+        Cell incH = summaryHeaderRow.createCell(2); incH.setCellValue("Income"); incH.setCellStyle(styles.bold);
+        Cell expH = summaryHeaderRow.createCell(3); expH.setCellValue("Expenses"); expH.setCellStyle(styles.bold);
+        Cell cbH = summaryHeaderRow.createCell(4); cbH.setCellValue("Closing Balance"); cbH.setCellStyle(styles.bold);
+
+        // Summary values
+        Row summaryRow = sheet.createRow(rowNum++);
+        Cell sumLabel = summaryRow.createCell(0); sumLabel.setCellValue("SUMMARY"); sumLabel.setCellStyle(styles.bold);
+        Cell obVal = summaryRow.createCell(1); obVal.setCellValue(data.getOpeningBalance().doubleValue()); obVal.setCellStyle(styles.currency);
+        Cell incVal = summaryRow.createCell(2); incVal.setCellValue(data.getTotalIncome().doubleValue()); incVal.setCellStyle(styles.currency);
+        Cell expVal = summaryRow.createCell(3); expVal.setCellValue(data.getTotalExpenses().doubleValue()); expVal.setCellStyle(styles.currency);
+        Cell cbVal = summaryRow.createCell(4); cbVal.setCellValue(data.getClosingBalance().doubleValue()); cbVal.setCellStyle(styles.boldCurrency);
+
+        rowNum++; // blank
+
+        // Income details
+        if (!data.getIncomeTransactions().isEmpty()) {
+            Row incHeader = sheet.createRow(rowNum++);
+            Cell incHdr = incHeader.createCell(0); incHdr.setCellValue("INCOME (Service Charge Payments)"); incHdr.setCellStyle(styles.bold);
+
+            Row incColHdr = sheet.createRow(rowNum++);
+            incColHdr.createCell(0).setCellValue("Date");
+            incColHdr.createCell(1).setCellValue("Description");
+            incColHdr.createCell(2).setCellValue("Amount");
+            incColHdr.createCell(3).setCellValue("Running Balance");
+
+            BigDecimal runBal = data.getOpeningBalance();
+            for (ServiceChargeDataDTO.ServiceChargeTransactionDTO txn : data.getIncomeTransactions()) {
+                Row txnRow = sheet.createRow(rowNum++);
+                Cell dateCell = txnRow.createCell(0);
+                if (txn.getTransactionDate() != null) { dateCell.setCellValue(txn.getTransactionDate()); dateCell.setCellStyle(styles.date); }
+                txnRow.createCell(1).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
+                BigDecimal amt = txn.getAmount() != null ? txn.getAmount().abs() : BigDecimal.ZERO;
+                Cell amtCell = txnRow.createCell(2); amtCell.setCellValue(amt.doubleValue()); amtCell.setCellStyle(styles.currency);
+                runBal = runBal.add(amt);
+                Cell runCell = txnRow.createCell(3); runCell.setCellValue(runBal.doubleValue()); runCell.setCellStyle(styles.currency);
+            }
+            rowNum++; // blank
+        }
+
+        // Expense details
+        if (!data.getExpenseTransactions().isEmpty()) {
+            Row expHeader = sheet.createRow(rowNum++);
+            Cell expHdr = expHeader.createCell(0); expHdr.setCellValue("EXPENSES (Block Account)"); expHdr.setCellStyle(styles.bold);
+
+            Row expColHdr = sheet.createRow(rowNum++);
+            expColHdr.createCell(0).setCellValue("Date");
+            expColHdr.createCell(1).setCellValue("Description");
+            expColHdr.createCell(2).setCellValue("Category");
+            expColHdr.createCell(3).setCellValue("Amount");
+            expColHdr.createCell(4).setCellValue("Running Balance");
+
+            BigDecimal runBal = data.getOpeningBalance().add(data.getTotalIncome());
+            for (ServiceChargeDataDTO.ServiceChargeTransactionDTO txn : data.getExpenseTransactions()) {
+                Row txnRow = sheet.createRow(rowNum++);
+                Cell dateCell = txnRow.createCell(0);
+                if (txn.getTransactionDate() != null) { dateCell.setCellValue(txn.getTransactionDate()); dateCell.setCellStyle(styles.date); }
+                txnRow.createCell(1).setCellValue(txn.getDescription() != null ? txn.getDescription() : "");
+                txnRow.createCell(2).setCellValue(txn.getCategory() != null ? txn.getCategory() : "");
+                BigDecimal amt = txn.getAmount() != null ? txn.getAmount().abs() : BigDecimal.ZERO;
+                Cell amtCell = txnRow.createCell(3); amtCell.setCellValue(-amt.doubleValue()); amtCell.setCellStyle(styles.currency);
+                runBal = runBal.subtract(amt);
+                Cell runCell = txnRow.createCell(4); runCell.setCellValue(runBal.doubleValue()); runCell.setCellStyle(styles.currency);
+            }
+        }
+
+        rowNum++; // blank at end
+        return rowNum;
     }
 
     private static class Styles {
