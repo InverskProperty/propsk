@@ -715,7 +715,7 @@ public class FormulaAuditStatementService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        writeReconciliationSection(sheet, nextRow, resolvedOwnerId, period, allPropertyIds, styles);
+        writeReconciliationSection(sheet, nextRow, resolvedOwnerId, period, allPropertyIds, styles, totalsExcelRow);
 
         applyWidths(sheet, PERIOD_HEADERS.length);
     }
@@ -1015,7 +1015,8 @@ public class FormulaAuditStatementService {
 
     @SuppressWarnings("unchecked")
     private int writeReconciliationSection(Sheet sheet, int startRow, Long resolvedOwnerId,
-                                            Period period, Set<Long> propertyIds, Styles styles) {
+                                            Period period, Set<Long> propertyIds, Styles styles,
+                                            int periodTotalExcelRow) {
         int rowNum = startRow;
 
         Row sectionHeader = sheet.createRow(rowNum++);
@@ -1024,6 +1025,36 @@ public class FormulaAuditStatementService {
 
         Row periodRow = sheet.createRow(rowNum++);
         periodRow.createCell(0).setCellValue("Period: " + period.start + " to " + period.end);
+
+        rowNum++; // blank
+
+        // PERIOD SUMMARY — references the PERIOD TOTAL row above for at-a-glance view
+        // Uses column letters from the period table: J=total_rent, O=total_commission, P=total_expenses, R=net_to_owner
+        Row psSectionRow = sheet.createRow(rowNum++);
+        psSectionRow.createCell(0).setCellValue("PERIOD SUMMARY");
+        psSectionRow.getCell(0).setCellStyle(styles.bold);
+
+        Row psHeaderRow = sheet.createRow(rowNum++);
+        psHeaderRow.createCell(1).setCellValue("Rent Received");  psHeaderRow.getCell(1).setCellStyle(styles.bold);
+        psHeaderRow.createCell(2).setCellValue("Commission");     psHeaderRow.getCell(2).setCellStyle(styles.bold);
+        psHeaderRow.createCell(3).setCellValue("Expenses");       psHeaderRow.getCell(3).setCellStyle(styles.bold);
+        psHeaderRow.createCell(4).setCellValue("Net to Owner");   psHeaderRow.getCell(4).setCellStyle(styles.bold);
+
+        Row psValRow = sheet.createRow(rowNum++);
+        psValRow.createCell(0).setCellValue("Period Table:");
+        // Reference PERIOD TOTAL row: J=col9=total_rent, O=col14=total_comm, P=col15=total_expenses, R=col17=net_to_owner
+        Cell psRent = psValRow.createCell(1);
+        psRent.setCellFormula(String.format("%s%d", colLetter(COL_TOTAL_RENT), periodTotalExcelRow));
+        psRent.setCellStyle(styles.currency);
+        Cell psComm = psValRow.createCell(2);
+        psComm.setCellFormula(String.format("%s%d", colLetter(COL_TOTAL_COMM), periodTotalExcelRow));
+        psComm.setCellStyle(styles.currency);
+        Cell psExp = psValRow.createCell(3);
+        psExp.setCellFormula(String.format("%s%d", colLetter(COL_TOTAL_EXPENSES), periodTotalExcelRow));
+        psExp.setCellStyle(styles.currency);
+        Cell psNet = psValRow.createCell(4);
+        psNet.setCellFormula(String.format("%s%d", colLetter(COL_NET_TO_OWNER), periodTotalExcelRow));
+        psNet.setCellStyle(styles.boldCurrency);
 
         rowNum++; // blank
 
@@ -1284,6 +1315,49 @@ public class FormulaAuditStatementService {
                 cell.setCellStyle(styles.boldCurrency);
             }
         }
+
+        // RECONCILIATION COMPARISON — add "Allocated" and "Difference" rows under the PERIOD SUMMARY
+        // These reference the OWNER PAYMENTS TOTALS "This Period" columns (O/P/Q/R = 14/15/16/17)
+        int totalsExcelRowRef = totalsRowNum + 1; // 1-based
+        Row allocatedRow = sheet.createRow(rowNum++);
+        allocatedRow.createCell(0).setCellValue("Allocated (Paid):");
+        // This Period income from TOTALS = col O (14)
+        Cell arRent = allocatedRow.createCell(1);
+        arRent.setCellFormula(String.format("%s%d", colLetter(14), totalsExcelRowRef));
+        arRent.setCellStyle(styles.currency);
+        Cell arComm = allocatedRow.createCell(2);
+        arComm.setCellFormula(String.format("%s%d", colLetter(15), totalsExcelRowRef));
+        arComm.setCellStyle(styles.currency);
+        Cell arExp = allocatedRow.createCell(3);
+        arExp.setCellFormula(String.format("%s%d", colLetter(16), totalsExcelRowRef));
+        arExp.setCellStyle(styles.currency);
+        Cell arNet = allocatedRow.createCell(4);
+        arNet.setCellFormula(String.format("%s%d", colLetter(17), totalsExcelRowRef));
+        arNet.setCellStyle(styles.boldCurrency);
+
+        // Difference row: Period Table - Allocated
+        int allocatedExcelRow = rowNum; // current row (0-based) + 1 = rowNum
+        Row diffRow = sheet.createRow(rowNum++);
+        diffRow.createCell(0).setCellValue("Difference:");
+        diffRow.getCell(0).setCellStyle(styles.bold);
+        for (int c = 1; c <= 4; c++) {
+            String cl = colLetter(c);
+            // Find the Period Table row — it was written as psValRow earlier
+            // psValRow is at a variable position. We need to find it.
+            // Actually, let's reference the PERIOD TOTAL row directly and the allocated row
+            Cell diffCell = diffRow.createCell(c);
+            // Period Table value is the row above "Allocated" minus 2 (psValRow)
+            // This is fragile. Better: reference the period table totals row directly
+            String periodRef;
+            if (c == 1) periodRef = colLetter(COL_TOTAL_RENT);
+            else if (c == 2) periodRef = colLetter(COL_TOTAL_COMM);
+            else if (c == 3) periodRef = colLetter(COL_TOTAL_EXPENSES);
+            else periodRef = colLetter(COL_NET_TO_OWNER);
+            diffCell.setCellFormula(String.format("%s%d-%s%d", periodRef, periodTotalExcelRow, cl, allocatedExcelRow));
+            diffCell.setCellStyle(styles.boldCurrency);
+        }
+
+        rowNum++; // blank
 
         return rowNum;
     }
