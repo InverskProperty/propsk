@@ -474,6 +474,14 @@ public class UnifiedTransactionRebuildService {
      * Links allocations to their corresponding unified_transaction record via source_record_id
      */
     private int migrateAllocationsToUnified() {
+        // Clear stale unified_transaction_id values first — after TRUNCATE + reinsert of
+        // unified_transactions the auto-increment IDs change, so old references are invalid.
+        jdbcTemplate.update("""
+            UPDATE transaction_batch_allocations
+            SET unified_transaction_id = NULL
+            WHERE transaction_id IS NOT NULL
+        """);
+
         String sql = """
             UPDATE transaction_batch_allocations tba
             SET unified_transaction_id = (

@@ -3008,10 +3008,11 @@ public class StatementDataExtractService {
         }
 
         try {
-            // Try unified_transaction first
-            if (alloc.getUnifiedTransactionId() != null) {
-                String sql = "SELECT transaction_date FROM unified_transactions WHERE id = ?";
-                List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, alloc.getUnifiedTransactionId());
+            // Try historical_transaction first — it is the source of truth for manually
+            // entered records and its ID is stable (never reset by rebuild truncation).
+            if (alloc.getHistoricalTransactionId() != null) {
+                String sql = "SELECT transaction_date FROM historical_transactions WHERE id = ?";
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, alloc.getHistoricalTransactionId());
                 if (!rows.isEmpty() && rows.get(0).get("transaction_date") != null) {
                     Object dateObj = rows.get(0).get("transaction_date");
                     if (dateObj instanceof java.sql.Date) {
@@ -3022,10 +3023,10 @@ public class StatementDataExtractService {
                 }
             }
 
-            // Try historical_transaction
-            if (alloc.getHistoricalTransactionId() != null) {
-                String sql = "SELECT transaction_date FROM historical_transactions WHERE id = ?";
-                List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, alloc.getHistoricalTransactionId());
+            // Fall back to unified_transaction (for PayProp-sourced allocations with no historical link)
+            if (alloc.getUnifiedTransactionId() != null) {
+                String sql = "SELECT transaction_date FROM unified_transactions WHERE id = ?";
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, alloc.getUnifiedTransactionId());
                 if (!rows.isEmpty() && rows.get(0).get("transaction_date") != null) {
                     Object dateObj = rows.get(0).get("transaction_date");
                     if (dateObj instanceof java.sql.Date) {
