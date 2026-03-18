@@ -700,29 +700,22 @@ public class FormulaAuditStatementService {
         writeSumFormula(totalsRow, COL_TOTAL_EXPENSES, 2, totalsExcelRow - 1, styles.boldCurrency);
         writeSumFormula(totalsRow, COL_NET_TO_OWNER, 2, totalsExcelRow - 1, styles.boldCurrency);
 
-        // PAYMENT RECONCILIATION section
+        // SERVICE CHARGE section (between period total and payment reconciliation)
         int nextRow = totalsRowIdx + 2;
+        for (LeaseMasterDTO blockLease : blockPropertyLeases) {
+            ServiceChargeDataDTO scData = dataExtractService.extractServiceChargeData(
+                    blockLease.getLeaseId(), period.start, period.end);
+            nextRow = addServiceChargeSection(sheet, nextRow, scData, styles);
+        }
+
+        // PAYMENT RECONCILIATION section
         Long resolvedOwnerId = resolveActualOwnerId(customerId);
         Set<Long> allPropertyIds = leases.stream()
                 .map(LeaseMasterDTO::getPropertyId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        int reconEndRow = writeReconciliationSection(sheet, nextRow, resolvedOwnerId, period, allPropertyIds, styles);
-
-        // SERVICE CHARGE section (after reconciliation)
-        if (!blockPropertyLeases.isEmpty()) {
-            int scRow = reconEndRow + 2;
-            for (LeaseMasterDTO blockLease : blockPropertyLeases) {
-                ServiceChargeDataDTO scData = dataExtractService.extractServiceChargeData(
-                        blockLease.getLeaseId(), period.start, period.end);
-                if (scData.getOpeningBalance().compareTo(BigDecimal.ZERO) != 0
-                        || !scData.getIncomeTransactions().isEmpty()
-                        || !scData.getExpenseTransactions().isEmpty()) {
-                    scRow = addServiceChargeSection(sheet, scRow, scData, styles);
-                }
-            }
-        }
+        writeReconciliationSection(sheet, nextRow, resolvedOwnerId, period, allPropertyIds, styles);
 
         applyWidths(sheet, PERIOD_HEADERS.length);
     }
