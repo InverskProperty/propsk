@@ -1087,53 +1087,10 @@ public class FormulaAuditStatementService {
             batchStatuses = Collections.emptyList();
         }
 
-        // ALLOCATION STATUS SUMMARY
-        try {
-            Row statusHeader = sheet.createRow(rowNum++);
-            statusHeader.createCell(0).setCellValue("ALLOCATION STATUS");
-            statusHeader.getCell(0).setCellStyle(styles.bold);
-
-            Map<String, Object> allocationSummary = dataExtractService.getAllocationStatusSummary(
-                    resolvedOwnerId, period.start, period.end);
-
-            Map<String, Object> priorAllocated = (Map<String, Object>) allocationSummary.get("allocatedBeforePeriod");
-            Map<String, Object> periodAllocated = (Map<String, Object>) allocationSummary.get("allocatedDuringPeriod");
-            Map<String, Object> unallocated = (Map<String, Object>) allocationSummary.get("unallocatedAtEnd");
-
-            Row priorRow = sheet.createRow(rowNum++);
-            priorRow.createCell(0).setCellValue("  Allocated before period start:");
-            Cell priorCell = priorRow.createCell(1);
-            priorCell.setCellValue(((Number) priorAllocated.get("amount")).doubleValue());
-            priorCell.setCellStyle(styles.currency);
-            priorRow.createCell(2).setCellValue("(" + priorAllocated.get("count") + " items)");
-
-            Row periodAllocRow = sheet.createRow(rowNum++);
-            periodAllocRow.createCell(0).setCellValue("  Allocated during this period:");
-            Cell periodAllocCell = periodAllocRow.createCell(1);
-            periodAllocCell.setCellValue(((Number) periodAllocated.get("amount")).doubleValue());
-            periodAllocCell.setCellStyle(styles.currency);
-            periodAllocRow.createCell(2).setCellValue("(" + periodAllocated.get("count") + " items)");
-
-            Row unallocRow = sheet.createRow(rowNum++);
-            unallocRow.createCell(0).setCellValue("  For Future Periods (after this period):");
-            unallocRow.getCell(0).setCellStyle(styles.bold);
-            Cell unallocCell = unallocRow.createCell(1);
-            unallocCell.setCellValue(((Number) unallocated.get("amount")).doubleValue());
-            unallocCell.setCellStyle(styles.boldCurrency);
-            unallocRow.createCell(2).setCellValue("(" + unallocated.get("count") + " items)");
-        } catch (Exception e) {
-            log.warn("Could not write allocation status: {}", e.getMessage());
-        }
-
-        rowNum++; // blank
-
         // OWNER PAYMENTS THIS PERIOD
         Row paymentsHeader = sheet.createRow(rowNum++);
         paymentsHeader.createCell(0).setCellValue("OWNER PAYMENTS THIS PERIOD");
         paymentsHeader.getCell(0).setCellStyle(styles.bold);
-
-        Row paymentsSubHeader = sheet.createRow(rowNum++);
-        paymentsSubHeader.createCell(0).setCellValue("(Batches containing allocations from transactions in this period)");
 
         rowNum++; // blank
 
@@ -1164,36 +1121,98 @@ public class FormulaAuditStatementService {
             return rowNum;
         }
 
-        // Classify allocations by period for each batch
+        // Pre-calculate totals and classify allocations
         List<ProcessedBatch> processedBatches = new ArrayList<>();
+        BigDecimal totalGross = BigDecimal.ZERO, totalComm = BigDecimal.ZERO;
+        BigDecimal totalExp = BigDecimal.ZERO, totalNet = BigDecimal.ZERO;
+        double priorIncome = 0, priorExpense = 0, priorCommission = 0, priorNet = 0;
+        double currentIncome = 0, currentExpense = 0, currentCommission = 0, currentNet = 0;
+        double futureIncome = 0, futureExpense = 0, futureCommission = 0, futureNet = 0;
+
         for (BatchAllocationStatusDTO batch : batchStatuses) {
             ProcessedBatch pb = new ProcessedBatch(batch);
             for (BatchAllocationStatusDTO.AllocationDetailDTO alloc : batch.getAllocations()) {
                 String allocType = alloc.getAllocationType();
                 if ("COMMISSION".equals(allocType)) continue;
 
+                double allocInc = 0, allocExp = 0, allocComm = 0;
+                if ("OWNER".equals(allocType) && alloc.getAmount() != null) {
+                    allocInc = alloc.getGrossAmount() != null ? alloc.getGrossAmount().abs().doubleValue() : alloc.getAmount().abs().doubleValue();
+                    if (alloc.getCommissionAmount() != null) allocComm = alloc.getCommissionAmount().abs().doubleValue();
+                } else if (("EXPENSE".equals(allocType) || "DISBURSEMENT".equals(allocType)) && alloc.getAmount() != null) {
+                    allocExp = alloc.getAmount().doubleValue();
+                }
+                double allocNetVal = allocInc - allocExp - allocComm;
+
                 String classification = alloc.getPeriodClassification();
                 if ("B/F".equals(classification)) {
                     pb.priorAllocations.add(alloc);
+                    pb.priorIncome += allocInc; pb.priorExpense += allocExp; pb.priorCommission += allocComm; pb.priorNet += allocNetVal;
+                    priorIncome += allocInc; priorExpense += allocExp; priorCommission += allocComm; priorNet += allocNetVal;
                 } else if ("FUTURE".equals(classification)) {
                     pb.futureAllocations.add(alloc);
+                    pb.futureIncome += allocInc; pb.futureExpense += allocExp; pb.futureCommission += allocComm; pb.futureNet += allocNetVal;
+                    futureIncome += allocInc; futureExpense += allocExp; futureCommission += allocComm; futureNet += allocNetVal;
                 } else {
                     pb.currentAllocations.add(alloc);
+                    pb.currentIncome += allocInc; pb.currentExpense += allocExp; pb.currentCommission += allocComm; pb.currentNet += allocNetVal;
+                    currentIncome += allocInc; currentExpense += allocExp; currentCommission += allocComm; currentNet += allocNetVal;
                 }
             }
+            totalGross = totalGross.add(batch.getGrossIncome());
+            totalComm = totalComm.add(batch.getCommission());
+            totalExp = totalExp.add(batch.getExpenses());
+            totalNet = totalNet.add(batch.getNetToOwner());
             processedBatches.add(pb);
         }
 
-        // Track batch header row numbers for TOTALS SUM formulas (TOTALS written at end due to SXSSFWorkbook)
-        List<Integer> batchHeaderExcelRows = new ArrayList<>();
+        // TOTALS ROW FIRST (pre-calculated — SXSSFWorkbook requires top-down row order)
+        Row totalsRow = sheet.createRow(rowNum++);
+        Cell totalsLabel = totalsRow.createCell(0);
+        totalsLabel.setCellValue("TOTALS");
+        totalsLabel.setCellStyle(styles.bold);
+        writeCurrencyCell(totalsRow, 2, totalGross.doubleValue(), styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 3, totalComm.doubleValue(), styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 4, totalExp.doubleValue(), styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 5, totalNet.doubleValue(), styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 8, priorIncome, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 9, priorExpense, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 10, priorCommission, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 11, priorNet, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 14, currentIncome, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 15, currentExpense, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 16, currentCommission, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 17, currentNet, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 20, futureIncome, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 21, futureExpense, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 22, futureCommission, styles.boldCurrency);
+        writeCurrencyCell(totalsRow, 23, futureNet, styles.boldCurrency);
 
-        // BATCH DETAIL ROWS — each batch: header, Prior/This/Future sub-rows, then detail rows
+        // Allocated (Paid) — This Period allocation totals
+        Row allocatedRow = sheet.createRow(rowNum++);
+        allocatedRow.createCell(0).setCellValue("Allocated (Paid):");
+        writeCurrencyCell(allocatedRow, 1, currentIncome, styles.currency);
+        writeCurrencyCell(allocatedRow, 2, currentCommission, styles.currency);
+        writeCurrencyCell(allocatedRow, 3, currentExpense, styles.currency);
+        writeCurrencyCell(allocatedRow, 4, currentNet, styles.boldCurrency);
+
+        // Difference — Period Table minus Allocated
+        int allocExcelRow = rowNum; // 1-based for the allocated row
+        Row diffRow = sheet.createRow(rowNum++);
+        diffRow.createCell(0).setCellValue("Difference:");
+        diffRow.getCell(0).setCellStyle(styles.bold);
+        String[] periodCols = {colLetter(COL_TOTAL_RENT), colLetter(COL_TOTAL_COMM), colLetter(COL_TOTAL_EXPENSES), colLetter(COL_NET_TO_OWNER)};
+        for (int c = 1; c <= 4; c++) {
+            Cell diffCell = diffRow.createCell(c);
+            diffCell.setCellFormula(String.format("%s%d-%s%d", periodCols[c - 1], periodTotalExcelRow, colLetter(c), allocExcelRow));
+            diffCell.setCellStyle(styles.boldCurrency);
+        }
+
+        rowNum++; // blank
+
+        // BATCH DETAIL ROWS
         for (ProcessedBatch pb : processedBatches) {
             BatchAllocationStatusDTO batch = pb.batch;
-
-            int batchHeaderRowNum = rowNum;
-            int batchHeaderExcelRow = batchHeaderRowNum + 1; // 1-based
-            batchHeaderExcelRows.add(batchHeaderExcelRow);
 
             Row batchRow = sheet.createRow(rowNum++);
             batchRow.createCell(0).setCellValue(str(batch.getBatchId()));
@@ -1204,53 +1223,32 @@ public class FormulaAuditStatementService {
             } else {
                 payDateCell.setCellValue("Pending");
             }
-            // Batch header C-F: formulas summing the 3 sub-rows below
-            int priorSubExcel = batchHeaderExcelRow + 1;
-            int currSubExcel = batchHeaderExcelRow + 2;
-            int futSubExcel = batchHeaderExcelRow + 3;
-            for (int c = 2; c <= 5; c++) {
-                String cl = colLetter(c);
-                Cell cell = batchRow.createCell(c);
-                cell.setCellFormula(String.format("%s%d+%s%d+%s%d", cl, priorSubExcel, cl, currSubExcel, cl, futSubExcel));
-                cell.setCellStyle(c == 2 || c == 5 ? styles.boldCurrency : styles.currency);
-            }
-
-            // Prior sub-row: SUM over prior detail rows (cols I/J/K/L = 8/9/10/11)
-            int detailStartExcel = batchHeaderExcelRow + 4; // detail rows start after 3 sub-rows + header
-            int detailEndExcel = detailStartExcel + Math.max(pb.priorAllocations.size(), Math.max(pb.currentAllocations.size(), pb.futureAllocations.size())) - 1;
-            if (detailEndExcel < detailStartExcel) detailEndExcel = detailStartExcel;
+            writeCurrencyCell(batchRow, 2, batch.getGrossIncome().doubleValue(), styles.boldCurrency);
+            writeCurrencyCell(batchRow, 3, batch.getCommission().doubleValue(), styles.currency);
+            writeCurrencyCell(batchRow, 4, batch.getExpenses().doubleValue(), styles.currency);
+            writeCurrencyCell(batchRow, 5, batch.getNetToOwner().doubleValue(), styles.boldCurrency);
 
             Row priorSumRow = sheet.createRow(rowNum++);
             priorSumRow.createCell(1).setCellValue("Prior:");
-            // Prior sub-row C-F: SUM of prior detail columns (I/J/K/L = cols 8,9,10,11)
-            for (int c = 2; c <= 5; c++) {
-                Cell cell = priorSumRow.createCell(c);
-                String detailCol = colLetter(c + 6); // C->I, D->J, E->K, F->L
-                cell.setCellFormula(String.format("SUM(%s%d:%s%d)", detailCol, detailStartExcel, detailCol, detailEndExcel));
-                cell.setCellStyle(styles.currency);
-            }
+            writeCurrencyCell(priorSumRow, 2, pb.priorIncome, styles.currency);
+            writeCurrencyCell(priorSumRow, 3, pb.priorCommission, styles.currency);
+            writeCurrencyCell(priorSumRow, 4, pb.priorExpense, styles.currency);
+            writeCurrencyCell(priorSumRow, 5, pb.priorNet, styles.currency);
 
             Row currSumRow = sheet.createRow(rowNum++);
             currSumRow.createCell(1).setCellValue("This Period:");
-            // This Period sub-row C-F: SUM of current detail columns (O/P/Q/R = cols 14,15,16,17)
-            for (int c = 2; c <= 5; c++) {
-                Cell cell = currSumRow.createCell(c);
-                String detailCol = colLetter(c + 12); // C->O, D->P, E->Q, F->R
-                cell.setCellFormula(String.format("SUM(%s%d:%s%d)", detailCol, detailStartExcel, detailCol, detailEndExcel));
-                cell.setCellStyle(styles.currency);
-            }
+            writeCurrencyCell(currSumRow, 2, pb.currentIncome, styles.currency);
+            writeCurrencyCell(currSumRow, 3, pb.currentCommission, styles.currency);
+            writeCurrencyCell(currSumRow, 4, pb.currentExpense, styles.currency);
+            writeCurrencyCell(currSumRow, 5, pb.currentNet, styles.currency);
 
             Row futSumRow = sheet.createRow(rowNum++);
             futSumRow.createCell(1).setCellValue("Future:");
-            // Future sub-row C-F: SUM of future detail columns (U/V/W/X = cols 20,21,22,23)
-            for (int c = 2; c <= 5; c++) {
-                Cell cell = futSumRow.createCell(c);
-                String detailCol = colLetter(c + 18); // C->U, D->V, E->W, F->X
-                cell.setCellFormula(String.format("SUM(%s%d:%s%d)", detailCol, detailStartExcel, detailCol, detailEndExcel));
-                cell.setCellStyle(styles.currency);
-            }
+            writeCurrencyCell(futSumRow, 2, pb.futureIncome, styles.currency);
+            writeCurrencyCell(futSumRow, 3, pb.futureCommission, styles.currency);
+            writeCurrencyCell(futSumRow, 4, pb.futureExpense, styles.currency);
+            writeCurrencyCell(futSumRow, 5, pb.futureNet, styles.currency);
 
-            // Allocation detail rows
             int maxRows = Math.max(1, Math.max(pb.priorAllocations.size(),
                     Math.max(pb.currentAllocations.size(), pb.futureAllocations.size())));
 
@@ -1269,110 +1267,6 @@ public class FormulaAuditStatementService {
 
             rowNum++; // blank between batches
         }
-
-        // TOTALS row — written after batch rows (SXSSFWorkbook can't write earlier rows)
-        Row totalsRow = sheet.createRow(rowNum++);
-        int totalsRowNum = rowNum - 1; // 0-based for later reference
-        Cell totalsLabel = totalsRow.createCell(0);
-        totalsLabel.setCellValue("TOTALS");
-        totalsLabel.setCellStyle(styles.bold);
-
-        if (!batchHeaderExcelRows.isEmpty()) {
-            // Build SUM formulas that add up specific batch header rows (not a range, since rows aren't contiguous)
-            for (int c = 2; c <= 5; c++) {
-                String cl = colLetter(c);
-                StringBuilder formula = new StringBuilder();
-                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
-                    if (i > 0) formula.append("+");
-                    formula.append(cl).append(batchHeaderExcelRows.get(i));
-                }
-                Cell cell = totalsRow.createCell(c);
-                cell.setCellFormula(formula.toString());
-                cell.setCellStyle(styles.boldCurrency);
-            }
-
-            // Prior totals (cols 8-11): sum prior sub-rows
-            for (int c = 8; c <= 11; c++) {
-                String cl = colLetter(c);
-                StringBuilder formula = new StringBuilder();
-                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
-                    if (i > 0) formula.append("+");
-                    formula.append(colLetter(c - 6)).append(batchHeaderExcelRows.get(i) + 1); // prior sub-row is +1
-                }
-                Cell cell = totalsRow.createCell(c);
-                cell.setCellFormula(formula.toString());
-                cell.setCellStyle(styles.boldCurrency);
-            }
-
-            // This Period totals (cols 14-17): sum current sub-rows
-            for (int c = 14; c <= 17; c++) {
-                String cl = colLetter(c);
-                StringBuilder formula = new StringBuilder();
-                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
-                    if (i > 0) formula.append("+");
-                    formula.append(colLetter(c - 12)).append(batchHeaderExcelRows.get(i) + 2); // current sub-row is +2
-                }
-                Cell cell = totalsRow.createCell(c);
-                cell.setCellFormula(formula.toString());
-                cell.setCellStyle(styles.boldCurrency);
-            }
-
-            // Future totals (cols 20-23): sum future sub-rows
-            for (int c = 20; c <= 23; c++) {
-                String cl = colLetter(c);
-                StringBuilder formula = new StringBuilder();
-                for (int i = 0; i < batchHeaderExcelRows.size(); i++) {
-                    if (i > 0) formula.append("+");
-                    formula.append(colLetter(c - 18)).append(batchHeaderExcelRows.get(i) + 3); // future sub-row is +3
-                }
-                Cell cell = totalsRow.createCell(c);
-                cell.setCellFormula(formula.toString());
-                cell.setCellStyle(styles.boldCurrency);
-            }
-        }
-
-        // RECONCILIATION COMPARISON — add "Allocated" and "Difference" rows under the PERIOD SUMMARY
-        // These reference the OWNER PAYMENTS TOTALS "This Period" columns (O/P/Q/R = 14/15/16/17)
-        int totalsExcelRowRef = totalsRowNum + 1; // 1-based
-        Row allocatedRow = sheet.createRow(rowNum++);
-        allocatedRow.createCell(0).setCellValue("Allocated (Paid):");
-        // This Period income from TOTALS = col O (14)
-        Cell arRent = allocatedRow.createCell(1);
-        arRent.setCellFormula(String.format("%s%d", colLetter(14), totalsExcelRowRef));
-        arRent.setCellStyle(styles.currency);
-        Cell arComm = allocatedRow.createCell(2);
-        arComm.setCellFormula(String.format("%s%d", colLetter(15), totalsExcelRowRef));
-        arComm.setCellStyle(styles.currency);
-        Cell arExp = allocatedRow.createCell(3);
-        arExp.setCellFormula(String.format("%s%d", colLetter(16), totalsExcelRowRef));
-        arExp.setCellStyle(styles.currency);
-        Cell arNet = allocatedRow.createCell(4);
-        arNet.setCellFormula(String.format("%s%d", colLetter(17), totalsExcelRowRef));
-        arNet.setCellStyle(styles.boldCurrency);
-
-        // Difference row: Period Table - Allocated
-        int allocatedExcelRow = rowNum; // current row (0-based) + 1 = rowNum
-        Row diffRow = sheet.createRow(rowNum++);
-        diffRow.createCell(0).setCellValue("Difference:");
-        diffRow.getCell(0).setCellStyle(styles.bold);
-        for (int c = 1; c <= 4; c++) {
-            String cl = colLetter(c);
-            // Find the Period Table row — it was written as psValRow earlier
-            // psValRow is at a variable position. We need to find it.
-            // Actually, let's reference the PERIOD TOTAL row directly and the allocated row
-            Cell diffCell = diffRow.createCell(c);
-            // Period Table value is the row above "Allocated" minus 2 (psValRow)
-            // This is fragile. Better: reference the period table totals row directly
-            String periodRef;
-            if (c == 1) periodRef = colLetter(COL_TOTAL_RENT);
-            else if (c == 2) periodRef = colLetter(COL_TOTAL_COMM);
-            else if (c == 3) periodRef = colLetter(COL_TOTAL_EXPENSES);
-            else periodRef = colLetter(COL_NET_TO_OWNER);
-            diffCell.setCellFormula(String.format("%s%d-%s%d", periodRef, periodTotalExcelRow, cl, allocatedExcelRow));
-            diffCell.setCellStyle(styles.boldCurrency);
-        }
-
-        rowNum++; // blank
 
         return rowNum;
     }
