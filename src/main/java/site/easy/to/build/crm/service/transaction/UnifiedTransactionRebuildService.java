@@ -332,8 +332,19 @@ public class UnifiedTransactionRebuildService {
             -- Join to blocks and block property for PROPERTY_ACCOUNT_ALLOCATION linkage
             LEFT JOIN blocks b ON p.block_id = b.id
             LEFT JOIN properties bp ON b.block_property_id = bp.id
+            -- For BATCH_PAYMENT: only include records that exist in payprop_report_all_payments
+            -- Orphaned BATCH_PAYMENT records (e.g. failed/cancelled payments) create duplicates
+            LEFT JOIN payprop_report_all_payments prap
+              ON ft.pay_prop_transaction_id = prap.payprop_id AND ft.data_source = 'BATCH_PAYMENT'
             WHERE (ft.invoice_id IS NOT NULL OR ft.data_source IN ('INCOMING_PAYMENT', 'EXPENSE_PAYMENT'))
-              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
+              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL',
+                                         'COMMISSION_PAYMENT')
+              -- Exclude orphaned BATCH_PAYMENT records not in payprop_report
+              AND (ft.data_source != 'BATCH_PAYMENT' OR prap.payprop_id IS NOT NULL)
+              -- COMMISSION_PAYMENT duplicates the commission already embedded in BATCH_PAYMENT OWNER records.
+              -- ICDN_ACTUAL duplicates billing events that appear as BATCH_PAYMENT.
+              -- INCOMING_PAYMENT is kept: it's the sole source of tenant rent receipts.
+              -- BATCH_PAYMENT is the authoritative source for outgoing payments (owner/expense/disbursement).
         """;
 
         return jdbcTemplate.update(sql, batchId);
@@ -1284,7 +1295,8 @@ public class UnifiedTransactionRebuildService {
             LEFT JOIN properties p ON ft.property_id = p.payprop_id
             LEFT JOIN invoices i ON ft.invoice_id = i.id
             WHERE (ft.invoice_id IS NOT NULL OR ft.data_source IN ('INCOMING_PAYMENT', 'EXPENSE_PAYMENT'))
-              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL')
+              AND ft.data_source NOT IN ('HISTORICAL_IMPORT', 'HISTORICAL_CSV', 'ICDN_ACTUAL',
+                                         'COMMISSION_PAYMENT')
               AND ft.updated_at > ?
         """;
 
