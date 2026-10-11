@@ -36,9 +36,9 @@ build/
 NUL
 *.class
 *.csv
-*.jar
-*.js
-*.py
+/*.jar
+/*.js
+/*.py
 EXTRACTION_REPORT.txt
 IMPORT_REPORT.txt
 ImportEnhancedTransactions.java
@@ -68,3 +68,17 @@ Previous issues.txt
 render_deploy_*.txt
 latestlog.txt
 *.log
+
+### Client data and working dumps - never commit (added 11 Oct 2026) ###
+/*.csv
+/*.xlsx
+/*.xls
+/*.pdf
+/*.txt
+/*.ps1
+/*.cmd
+/*.bat
+statement_*.xlsx
+Monthly Statement Corrected*/
+src/main/resources/static/*.ps1
+.claude/settings.local.json

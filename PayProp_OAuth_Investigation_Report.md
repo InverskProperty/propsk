@@ -30,7 +30,7 @@ POST /api/oauth/access_token HTTP/1.1
 Host: uk.payprop.com
 Content-Type: application/x-www-form-urlencoded
 
-code=43423d76123a1124f2&client_id=YourAppClientID&client_secret=YourAppClientSecret& \
+code=43423d76123a1124f2&client_id=YourAppClientID&client_secret=[REDACTED]& \
 redirect_uri=https%3A%2F%2Fyourapp.com%2Fcallback&grant_type=authorization_code
 ```
 
@@ -54,7 +54,7 @@ client_id=YourAppClientID&refresh_token=MTQyNjUxOTM0MC01OTA3&grant_type=refresh_
 **Production:**
 ```
 PAYPROP_CLIENT_ID=Propsk
-PAYPROP_CLIENT_SECRET=rphobpAUw1jgXI52
+PAYPROP_CLIENT_SECRET=[REDACTED]
 PAYPROP_AUTH_URL=https://uk.payprop.com/api/oauth/authorize
 PAYPROP_TOKEN_URL=https://uk.payprop.com/api/oauth/access_token
 PAYPROP_REDIRECT_URI=https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
@@ -64,7 +64,7 @@ PAYPROP_SCOPES=
 **Staging:**
 ```
 PAYPROP_CLIENT_ID=Propsk
-PAYPROP_CLIENT_SECRET=L7GJfqHWduV9IdU7
+PAYPROP_CLIENT_SECRET=[REDACTED]
 PAYPROP_AUTH_URL=https://ukapi.staging.payprop.com/oauth/authorize
 PAYPROP_TOKEN_URL=https://ukapi.staging.payprop.com/oauth/access_tok
 PAYPROP_REDIRECT_URI=https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
@@ -274,7 +274,7 @@ public PayPropTokens refreshToken() throws Exception {
 
 **Credentials:**
 - Client ID: `Propsk`
-- Client Secret: `rphobpAUw1jgXI52` (16 characters, obtained fresh from PayProp 2025-09-10)
+- Client Secret: `[REDACTED]` (16 characters, obtained fresh from PayProp 2025-09-10)
 
 **Result**: ❌ **FAILED**
 ```json
@@ -288,7 +288,7 @@ curl -X POST "https://uk.payprop.com/api/oauth/access_token" \
   -d "grant_type=authorization_code" \
   -d "code=MTc1NzUxMDI4MS0xNTEx..." \
   -d "client_id=Propsk" \
-  -d "client_secret=rphobpAUw1jgXI52" \
+  -d "client_secret=[REDACTED]" \
   -d "redirect_uri=https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback" \
   -v
 ```
@@ -301,8 +301,8 @@ curl -X POST "https://uk.payprop.com/api/oauth/access_token" \
    API Base URL: https://uk.payprop.com/api/agency/v1.1
    Authorization Code: MTc1NzUxMDI4MS0xNTEx...
    Client ID: Propsk
-   Client Secret: rphobpAU...
-   Client Secret FULL: rphobpAUw1jgXI52
+   Client Secret: [REDACTED]...
+   Client Secret FULL: [REDACTED]
    Redirect URI: https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
 
 🔍 TOKEN REQUEST BODY:
@@ -311,7 +311,7 @@ curl -X POST "https://uk.payprop.com/api/oauth/access_token" \
    client_id: Propsk
    client_secret: rpho...
    client_secret_length: 16
-   client_secret_full: rphobpAUw1jgXI52
+   client_secret_full: [REDACTED]
    redirect_uri: https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
    redirect_uri_matches_config: true
 ```
@@ -323,7 +323,7 @@ curl -X POST "https://uk.payprop.com/api/oauth/access_token" \
 
 **Credentials:**
 - Client ID: `Propsk`
-- Client Secret: `rphobpAUw1jgXI52` (same production secret)
+- Client Secret: `[REDACTED]` (same production secret)
 
 **Result**: ❌ **FAILED - 404 ERROR**
 ```html
@@ -342,7 +342,7 @@ The correct production URL is confirmed as `https://uk.payprop.com/api/oauth/acc
 
 **Credentials:**
 - Client ID: `Propsk`
-- Client Secret: `rphobpAUw1jgXI52` (same production secret)
+- Client Secret: `[REDACTED]` (same production secret)
 - Scopes: `"read:export:beneficiaries read:export:tenants read:export:properties"` (explicit scopes like staging)
 
 **Result**: ❌ **FAILED - SAME ERROR**
@@ -367,8 +367,8 @@ The correct production URL is confirmed as `https://uk.payprop.com/api/oauth/acc
    API Base URL: https://uk.payprop.com/api/agency/v1.1
    Authorization Code: MTc1NzUxNTUwMy04Mjcz...
    Client ID: Propsk
-   Client Secret: rphobpAU...
-   Client Secret FULL: rphobpAUw1jgXI52
+   Client Secret: [REDACTED]...
+   Client Secret FULL: [REDACTED]
    Redirect URI: https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
 
 🔍 TOKEN REQUEST BODY:
@@ -377,7 +377,7 @@ The correct production URL is confirmed as `https://uk.payprop.com/api/oauth/acc
    client_id: Propsk
    client_secret: rpho...
    client_secret_length: 16
-   client_secret_full: rphobpAUw1jgXI52
+   client_secret_full: [REDACTED]
    redirect_uri: https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
    redirect_uri_matches_config: true
 
@@ -397,7 +397,7 @@ The correct production URL is confirmed as `https://uk.payprop.com/api/oauth/acc
 
 **Credentials:**
 - Client ID: `Propsk`
-- Client Secret: `L7GJfqHWduV9IdU7` (16 characters, staging credentials)
+- Client Secret: `[REDACTED]` (16 characters, staging credentials)
 
 **Result**: ✅ **SUCCESS**
 ```json
@@ -417,7 +417,7 @@ curl -X POST "https://ukapi.staging.payprop.com/api/oauth/access_token" \
   -d "grant_type=authorization_code" \
   -d "code=MTc1NzUxMjM0Ny05OTY5..." \
   -d "client_id=Propsk" \
-  -d "client_secret=L7GJfqHWduV9IdU7" \
+  -d "client_secret=[REDACTED]" \
   -d "redirect_uri=https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback" \
   -v
 ```
@@ -430,17 +430,17 @@ curl -X POST "https://ukapi.staging.payprop.com/api/oauth/access_token" \
    API Base URL: https://ukapi.staging.payprop.com/api/agency/v1.1
    Authorization Code: MTc1NzUxMjM0Ny05OTY5...
    Client ID: Propsk
-   Client Secret: L7GJfqHW...
-   Client Secret FULL: L7GJfqHWduV9IdU7
+   Client Secret: [REDACTED]...
+   Client Secret FULL: [REDACTED]
    Redirect URI: https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
 
 🔍 TOKEN REQUEST BODY:
    grant_type: authorization_code
    code: MTc1NzUxMj...
    client_id: Propsk
-   client_secret: L7GJ...
+   client_secret: [REDACTED]...
    client_secret_length: 16
-   client_secret_full: L7GJfqHWduV9IdU7
+   client_secret_full: [REDACTED]
    redirect_uri: https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
    redirect_uri_matches_config: true
 
@@ -518,7 +518,7 @@ curl -X POST "https://ukapi.staging.payprop.com/api/oauth/access_token" \
 |--------|------------|---------|
 | Auth URL | `https://uk.payprop.com/api/oauth/authorize` | `https://ukapi.staging.payprop.com/oauth/authorize` |
 | Token URL | `https://uk.payprop.com/api/oauth/access_token` | `https://ukapi.staging.payprop.com/oauth/access_tok` |
-| Client Secret | `rphobpAUw1jgXI52` | `L7GJfqHWduV9IdU7` |
+| Client Secret | `[REDACTED]` | `[REDACTED]` |
 | Scopes | Empty (default all) | Specific scopes defined |
 | URL Path | `/api/oauth/` | `/oauth/` |
 | URL Structure Validation | ✅ Both `/api/oauth/` paths exist | ✅ Both `/oauth/` paths exist |
@@ -546,7 +546,7 @@ Subject: Client Secret Mismatch - OAuth Application "Propsk" Production Environm
 Client ID: Propsk
 Environment: Production (uk.payprop.com)
 Error: "client_secret mismatch"
-Client Secret: rphobpAUw1jgXI52 (obtained fresh from secret link 2025-09-10)
+Client Secret: [REDACTED] (obtained fresh from secret link 2025-09-10)
 Redirect URI: https://spoutproperty-hub.onrender.com/api/payprop/oauth/callback
 
 Our request matches your documentation exactly, and identical code works in staging.

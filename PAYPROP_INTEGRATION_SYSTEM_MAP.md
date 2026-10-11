@@ -674,7 +674,7 @@ payprop.api.key=dummy_api_key_12345
 
 # PayProp OAuth2
 payprop.oauth2.client-id=Propsk
-payprop.oauth2.client-secret=L7GJfqHWduV9IdU7
+payprop.oauth2.client-secret=[REDACTED]
 payprop.oauth2.authorization-url=https://ukapi.staging.payprop.com/oauth/authorize
 payprop.oauth2.token-url=https://ukapi.staging.payprop.com/oauth/access_token
 payprop.oauth2.redirect-uri=http://localhost:8080/api/payprop/oauth/callback
